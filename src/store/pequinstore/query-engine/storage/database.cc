@@ -56,7 +56,7 @@ void Database::AddTable(storage::DataTable *table, bool is_catalog) {
 storage::DataTable *Database::GetTableWithOid(const oid_t table_oid) const {
   std::cerr << "Lookup for id " << table_oid << std::endl;
   for (auto *table : tables) {
-    std::cerr << "Table oid is " << table->GetOid() << ". Table name is " << table->GetName() << std::endl;
+    //std::cerr << "Table oid is " << table->GetOid() << ". Table name is " << table->GetName() << std::endl;
     if (table->GetOid() == table_oid) {
       return table;
     }

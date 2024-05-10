@@ -260,6 +260,12 @@ void GetToIndexScan::Transform(
   UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PELOTON_ASSERT(children.size() == 0);
 
+
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+
   // std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
     //std::cerr << "input: " << input->GetInfo() << std::endl;
 
@@ -392,7 +398,7 @@ void GetToIndexScan::Transform(
       //Trying to design a simple heuristic to favor primary vs secondary index.
 
       bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
-      std::cerr << "Table: " << get->table->GetTableName() << ". Compute weight for index type: " << is_primary_index << std::endl;
+      std::clog << "Table: " << get->table->GetTableName() << ". Compute weight for index type: " << is_primary_index << std::endl;
       // for(auto &col: index_col_set){
       //   std::cerr << "col: " << col << std::endl;
       // }
@@ -425,7 +431,7 @@ void GetToIndexScan::Transform(
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
      
-      std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
+     // std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
 
       
       if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
@@ -472,6 +478,12 @@ void GetToIndexScan::Transform(
       }*/
     }
   }
+
+   struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  auto duration = microseconds_end - microseconds_start;
+  Warning("Transform Latency: %dus", duration);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

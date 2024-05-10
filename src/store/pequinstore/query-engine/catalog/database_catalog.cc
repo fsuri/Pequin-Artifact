@@ -27,10 +27,8 @@ namespace catalog {
 
 DatabaseCatalogEntry::DatabaseCatalogEntry(concurrency::TransactionContext *txn,
                                            executor::LogicalTile *tile)
-    : database_oid_(tile->GetValue(0, DatabaseCatalog::ColumnId::DATABASE_OID)
-                       .GetAs<oid_t>()),
-      database_name_(tile->GetValue(0, DatabaseCatalog::ColumnId::DATABASE_NAME)
-                        .ToString()),
+    : database_oid_(tile->GetValue(0, DatabaseCatalog::ColumnId::DATABASE_OID).GetAs<oid_t>()),
+      database_name_(tile->GetValue(0, DatabaseCatalog::ColumnId::DATABASE_NAME).ToString()),
       table_catalog_entries_cache_(),
       table_catalog_entries_cache_by_name(),
       valid_table_catalog_entries(false),
@@ -43,20 +41,22 @@ DatabaseCatalogEntry::DatabaseCatalogEntry(concurrency::TransactionContext *txn,
 bool DatabaseCatalogEntry::InsertTableCatalogEntry(
     std::shared_ptr<TableCatalogEntry> table_catalog_entry) {
   if (!table_catalog_entry || table_catalog_entry->GetTableOid() == INVALID_OID) {
+    Panic("invalid");
     return false;  // invalid object
   }
 
+  //TODO: Why are multiple threads concurrently adding the same. Isn't this per TX context??
   // check if already in cache
-  if (table_catalog_entries_cache_.find(table_catalog_entry->GetTableOid()) !=
-      table_catalog_entries_cache_.end()) {
+  if (table_catalog_entries_cache_.find(table_catalog_entry->GetTableOid()) != table_catalog_entries_cache_.end()) {
     LOG_DEBUG("Table %u already exists in cache!", table_catalog_entry->GetTableOid());
+     Panic("oid already in cache");
     return false;
   }
 
   std::string key = table_catalog_entry->GetSchemaName() + "." + table_catalog_entry->GetTableName();
   if (table_catalog_entries_cache_by_name.find(key) != table_catalog_entries_cache_by_name.end()) {
-    LOG_DEBUG("Table %s already exists in cache!",
-              table_catalog_entry->GetTableName().c_str());
+    LOG_DEBUG("Table %s already exists in cache!", table_catalog_entry->GetTableName().c_str());
+     Panic("name already in cache");
     return false;
   }
 
@@ -128,9 +128,7 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     return nullptr;
   } else {
     // cache miss get from pg_table
-    auto pg_table = Catalog::GetInstance()
-                        ->GetSystemCatalogs(database_oid_)
-                        ->GetTableCatalog();
+    auto pg_table = Catalog::GetInstance()->GetSystemCatalogs(database_oid_)->GetTableCatalog();
     return pg_table->GetTableCatalogEntry(txn_, table_oid);
   }
 }
@@ -145,12 +143,21 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
 std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     const std::string &table_name, const std::string &schema_name,
     bool cached_only) {
+
+  struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t microseconds_start0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
     
     //FIXME: NOT FINDING ANYTHING IN CACHE?
   std::string key = schema_name + "." + table_name;
-  auto it = table_catalog_entries_cache_by_name.find(key);
+  auto it = table_catalog_entries_cache_by_name.find(key);  //TODO: IS this by Txn Context only? Try to generalize it.
   if (it != table_catalog_entries_cache_by_name.end()) {
-    std::cerr << "CACHE HIT TABLE" << std::endl;
+    //std::cerr << "CACHE HIT TABLE\n";
+
+     clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    uint64_t microseconds_end0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+     Warning("CACHE HIT: %d us", microseconds_end0 - microseconds_start0);
     return it->second;
   }
 
@@ -158,11 +165,16 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     // cache miss return empty object
     return nullptr;
   } else {
-     std::cerr << "CACHE MISS TABLE" << std::endl;
+     //std::cerr << "CACHE MISS TABLE\n";
     // cache miss get from pg_table
-    auto pg_table = Catalog::GetInstance()
-                        ->GetSystemCatalogs(database_oid_)
-                        ->GetTableCatalog();
+    
+
+    auto pg_table = Catalog::GetInstance()->GetSystemCatalogs(database_oid_)->GetTableCatalog(); //TODO: Look into this.
+    
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    Warning("PG_TABLE LAT: %d us", microseconds_end - microseconds_start0);
+    
     return pg_table->GetTableCatalogEntry(txn_, schema_name, table_name);
   }
 }
@@ -330,6 +342,14 @@ bool DatabaseCatalog::DeleteDatabase(concurrency::TransactionContext *txn, oid_t
   return DeleteWithIndexScan(txn, index_offset, values);
 }
 
+//////
+static std::map<oid_t, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache2;
+static std::map<std::string, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache;
+static std::mutex cache_m;
+static std::mutex cache_m2;
+
+////////
+
 std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
     concurrency::TransactionContext *txn,
     oid_t database_oid) {
@@ -340,22 +360,35 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_oid);
   if (database_object) return database_object;
 
+     //Test code: //TODO: Turn off if during loading. (also don't add to cache)
+               //If it works, also add rw mutex for concurrency..
+  
+    std::cerr << "Skip cache2: " << txn->skip_cache << std::endl;
+  auto itr = testCache2.find(database_oid);
+  if(!txn->skip_cache && itr != testCache2.end()){
+    std::cerr << "using cache2" << std::endl;
+    auto database_object = itr->second;
+    bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
+     PELOTON_ASSERT(success == true);
+      (void)success;
+    return database_object;
+  }
+
   // cache miss, get from pg_database
   std::vector<oid_t> column_ids(all_column_ids_);
   oid_t index_offset = IndexId::PRIMARY_KEY;  // Index of database_oid
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetIntegerValue(database_oid).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
-                             column_ids,
-                             index_offset,
-                             values);
+  auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
   if (result_tiles->size() == 1 && (*result_tiles)[0]->GetTupleCount() == 1) {
-    auto database_object =
-        std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get());
+    auto database_object = std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get());
     // insert into cache
+    cache_m2.lock();
+    testCache2[database_oid] = database_object;
+    cache_m2.unlock();
+
     bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
     PELOTON_ASSERT(success == true);
     (void)success;
@@ -368,6 +401,9 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   // return empty object if not found
   return nullptr;
 }
+
+
+
 
 /* @brief   First try get cached object from transaction cache. If cache miss,
  *          construct database object from pg_database, and insert into the
@@ -387,10 +423,26 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
  
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_name);
   if (database_object){
-    std::cerr << "CACHE HIT DB" << std::endl;
+    std::cerr << "CACHE HIT DB\n";
     return database_object;
   } 
-  std::cerr << "CACHE MISS DB" << std::endl;
+  std::cerr << "CACHE MISS DB\n";
+
+   //Test code: //TODO: Turn off if during loading. (also don't add to cache)
+               //If it works, also add rw mutex for concurrency..
+  
+    std::cerr << "Skip cache: " << txn->skip_cache << std::endl;
+  auto itr = testCache.find(database_name);
+  if(!txn->skip_cache && itr != testCache.end()){
+    std::cerr << "using cache" << std::endl;
+    auto database_object = itr->second;
+    bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
+     PELOTON_ASSERT(success == true);
+      (void)success;
+    return database_object;
+  }
+
+  //END Test code
 
   // cache miss, get from pg_database
   std::vector<oid_t> column_ids(all_column_ids_);
@@ -398,20 +450,45 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetVarcharValue(database_name, nullptr).Copy());
 
+      struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+  std::cerr << "database_name: " << database_name << std::endl;
+   std::cerr << "index_offset: " << index_offset << std::endl;
+  for(auto &col: column_ids){
+    std::cerr << "col_id: " << col << std::endl;
+  }
+
   auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
+
+   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    Warning("DB Catalog get: %d us", microseconds_end-microseconds_start);
 
   if (result_tiles->size() == 1 && (*result_tiles)[0]->GetTupleCount() == 1) {
     auto database_object = std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get()); //FIXME: what Txn to pick here? pick a random txn?
     if (database_object) {
       // insert into cache
+      if(!txn->skip_cache){
+        cache_m.lock();
+        std::cerr << "adding to cache" << std::endl;
+        testCache[database_name] = database_object;    //TODO: Currently the database object is associated with a single txn context. => need to remove or change it?
+        cache_m.unlock();
+      }
       bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
       //bool success = catalog_cache_.InsertDatabaseObject(database_object); //FIXME: doesn't work
       PELOTON_ASSERT(success == true);
       (void)success;
     }
+
+     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    Warning("DB Catalog cache: %d us", microseconds_end2-microseconds_end);
     return database_object;
   }
 
+  Panic("should always find DB");
   // return empty object if not found
   return nullptr;
 }

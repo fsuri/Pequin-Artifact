@@ -299,7 +299,7 @@ public:
   std::shared_ptr<Statement>
   PrepareStatement(const std::string &statement_name,
                    const std::string &query_string,
-                   std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
+                   std::unique_ptr<parser::SQLStatementList> sql_stmt_list, bool skip_cache = false,
                    size_t thread_id = 0);
 
   bool BindParamsForCachePlan(

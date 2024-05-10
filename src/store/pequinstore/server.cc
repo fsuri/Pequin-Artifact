@@ -318,7 +318,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   // }
   //  std::cerr << "duration: " << duration2 << std::endl;
   // Panic("stop time test");
-
+  std::cerr.sync_with_stdio(true);
 }
 
 Server::~Server() {

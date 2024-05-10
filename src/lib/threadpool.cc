@@ -104,6 +104,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
     
+    //end=2;
     fprintf(stderr, "Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start; i < end; i++) {
       std::thread *t;

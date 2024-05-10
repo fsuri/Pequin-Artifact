@@ -155,7 +155,7 @@ void PelotonTableStore::Init(int num_threads) {
 
 ////////////////  Helper Functions //////////////////////////
 std::shared_ptr<peloton::Statement>
-PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop) {
+PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop, bool skip_cache) {
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   struct timespec ts_start;
@@ -175,7 +175,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
     Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
   }
   Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
-  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list));
+  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list), skip_cache);
   if (statement.get() == nullptr) {
     tcop->setRowsAffected(0);
     Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
@@ -307,7 +307,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
 
   // prepareStatement
   std::cerr << "Before parse and prepare" << std::endl;
-  auto statement = ParseAndPrepare(sql_statement, tcop);
+  auto statement = ParseAndPrepare(sql_statement, tcop, true);
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -394,7 +394,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   Debug("Load statement: %s", load_statement.substr(0, 1000).c_str());
   
   // prepareStatement
-  auto statement = ParseAndPrepare(load_statement, tcop);
+  auto statement = ParseAndPrepare(load_statement, tcop, true);
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;

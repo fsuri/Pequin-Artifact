@@ -476,6 +476,7 @@ public:
 
   /** cache for table catalog objects */
   catalog::CatalogCache catalog_cache;
+  bool skip_cache = false;
 
 private:
   //===--------------------------------------------------------------------===//

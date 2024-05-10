@@ -1442,27 +1442,49 @@ Catalog::GetDatabaseCatalogEntry(concurrency::TransactionContext *txn,
 std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     concurrency::TransactionContext *txn, const std::string &database_name,
     const std::string &schema_name, const std::string &table_name) {
+
+  struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t microseconds_start0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
   if (txn == nullptr) {
     throw CatalogException("Do not have transaction to get table object " + database_name + "." + table_name);
   }
 
   LOG_TRACE("Looking for table %s in database %s", table_name.c_str(), database_name.c_str());
 
-  fprintf(stderr, "Looking for database %s\n", database_name.c_str());
+  // fprintf(stderr, "Looking for database %s\n", database_name.c_str());
   //FIXME: This does a secondary index scan on pg_database
 
   // Check in pg_database, throw exception and abort txn if not exists
   auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_name);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
+    Panic("should never happen");
     throw CatalogException("Database " + database_name + " is not found");
   }
 
-  fprintf(stderr, "Looking for table %s in database %s\n", table_name.c_str(), database_name.c_str());
-   //FIXME: This does a secondary index scan on pg_table
+  // fprintf(stderr, "Looking for table %s in database %s\n", table_name.c_str(), database_name.c_str());
+  //  //FIXME: This does a secondary index scan on pg_table
   
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t microseconds_start = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  auto duration0 = microseconds_start - microseconds_start0;
+   Warning("DatabaseRead Latency: %dus", duration0);
+   //if(duration0 > 600) Panic("slow DB Catalog scan");
+
+ 
+
   // Check in pg_table using txn
   auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
+
+  
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  auto duration = microseconds_end - microseconds_start;
+  Warning("TableRead Latency: %dus", duration);
+  //if(duration > 600) Panic("slow Table Catalog scan");
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
     // throw table not found exception and explicitly abort txn
@@ -1507,8 +1529,7 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
 std::shared_ptr<SystemCatalogs>
 Catalog::GetSystemCatalogs(const oid_t database_oid) {
   if (catalog_map_.find(database_oid) == catalog_map_.end()) {
-    throw CatalogException("Failed to find SystemCatalog for database_oid = " +
-                           std::to_string(database_oid));
+    throw CatalogException("Failed to find SystemCatalog for database_oid = " + std::to_string(database_oid));
   }
   return catalog_map_[database_oid];
 }

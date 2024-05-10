@@ -56,9 +56,9 @@ void BinderContext::AddRegularTable(const std::string &db_name,
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
    auto duration2 = microseconds_end2 - microseconds_start2;
-  if(duration2 > 50){
-    Warning("GetTablecatalogEntry exceeded 50us: %d", duration2);
-  }
+  // if(duration2 > 2000){
+  //   Panic("GetTablecatalogEntry exceeded 2ms: %d", duration2);
+  // }
 
   if (regular_table_alias_map_.find(table_alias) != regular_table_alias_map_.end() || nested_table_alias_map_.find(table_alias) != nested_table_alias_map_.end()) {
     Panic("duplicate");

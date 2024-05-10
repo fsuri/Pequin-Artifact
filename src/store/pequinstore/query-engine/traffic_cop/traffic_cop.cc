@@ -197,6 +197,9 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     Debug("Completed Task Callback Execute helper");
   };
 
+  std::cerr << "Setting skip cache in execute helper" << std::endl;
+  txn->skip_cache = true; //For Table Loading skip cache..
+  
   // auto &pool = threadpool::MonoQueuePool::GetInstance();
   // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
   //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
@@ -1044,7 +1047,7 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
  */
 std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     const std::string &stmt_name, const std::string &query_string,
-    std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
+    std::unique_ptr<parser::SQLStatementList> sql_stmt_list, bool skip_cache,
     const size_t thread_id UNUSED_ATTRIBUTE) {
   LOG_TRACE("Prepare Statement query: %s", query_string.c_str());
 
@@ -1091,10 +1094,13 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       Debug("Single statement TXN. All queries should be this (since we don't use TX semantics inside Peloton)");
     }
     auto txn = txn_manager.BeginTransaction(thread_id);
+
     // this shouldn't happen
     if (txn == nullptr) {
       LOG_TRACE("Begin txn failed");
     }
+    if(skip_cache) txn->skip_cache = true;
+    
     // initialize the current result as success
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
@@ -1103,11 +1109,13 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     tcop_txn_state_.top().first->AddQueryString(query_string.c_str());
   }
 
+
   // TODO(Tianyi) Move Statement Planing into Statement's method to increase coherence
   try {
     // Run binder 
     auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
     bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
+    std::cerr << "finished binding; try to optimize next" << std::endl;
     auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
     statement->SetPlanTree(plan);
     // Get the tables that our plan references so that we know how to

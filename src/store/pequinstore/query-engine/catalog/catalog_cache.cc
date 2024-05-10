@@ -33,21 +33,17 @@ bool CatalogCache::InsertDatabaseObject(
   // check if already in cache
   if (database_objects_cache_.find(database_object->GetDatabaseOid()) !=
       database_objects_cache_.end()) {
-    LOG_DEBUG("Database %u already exists in cache!",
-              database_object->GetDatabaseOid());
+    LOG_DEBUG("Database %u already exists in cache!", database_object->GetDatabaseOid());
     return false;
   }
   if (database_name_cache_.find(database_object->GetDatabaseName()) !=
       database_name_cache_.end()) {
-    LOG_DEBUG("Database %s already exists in cache!",
-              database_object->GetDatabaseName().c_str());
+    LOG_DEBUG("Database %s already exists in cache!", database_object->GetDatabaseName().c_str());
     return false;
   }
 
-  database_objects_cache_.insert(
-      std::make_pair(database_object->GetDatabaseOid(), database_object));
-  database_name_cache_.insert(
-      std::make_pair(database_object->GetDatabaseName(), database_object));
+  database_objects_cache_.insert(std::make_pair(database_object->GetDatabaseOid(), database_object));
+  database_name_cache_.insert(std::make_pair(database_object->GetDatabaseName(), database_object));
   return true;
 }
 

@@ -154,9 +154,22 @@ bool IndexScanExecutor::DExecute() {
     //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     if(is_metadata_table_){
        Debug("Doing a META DATA secondary index scan");
-      std::cerr << "Doing a secondary index scan for table " << table_->GetName() << std::endl;
+      std::cerr << "Doing a secondary index scan for meta data table " << table_->GetName() << std::endl;
       //auto status = ExecSecondaryIndexLookup_OLD();
+
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
       auto status = ExecSecondaryIndexLookup();
+
+       struct timespec ts_end;
+      clock_gettime(CLOCK_MONOTONIC, &ts_end);
+      uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+      auto duration = microseconds_end - microseconds_start;
+      Warning("IndexExecutor Latency: %dus", duration);
+
+
       if (status == false)
         return false;
     }

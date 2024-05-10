@@ -644,18 +644,19 @@ bool TableCatalog::DeleteTable(concurrency::TransactionContext *txn,
  * @return  table catalog object
  */
 std::shared_ptr<TableCatalogEntry>
-TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
-                                   oid_t table_oid) {
+TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn, oid_t table_oid) {
+
   if (txn == nullptr) {
     throw CatalogException("Transaction is invalid!");
   }
   // try get from cache
   auto table_object = txn->catalog_cache.GetCachedTableObject(database_oid_, table_oid);
   if (table_object) {
-     std::cerr << "HIT CACHE PG_TABLE" << std::endl;
+     std::cerr << "HIT CACHE PG_TABLE0" << std::endl;
     return table_object;
   }
-  std::cerr << "MISS CACHE PG_TABLE" << std::endl;
+  std::cerr << "MISS CACHE PG_TABLE0" << std::endl;
+  Warning("getting to TableCatalogEntry without a cache");
 
   // cache miss, get from pg_table
   std::vector<oid_t> column_ids(all_column_ids_);
@@ -670,6 +671,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
     // insert into cache
     auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid_);
     PELOTON_ASSERT(database_object);
+    std::cerr << "case3" << std::endl;
     bool success = database_object->InsertTableCatalogEntry(table_object);
     PELOTON_ASSERT(success == true);
     (void)success;
@@ -682,6 +684,9 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
   return nullptr;
 }
 
+
+static std::map<std::string, std::shared_ptr<peloton::catalog::TableCatalogEntry>> testCacheTable;
+static std::mutex cacheTable_m;
 /*@brief   read table catalog object from pg_table using table name + database
  * oid
  * @param   table_name
@@ -694,6 +699,15 @@ std::shared_ptr<TableCatalogEntry>
 TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
                                    const std::string &schema_name,
                                    const std::string &table_name) {
+
+
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+  std::cerr << "table_name: " << table_name << std::endl;
+  std::cerr << "schema_name: " << schema_name << std::endl;
+
   if (txn == nullptr) {
     throw CatalogException("Transaction is invalid!");
   }
@@ -701,32 +715,63 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_oid_);
   if (database_object) {
     auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name, true);
-    if (table_object)
+    if (table_object){
+      std::cerr << "HIT CACHE PG_TABLE2" << std::endl;
       return table_object;
+    }
+  }
+   std::cerr << "MISS CACHE PG_TABLE2" << std::endl;
+
+    //TODO: Need RW mutex while writing..
+     std::cerr << "Skip table cache: " << txn->skip_cache << std::endl;
+  auto itr = testCacheTable.find(table_name);
+  if(false && !txn->skip_cache && itr != testCacheTable.end()){
+    std::cerr << "using table cache" << std::endl;
+    auto table_object = itr->second;
+
+  //This next part of code is obsolete I believe.
+      auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid_);
+    PELOTON_ASSERT(database_object);
+    //std::cerr << "The table name for catalog get table catalog entry is " << table_name << std::endl;
+    Debug("GetCatalog for table name: %s", table_name.c_str());
+    std::cerr << "case4" << std::endl;
+    bool success = database_object->InsertTableCatalogEntry(table_object);
+    PELOTON_ASSERT(success == true);
+    (void)success;
+
+      
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    Warning("Table Read from Cache lat: %d", microseconds_end - microseconds_start);
+
+    return table_object;
   }
 
   // cache miss, get from pg_table
   std::vector<oid_t> column_ids(all_column_ids_);
   oid_t index_offset = IndexId::SKEY_TABLE_NAME; // Index of table_name
   std::vector<type::Value> values;
-  values.push_back(
-      type::ValueFactory::GetVarcharValue(table_name, nullptr).Copy());
-  values.push_back(
-      type::ValueFactory::GetVarcharValue(schema_name, nullptr).Copy());
+  values.push_back(type::ValueFactory::GetVarcharValue(table_name, nullptr).Copy());
+  values.push_back(type::ValueFactory::GetVarcharValue(schema_name, nullptr).Copy());
+  
+  std::cerr << "index_offset: " << index_offset << std::endl;
+  for(auto &col: column_ids){
+    std::cerr << "col_id: " << col << std::endl;
+  }
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn, column_ids, index_offset, values);
+  auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
   if (result_tiles->size() == 1 && (*result_tiles)[0]->GetTupleCount() == 1) {
-    auto table_object =
-        std::make_shared<TableCatalogEntry>(txn, (*result_tiles)[0].get());
+    auto table_object = std::make_shared<TableCatalogEntry>(txn, (*result_tiles)[0].get());
     // insert into cache
-    auto database_object =
-        DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-            ->GetDatabaseCatalogEntry(txn, database_oid_);
+    cacheTable_m.lock();
+    testCacheTable[table_name] = table_object;
+    cacheTable_m.unlock(); //TODO: replace with a lock guard that is held? 
+    auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid_);
     PELOTON_ASSERT(database_object);
     //std::cerr << "The table name for catalog get table catalog entry is " << table_name << std::endl;
     Debug("GetCatalog for table name: %s", table_name.c_str());
+    std::cerr << "case1" << std::endl;
     bool success = database_object->InsertTableCatalogEntry(table_object);
     PELOTON_ASSERT(success == true);
     (void)success;
@@ -752,8 +797,10 @@ TableCatalog::GetTableCatalogEntries(concurrency::TransactionContext *txn) {
                              ->GetDatabaseCatalogEntry(txn, database_oid_);
   PELOTON_ASSERT(database_object != nullptr);
   if (database_object->IsValidTableCatalogEntries()) {
+     std::cerr << "HIT CACHE PG_TABLE3" << std::endl;
     return database_object->GetTableCatalogEntries(true);
   }
+   std::cerr << "MISS CACHE PG_TABLE3" << std::endl;
 
   // cache miss, get from pg_table
   std::vector<oid_t> column_ids(all_column_ids_);
@@ -768,6 +815,8 @@ TableCatalog::GetTableCatalogEntries(concurrency::TransactionContext *txn) {
     for (auto tuple_id : *tile) {
       auto table_object =
           std::make_shared<TableCatalogEntry>(txn, tile.get(), tuple_id);
+
+      std::cerr << "case2" << std::endl;
       database_object->InsertTableCatalogEntry(table_object);
     }
   }

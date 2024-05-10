@@ -181,6 +181,10 @@ bool AbstractCatalog::DeleteWithIndexScan(concurrency::TransactionContext *txn,
   return status;
 }
 
+
+typedef std::vector<peloton::executor::LogicalTile> res_tiles_t;
+static std::map<std::string, res_tiles_t> indexScanCache;
+
 /*@brief   Index scan helper function
  * @param   column_offsets    Column ids for search (projection)
  * @param   index_offset      Offset of index for scan
@@ -194,38 +198,89 @@ AbstractCatalog::GetResultWithIndexScan(
     std::vector<oid_t> column_offsets,
     oid_t index_offset,
     std::vector<type::Value> values) const {
+
+
   if (txn == nullptr) throw CatalogException("Scan table requires transaction");
 
   // Index scan
-  std::unique_ptr<executor::ExecutorContext> context(
-      new executor::ExecutorContext(txn));
+
+  //TODO: Either in here, or one level before (database catalog) => cache the tiles.
+    // values.first == db name or table name. try to cache via it?
+    //If we do it one level higher, then need to cache in database_catalog and table_catalog respectively.
+
+ bool has_key = false;
+ std::string key;
+ try {
+    key = values.front().GetData();
+    std::cerr << "values first: " << key << std::endl;
+    has_key = true;
+ }
+ catch(...){
+    std::cerr << "values first FAIL" << std::endl;
+ }
+  
+
+   struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  std::unique_ptr<executor::ExecutorContext> context(new executor::ExecutorContext(txn));
 
   auto index = catalog_table_->GetIndex(index_offset);
-  std::vector<oid_t> key_column_offsets =
-      index->GetMetadata()->GetKeySchema()->GetIndexedColumns();
+  std::vector<oid_t> key_column_offsets = index->GetMetadata()->GetKeySchema()->GetIndexedColumns();
   PELOTON_ASSERT(values.size() == key_column_offsets.size());
-  std::vector<ExpressionType> expr_types(values.size(),
-                                         ExpressionType::COMPARE_EQUAL);
+  std::vector<ExpressionType> expr_types(values.size(),ExpressionType::COMPARE_EQUAL);
   std::vector<expression::AbstractExpression *> runtime_keys;
 
-  planner::IndexScanPlan::IndexScanDesc index_scan_desc(
-      index->GetOid(), key_column_offsets, expr_types, values, runtime_keys);
+  planner::IndexScanPlan::IndexScanDesc index_scan_desc(index->GetOid(), key_column_offsets, expr_types, values, runtime_keys);
 
-  planner::IndexScanPlan index_scan_node(catalog_table_, nullptr,
-                                         column_offsets, index_scan_desc);
+  planner::IndexScanPlan index_scan_node(catalog_table_, nullptr, column_offsets, index_scan_desc);
 
-  executor::IndexScanExecutor index_scan_executor(&index_scan_node,
-                                                  context.get());
+  executor::IndexScanExecutor index_scan_executor(&index_scan_node, context.get());
+
+          clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    auto duration = microseconds_end-microseconds_start;
+    Warning("IndexScan setup: %d", duration);
 
   // Execute
   index_scan_executor.Init();
-  std::unique_ptr<std::vector<std::unique_ptr<executor::LogicalTile>>>
-      result_tiles(new std::vector<std::unique_ptr<executor::LogicalTile>>());
+
+
+  std::unique_ptr<std::vector<std::unique_ptr<executor::LogicalTile>>> result_tiles(new std::vector<std::unique_ptr<executor::LogicalTile>>());
+
+   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end2= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    duration = microseconds_end2-microseconds_end;
+    Warning("IndexScan Init: %d", duration);
+
+     uint64_t microseconds_end3;
 
   while (index_scan_executor.Execute()) {
-    result_tiles->push_back(std::unique_ptr<executor::LogicalTile>(
-        index_scan_executor.GetOutput()));
+   
+     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+     microseconds_end3= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    duration = microseconds_end3-microseconds_end2;
+    Warning("IndexScan Exec: %d", duration);
+  
+    
+    result_tiles->push_back(std::unique_ptr<executor::LogicalTile>(index_scan_executor.GetOutput()));
+
+     
   }
+
+   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end4= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    duration = microseconds_end4-microseconds_end3;
+    Warning("IndexScan Result: %d", duration);
+
+//   if(has_key){
+//     //Copy all tiles into the cache
+//     auto res_tiles = indexScanCache[key];
+//     // auto const tiles = *result_tiles;
+//     for(auto &res_tile: *result_tiles){
+//         //res_tiles.push_back((*res_tile));
+//     }
+//   }
 
   return result_tiles;
 }
