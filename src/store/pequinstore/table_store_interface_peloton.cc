@@ -166,6 +166,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
 
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
+  Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
@@ -579,6 +580,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 
   // GetResult(status);
   GetResult(status, tcop, counter);
+  //Panic("stop test");
 
   std::vector<peloton::FieldInfo> tuple_descriptor;
   if (status == peloton::ResultType::SUCCESS) {

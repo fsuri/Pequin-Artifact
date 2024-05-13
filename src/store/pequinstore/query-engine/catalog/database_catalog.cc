@@ -49,14 +49,14 @@ bool DatabaseCatalogEntry::InsertTableCatalogEntry(
   // check if already in cache
   if (table_catalog_entries_cache_.find(table_catalog_entry->GetTableOid()) != table_catalog_entries_cache_.end()) {
     LOG_DEBUG("Table %u already exists in cache!", table_catalog_entry->GetTableOid());
-     Panic("oid already in cache");
+     //Panic("oid already in cache");
     return false;
   }
 
   std::string key = table_catalog_entry->GetSchemaName() + "." + table_catalog_entry->GetTableName();
   if (table_catalog_entries_cache_by_name.find(key) != table_catalog_entries_cache_by_name.end()) {
     LOG_DEBUG("Table %s already exists in cache!", table_catalog_entry->GetTableName().c_str());
-     Panic("name already in cache");
+     //Panic("name already in cache");
     return false;
   }
 
@@ -129,6 +129,7 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
   } else {
     // cache miss get from pg_table
     auto pg_table = Catalog::GetInstance()->GetSystemCatalogs(database_oid_)->GetTableCatalog();
+     std::cerr << "Using txn_ 4" << std::endl;
     return pg_table->GetTableCatalogEntry(txn_, table_oid);
   }
 }
@@ -175,6 +176,7 @@ std::shared_ptr<TableCatalogEntry> DatabaseCatalogEntry::GetTableCatalogEntry(
     uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     Warning("PG_TABLE LAT: %d us", microseconds_end - microseconds_start0);
     
+    std::cerr << "Using txn_ 1" << std::endl;
     return pg_table->GetTableCatalogEntry(txn_, schema_name, table_name);
   }
 }
@@ -192,6 +194,7 @@ DatabaseCatalogEntry::GetTableCatalogEntries(const std::string &schema_name) {
                         ->GetSystemCatalogs(database_oid_)
                         ->GetTableCatalog();
     // insert every table object into cache
+     std::cerr << "Using txn_ 2" << std::endl;
     pg_table->GetTableCatalogEntries(txn_);
   }
   // make sure to check IsValidTableObjects() before getting table objects
@@ -218,6 +221,7 @@ DatabaseCatalogEntry::GetTableCatalogEntries(bool cached_only) {
     auto pg_table = Catalog::GetInstance()
                         ->GetSystemCatalogs(database_oid_)
                         ->GetTableCatalog();
+    std::cerr << "Using txn_ 3" << std::endl;
     return pg_table->GetTableCatalogEntries(txn_);
   }
   // make sure to check IsValidTableObjects() before getting table objects
@@ -356,11 +360,16 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   if (txn == nullptr) {
     throw CatalogException("Transaction is invalid!");
   }
+
+
+
+
   // try get from cache
   auto database_object = txn->catalog_cache.GetDatabaseObject(database_oid);
   if (database_object) return database_object;
 
-     //Test code: //TODO: Turn off if during loading. (also don't add to cache)
+
+   //Test code: //TODO: Turn off if during loading. (also don't add to cache)
                //If it works, also add rw mutex for concurrency..
   
     std::cerr << "Skip cache2: " << txn->skip_cache << std::endl;
@@ -368,11 +377,20 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   if(!txn->skip_cache && itr != testCache2.end()){
     std::cerr << "using cache2" << std::endl;
     auto database_object = itr->second;
-    bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
+
+     DatabaseCatalogEntry database_object_copy = *database_object;
+    database_object_copy.txn_ = txn;
+    auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
+
+    bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
      PELOTON_ASSERT(success == true);
       (void)success;
-    return database_object;
+
+    return database_object_ptr;
+    //return database_object;
   }
+
+
 
   // cache miss, get from pg_database
   std::vector<oid_t> column_ids(all_column_ids_);
@@ -386,7 +404,9 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
     auto database_object = std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get());
     // insert into cache
     cache_m2.lock();
-    testCache2[database_oid] = database_object;
+    testCache2.insert(std::make_pair(database_oid, database_object));
+    //testCache2[database_oid] = database_object;
+     std::cerr << "adding to cache (via Oid): " << database_object->GetDatabaseName() << std::endl;
     cache_m2.unlock();
 
     bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
@@ -416,6 +436,7 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
     throw CatalogException("Transaction is invalid!");
   }
 
+
   //FIXME: SEEMINGLY ALWAYS MISSING CACHE? 
   //TODO: Make the cache global instead of per TX.
   // try get from cache
@@ -428,7 +449,7 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   } 
   std::cerr << "CACHE MISS DB\n";
 
-   //Test code: //TODO: Turn off if during loading. (also don't add to cache)
+    //Test code: //TODO: Turn off if during loading. (also don't add to cache)
                //If it works, also add rw mutex for concurrency..
   
     std::cerr << "Skip cache: " << txn->skip_cache << std::endl;
@@ -436,12 +457,18 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   if(!txn->skip_cache && itr != testCache.end()){
     std::cerr << "using cache" << std::endl;
     auto database_object = itr->second;
-    bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
+
+    DatabaseCatalogEntry database_object_copy = *database_object;
+    database_object_copy.txn_ = txn;
+    auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
+
+    //TODO: Do we even need to insert this?
+    bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
      PELOTON_ASSERT(success == true);
       (void)success;
-    return database_object;
+    return database_object_ptr;
+    //return database_object;
   }
-
   //END Test code
 
   // cache miss, get from pg_database
@@ -472,10 +499,12 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
       // insert into cache
       if(!txn->skip_cache){
         cache_m.lock();
-        std::cerr << "adding to cache" << std::endl;
-        testCache[database_name] = database_object;    //TODO: Currently the database object is associated with a single txn context. => need to remove or change it?
+        std::cerr << "adding to cache: " << database_name << std::endl;
+        testCache.insert(std::make_pair(database_name, database_object));
+        //testCache[database_name] = database_object;    //TODO: Currently the database object is associated with a single txn context. => need to remove or change it?
         cache_m.unlock();
       }
+      //TODO: Why do we need to insert this to the cache? If we have global cache anyways??
       bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
       //bool success = catalog_cache_.InsertDatabaseObject(database_object); //FIXME: doesn't work
       PELOTON_ASSERT(success == true);

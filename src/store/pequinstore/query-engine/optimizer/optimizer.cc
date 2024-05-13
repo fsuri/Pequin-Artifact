@@ -113,6 +113,8 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
 
 shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::unique_ptr<parser::SQLStatementList> &parse_tree_list,
     concurrency::TransactionContext *txn) {
+
+  std::cerr << "Start BuildPelotonPlanTree" << std::endl;
   if (parse_tree_list->GetStatements().empty()) {
     // TODO: create optimizer exception
     throw CatalogException("Parse tree list has no parse trees. Cannot build plan");
@@ -139,7 +141,10 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::uni
 
 
   //std::cerr << "query_info: " << query_info.physical_props->ToString() << std::endl;
+ 
+ //TODO: Something before this also tries to call GetTableCatalog.???
 
+  std::cerr << "Start OptimizeLoop" << std::endl;
   try {
     OptimizeLoop(root_id, query_info.physical_props);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
   } catch (OptimizerException &e) {

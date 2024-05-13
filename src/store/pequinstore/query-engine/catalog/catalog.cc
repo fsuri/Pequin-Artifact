@@ -1424,12 +1424,10 @@ Catalog::GetDatabaseCatalogEntry(concurrency::TransactionContext *txn,
   LOG_TRACE("Looking for database %u", database_oid);
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_oid);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
-    throw CatalogException("Database " + std::to_string(database_oid) +
-                           " is not found");
+    throw CatalogException("Database " + std::to_string(database_oid) + " is not found");
   }
 
   return database_object;
@@ -1442,6 +1440,8 @@ Catalog::GetDatabaseCatalogEntry(concurrency::TransactionContext *txn,
 std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     concurrency::TransactionContext *txn, const std::string &database_name,
     const std::string &schema_name, const std::string &table_name) {
+
+  std::cerr << "Call GetTableCatalogEntry" << std::endl;
 
   struct timespec ts_end;
   clock_gettime(CLOCK_MONOTONIC, &ts_end);
@@ -1491,12 +1491,16 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     throw CatalogException("Table " + schema_name + "." + table_name + " is not found");
   }
 
+  std::cerr << "returning table object" << std::endl;
+
   return table_object;
 }
 
 std::shared_ptr<TableCatalogEntry>
 Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
                               oid_t database_oid, oid_t table_oid) {
+
+  std::cerr << "Call GetTableCatalogEntry (oid)" << std::endl;
   if (txn == nullptr) {
     throw CatalogException("Do not have transaction to get table object " +
                            std::to_string(database_oid) + "." +
@@ -1506,12 +1510,10 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
   LOG_TRACE("Looking for table %u in database %u", table_oid, database_oid);
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_oid);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
-    throw CatalogException("Database " + std::to_string(database_oid) +
-                           " is not found");
+    throw CatalogException("Database " + std::to_string(database_oid) + " is not found");
   }
 
   // Check in pg_table using txn
@@ -1519,8 +1521,7 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
     // throw table not found exception and explicitly abort txn
-    throw CatalogException("Table " + std::to_string(table_oid) +
-                           " is not found");
+    throw CatalogException("Table " + std::to_string(table_oid) + " is not found");
   }
 
   return table_object;

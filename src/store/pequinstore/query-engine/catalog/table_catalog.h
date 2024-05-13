@@ -58,6 +58,9 @@ class TableCatalogEntry {
   TableCatalogEntry(concurrency::TransactionContext *txn,
                     executor::LogicalTile *tile,
                     int tupleId = 0);
+  
+  TableCatalogEntry(concurrency::TransactionContext *txn,
+                                     const std::shared_ptr<TableCatalogEntry> &other);
 
  public:
   // Get indexes

@@ -1998,7 +1998,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup_OLD() {
 bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   LOG_TRACE("ExecSecondaryIndexLookup");
   PELOTON_ASSERT(!done_);
-  PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY);
+  //PELOTON_ASSERT(index_->GetIndexType() != IndexConstraintType::PRIMARY_KEY); //FIXME: Should be able to use this?
   Debug("Inside Secondary Scan");
 
    auto current_txn = executor_context_->GetTransaction();

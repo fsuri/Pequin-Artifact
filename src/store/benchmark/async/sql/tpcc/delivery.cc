@@ -45,7 +45,7 @@ SQLDelivery::~SQLDelivery() {
 transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency

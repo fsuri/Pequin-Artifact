@@ -48,6 +48,7 @@ void BinderContext::AddRegularTable(const std::string &db_name,
 
   //TODO: Somehow bind to txn context without looking up?
 
+  std::cerr << "AddRegularTable -> GetTableCatalogEntry" << std::endl;
   auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn, db_name, schema_name, table_name);
 
 

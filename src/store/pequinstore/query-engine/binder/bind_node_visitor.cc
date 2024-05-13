@@ -35,11 +35,13 @@ BindNodeVisitor::BindNodeVisitor(concurrency::TransactionContext *txn,
 }
 
 void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
+  std::cerr << "Call BindNameToNode" << std::endl;
   tree->Accept(this);
 }
 
 void BindNodeVisitor::Visit(parser::SelectStatement *node) {
   
+  std::cerr << "Visit SelectStatement" << std::endl;
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   struct timespec ts_start;
   clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -48,9 +50,11 @@ void BindNodeVisitor::Visit(parser::SelectStatement *node) {
 
   context_ = std::make_shared<BinderContext>(context_);
   if (node->from_table != nullptr) {
+    std::cerr << "AcceptTable" << std::endl;
     node->from_table->Accept(this);
   }
   if (node->where_clause != nullptr) {
+     std::cerr << "AcceptWhere" << std::endl;
     node->where_clause->Accept(this);
     // Derive depth for all exprs in the where clause
     node->where_clause->DeriveDepth();
@@ -111,6 +115,8 @@ void BindNodeVisitor::Visit(parser::JoinDefinition *node) {
 }
 
 void BindNodeVisitor::Visit(parser::TableRef *node) {
+  std::cerr << "Visit TableRef" << std::endl;
+
   if (node->select != nullptr) {
     if (node->alias.empty()) {
       throw Exception("Alias not found for query derived table");
@@ -154,6 +160,7 @@ void BindNodeVisitor::Visit(parser::OrderDescription *node) {
 }
 
 void BindNodeVisitor::Visit(parser::UpdateStatement *node) {
+   std::cerr << "Visit Update" << std::endl;
   context_ = std::make_shared<BinderContext>(nullptr);
 
   node->table->Accept(this);
