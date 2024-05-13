@@ -66,7 +66,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
       std::cerr <<"catch abort" << std::endl;
       *result = ABORTED_SYSTEM; //ABORTED_USER;
     }
-    usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
+    //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
     // Panic("stop after one");
     //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);

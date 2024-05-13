@@ -61,10 +61,10 @@ public:
   /* A vector of column to represent a tile */
   typedef std::vector<PositionList> PositionLists;
 
-  LogicalTile(const LogicalTile &) = delete;
-  LogicalTile &operator=(const LogicalTile &) = delete;
-  LogicalTile(LogicalTile &&) = delete;
-  LogicalTile &operator=(LogicalTile &&) = delete;
+  //LogicalTile(const LogicalTile &) = delete;
+  // LogicalTile &operator=(const LogicalTile &) = delete;
+  // LogicalTile(LogicalTile &&) = delete;
+  // LogicalTile &operator=(LogicalTile &&) = delete;
 
   ~LogicalTile();
 

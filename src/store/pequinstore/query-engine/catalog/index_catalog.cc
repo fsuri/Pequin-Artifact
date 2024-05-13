@@ -13,6 +13,7 @@
 #include "../catalog/index_catalog.h"
 
 #include <sstream>
+#include <shared_mutex>
 
 #include "../catalog/catalog.h"
 #include "../catalog/system_catalogs.h"
@@ -22,6 +23,7 @@
 #include "../storage/database.h"
 #include "../storage/tuple.h"
 #include "../type/value_factory.h"
+
 
 namespace peloton {
 namespace catalog {
@@ -218,8 +220,8 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetIntegerValue(index_oid).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
+  std::cerr << "Calling into Index scan from index catalog" << std::endl;
+  auto result_tiles = GetResultWithIndexScan(txn,
                              column_ids,
                              index_offset,
                              values);
@@ -271,8 +273,8 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
   values.push_back(
       type::ValueFactory::GetVarcharValue(schema_name, nullptr).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
+  std::cerr << "Calling into Index scan from index catalog2" << std::endl;
+  auto result_tiles = GetResultWithIndexScan(txn,
                              column_ids,
                              index_offset,
                              values);
@@ -298,28 +300,42 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
   return nullptr;
 }
 
+//TODO: Create a cache for Index too:
+static std::map<oid_t, std::unordered_map<oid_t, std::shared_ptr<peloton::catalog::IndexCatalogEntry>>> testCacheIndex;
+static std::shared_mutex cacheIndex_m;
+
 /*@brief   get all index records from the same table
  * this function may be useful when calling DropTable
  * @param   table_oid
  * @param   txn  TransactionContext
  * @return  a vector of index catalog objects
  */
-const std::unordered_map<oid_t,
-                         std::shared_ptr<IndexCatalogEntry>>
-IndexCatalog::GetIndexCatalogEntries(
-    concurrency::TransactionContext *txn,
-    oid_t table_oid) {
+const std::unordered_map<oid_t, std::shared_ptr<IndexCatalogEntry>>
+IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t table_oid) {
   if (txn == nullptr) {
     throw CatalogException("Transaction is invalid!");
   }
   // try get from cache
-  auto pg_table = Catalog::GetInstance()
-                      ->GetSystemCatalogs(database_oid_)
-                      ->GetTableCatalog();
+  auto pg_table = Catalog::GetInstance()->GetSystemCatalogs(database_oid_)->GetTableCatalog();
   auto table_object = pg_table->GetTableCatalogEntry(txn, table_oid);
   PELOTON_ASSERT(table_object && table_object->GetTableOid() == table_oid);
   auto index_objects = table_object->GetIndexCatalogEntries(true);
   if (index_objects.empty() == false) return index_objects;
+
+  //Test Cache
+  if(!txn->skip_cache){
+    std::shared_lock lock(cacheIndex_m);
+    auto itr = testCacheIndex.find(table_oid);
+    if(itr != testCacheIndex.end()){
+      std::cerr << "using index cache" << std::endl;
+      auto index_objects = itr->second;
+
+      for(auto &[_, index_object]: index_objects){
+        table_object->InsertIndexCatalogEntry(index_object);
+      }
+      return table_object->GetIndexCatalogEntries();
+    }
+  }
 
   // cache miss, get from pg_index
   std::vector<oid_t> column_ids(all_column_ids);
@@ -327,19 +343,42 @@ IndexCatalog::GetIndexCatalogEntries(
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetIntegerValue(table_oid).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
-                             column_ids,
-                             index_offset,
-                             values);
+  std::cerr << "Calling into Index scan from index catalog3" << std::endl;
+  auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
-  for (auto &tile : (*result_tiles)) {
-    for (auto tuple_id : *tile) {
-      auto index_object =
-          std::make_shared<IndexCatalogEntry>(tile.get(), tuple_id);
-      table_object->InsertIndexCatalogEntry(index_object);
+  if(txn->skip_cache){
+    for (auto &tile : (*result_tiles)) {
+      for (auto tuple_id : *tile) {
+        auto index_object = std::make_shared<IndexCatalogEntry>(tile.get(), tuple_id);
+        table_object->InsertIndexCatalogEntry(index_object);
+      }
     }
   }
+  else{
+      std::unique_lock lock(cacheIndex_m);
+      auto itr = testCacheIndex.find(table_oid);
+      bool first = false;
+      if(itr == testCacheIndex.end()){
+        first = true;
+        testCacheIndex[table_oid];
+      }
+      //auto [itr, first] = testCacheIndex.insert(table_oid, {});
+
+      for (auto &tile : (*result_tiles)) {
+        for (auto tuple_id : *tile) {
+          auto index_object = std::make_shared<IndexCatalogEntry>(tile.get(), tuple_id);
+
+          //cache
+          if(first){
+            testCacheIndex[table_oid][index_object->GetIndexOid()] = index_object;
+            //itr->second[index_object->GetIndexOid()] = index_object;
+          }
+       
+          table_object->InsertIndexCatalogEntry(index_object);
+        }
+      }
+  }
+
 
   return table_object->GetIndexCatalogEntries();
 }

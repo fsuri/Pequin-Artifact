@@ -41,6 +41,7 @@
 #include "../storage/database.h"
 #include "../storage/storage_manager.h"
 #include "../storage/table_factory.h"
+#include <shared_mutex>
 
 namespace peloton {
 namespace catalog {
@@ -184,6 +185,7 @@ bool AbstractCatalog::DeleteWithIndexScan(concurrency::TransactionContext *txn,
 
 typedef std::vector<peloton::executor::LogicalTile> res_tiles_t;
 static std::map<std::string, res_tiles_t> indexScanCache;
+static std::shared_mutex cache_mutex;
 
 /*@brief   Index scan helper function
  * @param   column_offsets    Column ids for search (projection)
@@ -208,16 +210,16 @@ AbstractCatalog::GetResultWithIndexScan(
     // values.first == db name or table name. try to cache via it?
     //If we do it one level higher, then need to cache in database_catalog and table_catalog respectively.
 
- bool has_key = false;
- std::string key;
- try {
-    key = values.front().GetData();
-    std::cerr << "values first: " << key << std::endl;
-    has_key = true;
- }
- catch(...){
-    std::cerr << "values first FAIL" << std::endl;
- }
+//  bool has_key = false;
+//  std::string key;
+//  try {
+//     key = values.front().GetData();
+//     std::cerr << "values first: " << key << std::endl;
+//     has_key = true;
+//  }
+//  catch(...){
+//     std::cerr << "values first FAIL" << std::endl;
+//  }
   
 
    struct timespec ts_start;
@@ -226,6 +228,27 @@ AbstractCatalog::GetResultWithIndexScan(
   std::unique_ptr<executor::ExecutorContext> context(new executor::ExecutorContext(txn));
 
   auto index = catalog_table_->GetIndex(index_offset);
+
+  //Add a quick cache: //TODO: replace cache maps with threadsafe maps (or add a rw/ lock)
+  std::cerr << "GetResultWithIndexScan1: " << catalog_table_->GetName() << std::endl;
+  // const std::string &key = catalog_table_->GetName();
+
+  // if(false && !txn->skip_cache){
+  //   cache_mutex.lock_shared();
+  //   auto itr = indexScanCache.find(key);
+  //   //if should look at cache, and it exists
+  //   if(itr != indexScanCache.end()){
+  //       std::unique_ptr<std::vector<std::unique_ptr<executor::LogicalTile>>> result_tiles(new std::vector<std::unique_ptr<executor::LogicalTile>>());
+  //       for(auto const &tile: itr->second){
+  //           result_tiles->push_back(std::make_unique<executor::LogicalTile>(tile));
+  //       }
+  //       return result_tiles;
+  //   }
+  //   cache_mutex.unlock_shared();
+  // }
+
+
+
   std::vector<oid_t> key_column_offsets = index->GetMetadata()->GetKeySchema()->GetIndexedColumns();
   PELOTON_ASSERT(values.size() == key_column_offsets.size());
   std::vector<ExpressionType> expr_types(values.size(),ExpressionType::COMPARE_EQUAL);
@@ -236,6 +259,8 @@ AbstractCatalog::GetResultWithIndexScan(
   planner::IndexScanPlan index_scan_node(catalog_table_, nullptr, column_offsets, index_scan_desc);
 
   executor::IndexScanExecutor index_scan_executor(&index_scan_node, context.get());
+
+  std::cerr << "GetResultWithIndexScan: " << index_scan_node.GetTable()->GetName() << std::endl;
 
           clock_gettime(CLOCK_MONOTONIC, &ts_start);
     uint64_t microseconds_end= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -255,6 +280,15 @@ AbstractCatalog::GetResultWithIndexScan(
 
      uint64_t microseconds_end3;
 
+  // std::pair<std::map<std::string, peloton::catalog::res_tiles_t>::iterator, bool> write_to_cache;
+  // if(!txn->skip_cache){
+  //   cache_mutex.lock();
+  //   write_to_cache = indexScanCache.insert(std::pair<std::string, std::vector<executor::LogicalTile>>(key, {}));
+    
+  //   //if already exists; unlock immediately...
+  //   if(!write_to_cache.second) cache_mutex.unlock();
+  // }
+
   while (index_scan_executor.Execute()) {
    
      clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -262,11 +296,16 @@ AbstractCatalog::GetResultWithIndexScan(
     duration = microseconds_end3-microseconds_end2;
     Warning("IndexScan Exec: %d", duration);
   
+    // if(write_to_cache.second){ //write a copy to cache //FIXME: Seemingly cannot copy the tile without breaking things.
+    //   //write_to_cache.first->second.push_back(*index_scan_executor.GetOutput());
+    // }
     
     result_tiles->push_back(std::unique_ptr<executor::LogicalTile>(index_scan_executor.GetOutput()));
 
      
   }
+
+  //if(write_to_cache.second) cache_mutex.unlock();
 
    clock_gettime(CLOCK_MONOTONIC, &ts_start);
     uint64_t microseconds_end4= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;

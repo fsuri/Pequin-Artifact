@@ -21,6 +21,7 @@
 #include "../storage/data_table.h"
 #include "../storage/tuple.h"
 #include "../type/value_factory.h"
+#include <shared_mutex>
 
 namespace peloton {
 namespace catalog {
@@ -349,8 +350,8 @@ bool DatabaseCatalog::DeleteDatabase(concurrency::TransactionContext *txn, oid_t
 //////
 static std::map<oid_t, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache2;
 static std::map<std::string, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache;
-static std::mutex cache_m;
-static std::mutex cache_m2;
+static std::shared_mutex cache_m;
+static std::shared_mutex cache_m2;
 
 ////////
 
@@ -373,21 +374,25 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
                //If it works, also add rw mutex for concurrency..
   
     std::cerr << "Skip cache2: " << txn->skip_cache << std::endl;
-  auto itr = testCache2.find(database_oid);
-  if(!txn->skip_cache && itr != testCache2.end()){
-    std::cerr << "using cache2" << std::endl;
-    auto database_object = itr->second;
+  if(!txn->skip_cache){
+     std::shared_lock lock(cache_m2);
+  
+    auto itr = testCache2.find(database_oid);
+    if(itr != testCache2.end()){
+      std::cerr << "using cache2" << std::endl;
+      auto database_object = itr->second;
 
-     DatabaseCatalogEntry database_object_copy = *database_object;
-    database_object_copy.txn_ = txn;
-    auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
+      DatabaseCatalogEntry database_object_copy = *database_object;
+      database_object_copy.txn_ = txn;
+      auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
 
-    bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
-     PELOTON_ASSERT(success == true);
-      (void)success;
+      bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
+      PELOTON_ASSERT(success == true);
+        (void)success;
 
-    return database_object_ptr;
-    //return database_object;
+      return database_object_ptr;
+      //return database_object;
+    }
   }
 
 
@@ -403,11 +408,13 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
   if (result_tiles->size() == 1 && (*result_tiles)[0]->GetTupleCount() == 1) {
     auto database_object = std::make_shared<DatabaseCatalogEntry>(txn, (*result_tiles)[0].get());
     // insert into cache
-    cache_m2.lock();
-    testCache2.insert(std::make_pair(database_oid, database_object));
-    //testCache2[database_oid] = database_object;
-     std::cerr << "adding to cache (via Oid): " << database_object->GetDatabaseName() << std::endl;
-    cache_m2.unlock();
+    if(!txn->skip_cache){
+      std::unique_lock lock(cache_m2);
+    
+      testCache2.insert(std::make_pair(database_oid, database_object));
+      //testCache2[database_oid] = database_object;
+      std::cerr << "adding to cache (via Oid): " << database_object->GetDatabaseName() << std::endl;
+    }
 
     bool success = txn->catalog_cache.InsertDatabaseObject(database_object);
     PELOTON_ASSERT(success == true);
@@ -453,21 +460,25 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
                //If it works, also add rw mutex for concurrency..
   
     std::cerr << "Skip cache: " << txn->skip_cache << std::endl;
-  auto itr = testCache.find(database_name);
-  if(!txn->skip_cache && itr != testCache.end()){
-    std::cerr << "using cache" << std::endl;
-    auto database_object = itr->second;
+  if(!txn->skip_cache){
+    std::shared_lock lock(cache_m);
+  
+    auto itr = testCache.find(database_name);
+    if(itr != testCache.end()){
+      std::cerr << "using cache" << std::endl;
+      auto database_object = itr->second;
 
-    DatabaseCatalogEntry database_object_copy = *database_object;
-    database_object_copy.txn_ = txn;
-    auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
+      DatabaseCatalogEntry database_object_copy = *database_object;
+      database_object_copy.txn_ = txn;
+      auto database_object_ptr = std::make_shared<DatabaseCatalogEntry>(database_object_copy);
 
-    //TODO: Do we even need to insert this?
-    bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
-     PELOTON_ASSERT(success == true);
-      (void)success;
-    return database_object_ptr;
-    //return database_object;
+      //TODO: Do we even need to insert this?
+      bool success = txn->catalog_cache.InsertDatabaseObject(database_object_ptr);
+      PELOTON_ASSERT(success == true);
+        (void)success;
+      return database_object_ptr;
+      //return database_object;
+    }
   }
   //END Test code
 
@@ -498,11 +509,10 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
     if (database_object) {
       // insert into cache
       if(!txn->skip_cache){
-        cache_m.lock();
+        std::unique_lock lock(cache_m);
         std::cerr << "adding to cache: " << database_name << std::endl;
         testCache.insert(std::make_pair(database_name, database_object));
         //testCache[database_name] = database_object;    //TODO: Currently the database object is associated with a single txn context. => need to remove or change it?
-        cache_m.unlock();
       }
       //TODO: Why do we need to insert this to the cache? If we have global cache anyways??
       bool success = txn->catalog_cache.InsertDatabaseObject(database_object);

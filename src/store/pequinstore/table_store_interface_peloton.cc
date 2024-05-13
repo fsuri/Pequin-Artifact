@@ -395,7 +395,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   Debug("Load statement: %s", load_statement.substr(0, 1000).c_str());
   
   // prepareStatement
-  auto statement = ParseAndPrepare(load_statement, tcop, true);
+  auto statement = ParseAndPrepare(load_statement, tcop);
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
