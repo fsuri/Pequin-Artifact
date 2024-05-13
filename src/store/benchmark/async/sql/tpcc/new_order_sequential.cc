@@ -94,7 +94,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER");
   std::cerr << "NEW ORDER" << std::endl;
-  Debug("Warehouse: %u", w_id);
+  Debug("Warehouse: %u", w_id); 
 
   std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
 

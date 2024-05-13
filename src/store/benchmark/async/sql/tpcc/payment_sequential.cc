@@ -109,7 +109,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   // (2.5) Retrieve DISTRICT row. Update year to date balance.
   statement = fmt::format("UPDATE {} SET d_ytd = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_ytd() + h_amount, d_id, d_w_id);
-  client.Write(statement, queryResult, timeout);
+  client.Write(statement, queryResult, timeout); 
 
 
   // (3) Select Customer (based on last name OR customer number)
