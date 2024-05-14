@@ -523,7 +523,7 @@ class IndicusCodebase(ExperimentCodebase):
         
         
         if 'local_config' in config:
-            replica_command += ' --local_config %s' % config['local_config']
+            replica_command += ' --local_config=%s' % config['local_config']
 
 
         if 'partitioner' in config:

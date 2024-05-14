@@ -21,7 +21,7 @@
   "client_key_selector": "zipf",
   "rw_num_ops_txn": 2,
   "sql_bench": true,
-  "benchmark_schema_file_path": "/usr/local/etc/rw-sql.json",
+  "benchmark_schema_file_path": "/users/shir/rw-sql/rw-sql.json",
   "num_tables": 1,
   "num_keys_per_table": 10,
   "max_range": 3,

@@ -218,8 +218,8 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
             std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
             uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
-            std::cout << "Shir: seq is:  "<< seqnum << std::endl;
-            // std::cout << seqnum << std::endl;
+            // std::cout << "Shir: seq is:  "<< seqnum << std::endl;
+            std::cout << seqnum << std::endl;
             cb(hash, seqnum);
     });
 }

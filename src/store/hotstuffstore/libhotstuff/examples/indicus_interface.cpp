@@ -150,7 +150,7 @@ namespace hotstuffstore {
             }
 
         if (!(0 <= idx && (size_t)idx < replicas.size())) {
-            std::cout << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
+            std::cerr << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
             throw HotStuffError("replica idx out of range");
         }
         std::string binding_addr = std::get<0>(replicas[idx]);

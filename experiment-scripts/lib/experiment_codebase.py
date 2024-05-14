@@ -74,6 +74,8 @@ def get_client_cmd(config, i, j, k, run, local_exp_directory,
 
 def get_replica_cmd(config, i, k, group, run, local_exp_directory,
         remote_exp_directory):
+    print("ABABABABABABABABABABABABABABA")
+    print(config['codebase_name'])
     return __BUILDERS__[config['codebase_name']].get_replica_cmd(config,
             i, k, group, run, local_exp_directory, remote_exp_directory)
 

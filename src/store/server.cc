@@ -1011,7 +1011,8 @@ int main(int argc, char **argv) {
     Notice("Shir: debugging server 222222222222\n");
 
     Notice("Benchmark: SQL with Loaded Table Registry");
-    std::cerr<<"Benchmark: SQL with Loaded Table Registry\n";
+    // std::cerr<<"Benchmark: SQL with Loaded Table Registry\n";
+    std::cerr << FLAGS_data_file_path <<"   data file path \n";
     std::ifstream generated_tables(FLAGS_data_file_path);
     json tables_to_load;
     try {
