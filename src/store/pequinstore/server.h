@@ -131,6 +131,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual void CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::string &index_name, const std::vector<uint32_t> &index_col_idx) override;
 
+  virtual void CacheCatalog(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> &primary_key_col_idx) override;
+
   //Deprecated
   void LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx);
   

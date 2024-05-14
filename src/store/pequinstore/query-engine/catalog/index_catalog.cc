@@ -371,12 +371,14 @@ IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t
           //cache
           if(first){
             testCacheIndex[table_oid][index_object->GetIndexOid()] = index_object;
+            std::cerr << "adding to index cache: " << index_object->GetIndexName() << std::endl;
             //itr->second[index_object->GetIndexOid()] = index_object;
           }
        
           table_object->InsertIndexCatalogEntry(index_object);
         }
       }
+    
   }
 
 

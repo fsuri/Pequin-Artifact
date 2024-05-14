@@ -588,6 +588,18 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 
 }
 
+void Server::CacheCatalog(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> &primary_key_col_idx){
+
+    UW_ASSERT(!column_data_types.empty());
+
+    //This is just a dummy transaction to trigger Catalog Cache generation in a concurrency free setting
+    std::string sql_statement = fmt::format("SELECT * FROM {};", table_name); //Note: this might not invoke index caching. In that case, maybe add primary keys in..
+    //TODO: ExecRaw, but turn on cache use..
+    
+    table_store->ExecRaw(sql_statement, false);
+}
+
 void Server::LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx){
 
   //Syntax based of: https://www.postgresqltutorial.com/postgresql-tutorial/import-csv-file-into-posgresql-table/ 

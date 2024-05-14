@@ -294,7 +294,7 @@ void PelotonTableStore::ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop *,
 
 // Execute a statement directly on the Table backend, no questions asked, no
 // output
-void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
+void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cache) {
   // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
   // ExecRaw should not return before the call is done.
 
@@ -308,7 +308,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement) {
 
   // prepareStatement
   std::cerr << "Before parse and prepare" << std::endl;
-  auto statement = ParseAndPrepare(sql_statement, tcop, true);
+  auto statement = ParseAndPrepare(sql_statement, tcop, skip_cache);
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;

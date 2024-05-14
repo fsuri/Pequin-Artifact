@@ -198,7 +198,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
   };
 
   std::cerr << "Setting skip cache in execute helper" << std::endl;
-  txn->skip_cache = true; //For Table Loading skip cache..
+  //txn->skip_cache = true; //For Table Loading skip cache..
   
   // auto &pool = threadpool::MonoQueuePool::GetInstance();
   // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
@@ -1402,8 +1402,7 @@ ResultType TrafficCop::ExecuteStatement(
         statement->SetNeedsReplan(true);
       }
 
-      ExecuteHelper(statement->GetPlanTree(), params, result, result_format,
-                    thread_id);
+      ExecuteHelper(statement->GetPlanTree(), params, result, result_format, thread_id);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {

@@ -278,7 +278,7 @@ AbstractCatalog::GetResultWithIndexScan(
     duration = microseconds_end2-microseconds_end;
     Warning("IndexScan Init: %d", duration);
 
-     uint64_t microseconds_end3;
+     uint64_t microseconds_end3= 0;
 
   // std::pair<std::map<std::string, peloton::catalog::res_tiles_t>::iterator, bool> write_to_cache;
   // if(!txn->skip_cache){
@@ -309,8 +309,8 @@ AbstractCatalog::GetResultWithIndexScan(
 
    clock_gettime(CLOCK_MONOTONIC, &ts_start);
     uint64_t microseconds_end4= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    duration = microseconds_end4-microseconds_end3;
-    Warning("IndexScan Result: %d", duration);
+    duration = microseconds_end4-microseconds_end2;
+    Warning("IndexScan total Result: %d", duration);
 
 //   if(has_key){
 //     //Copy all tiles into the cache

@@ -72,7 +72,7 @@ class TableStore {
         //Backend specific implementations
 
         //Execute a statement directly on the Table backend, no questions asked, no output
-        virtual void ExecRaw(const std::string &sql_statement) = 0;
+        virtual void ExecRaw(const std::string &sql_statement, bool skip_cache = true) = 0;
 
         virtual void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) = 0;
 

@@ -693,6 +693,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn, oid_t t
       //return table_object;
     }
   }
+  std::cerr << "fail table cache2" << std::endl;
 
 
   // cache miss, get from pg_table
@@ -806,6 +807,7 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
         //return table_object;
       }
     }
+    std::cerr << "fail table cache" << std::endl;
 
 
   // cache miss, get from pg_table
