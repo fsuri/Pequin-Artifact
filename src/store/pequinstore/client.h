@@ -412,8 +412,9 @@ class Client : public ::Client {
 
   uint64_t exec_start_ms;
   uint64_t exec_end_ms;
-  uint64_t query_start_ms;
-  uint64_t query_end_ms;
+  std::map<uint64_t, uint64_t> query_start_times;
+  // uint64_t query_start_ms;
+  // uint64_t query_end_ms;
   uint64_t commit_start_ms;
   uint64_t commit_end_ms;
 };

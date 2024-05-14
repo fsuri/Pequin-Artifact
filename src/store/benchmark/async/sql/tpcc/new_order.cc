@@ -84,7 +84,7 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
 }
 
 SQLNewOrder::~SQLNewOrder() {
-}
+} 
 
 transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;

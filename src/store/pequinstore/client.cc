@@ -407,18 +407,23 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
-   if(PROFILING_LAT){
-     struct timespec ts_start;
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    query_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-  }
-
+  
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
   transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
     // Latency_Start(&getLatency);
 
     query_seq_num++;
+
+    if(PROFILING_LAT){
+     struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t query_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    query_start_times[query_seq_num] = query_start_ms;
+   }
+
+
+
     txn.set_last_query_seq(query_seq_num);
     Debug("Query[%lu:%lu:%lu] (client:tx-seq:query-seq). TS: [%lu:%lu]: %s.", 
             client_id, client_seq_num, query_seq_num, txn.timestamp().timestamp(), txn.timestamp().id(), query.c_str());
@@ -523,11 +528,11 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
    if(PROFILING_LAT){
      struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
-    auto duration = query_end_ms - query_start_ms;
-    Warning("Query exec latency in ms [%d]. in us [%d]", duration/1000, duration);
+    auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
+    Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
     if(duration > 20000) Warning("PointQuery exec exceeded 20ms");
   }
 
@@ -592,11 +597,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   if(PROFILING_LAT){
      struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
-    auto duration = query_end_ms - query_start_ms;
-    Warning("Query exec latency in ms [%d]. in us [%d]", duration/1000, duration);
+    auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()]; ;
+    Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
   }
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
