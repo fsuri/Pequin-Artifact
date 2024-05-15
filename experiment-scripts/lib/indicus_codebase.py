@@ -235,8 +235,8 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --partitioner %s' % config['partitioner']
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
-            client_command += ' --sql_bench=%s' % config['benchmark_type']
-            client_command += ' --store_mode=%s' % config['benchmark_type']
+            client_command += ' --sql_bench=true'
+            client_command += ' --store_mode=true'
             client_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
         else:
             client_command += ' --sql_bench=false'
@@ -539,8 +539,8 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --debug_stats'
 
         if 'benchmark_type' in config and config['benchmark_type'] == 'sql_bench':
-            replica_command += ' --sql_bench=%s' % config['benchmark_type']
-            replica_command += ' --store_mode=%s' % config['benchmark_type']
+            replica_command += ' --sql_bench=true'
+            replica_command += ' --store_mode=true'
             replica_command += ' --data_file_path %s' % config['benchmark_schema_file_path'] #file path to schema
         else:
             replica_command += ' --sql_bench=false'
@@ -611,8 +611,7 @@ class IndicusCodebase(ExperimentCodebase):
         if isinstance(config['server_debug_output'], str) or config['server_debug_output']:
             if 'run_locally' in config and config['run_locally'] or 'default_remote_shell' in config and config['default_remote_shell'] == 'bash':
                 if isinstance(config['server_debug_output'], str):
-                    replica_command = 'DEBUG=%s %s' % (config['server_debug_output'],
-                            replica_command)
+                    replica_command = 'DEBUG=%s %s' % (config['server_debug_output'], replica_command)
                 else:
                     replica_command = 'DEBUG=all %s' % replica_command
             else:

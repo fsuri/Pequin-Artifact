@@ -332,8 +332,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
 
     table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
-    delete query;
-
+   
     if(write->has_committed_value()){ 
         UW_ASSERT(committedProof); //proof must exist
         *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
@@ -351,6 +350,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     if(duration > 10000) Warning("PointQuery took more than 10ms");
 
     ////////////
+    delete query;
     
 
     //2) Sign & Send Reply

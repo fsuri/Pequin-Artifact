@@ -209,12 +209,15 @@ Message_DoFrees(void)
 bool
 _Message_DebugEnabled(const char *fname)
 {
-    bool parsed;
-    char *buf;
-    char **pats;
-    int nPats;
+    static bool parsed;
+    static char *buf;
+    static char **pats;
+    static int nPats;
+    if (!parsed) {
+        parsed = true;
 
         const char *env = getenv("DEBUG");
+        //fprintf(stderr, "TEST DEBUG: %s \n", env); 
         if (env && strlen(env)) {
             buf = strdup(env);
             if (!buf)
@@ -237,7 +240,7 @@ _Message_DebugEnabled(const char *fname)
                 }
             }
         }
-
+    }
     if (!buf)
         return false;
 
