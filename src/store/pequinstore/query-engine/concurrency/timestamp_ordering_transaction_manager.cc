@@ -459,7 +459,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
   new_tile_group_header->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
 
-  std::cerr << "Setting new ts to " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
+  Debug("Setting new ts to [%lu:%lu]", ts.getTimestamp(), ts.getID());
 
   ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
   if (index_entry_ptr != nullptr) {
@@ -481,14 +481,13 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
     auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
-    std::cerr << "Curr ts is " << curr_ts.getTimestamp() << ", " << curr_ts.getID() << std::endl;
-    std::cerr << "new ts is " << new_ts.getTimestamp() << ", " << new_ts.getID() << std::endl;
+    Debug("Curr ts is [%lu:%lu]. New ts is [%lu:%lu]", curr_ts.getTimestamp() ,curr_ts.getID(), new_ts.getTimestamp(),new_ts.getID());
 
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
 
       // NEW: For out of order inserts
       if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
-        std::cerr << "In the if case" << std::endl;
+        //std::cerr << "In the if case" << std::endl;
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
         prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
@@ -502,7 +501,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
       new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
     } else {
-      std::cerr << "In the else case" << std::endl;
+      //std::cerr << "In the else case" << std::endl;
       // NEW: For out of order inserts
       if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
 
@@ -525,10 +524,10 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     curr_tile_group_header->SetIndirection(curr_pointer.offset, index_entry_ptr);
     // UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, old_location);
 
-    std::cerr << "Update for delete" << std::endl;
+    Debug("Update for delete");
     // Update the index entry pointer if necessary
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >  head_ts) {
-      std::cerr << "Updating the head pointer of linked list" << std::endl;
+      Debug("Updating the head pointer of linked list");
       COMPILER_MEMORY_FENCE;
 
       // Set the index header in an atomic way.

@@ -134,7 +134,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             job();
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread " << i << " to core: " << (i+offset) << std::endl;
+        Notice("THREADPOOL SETUP: Trying to pin main thread %d to core %d", i, (i+offset) );
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),  &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -167,7 +167,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread " << i << " to core: " << (i+offset) << std::endl;
+        Notice("THREADPOOL SETUP: Trying to pin worker thread %d to core %d", i, (i+offset) );
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -183,7 +183,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // }
       // threads.push_back(t);
       // t->detach();
-      Notice("Finished server-side threadpool configurations");
+      //Notice("Finished server-side threadpool configurations");
     }
   }
   //CLIENT THREADPOOL 

@@ -220,7 +220,7 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetIntegerValue(index_oid).Copy());
 
-  std::cerr << "Calling into Index scan from index catalog" << std::endl;
+  //std::cerr << "Calling into Index scan from index catalog" << std::endl;
   auto result_tiles = GetResultWithIndexScan(txn,
                              column_ids,
                              index_offset,
@@ -273,7 +273,7 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
   values.push_back(
       type::ValueFactory::GetVarcharValue(schema_name, nullptr).Copy());
 
-  std::cerr << "Calling into Index scan from index catalog2" << std::endl;
+  //std::cerr << "Calling into Index scan from index catalog2" << std::endl;
   auto result_tiles = GetResultWithIndexScan(txn,
                              column_ids,
                              index_offset,
@@ -327,7 +327,7 @@ IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t
     std::shared_lock lock(cacheIndex_m);
     auto itr = testCacheIndex.find(table_oid);
     if(itr != testCacheIndex.end()){
-      std::cerr << "using index cache" << std::endl;
+      //std::cerr << "using index cache" << std::endl;
       auto index_objects = itr->second;
 
       for(auto &[_, index_object]: index_objects){
@@ -343,7 +343,7 @@ IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t
   std::vector<type::Value> values;
   values.push_back(type::ValueFactory::GetIntegerValue(table_oid).Copy());
 
-  std::cerr << "Calling into Index scan from index catalog3" << std::endl;
+  //std::cerr << "Calling into Index scan from index catalog3" << std::endl;
   auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
   if(txn->skip_cache){
@@ -371,7 +371,7 @@ IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t
           //cache
           if(first){
             testCacheIndex[table_oid][index_object->GetIndexOid()] = index_object;
-            std::cerr << "adding to index cache: " << index_object->GetIndexName() << std::endl;
+            //std::cerr << "adding to index cache: " << index_object->GetIndexName() << std::endl;
             //itr->second[index_object->GetIndexOid()] = index_object;
           }
        

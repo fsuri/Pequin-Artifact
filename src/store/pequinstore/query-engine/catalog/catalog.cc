@@ -1441,11 +1441,11 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     concurrency::TransactionContext *txn, const std::string &database_name,
     const std::string &schema_name, const std::string &table_name) {
 
-  std::cerr << "Call GetTableCatalogEntry" << std::endl;
+  //std::cerr << "Call GetTableCatalogEntry" << std::endl;
 
-  struct timespec ts_end;
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  uint64_t microseconds_start0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_start0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
 
   if (txn == nullptr) {
     throw CatalogException("Do not have transaction to get table object " + database_name + "." + table_name);
@@ -1468,10 +1468,10 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
   //  //FIXME: This does a secondary index scan on pg_table
   
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  uint64_t microseconds_start = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-  auto duration0 = microseconds_start - microseconds_start0;
-   Warning("DatabaseRead Latency: %dus", duration0);
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_start = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration0 = microseconds_start - microseconds_start0;
+  //  Warning("DatabaseRead Latency: %dus", duration0);
    //if(duration0 > 600) Panic("slow DB Catalog scan");
 
  
@@ -1480,10 +1480,10 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
   auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
 
   
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-  auto duration = microseconds_end - microseconds_start;
-  Warning("TableRead Latency: %dus", duration);
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = microseconds_end - microseconds_start;
+  // Warning("TableRead Latency: %dus", duration);
   //if(duration > 600) Panic("slow Table Catalog scan");
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
@@ -1491,7 +1491,7 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     throw CatalogException("Table " + schema_name + "." + table_name + " is not found");
   }
 
-  std::cerr << "returning table object" << std::endl;
+  //std::cerr << "returning table object" << std::endl;
 
   return table_object;
 }

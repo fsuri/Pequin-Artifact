@@ -2186,7 +2186,7 @@ bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, cons
             }
             else{
                 next_cond = EvalColCondition(cond_statement.substr(0, op_pos), col_registry, row);
-                std::cerr << "next_cond: " << next_cond << std::endl;
+                Debug("Eval Pred: next_cond: %d", next_cond);
             }
           
             curr_cond = Combine(op_type, curr_cond, next_cond);
@@ -2194,7 +2194,7 @@ bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, cons
             op_type = next_op_type;
         }
 
-        std::cerr << "return curr_cond: " << curr_cond << std::endl;
+        Debug("Eval Pred: return curr_cond: %d", curr_cond);
         return curr_cond;
     }
 
@@ -2254,7 +2254,8 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
     //Input statement like: "al_id = 50" or "depart_time <= 5000000"  //TODO: Figure out if strings have quotes.
     //Eval to true, if row has a col_value that fulfills this pred
 
-    std::cerr << "cond: " << cond_statement << std::endl;
+    //std::cerr << "cond: " << cond_statement << std::endl;
+    
               
     
     //TODO: Check with operand: =, !=, >=, <=  (note, the latter only apply to numerics)
@@ -2262,12 +2263,12 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
     if(pos == std::string::npos) Panic("must have an operator");
     auto op_statement = cond_statement.substr(pos); // e.g. "= 50"
 
-     std::cerr << "op stmt: [" << op_statement << std::endl;
+    //std::cerr << "op stmt: [" << op_statement << std::endl;
 
-      size_t end_op_pos = op_statement.find(" ");
+    size_t end_op_pos = op_statement.find(" ");
     auto op = op_statement.substr(0, end_op_pos); //e.g. "=" or ">="
 
-     std::cerr << "op: [" << op << std::endl;
+    //std::cerr << "op: [" << op << std::endl;
     
 
     //Extract left and right side
@@ -2275,8 +2276,8 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
 
     std::string_view right = op_statement.substr(end_op_pos +1); //e.g. 50
 
-    std::cerr << "left: [" << left << std::endl;
-    std::cerr << "right: [" << right << std::endl;
+    //std::cerr << "left: [" << left << std::endl;
+    //std::cerr << "right: [" << right << std::endl;
 
     //reflexive args: //e.g. al_id = al_id
     if(left == right) return true;
@@ -2285,11 +2286,13 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
     //TODO: Check if row is a conflict.
     // I.e. check if col value of row == right value. (look up via left val)
     const std::string &left_str = static_cast<std::string>(left);
+    Debug("Col to compare: %s", left_str.c_str());
+
     try{
        auto &idx = col_registry.col_name_index.at(left_str);
        auto &row_col_val = row.column_values()[idx];
-       std::cerr << "row_col_val: [" << row_col_val << std::endl;
-
+       //std::cerr << "row_col_val: [" << row_col_val << std::endl;
+    
        //TrimValue(right, col_registry.col_quotes[idx]); //trim if type str. //NOTE: Don't need to trim. Peloton preds come without quotes
        const std::string &right_str = static_cast<std::string>(right);
 
@@ -2300,13 +2303,13 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
        auto &type = col_registry.col_name_type.at(left_str);
        
        if(type == "TEXT" || type == "VARCHAR"){
+            Debug("Operator '%s'. Pred_val: %s. Row_val: %s", static_cast<std::string>(op).c_str(), right_str.c_str(), row_col_val.c_str());
             if(op == "="){
-                std::cerr << "=" << std::endl;
-            
+                //std::cerr << "=" << std::endl;
                 return right_str == row_col_val;
             }
             else if(op == "!="){
-                std::cerr << "!=" << std::endl;
+                //std::cerr << "!=" << std::endl;
                 return right_str != row_col_val;
             }
             else{
@@ -2319,28 +2322,29 @@ bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const Col
         auto row_val = std::stod(row_col_val);
         auto pred_val = std::stod(right_str);
           
+        Debug("Operator '%s'. Pred_val: %.2f. Row_val: %.2f", static_cast<std::string>(op).c_str(), pred_val, row_val);
         if(op == "="){
-            std::cerr << "=" << std::endl;
+            //std::cerr << "=" << std::endl;
             return row_val == pred_val;
         }
         else if(op == "!="){
-            std::cerr << "!=" << std::endl;
+            //std::cerr << "!=" << std::endl;
             return row_val != pred_val;
         }
         else if(op == "<"){
-            std::cerr << "<=" << std::endl;
+            //std::cerr << "<=" << std::endl;
             return row_val < pred_val;
         }
         else if(op == ">"){
-            std::cerr << ">=" << std::endl;
+            //std::cerr << ">=" << std::endl;
             return row_val > pred_val;
         }
         else if(op == "<="){
-            std::cerr << "<=" << std::endl;
+            //std::cerr << "<=" << std::endl;
             return row_val <= pred_val;
         }
         else if(op == ">="){
-            std::cerr << ">=" << std::endl;
+            //std::cerr << ">=" << std::endl;
             return row_val >= pred_val;
         }
         else{

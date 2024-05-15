@@ -130,7 +130,7 @@ bool IndexScanExecutor::DInit() {
  */
 bool IndexScanExecutor::DExecute() {
   LOG_TRACE("Index Scan executor :: 0 child");
-  std::cerr << "Doing an index scan" << std::endl;
+  std::cerr << "Using Eager Index Scan" << std::endl;
 
   if (!done_) {
     if (index_->GetIndexType() == IndexConstraintType::PRIMARY_KEY) {
@@ -299,8 +299,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     tile_group_header = head_tile_group_header;
     // auto curr_tuple_id = location.offset;
 
-    std::cerr << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", "
-              << tuple_timestamp.getID() << std::endl;
+    Debug("Head timestamp is [%lu:%lu]",tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
 
     ContainerTuple<storage::TileGroup> row_(tile_group.get(),
                                             tuple_location.offset);
@@ -318,24 +317,18 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       ++chain_length;
       auto tuple_timestamp =
           tile_group_header->GetBasilTimestamp(tuple_location.offset);
-      Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(),
-            tuple_timestamp.getID());
-      std::cerr << "Tuple timestamp is " << tuple_timestamp.getTimestamp()
-                << ", " << tuple_timestamp.getID() << std::endl;
-
+      Debug("Tuple TS: [%lu:%lu]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
+     
       if (timestamp >= tuple_timestamp) {
         // Within range of timestamp
         bool eval = true;
         // if having predicate, then perform evaluation.
         if (predicate_ != nullptr) {
           LOG_TRACE("perform predicate evaluate");
-          ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
-                                                   tuple_location.offset);
-          eval =
-              predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
+          ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
+          eval = predicate_->Evaluate(&tuple, nullptr, executor_context_).IsTrue();
         }
 
-        std::cerr << "Before delete check" << std::endl;
 
         /** NEW: Force eval to be true if deleted */
         if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -359,14 +352,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                 (visible_tuple_set.find(tuple_location) ==
                  visible_tuple_set.end()));
 
-          std::cerr << "Tuple check if committed is "
-                    << tile_group_header->GetCommitOrPrepare(
-                           tuple_location.offset)
-                    << ". Already processed is "
-                    << (visible_tuple_set.find(tuple_location) ==
-                        visible_tuple_set.end())
-                    << std::endl;
-
           // The tuple is committed
           if (tile_group_header->GetCommitOrPrepare(tuple_location.offset) &&
               visible_tuple_set.find(tuple_location) ==
@@ -374,10 +359,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
             // Set boolean flag found_committed to true
             found_committed = true;
-            std::cerr << "Found committed tuple" << std::endl;
+            Debug("Found committed tuple");
 
             if (tile_group_header->IsDeleted(tuple_location.offset)) {
-              std::cerr << "Tuple is deleted so will break" << std::endl;
+              Debug("Tuple is already deleted so will break");
               break;
             }
 
@@ -409,29 +394,20 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
               //  std::cerr << (*commit_proof)->DebugString() << std::endl;
               if (commit_proof == nullptr) {
                 Debug("Commit proof is null");
-                std::cerr << "Commit proof is null" << std::endl;
               } else {
                 Debug("Inside index scan proof not null");
-                std::cerr << "Inside index scan proof not null" << std::endl;
 
                 auto proof_ts = Timestamp(commit_proof->txn().timestamp());
-                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(),
-                      proof_ts.getID());
-
-                std::cerr << "Proof ts is " << proof_ts.getTimestamp() << ", "
-                          << proof_ts.getID() << std::endl;
+                Debug("Proof ts is %lu, %lu", proof_ts.getTimestamp(), proof_ts.getID());
               }
 
               if (commit_proof_ref == nullptr) {
                 Debug("Commit proof ref is null");
-                std::cerr << "Commit proof ref is null" << std::endl;
               } else {
                 if (*commit_proof_ref == nullptr) {
                   Debug("* commit proof ref is null");
-                  std::cerr << "* commit proof ref is null" << std::endl;
                 } else {
                   Debug("Neither pointer is null");
-                  std::cerr << "Neither pointer is null" << std::endl;
                 }
               }
             }
@@ -452,30 +428,21 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
             auto const &predicate = current_txn->GetPredicate();
 
             if (predicate) {
-              auto txn_digest =
-                  tile_group_header->GetTxnDig(tuple_location.offset);
-              if (predicate(*txn_digest) &&
-                  visible_tuple_set.find(tuple_location) ==
-                      visible_tuple_set.end()) {
-                // NEW: if predicate satisfied then add to prepared visible
-                // tuple vector
+              auto txn_digest =tile_group_header->GetTxnDig(tuple_location.offset);
+              if (predicate(*txn_digest) && visible_tuple_set.find(tuple_location) == visible_tuple_set.end()) {
+                // NEW: if predicate satisfied then add to prepared visible tuple vector
 
-                std::cerr << "Predicate is satisfied" << std::endl;
+                Debug("Predicate is satisfied");
                 // Set the prepared timestamp
-                Timestamp prepared_timestamp =
-                    tile_group_header->GetBasilTimestamp(tuple_location.offset);
+                Timestamp prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
                 current_txn->SetPreparedTimestamp(&prepared_timestamp);
                 if (current_txn->IsPointRead()) {
-                  auto prepared_txn_digest =
-                      current_txn->GetPreparedTxnDigest();
-                  *prepared_txn_digest =
-                      tile_group_header->GetTxnDig(tuple_location.offset);
+                  auto prepared_txn_digest = current_txn->GetPreparedTxnDigest();
+                  *prepared_txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
                 }
                 // Set the prepared txn digest
-                /*current_txn->SetPreparedTxnDigest(
-                    tile_group_header->GetTxnDig(tuple_location.offset));*/
-                // After finding latest prepare we can stop looking at the
-                // version chain
+                /*current_txn->SetPreparedTxnDigest(tile_group_header->GetTxnDig(tuple_location.offset));*/
+                // After finding latest prepare we can stop looking at the version chain
                 found_prepared = true;
 
                 if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -550,12 +517,12 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     GetColNames(predicate_, column_names);
 
     for (auto &col : column_names) {
-      std::cerr << "Col name is " << col << std::endl;
+      //std::cerr << "Col name is " << col << std::endl;
       col_names.push_back(col);
     }
 
     std::string encoded_key = EncodeTableRow(table_->GetName(), col_names);
-    std::cerr << "Encoded key is " << encoded_key << std::endl;
+    Debug("Encoded key is: %s", encoded_key.c_str());
     current_txn->GetTableVersion()(encoded_key, current_txn_timestamp, true, query_read_set_mgr, nullptr);
   }
 
@@ -632,12 +599,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
       if (current_txn->GetHasReadSetMgr()) {
 
-        tile_group =
-            storage_manager->GetTileGroup(visible_tuple_location.block);
+        tile_group =storage_manager->GetTileGroup(visible_tuple_location.block);
         auto tile_group_header = tile_group->GetHeader();
 
-        ContainerTuple<storage::TileGroup> row(tile_group.get(),
-                                               visible_tuple_location.offset);
+        ContainerTuple<storage::TileGroup> row(tile_group.get(), visible_tuple_location.offset);
 
         std::vector<std::string> primary_key_cols;
         for (auto col : primary_index_columns_) {
@@ -645,29 +610,21 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // encoded_key = encoded_key + "///" + val.ToString();
           primary_key_cols.push_back(val.ToString());
           // primary_key_cols.push_back(val.GetAs<const char*>());
-          Debug("Read set value: %s",
-                val.ToString().c_str()); // std::cerr << "read set value is " <<
-                                         // val.ToString() << std::endl;
+          Debug("Read set value: %s", val.ToString().c_str()); 
         }
 
-        const Timestamp &time = tile_group_header->GetBasilTimestamp(
-            visible_tuple_location.offset); // TODO: remove copy
+        const Timestamp &time = tile_group_header->GetBasilTimestamp(visible_tuple_location.offset); // TODO: remove copy
 
-        std::string &&encoded =
-            EncodeTableRow(table_->GetName(), primary_key_cols);
-        Debug("encoded read set key is: %s. Version: [%lu: %lu]",
-              encoded.c_str(), time.getTimestamp(), time.getID());
+        std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
+        Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
         query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 
         if (!tile_group_header->GetCommitOrPrepare(
                 visible_tuple_location.offset)) {
-          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==
-              nullptr) {
+          if (tile_group_header->GetTxnDig(visible_tuple_location.offset) ==  nullptr) {
             Panic("Dep Digest is null");
           } else {
-            query_read_set_mgr->AddToDepSet(
-                *tile_group_header->GetTxnDig(visible_tuple_location.offset),
-                time);
+            query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(visible_tuple_location.offset), time);
           }
         }
       }

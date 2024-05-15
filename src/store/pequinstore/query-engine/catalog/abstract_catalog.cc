@@ -222,15 +222,16 @@ AbstractCatalog::GetResultWithIndexScan(
 //  }
   
 
-   struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //  struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  
   std::unique_ptr<executor::ExecutorContext> context(new executor::ExecutorContext(txn));
 
   auto index = catalog_table_->GetIndex(index_offset);
 
   //Add a quick cache: //TODO: replace cache maps with threadsafe maps (or add a rw/ lock)
-  std::cerr << "GetResultWithIndexScan1: " << catalog_table_->GetName() << std::endl;
+  //std::cerr << "GetResultWithIndexScan1: " << catalog_table_->GetName() << std::endl;
   // const std::string &key = catalog_table_->GetName();
 
   // if(false && !txn->skip_cache){
@@ -260,12 +261,12 @@ AbstractCatalog::GetResultWithIndexScan(
 
   executor::IndexScanExecutor index_scan_executor(&index_scan_node, context.get());
 
-  std::cerr << "GetResultWithIndexScan: " << index_scan_node.GetTable()->GetName() << std::endl;
+  // std::cerr << "GetResultWithIndexScan: " << index_scan_node.GetTable()->GetName() << std::endl;
 
-          clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_end= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    auto duration = microseconds_end-microseconds_start;
-    Warning("IndexScan setup: %d", duration);
+  //         clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //   uint64_t microseconds_end= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //   auto duration = microseconds_end-microseconds_start;
+  //   Warning("IndexScan setup: %d", duration);
 
   // Execute
   index_scan_executor.Init();
@@ -273,12 +274,12 @@ AbstractCatalog::GetResultWithIndexScan(
 
   std::unique_ptr<std::vector<std::unique_ptr<executor::LogicalTile>>> result_tiles(new std::vector<std::unique_ptr<executor::LogicalTile>>());
 
-   clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_end2= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    duration = microseconds_end2-microseconds_end;
-    Warning("IndexScan Init: %d", duration);
+  //  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //   uint64_t microseconds_end2= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //   duration = microseconds_end2-microseconds_end;
+  //   Warning("IndexScan Init: %d", duration);
 
-     uint64_t microseconds_end3= 0;
+  //    uint64_t microseconds_end3= 0;
 
   // std::pair<std::map<std::string, peloton::catalog::res_tiles_t>::iterator, bool> write_to_cache;
   // if(!txn->skip_cache){
@@ -291,10 +292,10 @@ AbstractCatalog::GetResultWithIndexScan(
 
   while (index_scan_executor.Execute()) {
    
-     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-     microseconds_end3= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    duration = microseconds_end3-microseconds_end2;
-    Warning("IndexScan Exec: %d", duration);
+    //  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    //  microseconds_end3= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // duration = microseconds_end3-microseconds_end2;
+    // Warning("IndexScan Exec: %d", duration);
   
     // if(write_to_cache.second){ //write a copy to cache //FIXME: Seemingly cannot copy the tile without breaking things.
     //   //write_to_cache.first->second.push_back(*index_scan_executor.GetOutput());
@@ -307,10 +308,10 @@ AbstractCatalog::GetResultWithIndexScan(
 
   //if(write_to_cache.second) cache_mutex.unlock();
 
-   clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_end4= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    duration = microseconds_end4-microseconds_end2;
-    Warning("IndexScan total Result: %d", duration);
+  //  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //   uint64_t microseconds_end4= ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //   duration = microseconds_end4-microseconds_end2;
+  //   Warning("IndexScan total Result: %d", duration);
 
 //   if(has_key){
 //     //Copy all tiles into the cache

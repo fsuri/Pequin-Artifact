@@ -85,7 +85,7 @@ Optimizer::Optimizer(const CostModels cost_model) : metadata_(nullptr) {
 }
 
 void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> required_props) {
-  std::cerr << "call optimize loop" << std::endl;
+  //std::cerr << "call optimize loop" << std::endl;
 
   std::shared_ptr<OptimizeContext> root_context = std::make_shared<OptimizeContext>(&metadata_, required_props);
   auto task_stack = std::unique_ptr<OptimizerTaskStack>(new OptimizerTaskStack());
@@ -97,7 +97,7 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   //FIXME: CAN DO WITHOUT?
   //task_stack->Push(new BottomUpRewrite(root_group_id, root_context, RewriteRuleSetName::UNNEST_SUBQUERY, false));
 
-  std::cerr << "ExecTaskStack1. " << std::endl;
+  //std::cerr << "ExecTaskStack1. " << std::endl;
   ExecuteTaskStack(*task_stack, root_group_id, root_context, 1);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 
   // Perform optimization after the rewrite
@@ -107,14 +107,14 @@ void Optimizer::OptimizeLoop(int root_group_id, std::shared_ptr<PropertySet> req
   // Derive stats for the only one logical expression before optimizing
   //task_stack->Push(new DeriveStats(metadata_.memo.GetGroupByID(root_group_id)->GetLogicalExpression(), ExprSet{}, root_context));
 
-  std::cerr << "ExecTaskStack2. " << std::endl;
+  //std::cerr << "ExecTaskStack2. " << std::endl;
   ExecuteTaskStack(*task_stack, root_group_id, root_context, 2);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
 }
 
 shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::unique_ptr<parser::SQLStatementList> &parse_tree_list,
     concurrency::TransactionContext *txn) {
 
-  std::cerr << "Start BuildPelotonPlanTree" << std::endl;
+  //std::cerr << "Start BuildPelotonPlanTree" << std::endl;
   if (parse_tree_list->GetStatements().empty()) {
     // TODO: create optimizer exception
     throw CatalogException("Parse tree list has no parse trees. Cannot build plan");
@@ -144,7 +144,7 @@ shared_ptr<planner::AbstractPlan> Optimizer::BuildPelotonPlanTree(const std::uni
  
  //TODO: Something before this also tries to call GetTableCatalog.???
 
-  std::cerr << "Start OptimizeLoop" << std::endl;
+  //Notice("Start OptimizeLoop");
   try {
     OptimizeLoop(root_id, query_info.physical_props);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
   } catch (OptimizerException &e) {
@@ -332,6 +332,11 @@ const std::string Optimizer::GetOperatorInfo(GroupID id, std::shared_ptr<Propert
 
 unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan( GroupID id, std::shared_ptr<PropertySet> required_props, std::vector<expression::AbstractExpression *> required_cols) {
 
+  // Notice("start ChooseBestPlan");
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   Group *group = metadata_.memo.GetGroupByID(id);
   LOG_TRACE("Choosing with property : %s", required_props->ToString().c_str());
   auto gexpr = group->GetBestExpression(required_props);
@@ -375,12 +380,18 @@ unique_ptr<planner::AbstractPlan> Optimizer::ChooseBestPlan( GroupID id, std::sh
                                             output_cols, children_plans,
                                             children_expr_map, group->GetNumRows());
   LOG_TRACE("Finish Choosing best plan for group %d", id);
+
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // Warning("ChooseBestPlan took %d us", microseconds_end-microseconds_start);
+
   return plan;
 }
 
 void Optimizer::ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_id, std::shared_ptr<OptimizeContext> root_context, int i) {
 
-  std::cerr << "call execute task stack" << std::endl;
+  //std::cerr << "call execute task stack" << std::endl;
   auto root_group = metadata_.memo.GetGroupByID(root_group_id);
   auto &timer = metadata_.timer;
   const auto timeout_limit = metadata_.timeout_limit;
@@ -388,16 +399,16 @@ void Optimizer::ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_
 
 
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   //FIXME: FS: Timer seems unecessary?
   // if (timer.GetInvocations() == 0) {
   //   timer.Start();
   // }
   // Iterate through the task stack
-  std::cerr << "task stack size: " << task_stack.Size() << std::endl;
+  //std::cerr << "task stack size: " << task_stack.Size() << std::endl;
   while (!task_stack.Empty()) {
     // Check to see if we have at least one plan, and if we have exceeded our timeout limit
     // if (timer.GetDuration() >= timeout_limit && root_group->HasExpressions(required_props)) {
@@ -408,17 +419,17 @@ void Optimizer::ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_
     //std::cerr << "task stack size remaining: " << task_stack.Size() << std::endl;
     
   
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     task->execute();
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration2 = microseconds_end2 - microseconds_start2;
-   Warning("TaskExecute duration: %d us", duration2);
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration2 = microseconds_end2 - microseconds_start2;
+  //  Warning("TaskExecute duration: %d us", duration2);
   // if(duration2 > 50){
   //   Warning("TaskExecute exceeded 50us: %d us", duration2);
   // }
@@ -428,14 +439,14 @@ void Optimizer::ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_
   }
 
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 300){
-    Warning("ExecuteTaskStack%d exceeded 300us: %d us", i, duration);
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration = microseconds_end - microseconds_start;
+  // if(duration > 300){
+  //   Warning("ExecuteTaskStack%d exceeded 300us: %d us", i, duration);
+  // }
 }
 
 }  // namespace optimizer

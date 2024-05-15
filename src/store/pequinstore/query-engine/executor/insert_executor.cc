@@ -91,7 +91,7 @@ bool InsertExecutor::DExecute() {
 
   // Inserting a logical tile.
   if (children_.size() == 1) {
-    std::cerr << "Inside insert executor, One child" << std::endl;
+    Debug("Inside insert executor, One child");
     if (!children_[0]->Execute()) {
       return false;
     }
@@ -121,7 +121,7 @@ bool InsertExecutor::DExecute() {
 
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
-      std::cerr << "Checking insertion for id " << tuple_id << std::endl;
+      Debug("Checking insertion for id %d", tuple_id);
       peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
       // it is possible that some concurrent transactions have inserted the same tuple.
@@ -169,7 +169,7 @@ bool InsertExecutor::DExecute() {
 
     // Check if this is not a raw tuple
     if (project_info) {
-      std::cerr << "from project info" << std::endl;  //TODO: Add Panic? Don't think we ever use this branch
+      //std::cerr << "from project info" << std::endl;  //TODO: Add Panic? Don't think we ever use this branch
       // Otherwise, there must exist a project info
       PELOTON_ASSERT(project_info);
       // There should be no direct maps

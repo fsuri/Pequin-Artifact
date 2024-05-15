@@ -365,7 +365,7 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
      
     //UW_ASSERT(!is_metadata_table_);
     if (current_txn->CheckPredicatesInitialized()) {
-      std::cerr << "Read Table/Col versions" << std::endl;
+      Debug("Set Read Table/Col versions");
 
       //shorthands
       bool get_read_set = current_txn->GetHasReadSetMgr();
@@ -381,8 +381,7 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
       //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
       //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
       
-      //if(USE_ACTIVE_READ_SET){ 
-      if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
+      if(catalog::Catalog::GetInstance()->GetQueryParams()->useColVersions && catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
         // Table column version : FIXME: Read version per Col, not composite key
         std::unordered_set<std::string> column_names;
         //std::vector<std::string> col_names;
@@ -390,7 +389,7 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
         if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
 
         for (auto &col : column_names) {
-          std::cerr << "Col name is " << col << std::endl;
+          Debug("Col name is: %s", col.c_str());
           current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
           //col_names.push_back(col);
         }
@@ -418,7 +417,7 @@ void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn,
   const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
-  std::cerr << "Adding new read set predicate instance: " << pred << std::endl;
+  Debug("Adding new read set predicate instance: %s ", pred);
 
   // // // Index predicate in string form
   //     /*std::string index_pred = "";
@@ -466,7 +465,7 @@ void SeqScanExecutor::Scan() {
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cerr << "Offset is " << offset << std::endl;
+      //std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
@@ -535,7 +534,7 @@ void SeqScanExecutor::OldScan() {
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cerr << "Offset is " << offset << std::endl;
+      //std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
@@ -1079,7 +1078,7 @@ void SeqScanExecutor::OldScan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cerr << "Executing seq scan for table: " << target_table_->GetName() << std::endl;
+  Debug("Executing seq scan for table: %s", target_table_->GetName().c_str());
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
@@ -1152,11 +1151,11 @@ bool SeqScanExecutor::DExecute() {
 
     while (result_itr_ < result_.size()) { // Avoid returning empty tiles
       if (result_[result_itr_]->GetTupleCount() == 0) {
-        std::cerr << "No tuples in tile" << std::endl;
+        //std::cerr << "No tuples in tile" << std::endl;
         result_itr_++;
         continue;
       } else {
-        std::cerr << "Output here for tile " << result_itr_ << std::endl;
+        //std::cerr << "Output here for tile " << result_itr_ << std::endl;
         LOG_TRACE("Information %s", result_[result_itr_]->GetInfo().c_str());
         SetOutput(result_[result_itr_]);
         result_itr_++;

@@ -133,13 +133,13 @@ void PelotonTableStore::Init(int num_threads) {
     is_recycled_version_ = false;
     for (int i = 0; i < num_threads; i++) {
       std::atomic_int *counter = new std::atomic_int();
-      std::cerr << "create tcop: " << i << std::endl;
+      //std::cerr << "create tcop: " << i << std::endl;
       peloton::tcop::TrafficCop *new_cop = new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
       traffic_cops_.push_back({new_cop, counter});
     }
   }
 
- std::cerr << "traffic_cops sizE: " << traffic_cops_.size() << std::endl;
+ Notice("Instantiated %d traffic cop(s)", traffic_cops_.size()); 
   for (int i = 0; i < num_threads; ++i) {
     Latency_t readLat;
     Latency_t writeLat;
@@ -158,15 +158,15 @@ std::shared_ptr<peloton::Statement>
 PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop, bool skip_cache) {
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   ///////////
 
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
-  Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
+  //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
@@ -185,16 +185,15 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 1000){
-    if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 1000us (INSERT): %d", query_statement.substr(0, 1000).c_str(), duration);
-    else Warning("ParseAndPrepare exceeded 1000us (SELECT): %d. Q[%s]", duration, query_statement.substr(0, 1000).c_str());
-
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration = microseconds_end - microseconds_start;
+  // if(duration > 1000){
+  //   if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 1000us (INSERT): %d", query_statement.substr(0, 1000).c_str(), duration);
+  //   else Warning("ParseAndPrepare exceeded 1000us (SELECT): %d. Q[%s]", duration, query_statement.substr(0, 1000).c_str());
+  // }
   /////////////
 
   return statement;
@@ -298,16 +297,16 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
   // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
   // ExecRaw should not return before the call is done.
 
-  std::cerr << "Beginning of exec raw. Statement: " << sql_statement << std::endl;
+  Debug("Beginning of exec raw. Statement: %s", sql_statement);
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
-  std::cerr << "Got the cop" << std::endl;
+  //std::cerr << "Got the cop" << std::endl;
 
   std::atomic_int *counter = cop_pair.second;
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
-  std::cerr << "Before parse and prepare" << std::endl;
+  //std::cerr << "Before parse and prepare" << std::endl;
   auto statement = ParseAndPrepare(sql_statement, tcop, skip_cache);
 
   // ExecuteStatment
@@ -558,9 +557,9 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   auto statement = ParseAndPrepare(query_statement, tcop);
 
   //FIXME: REMOVE: JUST FOR TESTING
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -594,12 +593,12 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   }
 
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-   struct timespec ts_end;
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-   uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  //  struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  //  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
 
-  auto duration = microseconds_end - microseconds_start;  
-  Warning("PointRead EXEC: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
+  // auto duration = microseconds_end - microseconds_start;  
+  // Warning("PointRead EXEC: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
   
 
   if (committedProof == nullptr) {
@@ -620,13 +619,13 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-  duration = microseconds_end - microseconds_start;
-  Warning("PointRead EXEC FULL: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
-  if(duration > 5000){
-    Warning("PointRead EXEC FULL exceeded 5000us: %d us. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID());
-  }
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // duration = microseconds_end - microseconds_start;
+  // Warning("PointRead EXEC FULL: %d. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID()); //FIXME: WHY IS THIS WRONG/NOT TRIGGERING?
+  // if(duration > 5000){
+  //   Warning("PointRead EXEC FULL exceeded 5000us: %d us. Q[%s] TS[%lu:%lu]", duration, query_statement.c_str(), ts.getTimestamp(), ts.getID());
+  // }
 
   Debug("Finish ExecPointRead for query statement: %s with Timestamp[%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
@@ -649,9 +648,9 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   //   return; //empty read
   // }
 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   Debug("Transform PointResult");
   // Change Peloton result into query proto.
@@ -756,12 +755,12 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
    
   Debug("Read Committed? %d. read Prepared? %d", write->has_committed_value(), write->has_prepared_value());
 
-   struct timespec ts_end;
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-   uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  //  struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  //  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
 
-  auto duration = microseconds_end - microseconds_start;
-  Warning("TransformPoint Latency: %d us.", duration); 
+  // auto duration = microseconds_end - microseconds_start;
+  // Warning("TransformPoint Latency: %d us.", duration); 
 
   return;
 }

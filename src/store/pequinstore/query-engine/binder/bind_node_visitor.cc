@@ -35,26 +35,26 @@ BindNodeVisitor::BindNodeVisitor(concurrency::TransactionContext *txn,
 }
 
 void BindNodeVisitor::BindNameToNode(parser::SQLStatement *tree) {
-  std::cerr << "Call BindNameToNode" << std::endl;
+  //std::cerr << "Call BindNameToNode" << std::endl;
   tree->Accept(this);
 }
 
 void BindNodeVisitor::Visit(parser::SelectStatement *node) {
   
-  std::cerr << "Visit SelectStatement" << std::endl;
-   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // std::cerr << "Visit SelectStatement" << std::endl;
+  //  //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
 
   context_ = std::make_shared<BinderContext>(context_);
   if (node->from_table != nullptr) {
-    std::cerr << "AcceptTable" << std::endl;
+    //std::cerr << "AcceptTable" << std::endl;
     node->from_table->Accept(this);
   }
   if (node->where_clause != nullptr) {
-     std::cerr << "AcceptWhere" << std::endl;
+     //std::cerr << "AcceptWhere" << std::endl;
     node->where_clause->Accept(this);
     // Derive depth for all exprs in the where clause
     node->where_clause->DeriveDepth();
@@ -96,14 +96,14 @@ void BindNodeVisitor::Visit(parser::SelectStatement *node) {
   const_cast<parser::SelectStatement *>(node)->depth = context_->GetDepth();
   context_ = context_->GetUpperContext();
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-   auto duration2 = microseconds_end - microseconds_start;
-  if(duration2 > 100){
-    Warning("BindNameToNode (VISIT SELECT) exceeded 100us: %d", duration2);
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  //  auto duration2 = microseconds_end - microseconds_start;
+  // if(duration2 > 100){
+  //   Warning("BindNameToNode (VISIT SELECT) exceeded 100us: %d", duration2);
+  // }
 }
 
 // Some sub query nodes inside SelectStatement
@@ -115,7 +115,7 @@ void BindNodeVisitor::Visit(parser::JoinDefinition *node) {
 }
 
 void BindNodeVisitor::Visit(parser::TableRef *node) {
-  std::cerr << "Visit TableRef" << std::endl;
+  //std::cerr << "Visit TableRef" << std::endl;
 
   if (node->select != nullptr) {
     if (node->alias.empty()) {
@@ -160,7 +160,7 @@ void BindNodeVisitor::Visit(parser::OrderDescription *node) {
 }
 
 void BindNodeVisitor::Visit(parser::UpdateStatement *node) {
-   std::cerr << "Visit Update" << std::endl;
+   //std::cerr << "Visit Update" << std::endl;
   context_ = std::make_shared<BinderContext>(nullptr);
 
   node->table->Accept(this);

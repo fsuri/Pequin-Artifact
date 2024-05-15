@@ -119,43 +119,39 @@ void SeqScanExecutor::Scan() {
   GetColNames(predicate_, column_names);
 
   for (auto &col : column_names) {
-    std::cerr << "Col name is " << col << std::endl;
+    //std::cerr << "Col name is " << col << std::endl;
     col_names.push_back(col);
   }
 
   std::string encoded_key = EncodeTableRow(target_table_->GetName(), col_names);
-  std::cerr << "Encoded key is " << encoded_key << std::endl;
+  Debug("Encoded key is: %s ", encoded_key);
   current_txn->GetTableVersion()(encoded_key, timestamp, true, query_read_set_mgr, nullptr);
 
   ItemPointer location_copy;
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cerr << "Offset is " << offset << std::endl;
+      //std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
       }
 
-      auto head_tile_group_header =
-          storage_manager->GetTileGroup(head->block)->GetHeader();
+      auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
 
-      auto tuple_timestamp =
-          head_tile_group_header->GetBasilTimestamp(head->offset);
+      auto tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
       auto location = *head;
       auto tile_group_header = head_tile_group_header;
       auto curr_tuple_id = location.offset;
       location_copy = location;
 
-      Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(),
-            tuple_timestamp.getID());
+      Debug("Head timestamp: [%d: %d]", tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
 
       // Now we find the appropriate version to read that's less than the
       // timestamp by traversing the next pointers
       while (tuple_timestamp > timestamp) {
         // Get the previous version in the linked list
-        ItemPointer new_location =
-            tile_group_header->GetNextItemPointer(curr_tuple_id);
+        ItemPointer new_location = tile_group_header->GetNextItemPointer(curr_tuple_id);
 
         // Get the associated tile group header so we can find the timestamp
         if (new_location.IsNull()) {
@@ -163,26 +159,16 @@ void SeqScanExecutor::Scan() {
           break;
         }
 
-        auto new_tile_group_header =
-            storage_manager->GetTileGroup(new_location.block)->GetHeader();
+        auto new_tile_group_header = storage_manager->GetTileGroup(new_location.block)->GetHeader();
         // Update the timestamp
-        tuple_timestamp =
-            new_tile_group_header->GetBasilTimestamp(new_location.offset);
+        tuple_timestamp = new_tile_group_header->GetBasilTimestamp(new_location.offset);
         location = new_location;
         tile_group_header = new_tile_group_header;
         curr_tuple_id = new_location.offset;
       }
 
-      Debug(
-          "location timestamp is: [%lu:%lu]",
-          tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(),
-          tile_group_header->GetBasilTimestamp(location.offset).getID());
-      // std::cerr << "Location timestamp is " <<
-      // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
-      // << std::endl; std::cerr << "Current tuple id is " << curr_tuple_id <<
-      // std::endl;
-      //
-
+      Debug("location timestamp is: [%lu:%lu]", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(), tile_group_header->GetBasilTimestamp(location.offset).getID());
+     
       bool is_deleted = tile_group_header->IsDeleted(curr_tuple_id);
       auto tile_group = target_table_->GetTileGroupById(location.block);
 
@@ -373,7 +359,7 @@ void SeqScanExecutor::Scan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cerr << "Executing seq scan" << std::endl;
+  Debug("Executing eager seq scan");
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
@@ -446,11 +432,11 @@ bool SeqScanExecutor::DExecute() {
 
     while (result_itr_ < result_.size()) { // Avoid returning empty tiles
       if (result_[result_itr_]->GetTupleCount() == 0) {
-        std::cerr << "No tuples in tile" << std::endl;
+        //std::cerr << "No tuples in tile" << std::endl;
         result_itr_++;
         continue;
       } else {
-        std::cerr << "Output here for tile " << result_itr_ << std::endl;
+        //std::cerr << "Output here for tile " << result_itr_ << std::endl;
         LOG_TRACE("Information %s", result_[result_itr_]->GetInfo().c_str());
         SetOutput(result_[result_itr_]);
         result_itr_++;

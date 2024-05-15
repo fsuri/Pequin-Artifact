@@ -153,21 +153,20 @@ bool IndexScanExecutor::DExecute() {
   if (!done_) {
     //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     if(is_metadata_table_){
-       Debug("Doing a META DATA secondary index scan");
-      std::cerr << "Doing a secondary index scan for meta data table " << table_->GetName() << std::endl;
+      Notice("Doing a META DATA secondary index scan for %s", table_->GetName().c_str());
       //auto status = ExecSecondaryIndexLookup_OLD();
 
-      struct timespec ts_start;
-      clock_gettime(CLOCK_MONOTONIC, &ts_start);
-      uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+      // struct timespec ts_start;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
       auto status = ExecSecondaryIndexLookup();
 
-       struct timespec ts_end;
-      clock_gettime(CLOCK_MONOTONIC, &ts_end);
-      uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-      auto duration = microseconds_end - microseconds_start;
-      Warning("IndexExecutor Latency: %dus", duration);
+      //  struct timespec ts_end;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+      // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+      // auto duration = microseconds_end - microseconds_start;
+      // Warning("IndexExecutor Latency: %dus", duration);
 
 
       if (status == false)
@@ -222,9 +221,9 @@ void IndexScanExecutor::GetColNames(const expression::AbstractExpression * child
   }
 
   if(use_updated){
-    std::cerr << "get N updated cols: " << updated_column_ids.size() << std::endl;
+    Debug("get N updated cols: %d", updated_column_ids.size());
     for(auto &col_id : updated_column_ids){
-      std::cerr << "colID: " << col_id << std::endl;
+      Debug("adding updated colID: %d", col_id);
       column_names.insert(table_->GetSchema()->GetColumn(col_id).GetName());
     }
   }
@@ -490,7 +489,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   #endif
 
   Debug("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
-  std::cerr << "Primary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
    if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient scan. Sanity check!");
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
@@ -1291,7 +1289,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup_OLD() {
   bool has_snapshot_mgr = current_txn->GetHasSnapshotMgr();
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
 
-  std::cerr << "HAS SNAPSHOT MGR?" << has_snapshot_mgr << std::endl;
+  //std::cerr << "HAS SNAPSHOT MGR?" << has_snapshot_mgr << std::endl;
 
   size_t k_prepared_versions = current_txn->GetKPreparedVersions();
   std::vector<ItemPointer> snapshot_tuple_locations;
@@ -2074,7 +2072,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // //if(current_txn->IsPointRead()) max_size = 1; //UW_ASSERT(tuple_location_ptrs.size() == 1);
   // tuple_location_ptrs.resize(max_size);
   // tuple_location_ptrs.shrink_to_fit();
-  std::cerr << "Secondary Index Scan on Table: " << table_->GetName()  << ". Number of rows to check: " << tuple_location_ptrs.size() << std::endl;
+ 
   Debug("Secondary Index Scan on Table [%s]. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
   if(tuple_location_ptrs.size() > 100) Warning("Potentially inefficient scan. Sanity check!");
   
@@ -2294,7 +2292,7 @@ void IndexScanExecutor::UpdatePredicate(
   std::vector<type::Value> non_indexed_values;
   int value_idx = 0;
 
-  std::cerr << "UPDATING INDEX SCAN PREDICATE" << std::endl;
+  Debug("UPDATING INDEX SCAN PREDICATE");
   // Get the column ids which are in the index
   auto indexed_cols = index_->GetKeySchema()->GetIndexedColumns();
   std::set<oid_t> index_col_set(indexed_cols.begin(), indexed_cols.end());
@@ -2330,8 +2328,8 @@ void IndexScanExecutor::UpdatePredicate(
     for (; current_idx < values_.size(); current_idx++) {
       if (key_column_ids[new_idx] == key_column_ids_[current_idx]) {
       
-         fprintf(stderr, "Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
-          fprintf(stderr, "Changed to %d:%s\n", key_column_ids[new_idx], indexed_values[new_idx].GetInfo().c_str());
+        // fprintf(stderr, "Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
+        // fprintf(stderr, "Changed to %d:%s\n", key_column_ids[new_idx], indexed_values[new_idx].GetInfo().c_str());
         LOG_TRACE("Orignial is %d:%s", key_column_ids[new_idx], values_[current_idx].GetInfo().c_str());
         LOG_TRACE("Changed to %d:%s", key_column_ids[new_idx], values[new_idx].GetInfo().c_str());
         values_[current_idx] = indexed_values[new_idx];
@@ -2360,9 +2358,9 @@ void IndexScanExecutor::UpdatePredicate(
     }
   }
 
-  for(int i = 0; i<key_column_ids.size(); ++i){
-     std::cerr << "col name: " << table_->GetSchema()->GetColumn(key_column_ids[i]).GetName()  << ". val: " << indexed_values[i] << std::endl;
-  }
+  // for(int i = 0; i<key_column_ids.size(); ++i){
+  //    std::cerr << "col name: " << table_->GetSchema()->GetColumn(key_column_ids[i]).GetName()  << ". val: " << indexed_values[i] << std::endl;
+  // }
 
   //index_predicate_.GetConjunctionListToSetup()[0].
   // Update the new value
@@ -2389,7 +2387,8 @@ void IndexScanExecutor::UpdatePredicate(
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
   
-  std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
+  //std::cerr << "new pred: " << new_predicate->GetInfo() << std::endl;
+  Debug("New pred: %s", new_predicate->GetInfo().c_str());
 
   // auto current_txn = executor_context_->GetTransaction();
   // if (current_txn->GetHasReadSetMgr()) {

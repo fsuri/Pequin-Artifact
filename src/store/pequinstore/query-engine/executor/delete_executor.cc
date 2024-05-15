@@ -171,13 +171,13 @@ bool DeleteExecutor::DExecute() {
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in place.
       LOG_TRACE("The current transaction is the owner of the tuple");
-      std::cerr << "In the if case delete executor" << std::endl;
+      //std::cerr << "In the if case delete executor" << std::endl;
       Panic("This should never be getting triggered in our current setup. TX scope are single statements");
       transaction_manager.PerformDelete(current_txn, old_location);
     } else {
       bool is_ownable = is_owner || transaction_manager.IsOwnable(current_txn, tile_group_header, physical_tuple_id);
 
-      std::cerr << "Delete executor in the else case" << std::endl;
+      //std::cerr << "Delete executor in the else case" << std::endl;
       is_ownable = true;  //NOTE: All the ownership biz seems like it can be removed for Pequin //TODO: Remove what is not needed
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to current transaction.

@@ -81,6 +81,7 @@ enum OCCType {
 //TEST/DEBUG variables
 static bool PRINT_READ_SET = false; //print out the read set of a query
 static bool PRINT_RESULT_ROWS = false; //print out the result of a query
+static bool PRINT_SNAPSHOT = false; //print out the snapshot set of a query
 //static bool PROFILE_EXEC_LAT = true; //record exec time 
 
 static bool TEST_QUERY = false; //true;   //create toy results for queries

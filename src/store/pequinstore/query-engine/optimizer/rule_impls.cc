@@ -261,9 +261,9 @@ void GetToIndexScan::Transform(
   PELOTON_ASSERT(children.size() == 0);
 
 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
 
   // std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
@@ -398,7 +398,7 @@ void GetToIndexScan::Transform(
       //Trying to design a simple heuristic to favor primary vs secondary index.
 
       bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
-      std::clog << "Table: " << get->table->GetTableName() << ". Compute weight for index type: " << is_primary_index << std::endl;
+      Debug("Table: %s. Compute weight for index type: %s", get->table->GetTableName().c_str(), (is_primary_index? "Primary" : "Secondary"));
       // for(auto &col: index_col_set){
       //   std::cerr << "col: " << col << std::endl;
       // }
@@ -479,11 +479,11 @@ void GetToIndexScan::Transform(
     }
   }
 
-   struct timespec ts_end;
-  clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-  auto duration = microseconds_end - microseconds_start;
-  Warning("Transform Latency: %dus", duration);
+  //  struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = microseconds_end - microseconds_start;
+  // Warning("Transform Latency: %dus", duration);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -748,7 +748,7 @@ void InnerJoinToInnerNLJoin::Transform(
   // first build an expression representing hash join
   const LogicalInnerJoin *inner_join = input->Op().As<LogicalInnerJoin>();
 
-  std::cerr << "TRANSFORM: INNER JOIN TO NL"<< std::endl;
+  //std::cerr << "TRANSFORM: INNER JOIN TO NL"<< std::endl;
 
   auto children = input->Children();
   PELOTON_ASSERT(children.size() == 2);

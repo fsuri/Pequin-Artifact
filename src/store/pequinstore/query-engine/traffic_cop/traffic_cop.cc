@@ -31,15 +31,15 @@ namespace tcop {
 TrafficCop::TrafficCop()
     : is_queuing_(false), rows_affected_(0),
       optimizer_(new optimizer::Optimizer(optimizer::CostModels::TRIVIAL)),
-      single_statement_txn_(true) { std::cerr << "create tcop" << std::endl;}
+      single_statement_txn_(true) {}
 
 TrafficCop::TrafficCop(void (*task_callback)(void *), void *task_callback_arg)
     : optimizer_(new optimizer::Optimizer(optimizer::CostModels::TRIVIAL)),
       single_statement_txn_(true), task_callback_(task_callback),
-      task_callback_arg_(task_callback_arg) {std::cerr << "create tcop2" << std::endl;}
+      task_callback_arg_(task_callback_arg) {}
 
 void TrafficCop::Reset() {
-  std::cerr << "reset tcop" << std::endl;
+  //std::cerr << "reset tcop" << std::endl;
   std::stack<TcopTxnState> new_tcop_txn_state;
   // clear out the stack
   swap(tcop_txn_state_, new_tcop_txn_state);
@@ -197,7 +197,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     Debug("Completed Task Callback Execute helper");
   };
 
-  std::cerr << "Setting skip cache in execute helper" << std::endl;
+  //std::cerr << "Setting skip cache in execute helper" << std::endl;
   //txn->skip_cache = true; //For Table Loading skip cache..
   
   // auto &pool = threadpool::MonoQueuePool::GetInstance();
@@ -1115,8 +1115,10 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     // Run binder 
     auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
     bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
-    std::cerr << "finished binding; try to optimize next" << std::endl;
+    //Notice("finished binding; try to optimize next");
     auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
+
+    // Notice("Finished Optimizer; setting plane tree etc next");
     statement->SetPlanTree(plan);
     // Get the tables that our plan references so that we know how to
     // invalidate it at a later point when the catalog changes

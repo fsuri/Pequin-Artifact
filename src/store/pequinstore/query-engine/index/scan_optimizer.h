@@ -21,6 +21,7 @@
 #include "../type/value_peeker.h"
 
 #include "../index/index_util.h"
+#include "lib/message.h"
 
 namespace catalog {
 class Schema;
@@ -269,8 +270,8 @@ class ConjunctionScanPredicate {
       // This function guarantees the return value must be valid one
       oid_t index_column = index_p->TupleColumnToKeyColumn(tuple_column);
 
-      std::cerr << "Setting Value for Column: " << tuple_column << std::endl; 
-      std::cerr << "Is point query? " << is_point_query_ << std::endl;
+      Debug("Setting Value for Column: %d. Is point_query? %d", tuple_column, is_point_query_);
+     
       //std::cerr << "Setting Value for Column: " << index_p->GetKeySchema()->GetColumn(tuple_column).GetName() << std::endl; 
       //FIXME: this doesn't work right? It thinks the given tuple_col is for a different index?
 
@@ -290,11 +291,8 @@ class ConjunctionScanPredicate {
         PELOTON_ASSERT(bind_ret == INVALID_OID);
       }
 
-      std::cerr << "index_p: " << index_p->GetInfo() << std::endl;
-      std::cerr << "new_val: " << new_value_list[i].ToString() << std::endl;
-      std::cerr << "low_key_p:" << low_key_p_->GetInfo() << std::endl;
-      std::cerr << "high_key_p: " << high_key_p_->GetInfo() << std::endl;
-      std::cerr << "index_col: " << index_column << std::endl;
+      Debug("index_p: %s\n new_val: %s\n, low_key_p: %s\n, high_key_p: %s\n index_col: %d", 
+            index_p->GetInfo().c_str(), new_value_list[i].ToString().c_str(), low_key_p_->GetInfo().c_str(), high_key_p_->GetInfo().c_str(), index_column);
 
       i++;
     }

@@ -573,7 +573,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
   Debug("Prepare: predSet has [%d] read preds", predSet->size());
  
   for(auto &pred: *predSet){
-    std::cerr << "Record pred: " << pred.pred_instances()[0] << std::endl;
+    //std::cerr << "Record pred: " << pred.pred_instances()[0] << std::endl;
     TablePredicateMap::accessor tp;
     tablePredicates.insert(tp, pred.table_name());
     auto &preds = tp->second;
@@ -610,7 +610,7 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
 
   //Record all TableWrites  //Store a reference: table_name -> txn
   for(auto &[table_name, _]: txn.table_writes()){
-     std::cerr << "Record Table Write: " << table_name << std::endl;
+    //std::cerr << "Record Table Write: " << table_name << std::endl;
     TableWriteMap::accessor tw;
     tableWrites.insert(tw, table_name);
     auto &write = tw->second;

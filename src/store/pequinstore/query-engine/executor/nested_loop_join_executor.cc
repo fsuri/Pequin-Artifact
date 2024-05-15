@@ -82,7 +82,7 @@ bool NestedLoopJoinExecutor::DExecute() {
   LOG_TRACE("********** Nested Loop %s Join executor :: 2 children ",
             GetJoinTypeString());
 
-   std::cerr << "NestedLoop Join executor is running" << std::endl;
+   Debug("NestedLoop Join executor is running");
    auto current_txn = executor_context_->GetTransaction();
 
   //TODO: FindTableVersions and tentatively store them. Leave it up to the Index_executor to decide to use or not use the version!

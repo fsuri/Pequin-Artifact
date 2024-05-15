@@ -677,7 +677,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 {
 
     //Call into TableStore with this statement.
-    std::cerr << "Load Table Data from: " << table_data_path << std::endl;
+   Notice("Load Data for Table %s from: %s", table_name.c_str(), table_data_path.c_str());
 
     //Get Genesis TX.
     auto committedItr = committed.find("");
@@ -791,7 +791,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
 
       table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment, segment_no), genesis_txn_dig, genesis_ts, genesis_proof);
       delete row_segment;
-      Debug("Finished loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
+      Notice("Finished loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
        return (void*) true;
     };
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.

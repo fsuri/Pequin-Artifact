@@ -40,26 +40,26 @@ void BinderContext::AddRegularTable(const std::string &db_name,
                                       //TODO: FIXME: THIS SEEMS TO BE EXPENSIVE
   // using catalog object to retrieve meta-data
     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
    //std::cerr << "table_name: " << table_name << ". Alias: " << table_alias << std::endl;
 
   //TODO: Somehow bind to txn context without looking up?
 
-  std::cerr << "AddRegularTable -> GetTableCatalogEntry" << std::endl;
+  //std::cerr << "AddRegularTable -> GetTableCatalogEntry" << std::endl;
   auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn, db_name, schema_name, table_name);
 
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-   auto duration2 = microseconds_end2 - microseconds_start2;
-  // if(duration2 > 2000){
-  //   Panic("GetTablecatalogEntry exceeded 2ms: %d", duration2);
-  // }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  //  auto duration2 = microseconds_end2 - microseconds_start2;
+  // // if(duration2 > 2000){
+  // //   Panic("GetTablecatalogEntry exceeded 2ms: %d", duration2);
+  // // }
 
   if (regular_table_alias_map_.find(table_alias) != regular_table_alias_map_.end() || nested_table_alias_map_.find(table_alias) != nested_table_alias_map_.end()) {
     Panic("duplicate");

@@ -56,7 +56,7 @@ bool ProjectionExecutor::DInit() {
  */
 bool ProjectionExecutor::DExecute() {
   Debug("Projection executor is running"); 
-  std::cerr << "Projection executor is running" << std::endl;
+
   //Panic("Projection Executor is unimplemented");
   PELOTON_ASSERT(project_info_);
   PELOTON_ASSERT(schema_);
@@ -91,10 +91,10 @@ bool ProjectionExecutor::DExecute() {
 
   else if (children_.size() == 1) {
     LOG_TRACE("Projection : child 1 ");
-    std::cerr << "Execute child" << std::endl;
+    Debug("Execute child");
     // Execute child
     auto status = children_[0]->Execute();
-    std::cerr << "FInished Execute child" << std::endl;
+    Debug("Finished Execute child");
     if (false == status) return false;
 
     // Get input from child
@@ -102,8 +102,7 @@ bool ProjectionExecutor::DExecute() {
     auto num_tuples = source_tile->GetTupleCount();
 
     // Create new physical tile where we store projected tuples
-    std::shared_ptr<storage::Tile> dest_tile(
-        storage::TileFactory::GetTempTile(*schema_, num_tuples));
+    std::shared_ptr<storage::Tile> dest_tile(storage::TileFactory::GetTempTile(*schema_, num_tuples));
 
     // Create projections tuple-at-a-time from original tile
     oid_t new_tuple_id = 0;

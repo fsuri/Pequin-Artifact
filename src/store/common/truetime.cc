@@ -63,7 +63,7 @@ TrueTime::GetTime()
     // if(ts_top != top || ts_bot != bot) Panic("ts_top: %lx different than merged_top: %lx; OR: ts_bot: %lx different than merged_bot: %lx", ts_top, top, ts_bot, bot);
 
     Debug("Time: %lu %lu %lu", now.tv_sec,now.tv_usec,timestamp);
-    fprintf(stderr, "Time: %lu %lu %lu \n", now.tv_sec,now.tv_usec,timestamp);
+    //fprintf(stderr, "Time: %lu %lu %lu \n", now.tv_sec,now.tv_usec,timestamp);
 
     return timestamp;
 }

@@ -75,17 +75,23 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     std::string serialized_result;
     if(!read_materialized){
         if(eager && params.query_params.eagerPlusSnapshot){ //If eager exec Plus Snapshot => find snapshot as part of ExecRead
+
             proto::LocalSnapshot *local_ss = query_md->queryResultReply->mutable_result()->mutable_local_ss();
             query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query_md->query_seq_num, query_md->client_id, id, query_md->useOptimisticTxId);
-            std::cerr << "USE OPT???? " << query_md->useOptimisticTxId << std::endl;
+        
+            Debug("Use optimistic TxId for snapshot: %d", query_md->useOptimisticTxId);
             serialized_result = table_store->EagerExecAndSnapshot(query_md->query_cmd, query_md->ts, query_md->snapshot_mgr, queryReadSetMgr, params.query_params.snapshotPrepared_k);
             query_md->snapshot_mgr.SealLocalSnapshot(); 
-             Debug("Number of Txn in snapshot (post seal): [com:%d; prep:%d]. Number of TS in snapshot: [com:%d; prep:%d]", local_ss->local_txns_committed_size(), local_ss->local_txns_prepared_size(), local_ss->local_txns_committed_ts_size(), local_ss->local_txns_prepared_ts_size());
-            for(auto &ts: local_ss->local_txns_committed_ts()){
-                Debug("Snapshot Txn TS (commit): %lu", ts);
-            }
-            for(auto &ts: local_ss->local_txns_prepared_ts()){
-                Debug("Snapshot Txn TS (prep): %lu", ts);
+
+            Debug("Number of Txn in snapshot (post seal): [com:%d; prep:%d]. Number of TS in snapshot: [com:%d; prep:%d]", local_ss->local_txns_committed_size(), local_ss->local_txns_prepared_size(), local_ss->local_txns_committed_ts_size(), local_ss->local_txns_prepared_ts_size());
+            
+            if(PRINT_SNAPSHOT){
+                for(auto &ts: local_ss->local_txns_committed_ts()){
+                    Debug("Snapshot Txn TS (commit): %lu", ts);
+                }
+                for(auto &ts: local_ss->local_txns_prepared_ts()){
+                    Debug("Snapshot Txn TS (prep): %lu", ts);
+                }
             }
         } 
         else{

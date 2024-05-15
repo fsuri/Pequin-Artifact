@@ -263,7 +263,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //7) Record whether current retry version uses optimistic tx-ids or not
     if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
-    std::cerr << "MSG OPT? " << msg.optimistic_txid() << std::endl;
+    Debug("Query using Optimistic Txid? %d", msg.optimistic_txid());
 
     //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
     query_md->designated_for_reply = msg.designated_for_reply();
@@ -299,10 +299,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
 
     //FIXME: REMOVE
-    struct timespec ts_start;
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    Warning("START PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Warning("START PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
 
     Timestamp ts(query->timestamp()); 
 
@@ -325,11 +325,11 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         SetRTS(ts, query->primary_enc_key());
     }
 
-    struct timespec ts_end2;
-    clock_gettime(CLOCK_MONOTONIC, &ts_end2);
-    uint64_t microseconds_end2 = ts_end2.tv_sec * 1000 * 1000 + ts_end2.tv_nsec / 1000;
-    auto duration2 = microseconds_end2 - microseconds_start;
-    Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
+    // struct timespec ts_end2;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end2);
+    // uint64_t microseconds_end2 = ts_end2.tv_sec * 1000 * 1000 + ts_end2.tv_nsec / 1000;
+    // auto duration2 = microseconds_end2 - microseconds_start;
+    // Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
 
     table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
    
@@ -342,12 +342,12 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     ////////////
     //FIXME: REMOVE
-    struct timespec ts_end;
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    auto duration = microseconds_end - microseconds_start;
-    Warning("PointQuery exec duration: %d us.[%lu:%lu]", duration,  query->client_id(), query->query_seq_num());
-    if(duration > 10000) Warning("PointQuery took more than 10ms");
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = microseconds_end - microseconds_start;
+    // Warning("PointQuery exec duration: %d us.[%lu:%lu]", duration,  query->client_id(), query->query_seq_num());
+    // if(duration > 10000) Warning("PointQuery took more than 10ms");
 
     ////////////
     delete query;
@@ -391,7 +391,7 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //Set LocalSnapshot
     syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
     query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
-    std::cerr << "USE OPT???? " << query_md->useOptimisticTxId << std::endl;
+    Debug("Use optimistic TxId for snapshot: %d", query_md->useOptimisticTxId);
     //TODO: perform exec and snapshot together if flag query_params.eagerPlusSnapshot is set.
     FindSnapshot(query_md, query);
 
