@@ -63,7 +63,7 @@ namespace pequinstore {
 
 static bool PROFILING_LAT = true; 
 
-static bool TEST_READ_SET = true;  //print out read set
+static bool TEST_READ_SET = false;  //print out read set
 
 static bool FORCE_SCAN_CACHING = false;
 static bool relax_point_cond = true;

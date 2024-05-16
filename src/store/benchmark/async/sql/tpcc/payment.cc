@@ -30,7 +30,7 @@
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
- 
+  
 namespace tpcc_sql {
 
 SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,

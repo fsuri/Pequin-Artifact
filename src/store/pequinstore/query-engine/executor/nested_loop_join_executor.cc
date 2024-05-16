@@ -125,7 +125,8 @@ bool NestedLoopJoinExecutor::DExecute() {
 
     // If left tile result is not done, continue the left tuples
     if (!left_tile_done_) {
-      std::cerr << "NEXT RIGHT TILE" << std::endl;
+      Debug("NEXT RIGHT TILE");
+      //std::cerr << "NEXT RIGHT TILE" << std::endl;
       // Tuple result
       ContainerTuple<executor::LogicalTile> left_tuple(left_tile_.get(), left_tile_row_itr_);
 
@@ -140,16 +141,17 @@ bool NestedLoopJoinExecutor::DExecute() {
           join_values.push_back(predicate_value);
         }
 
-        std::cerr << "MADE IT HERE, join values size is " << join_values.size() << std::endl;
-        std::cerr << "Has snapshot manager is " << current_txn->GetHasSnapshotMgr() << std::endl;
+        // std::cerr << "MADE IT HERE, join values size is " << join_values.size() << std::endl;
+        //std::cerr << "Has snapshot manager is " << current_txn->GetHasSnapshotMgr() << std::endl;
         //join_values.clear();
 
         // NOTE: Here is check for empty result
         if (join_values.size() == 0) {
           // Empty result
-          std::cerr << "Empty result" << std::endl;
+          //std::cerr << "Empty result" << std::endl;
           if(current_txn->GetHasSnapshotMgr()){
-            std::cerr << "Setting the table verison NL join" << std::endl;
+            //std::cerr << "Setting the table verison NL join" << std::endl;
+            Debug("Setting the table version for NL join");
             auto table_name = children_[1]->GetTableName();
             auto current_txn_timestamp = current_txn->GetBasilTimestamp();
             auto ss_mgr = current_txn->GetSnapshotMgr();

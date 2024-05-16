@@ -667,7 +667,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                Debug("Checking column: %s with field %s", col.c_str(), std::visit(StringVisitor(), field_val).c_str());
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -677,7 +677,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
                 if(change_val){
                      //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
-                     std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                     Debug("Updating col: %s => new val: %s", col.c_str(), set_val.c_str());
                 } 
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
@@ -1756,7 +1756,7 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 
     //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
     for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
-        std::cerr << "extracted p_ cols: " << col_name << std::endl;
+        Debug("extracted p_cols: %s", col_name.c_str());
         p_col_values.push_back(std::move(p_col_value.at(col_name)));
     }
    

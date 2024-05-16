@@ -1943,7 +1943,7 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDige
 void Server::HandleAbort(const TransportAddress &remote,
     const proto::Abort &msg) {
   
-  std::cerr << "HandleAbort" << std::endl;
+  Debug("HandleAbort");
   const proto::AbortInternal *abort;
   if (params.validateProofs && params.signedMessages && params.signClientProposals) {
     if (!msg.has_signed_internal()) {
@@ -1951,7 +1951,6 @@ void Server::HandleAbort(const TransportAddress &remote,
     }
 
     Latency_Start(&verifyLat);
-     std::cerr << "Verify HandleAbort" << std::endl;
     if (!client_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(msg.signed_internal().process_id())),
           msg.signed_internal().data(),
           msg.signed_internal().signature())) {
@@ -1974,7 +1973,6 @@ void Server::HandleAbort(const TransportAddress &remote,
     abort = &msg.internal();
   }
 
-  std::cerr << "HandleAbort about to ClearRTS" << std::endl;
 
   ////Garbage collect Read Timestamps
 
@@ -1986,15 +1984,10 @@ void Server::HandleAbort(const TransportAddress &remote,
   //  if(params.mainThreadDispatching) rtsMutex.unlock();
   ClearRTS(abort->read_set(), abort->ts());
   
-
-  std::cerr << "ABORTING ON CORE: " << sched_getcpu() << std::endl;
-
   //Garbage collect Queries.
   for (const auto &query_id: abort->query_ids()){
-    std::cerr << "try to clear query: " << BytesToHex(query_id, 16) << std::endl;
     queryMetaDataMap::accessor q;
     if(queryMetaData.find(q, query_id)){
-      std::cerr << "INSIDE FIND" << std::endl;
       //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
 
       // auto query_retry_id = QueryRetryId(query_id, q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest));
@@ -2012,19 +2005,17 @@ void Server::HandleAbort(const TransportAddress &remote,
       queryMetaData.erase(q); 
     }
     q.release();
-     std::cerr << "remove subscribed query: " << BytesToHex(query_id, 16) << std::endl;
-    //Delete any possibly subscribed queries.
 
+    //Delete any possibly subscribed queries.
     // subscribedQueryMap::accessor sq;
     // if(subscribedQuery.find(sq, query_id)){
     //   subscribedQuery.erase(sq);
     // }
     subscribedQuery.erase(query_id);
 
-     std::cerr << "finished clean query: " << BytesToHex(query_id, 16) << std::endl;
+    Debug("Removed query: %s", BytesToHex(query_id, 16).c_str());
   }
 
-  std::cerr << "FINISH ABORTING ON CORE: " << sched_getcpu() << std::endl;
   if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))  FreeAbortMessage(&msg);
 
 }

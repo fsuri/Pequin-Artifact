@@ -1031,7 +1031,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         return true;
   }
 
-  std::cerr << "finish process read" << std::endl;
+  Debug("finish process read (reqId: %d)", reqId);
     
   return false;
 }
