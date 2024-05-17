@@ -190,6 +190,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
  
   // //Should not take more than 1 ms (already generous) to parse and prepare.
   // auto duration = microseconds_end - microseconds_start;
+  // Warning("ParseAndPrepare duration: %d. Q[%s]", duration, query_statement.substr(0, 1000).c_str());
   // if(duration > 1000){
   //   if(size_t insert_pos = query_statement.find("INSERT"); insert_pos != std::string::npos) Warning("ParseAndPrepare[%s] exceeded 1000us (INSERT): %d", query_statement.substr(0, 1000).c_str(), duration);
   //   else Warning("ParseAndPrepare exceeded 1000us (SELECT): %d. Q[%s]", duration, query_statement.substr(0, 1000).c_str());
@@ -1090,7 +1091,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   if (purge_statement.empty())
     return; // Nothing to undo.
 
-  Notice("Purge statement: %s", purge_statement.c_str());
+  //Notice("Purge statement: %s", purge_statement.c_str());
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 

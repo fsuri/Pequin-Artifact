@@ -522,6 +522,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
 
+  if(txn.timestamp().timestamp() <= 10000) Panic("Trying to store TX TS [%lu:%lu]", txn.timestamp().timestamp(), txn.timestamp().id());
   proto::ConcurrencyControl::Result result;
 
   //Default -- merge does nothing if there are no queries

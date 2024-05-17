@@ -19,12 +19,12 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 13 if using 1 warehouse + ASAN":false,
-   "server_load_time": 5,
+   "server_load_time": 15,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 1,
+	  "tpcc_num_warehouses": 5,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -141,7 +141,7 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [1]
+    [30]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -157,11 +157,11 @@
   "client_debug_output": false,
   "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/common.cc",
+  "_server_debug_output": "store/pequinstore/server.cc",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 20,
-  "client_ramp_down": 5,
+  "client_experiment_length": 23,
+  "client_ramp_down": 7,
   "client_ramp_up": 5,
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",

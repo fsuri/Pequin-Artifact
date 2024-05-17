@@ -245,12 +245,20 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
   auto &curr_table_writes = tw->second;
 
 
+  auto itr = curr_table_writes.lower_bound(txn_ts);
+  if(itr == curr_table_writes.begin()){
+     Debug("No relevant table writes for Txn[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID());
+    return proto::ConcurrencyControl::COMMIT; // Panic("all tables must have a tableWrite entry.");
+  }
+  itr--;
+
   Debug("TX_ts: [%lu:%lu]. Pred: [%s]. Check against all TX down to TS[%lu]. ", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), pred.table_version().timestamp() - write_monotonicity_grace);
-  for(auto itr = --curr_table_writes.lower_bound(txn_ts); itr != curr_table_writes.begin(); --itr){
+  for( ; itr != curr_table_writes.begin(); --itr){
 
 //for(auto itr = curr_table_writes.rbegin(); itr != curr_table_writes.rend(); ++itr){
-
     const Timestamp &curr_ts = itr->first;
+    if(curr_ts.getTimestamp() <= 10000) Panic("stored Txn with TS [%lu:%lu]", curr_ts.getTimestamp(), curr_ts.getID());
+
      Debug("TX_ts: [%lu:%lu]. Check vs Write_Ts [%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), curr_ts.getTimestamp(), curr_ts.getID());
      //if(curr_ts > txn_ts) continue;
     UW_ASSERT(curr_ts < txn_ts);
@@ -264,6 +272,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
+    if(!write_txn) Panic("Deleted Txn with TS [%lu:%lu]", itr->first.getTimestamp(), itr->first.getID());
     UW_ASSERT(write_txn); 
     UW_ASSERT(write_txn->has_txndigest());
 
@@ -539,8 +548,11 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
 //Note: We are assuming TS are unique to a TX here. Duplicates should already have been filtered out (it should not be possible that 2 TX with same TS commit)
 void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const Timestamp &ts, bool commit_or_prepare){
+
+   if(ts.getTimestamp() <= 10000) Panic("Trying to store TX TS [%lu:%lu]", ts.getTimestamp(), ts.getID());
+
   
-  Debug("RECORDING READ PRED AND WRITE");
+  //Notice("RECORDING READ PRED AND WRITE for TXN with TS[%lu:%lu]. Commit or Prep? %d", ts.getTimestamp(), ts.getID(), commit_or_prepare);
  
   //NOTE: 
     //Throughout the CC process we are holding a lock on a given table name
@@ -551,8 +563,8 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
   //TODO: When adding a new pred: Garbage collect preds older than some time (past grace)
   //At that point, do not allow any reads with TableVersions that are below GC watermark
   //TODO: Sanity check GC correctness. Currently just placeholder code.
-  int gc_delta = 10000; //ms
-  Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
+  // int gc_delta = 10000; //ms
+  // Timestamp lowWatermark(timeServer.GetTime() - gc_delta);
 
 
   //Record all ReadPredicates   //Store a reference: table_name -> txn
@@ -664,6 +676,7 @@ void Server::ClearPredicateAndWrites(const proto::Transaction &txn){
    
  
   //Clear all TableWrites
+  //Notice("CLEAR READ PRED AND WRITE for TXN with TS[%lu:%lu]. Commit or Prep? %d", ts.getTimestamp(), ts.getID());
   for(auto &[table_name, _]: txn.table_writes()){
     TableWriteMap::accessor tw;
     if(tableWrites.find(tw, table_name)){

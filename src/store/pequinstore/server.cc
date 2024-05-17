@@ -561,6 +561,11 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   for(auto &[col_name, _] : column_data_types){
     Load(EncodeTableCol(table_name, col_name), "", Timestamp());
   }
+
+  TableWriteMap::accessor tw;
+  tableWrites.insert(tw, table_name);
+  tw->second.clear();
+  tw.release();
 }
 
 void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
@@ -2200,9 +2205,11 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     //proof = testing_committed_proof.back();
     //testing_committed_proof.pop_back();
   }
+
+  Timestamp ts(txn->timestamp());
+
   if (params.validateProofs) {
-    // CAUTION: we no longer own txn pointer (which we allocated during Phase1
-    //    and stored in ongoing)
+    // CAUTION: we no longer own txn pointer (which we allocated during Phase1  and stored in ongoing)
     proof->set_allocated_txn(txn); //Note: This appears to only be safe because any request that may want to use txn from ongoing (Phase1, Phase2, FB, Writeback) are all on mainThread => will all short-circuit if already committed
     if (params.signedMessages) {
       if (p1Sigs) {
@@ -2215,8 +2222,6 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
     }
   }
 
-  Timestamp ts(txn->timestamp());
-
   Value val;
   val.proof = proof;
 
@@ -2224,14 +2229,16 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
-  CommitToStore(proof, txn, txnDigest, ts, val);
+  proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
+
+  CommitToStore(proof, txn_ref, txnDigest, ts, val);
 
   Debug("Calling CLEAN for committing txn[%s]", BytesToHex(txnDigest, 16).c_str());
   Clean(txnDigest);
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CleanQueries(proof->mutable_txn()); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
+  CleanQueries(txn_ref); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
 }
 
@@ -2307,6 +2314,8 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
 
 void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val){
   std::vector<const std::string*> table_and_col_versions; 
+
+  if(ts.getTimestamp() <= 10000) Panic("Trying to Commit TX TS [%lu:%lu]", ts.getTimestamp(), ts.getID());
 
   UpdateCommittedReads(txn, txnDigest, ts, proof);
 
