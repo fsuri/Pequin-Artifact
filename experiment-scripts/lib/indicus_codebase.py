@@ -166,7 +166,7 @@ class IndicusCodebase(ExperimentCodebase):
             if 'sign_client_queries' in config['replication_protocol_settings']:
                 client_command += " --pequin_sign_client_queries=%s" % str(config['replication_protocol_settings']['sign_client_queries']).lower()
 
-        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options
             if 'order_commit' in config['replication_protocol_settings']:
                 client_command += ' --pbft_order_commit=%s' % str(config['replication_protocol_settings']['order_commit']).lower()
@@ -485,7 +485,7 @@ class IndicusCodebase(ExperimentCodebase):
             if 'parallel_queries' in config['replication_protocol_settings']:
                 replica_command += " --pequin_parallel_queries=%s" % str(config['replication_protocol_settings']['parallel_queries']).lower()
     
-        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options
             if 'order_commit' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_order_commit=%s' % str(config['replication_protocol_settings']['order_commit']).lower()
@@ -524,6 +524,10 @@ class IndicusCodebase(ExperimentCodebase):
         
         if 'local_config' in config:
             replica_command += ' --local_config=%s' % config['local_config']
+
+        if 'async_server' in config:
+            replica_command += ' --async_server=%s' % config['async_server']
+
 
 
         if 'partitioner' in config:

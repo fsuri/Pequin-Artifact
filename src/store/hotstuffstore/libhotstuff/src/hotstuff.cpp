@@ -548,9 +548,14 @@ void HotStuffBase::start(
         HotStuffCore::add_replica(i, peer, std::move(std::get<1>(replicas[i])));
         if (addr != listen_addr)
         {
+            std::cerr << "Shir: adding peers" << std::endl;
             peers.push_back(peer);
             pn.add_peer(peer);
+            std::cerr << "Shir: setting addr for peers" << std::string(addr).c_str() << std::endl;
+
             pn.set_peer_addr(peer, addr);
+            std::cerr << "Shir: connecting peers" << std::endl;
+
             pn.conn_peer(peer);
         }
     }

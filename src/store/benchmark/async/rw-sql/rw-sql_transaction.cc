@@ -38,7 +38,7 @@ namespace rwsql {
 RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly) 
     : SyncTransaction(10000), querySelector(querySelector), numOps(numOps), readOnly(readOnly), numKeys((int) querySelector->numKeys){
   
-  std::cout << "New TX with numOps " << numOps << std::endl;
+  // std::cout << "New TX with numOps " << numOps << std::endl;
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
@@ -160,10 +160,10 @@ auto seq=0;
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
   // // if (seq==0){
   // //   seq++;
-    return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
+    // return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
   // // }else{
   // //   seq++;
-  // return fmt::format("SELECT * FROM {0};", table_name);
+  return fmt::format("SELECT * FROM {0};", table_name);
   // // }
 
   if(readOnly){

@@ -146,7 +146,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 
 
 void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
-
+  std::cerr<< "Shir Execute with callback: "<< type.c_str()<<"\n" ;
   Debug("Execute with callback: %s", type.c_str());
 
   proto::SQL_RPC sql_rpc;
@@ -167,6 +167,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 
   auto thread_id = getThreadID(client_seq_key);
   Debug("Thread id for key %s is: %d",client_seq_key.c_str(), thread_id);
+  std::cerr << "Shir print:    " << "Thread id for key " << client_seq_key.c_str()<<" is: "<<thread_id << std::endl;
 
 
   auto f = [this, type, client_seq_key, sql_rpc, try_commit, user_abort, ecb](){
@@ -202,6 +203,10 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
       results.push_back(returnMessage(reply));
       }else{
         std::cerr<< type<<"\n";
+
+        std::cerr << "Shir print:    " << "Panic" << std::endl;
+        abort;
+        exit(-1);
         Panic("Should not try to issue parallel operations that aren't sql_query");
       }
     }
@@ -216,23 +221,33 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 
 ::google::protobuf::Message* Server::HandleSQL_RPC(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query) {
   Debug("Handling SQL_RPC");
+  std::cerr << "Shir print:    " << "Handling SQL_RPC" << std::endl;
+
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
 
   try {
     Debug("Attempt query %s", query.c_str());
+    std::cerr << "Shir print:    " << "Attempt query  " <<query.c_str() << std::endl;
+
     // std::cerr<< "Shir: Before executing tr->execute with the following tr addr:  "<< tr <<"\n";
     const tao::pq::result sql_res = tr->execute(query);
     // std::cerr<< "Shir: After executing tr->execute \n";
     Debug("Query executed");
+    std::cerr << "Shir print:    " << "Query executed"<< std::endl;
+
     sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
     reply->set_status(REPLY_OK);
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
   } catch(tao::pq::sql_error e) {
     Debug("A exception caugth while using postgres.");
+    std::cerr << "Shir print:    " << "A exception caugth while using postgres." << std::endl;
+
  
     if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
       Debug("A concurrency exception caugth while using postgres.");
+      std::cerr << "Shir print:    " << "A concurrency exception caugth while using postgres." << std::endl;
+
       markTxnTerminated(t,"sql_rpc, concurrency problem");
       t.release();
       reply->set_status(REPLY_FAIL);
@@ -249,16 +264,22 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 
 ::google::protobuf::Message* Server::HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id) {
   Debug("Trying to commit a txn %d",req_id);
+  std::cerr << "Shir print:    " << "Trying to commit a txn  " <<req_id << std::endl;
+
   std::cerr<<"the tr pointer for commit is :     "<< tr << "\n";
   proto::TryCommitReply* reply = new proto::TryCommitReply();
   reply->set_req_id(req_id);
   try {
     tr->commit();
     Debug("TryCommit went through successfully.");
+    std::cerr << "Shir print:    " << "TryCommit went through successfully."  << std::endl;
+
     reply->set_status(REPLY_OK);
   } catch(tao::pq::sql_error e) {
     std::cerr<< e.sqlstate << std::endl;
     Debug("A exception caugth while using postgres."); 
+    std::cerr << "Shir print:    " << "A exception caugth while using postgres." << std::endl;
+
     reply->set_status(REPLY_FAIL);
     // Shir: do we need diffenet codes here?
     // if (std::regex_match(e.sqlstate, std::regex("40..."))){ // Concurrency errors
@@ -295,11 +316,16 @@ std::string Server::createClientSeqKey(uint64_t cid, uint64_t tid){
 std::pair<std::shared_ptr<tao::pq::transaction>, bool> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
   std::shared_ptr<tao::pq::transaction> tr;
   Debug("Client transaction key: %s", key.c_str());
-  std::cout << key << std::endl;
+  // std::cout << key << std::endl;
+
+  std::cerr << "Shir print:    " << "Client transaction key " <<key << std::endl;
+
   bool is_aborted=false;
 
   if(txnMap.insert(t,key)) {
       Debug("Key was not found, creating a new connection");
+      std::cerr << "Shir print:    " << "Key was not found, creating a new connection"<< std::endl;
+
       auto connection = connectionPool->connection();
       tr = connection->transaction();
       std::cerr<<"Shir: new tr pointer is :     "<< tr <<"\n";

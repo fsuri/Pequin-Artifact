@@ -10,10 +10,10 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        std::cout << "############# Shir: HotStuff Interface #############" << std::endl;
-        std::cout << "############# Shir: Digest proposed:   "<<hash<<" #############" << std::endl;
+        // std::cout << "############# Shir: HotStuff Interface #############" << std::endl;
+        // std::cout << "############# Shir: Digest proposed:   "<<hash<<" #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
-        std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
+        // std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
     IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config):
@@ -46,13 +46,15 @@ namespace hotstuffstore {
             }
             std::cerr<<"Shir: did it get here aaa?\n";
 
-            config_dir_base=std::filesystem::path(curr_path / target_dir/"scripts/config/");
+            config_dir_base=std::filesystem::path(curr_path / target_dir/"scripts/config/local_config/");
         }
 
         std::cerr<<"Shir: did it get here 20?\n";
+        std::cerr<<"Shir:  config_dir_base:      "<< config_dir_base<<"\n";
 
 
         string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
+        std::cerr<<"Shir:  config_dir:      "<< config_dir<<"\n";
 
         string key_file = config_dir + "hotstuff.gen-sec" + std::to_string(replicaId) + ".conf";
         string config_file = config_dir + "hotstuff.gen.conf";
@@ -78,7 +80,7 @@ namespace hotstuffstore {
     void IndicusInterface::initialize(int argc, char** argv) {
         Config config(argv[1]);
         //Config config("hotstuff.conf");
-        std::cerr<<"Shir: did it get here2?\n";
+        std::cerr<<"Shir: did it get here2?    with config:    "<<   argv[1]<<"\n";
 
         ElapsedTime elapsed;
         elapsed.start();

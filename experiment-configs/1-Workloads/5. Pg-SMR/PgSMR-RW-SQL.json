@@ -14,20 +14,21 @@
   "num_groups": [1],
 
   "server_load_time": 10,
-  "client_num_keys": 10000000,
+  "client_num_keys": 1,
   "benchmark_type": "sql_bench", 
   "benchmark_name": "rw-sql",
   "client_zipf_coefficient": 0.0,   
   "client_key_selector": "zipf",
-  "rw_num_ops_txn": 2,
+  "rw_num_ops_txn": 1,
   "sql_bench": true,
-  "benchmark_schema_file_path": "/users/shir/rw-sql/rw-sql.json",
-  "num_tables": 1,
-  "num_keys_per_table": 10,
+  "benchmark_schema_file_path": "/users/shir/rw-sql.json",
+  "num_tables": 30,
+  "num_keys_per_table": 3,
   "max_range": 3,
   "point_op_freq": 50,
   "read_only": "false",
   "local_config": "false",
+  "async_server": "true",
 
 
   "client_abort_backoff": 2,
@@ -52,8 +53,8 @@
       "signature_type": 4,
       "sig_batch": 2,
       "sig_batch_timeout": 4,
-      "ebatch_size": 16,
-      "ebatch_tout": 4,
+      "ebatch_size": 1,
+      "ebatch_tout": 10,
       "multi_threading": true,
 	  "mainThreadDispatching": false,
 	  "dispatchMessageReceive": false,
@@ -78,7 +79,7 @@
   ],
 
   "client_total": [
-    [ 2]
+    [10]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -89,13 +90,13 @@
   "client_nodes_per_server": 1,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "client_debug_output": false,
-  "server_debug_output": false,
+  "client_debug_output": "store/hotstuffpg/*",
+  "server_debug_output": "store/hotstuffpg/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 100,
+  "client_ramp_down": 10,
+  "client_ramp_up": 10,
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",

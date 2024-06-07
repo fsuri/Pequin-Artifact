@@ -84,7 +84,7 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
     }
   }
 
-  transport->Timer(10, [this, pc = proposedCounter](){
+  transport->Timer(100, [this, pc = proposedCounter](){
     this->bubbleCB(pc);
   });
 
@@ -93,10 +93,16 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
 void Replica::bubbleCB(uint64_t currProposedCounter){
   // executeSlots();
   Debug("Bubble timer expired, check if seqnum has changed");
+  // std::cerr << "Shir print:    " << "Bubble timer expired, check if seqnum has changed" << std::endl;
+
   auto pc =this->proposedCounter;
   Debug("Current was %d, and now is: %d",currProposedCounter,pc);
+  // std::cerr << "Shir print:    " << "Current was " <<currProposedCounter<<" and now is:" <<pc << std::endl;
+
   if (this->proposedCounter == currProposedCounter){ 
     Debug("No progress was made, filling the pipeline with bubbles.");
+    // std::cerr << "Shir print:    " << "No progress was made, filling the pipeline with bubbles." << std::endl;
+
     proposeBubble();
   }
   // else{
@@ -105,7 +111,9 @@ void Replica::bubbleCB(uint64_t currProposedCounter){
 
 
   Debug("Starting bubble timer");
-  transport->Timer(10, [this,pc](){
+  // std::cerr << "Shir print:    " << "Starting bubble timer" << std::endl;
+
+  transport->Timer(1000, [this,pc](){
     this->bubbleCB(pc); 
   });
 }
@@ -122,6 +130,8 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &t,
   bool recvSignedMessage = false;
 
   Debug("Received message of type %s", t.c_str());
+  std::cerr << "Shir print:    " << "Received message of type " <<t.c_str() << std::endl;
+
   
   type = t;
   data = d;
@@ -170,6 +180,8 @@ void Replica::HandleRequest(const TransportAddress &remote,
                                const proto::Request &request) {
 
   Debug("Handling request message");
+  std::cerr << "Shir print:    " << "Handling request message" << std::endl;
+
 
   string digest = request.digest();
   DebugHash(digest);
@@ -180,6 +192,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
     // Shir: if we didn't find the request digest in the map. I.e this is the first time handling this request
     Debug("new request: %s", request.packed_msg().type().c_str());
     Debug("Shir: the new requests digest is:       %s",digest);
+    std::cerr << "Shir print:    " << "new request: "<< request.packed_msg().type().c_str()<< " with digest "<< digest<< std::endl;
     DebugHash(digest);   // Shir
 
     stats->Increment("handle_new_count",1);
@@ -198,6 +211,8 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
             // Shir: f is probably also being executed by hotstuff
             Debug("Callback: %d, %lu", idx, seqnum);  // This is called once per server
+            std::cerr << "Shir print:    " << "Callback: "<<idx <<", "<<seqnum << std::endl;
+
             stats->Increment("hotstuffpg_exec_callback",1);
 
             // prepare data structures for executeSlots()
@@ -207,11 +222,16 @@ void Replica::HandleRequest(const TransportAddress &remote,
 
             // Shir: now we're listing all of the executions (execb) that weren't executed yet.
             Debug("Adding to pending executions");
+            std::cerr << "Shir print:    " << "Adding to pending executions" << std::endl;
+
             pendingExecutions[seqnum] = digest;
 
             Debug("Printing out pendingExecutions");
+            std::cerr << "Shir print:    " << "Printing out pendingExecutions" << std::endl;
+
             for(auto& it: pendingExecutions) {
-              std::cout << it.first << " " << it.second << std::endl;
+              // std::cout << it.first << " " << it.second << std::endl;
+              std::cerr << "Shir print:    "<< it.first << " " << it.second.c_str() << std::endl;
               DebugHash(it.second);
             }
             Debug("Finished printing out pendingExecutions");
@@ -244,10 +264,10 @@ void Replica::proposeBubble(){
   string dummy_digest_init(std::string(32, '0')+std::to_string(bubbles));
   string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32);
 
-  std::cerr<< "Dummy create is: "<<dummy_digest<<"\n";
+  // std::cerr<< "Dummy create is: "<<dummy_digest<<"\n";
   bubbles++;
 
-  Debug("Bubble %s size is:  %d and capacity is: %d",dummy_digest.c_str(),dummy_digest.length(),dummy_digest.capacity());
+  // Debug("Bubble %s size is:  %d and capacity is: %d",dummy_digest.c_str(),dummy_digest.length(),dummy_digest.capacity());
 
   proto::PackedMessage bubblePackedMsg;
   bubblePackedMsg.set_msg("dummy");
@@ -272,10 +292,12 @@ void Replica::proposeBubble(){
 void Replica::executeSlots() {
   Debug("Shir: trying to execute new slots");
   Debug("exec seq num: %lu", execSeqNum);
+  std::cerr << "Shir print:    " << "trying to execute new slots. exec seq num: "<<execSeqNum << std::endl;
+
 
   Debug("Shir: this is the list of current pending executions:  ");
   for(auto& it: pendingExecutions) {
-    std::cout << it.first << " " << it.second << std::endl;
+    // std::cout << it.first << " " << it.second << std::endl;
     // Debug("Pending sequence number: %lu", it.first);
     DebugHash(it.second);
   }
@@ -283,6 +305,7 @@ void Replica::executeSlots() {
   // Shir: looking for pending execution that matches the current exec seq num. This basically means that I can progress and execute the next slot (because hotstuff has already committed it)
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { 
     Debug("Pending execution exists");
+    // std::cerr << "Shir print:    " << "Pending execution exists" << std::endl;
 
     string digest = pendingExecutions[execSeqNum];
 
@@ -292,14 +315,18 @@ void Replica::executeSlots() {
         // Shir: if i'm here it means that i've found the request (returned from hotstuff?), and i'm going to execute it
         stats->Increment("exec_request",1);
         Debug("executing seq num: %lu ", execSeqNum);
+        std::cerr << "Shir print:    " << "executing seq num: "<<execSeqNum << std::endl;
+
         execSeqNum++;
 
 
         // Shir: This is the messages recieved from hotstuff
         proto::PackedMessage packedMsg = requests[digest];
 
-        if (packedMsg.type()==""){
+        if (packedMsg.type()=="dummy"){
           Debug("Skip bubble execution");
+          std::cerr << "Shir print:    " << "Skip bubble execution" << std::endl;
+
           continue;
         }
 
@@ -307,9 +334,15 @@ void Replica::executeSlots() {
         if(asyncServer) {
 
           auto cb= [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
+            std::cerr << "Shir print:    " << "executing cb after executing sql_rpc" << std::endl;
+
             for (const auto& reply : replies) {
+              std::cerr << "Shir print:    " << "count replies" << std::endl;
+
               if (reply != nullptr) {
                 Debug("Sending reply");
+                std::cerr << "Shir print:    " << "sending reply" << std::endl;
+
                 stats->Increment("execs_sent",1);
                 EpendingBatchedMessages.push_back(reply);
                 EpendingBatchedDigs.push_back(digest);
@@ -333,7 +366,7 @@ void Replica::executeSlots() {
           app->Execute_Callback(packedMsg.type(), packedMsg.msg(),cb);
 
         } else {
-          // Shir: server is synchronous (current situation)
+          // Shir: server is synchronous
           // Shir: calling the server with the recieved message, and getting replies
           std::vector<::google::protobuf::Message*> replies = app->Execute(packedMsg.type(), packedMsg.msg());
 

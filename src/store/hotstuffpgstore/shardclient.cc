@@ -74,7 +74,7 @@ void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::stri
 
     proto::PackedMessage pmsg;
     pmsg.ParseFromString(signedMessage.packed_msg());
-    std::cout << "Inner type: " << pmsg.type() << std::endl;
+    // std::cout << "Inner type: " << pmsg.type() << std::endl;
     if (pmsg.type() == sql_rpcReply.GetTypeName() || pmsg.type() == tryCommitReply.GetTypeName() ) {
       crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(signedMessage.replica_id());
       if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
@@ -133,7 +133,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     PendingSQL_RPC* pendingSQL_RPC = &pendingSQL_RPCs[reqId];
 
     pendingSQL_RPC->numReceivedReplies++;
-    std::cerr <<"Shir: (1) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
+    // std::cerr <<"Shir: (1) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingSQL_RPC->numReceivedReplies);
     // Debug("Shir: the current reply status is %lu",reply.status());
 
@@ -164,17 +164,17 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
           pendingSQL_RPC->status = REPLY_OK;
         }
       }
-            std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
+            // std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     } 
     else {
       pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(pendingSQL_RPC->numReceivedReplies);
     }
 
     Debug("Shir: 888");
-    std::cerr <<"Shir: Is async?:  "<< async_server <<"\n";
-    std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
-    std::cerr <<"Shir: !signMessages:  "<< !signMessages <<"   !async_server   " <<!async_server<<"\n";
-    std::cerr <<"Shir: (3) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
+    // std::cerr <<"Shir: Is async?:  "<< async_server <<"\n";
+    // std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
+    // std::cerr <<"Shir: !signMessages:  "<< !signMessages <<"   !async_server   " <<!async_server<<"\n";
+    // std::cerr <<"Shir: (3) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
 
     if(!signMessages || !async_server) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
       Panic("Deterministic solution is currently not supported because of postgres blocking queries");

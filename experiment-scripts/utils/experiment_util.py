@@ -285,7 +285,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
-            cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
+            cmd6 = 'source /usr/local/etc/set_env.sh; export ASAN_OPTIONS=new_delete_type_mismatch=0;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
 
 
