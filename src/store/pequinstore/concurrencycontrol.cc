@@ -167,7 +167,7 @@ void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_
 }
 
 //returns pointer to query read set (either from cache, or from txn itself)
-proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn){
+proto::ConcurrencyControl::Result Server::fetchReadSet(queryMetaDataMap::const_accessor &q, const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn){
 
     //pick respective server group from group meta
     const proto::QueryGroupMeta *query_group_md;
@@ -193,7 +193,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
-      queryMetaDataMap::const_accessor q;
+      //queryMetaDataMap::const_accessor q;
       bool has_query = queryMetaData.find(q, query_md.query_id());
     
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
@@ -272,7 +272,7 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
        query_rs = cached_queryResult.mutable_query_read_set();
       Debug("Merged Cached Read set for Query[%s] successfully", BytesToHex(query_md.query_id(), 16).c_str());
   
-      q.release();
+      //q.release();
     }
   
     return proto::ConcurrencyControl::COMMIT;
@@ -362,7 +362,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //fetch query read sets
   for(proto::QueryResultMetaData &query_md : *txn.mutable_query_set()){
     const proto::ReadSet *query_rs;
-    proto::ConcurrencyControl::Result res = fetchReadSet(query_md, query_rs, txnDigest, txn); 
+    queryMetaDataMap::const_accessor q;
+    proto::ConcurrencyControl::Result res = fetchReadSet(q, query_md, query_rs, txnDigest, txn); //TODO: hold lock accessor before? need to guarantee query_rs cannot be deleted.
 
     if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
       //TODO: Subscribe query.
@@ -415,6 +416,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
         }
         
     }
+    q.release();
   }
 
   //Subscribe if we are missing queries (and we have not yet subscribed previously -- could happen in parallel on another thread)

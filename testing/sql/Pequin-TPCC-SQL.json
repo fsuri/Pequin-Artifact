@@ -18,8 +18,9 @@
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-   "_NOTE: Set this to 13 if using 1 warehouse + ASAN":false,
-   "server_load_time": 15,
+   "_NOTE: Set this to 13 if using 1 warehouse + ASAN. 60 if ASAN true":false,
+   "_server_load_time": 15,
+   "server_load_time": 52,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
@@ -95,7 +96,7 @@
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": false,
+		  "no_fallback": true,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -121,14 +122,13 @@
 		   
 		  "query_read_prepared": true,
 		  "query_cache_read_set": true,
+		  "query_merge_active_at_client": true,
 		  
 		  "query_optimistic_txid": true,
 		  "query_compress_optimistic_txid": false,
 		  
-		  "query_merge_active_at_client": true,
-		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 30,
+		  "monotonicity_grace": 100,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,
@@ -157,7 +157,7 @@
   "client_debug_output": false,
   "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/server.cc",
+  "_server_debug_output": "store/pequinstore/concurrencycontrol*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   "client_experiment_length": 23,
