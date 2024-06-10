@@ -19,8 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 13 if using 1 warehouse + ASAN. 60 if ASAN true":false,
-   "_server_load_time": 15,
-   "server_load_time": 52,
+   "server_load_time": 15,
+   "_server_load_time": 52,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
@@ -154,8 +154,8 @@
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "client_debug_output": false,
-  "_client_debug_output": "store/pequinstore/*",
+  "_client_debug_output": false,
+  "client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
   "_server_debug_output": "store/pequinstore/concurrencycontrol*",
   "server_debug_stats": false,
