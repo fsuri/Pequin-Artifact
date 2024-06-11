@@ -38,6 +38,34 @@
 using namespace pequinstore;
 
 static std::string file_name = "sql_interpreter_test_registry";
+
+
+static uint64_t config_f = 0;
+static QueryParameters query_params(true,
+                                  2*config_f + 1, //syncQuorumSize,
+                                  2*config_f + 1,    //  queryMessages,
+                                  1*config_f + 1,    //  mergeThreshold,
+                                  1*config_f + 1,    //  syncMessages,
+                                  1*config_f + 1,    //  resultQuorum,
+                                  1, 
+                                  false, // FLAGS_pequin_query_eager_exec,
+                                  false, 
+                                  false,
+                                  true,    //  FLAGS_pequin_query_read_prepared,
+                                  false,    //  FLAGS_pequin_query_cache_read_set,
+                                  true,    //  FLAGS_pequin_query_optimistic_txid,
+                                  compress,    //  FLAGS_pequin_query_compress_optimistic_txid, 
+                                  false,    //  FLAGS_pequin_query_merge_active_at_client,
+                                  false,    //  FLAGS_pequin_sign_client_queries,
+                                  false, // FLAGS_pequin_sign_replica_to_replica
+                                   false,    //  FLAGS_pequin_parallel_queries
+                                  false,    //  FLAGS_pequin_use_semantic_cc
+                                   false,    // FLAGS_pequin_use_active_read_set
+                                  0UL       // FLAGS_pequin_monotonicity_grace
+                                  );
+
+static DefaultSQLPartitioner dummy_part;
+
 void test_registry(){
   std::cerr << std::endl << "Test Registry" << std::endl;
 
@@ -60,7 +88,7 @@ void test_registry(){
   //Write Tables to JSON
   table_writer.flush();
 
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
 }
@@ -69,9 +97,10 @@ void test_insert(){
 
   std::cerr << std::endl << "Test Insert" << std::endl;
   
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -88,7 +117,8 @@ void test_insert(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  uint64_t dummy_target_table;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   query_result::QueryResult *res = new sql::QueryResultProtoWrapper("");
@@ -127,9 +157,10 @@ void test_insert(){
 void test_update(){
   std::cerr << std::endl << "Test Update" << std::endl;
 
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -144,7 +175,8 @@ void test_update(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  uint64_t dummy_target_table;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   // std::vector<std::string> result_row;
@@ -208,12 +240,14 @@ void test_update(){
 
 void test_delete(){
   std::cerr << std::endl << "Test Delete" << std::endl;
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
+  uint64_t dummy_target_table;
 
   //DELETE FROM <table_name> WHERE <condition>
   std::string write_statement = "DELETE FROM user WHERE col2 = 'giraffe' AND col3 = 'apple';";
@@ -228,7 +262,8 @@ void test_delete(){
 
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
 
   // std::vector<std::string> result_row;
@@ -289,7 +324,7 @@ void test_delete(){
  
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb);
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
 
   std::cerr << "Read Statement: " << read_statement << std::endl;
 
@@ -321,9 +356,10 @@ void test_delete(){
 
 void test_cond(){
   std::cerr << std::endl << "Test Cond" << std::endl;
-  SQLTransformer sql_interpreter;
+  SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -454,9 +490,10 @@ void test_write(){
 
    std::cerr << "Test Write Generation:" << std::endl;
 
-   SQLTransformer sql_interpreter;
+   SQLTransformer sql_interpreter(&query_params);
   std::string table_registry = file_name + "-tables-schema.json";
   sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
   proto::Transaction txn;
   sql_interpreter.NewTx(&txn);
 
@@ -495,11 +532,80 @@ void test_write(){
 
 }
 
+void test_predicates(){
+
+   std::cerr << "Test Predicte eval:" << std::endl;
+
+   SQLTransformer sql_interpreter(&query_params);
+  std::string table_registry = file_name + "-tables-schema.json";
+  sql_interpreter.RegisterTables(table_registry);
+  sql_interpreter.RegisterPartitioner(&dummy_part, 1, 1, 0);
+  proto::Transaction txn;
+  sql_interpreter.NewTx(&txn);
+
+  std::string table_name = "user";
+  
+  TableWrite table_write;
+
+  std::vector<std::string> col_names = {"age", "name", "color"};
+  std::vector<uint32_t> p_col_idx = {0, 2};
+  *table_write.mutable_column_names() = {col_names.begin(), col_names.end()};
+  *table_write.mutable_col_primary_idx() = {p_col_idx.begin(), p_col_idx.end()};
+
+  std::vector<std::string> val1 = {"5", "flo", "brown"};
+  std::vector<std::string> val2 = {"6", "neil", "black"};
+  RowUpdates *row1 = table_write.add_rows();
+  *row1->mutable_column_values() = {val1.begin(), val1.end()};
+   RowUpdates *row2 = table_write.add_rows();
+  *row2->mutable_column_values() = {val2.begin(), val2.end()};
+
+  //
+  std::string pred = "col1 = 5";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+  
+   std::cerr << std::endl << "row1: " << std::endl;
+  bool r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(r1);
+    std::cerr << std::endl << "row2: " << std::endl;
+  bool r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(!r2);
+
+  pred = "col1 >= 5 AND col2 = 'neil'";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(!r1);
+
+    std::cerr << std::endl << "row2: " << std::endl;
+  r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(r2);
+
+  pred = "col1 >= 5 AND (col2 = 'neil' OR col3 = 'brown')";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(r1);
+    std::cerr << std::endl << "row2: " << std::endl;
+  r2 = sql_interpreter.EvalPred(pred, table_name, *row2);
+  UW_ASSERT(r2);
+
+
+   pred = "col1 >= 5 AND col2 = 'neil' AND col3 = 'brown'";
+  std::cerr << std::endl << "TESTING PRED: " << pred << std::endl;
+    std::cerr << std::endl << "row1: " << std::endl;
+  r1 = sql_interpreter.EvalPred(pred, table_name, *row1);
+  UW_ASSERT(!r1);
+ 
+}
+
 int main() {
   
-  std::cerr<< "Testing Write Parser" << std::endl;
+  std::cerr<< "Testing Write Parser (DEPRECATED TESTS -- PROBABLY WON'T WORK FOR ALL OLD TESTS)" << std::endl;
 
   test_registry();
+  test_predicates();
+  return 0;
 
   test_insert();
 

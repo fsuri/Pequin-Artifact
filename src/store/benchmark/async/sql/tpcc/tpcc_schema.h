@@ -44,6 +44,19 @@ const std::string NEW_ORDER_TABLE = "new_order";
 
 const std::string EARLIEST_NEW_ORDER_TABLE = "EarliestNewOrder";
 
+enum TPCC_Table {
+    WAREHOUSE, 
+    DISTRICT, 
+    ITEM,
+    CUSTOMER,
+    STOCK, 
+    HISTORY,
+    NEW_ORDER,
+    ORDER,
+    ORDER_LINE,
+    EARLIEST_NEW_ORDER
+  };
+
 //Row Types
 
 class WarehouseRow {

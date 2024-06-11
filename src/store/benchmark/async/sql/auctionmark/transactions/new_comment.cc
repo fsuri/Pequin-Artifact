@@ -62,6 +62,9 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   //getItemComments
   statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
+  if(queryResult->empty()){
+    Panic("item does not exist?");
+  }
   deserialize(ic_id, queryResult);
   ++ic_id;
 
@@ -87,11 +90,15 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
   client.asyncWait();
   
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+   
+   //////////////// UPDATE PROFILE /////////////////////
   ItemCommentResponse icr(ic_id, item_id, seller_id);
   profile.add_pending_item_comment_response(icr);
 
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  return tx_result;
 }
 
 } // namespace auctionmark

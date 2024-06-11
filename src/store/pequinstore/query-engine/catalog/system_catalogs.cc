@@ -38,7 +38,8 @@ SystemCatalogs::SystemCatalogs(concurrency::TransactionContext *txn,
 
   pg_attribute_ = new ColumnCatalog(txn, database, pool);
   pg_namespace_ = new SchemaCatalog(txn, database, pool);
-  pg_table_ = new TableCatalog(txn, database, pool);
+  //pg_table_ = new TableCatalog(txn, database, pool);
+  pg_table_ = TableCatalog::GetInstance(txn, database, pool);
   pg_index_ = new IndexCatalog(txn, database, pool);
   pg_layout_ = new LayoutCatalog(txn, database, pool);
   pg_constraint_ = new ConstraintCatalog(txn, database, pool);

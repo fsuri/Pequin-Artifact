@@ -67,6 +67,18 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
+    if (params.rtsMode > 0){
+        //Ignore Query requests that are too far in the future. Such requests can produce a lot of RTS
+        Timestamp ts(query->timestamp()); 
+        if (CheckHighWatermark(ts)) {
+            // ignore request if beyond high watermark
+            Debug("Query timestamp beyond high watermark.");
+            delete query;
+            if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+            return;
+        }
+    }
+
     //Only process if above watermark. I.e. ignore old queries from the same client
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
@@ -88,8 +100,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // else{
     //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     // }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (seq:client:ver), queryId: %s (bytes)", 
-            query->query_seq_num(), query->client_id(), query->retry_version(), BytesToHex(queryId, 16).c_str());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes)", 
+            query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -101,10 +113,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         bool valid = true;
         if(query->retry_version() == 0 && !query_md->has_query){
             //This is the first query mention. This will lead to an execution.
-            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (client:q-seq:retry-ver)", query->client_id(), query->query_seq_num(), query->retry_version(), query_md->retry_version);
         }
         else if(query->retry_version() < query_md->retry_version){
-            Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            Debug("Retry version for Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) is outdated. Currently %d", query->client_id(), query->query_seq_num(), query->retry_version(), query_md->retry_version);
             valid = false;
         }
         else if(query->retry_version() == query_md->retry_version){ //TODO: if have result, return result
@@ -113,7 +125,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
                 //b) have already received a sync for this retry version (and the sync is not waiting for query)
             ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
             if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
-                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (client:q-seq:retry-ver). Skipping Query", query->client_id(), query->query_seq_num(),  query->retry_version(), query_md->retry_version);
                 valid = false;
             }
         }
@@ -182,16 +194,16 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         bool valid = true;
         if(query->retry_version() == 0 && !query_md->has_query){
             //This is the first query mention. This will lead to an execution.
-            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (seq:client:ver)", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            Debug("Received Query cmd. Query Request[%lu:%lu:%d] (client:q-seq:retry-ver)", query->client_id(), query->query_seq_num(), query->retry_version(), query_md->retry_version);
         }
         else if(query->retry_version() < query_md->retry_version){
-            Debug("Retry version for Query Request Query[%lu:%lu:%d] (seq:client:ver) is outdated. Currently %d", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+            Debug("Retry version for Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) is outdated. Currently %d", query->client_id(), query->query_seq_num(), query->retry_version(), query_md->retry_version);
             valid = false;
         }
         else if(query->retry_version() == query_md->retry_version){  //TODO: if have result, return result
             ////Return if already received query or sync for the retry version, and sync is not waiting for query. (I.e. no need to process Query) (implies result will be sent.)
             if(query_md->executed_query || query_md->started_sync && !query_md->waiting_sync){ 
-                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (seq:client:ver). Skipping Query", query->query_seq_num(), query->client_id(), query->retry_version(), query_md->retry_version);
+                Debug("Already received Sync or Query for Query[%lu:%lu:%d] (client:q-seq:retry-ver). Skipping Query", query->client_id(), query->query_seq_num(), query->retry_version(), query_md->retry_version);
                 valid = false;
             }
         }
@@ -251,7 +263,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //7) Record whether current retry version uses optimistic tx-ids or not
     if(msg.has_optimistic_txid()) query_md->useOptimisticTxId = msg.optimistic_txid(); 
-    std::cerr << "MSG OPT? " << msg.optimistic_txid() << std::endl;
+    Debug("Query using Optimistic Txid? %d", msg.optimistic_txid());
 
     //8) Process Query only if designated for reply; and if there is no Sync already waiting for this retry version
     query_md->designated_for_reply = msg.designated_for_reply();
@@ -261,7 +273,9 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         //Note: If eager exec on && caching read set --> all must execute.
         Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         ExecQueryEagerly(q, query_md, queryId);
+         Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
+
         return;
     }
 
@@ -284,16 +298,15 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
 void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
 
+    //FIXME: REMOVE
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Warning("START PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
+
     Timestamp ts(query->timestamp()); 
 
-    Debug("PointQuery[%lu:%lu] %s.", query->query_seq_num(), query->client_id(), query->query_cmd().c_str());
-
-    if (CheckHighWatermark(ts)) {
-        // ignore request if beyond high watermark
-        Debug("Point Read timestamp beyond high watermark.");
-        delete query;
-        return;
-    }
+    Debug("PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
 
     proto::PointQueryResultReply *pointQueryReply = GetUnusedPointQueryResultReply(); 
     pointQueryReply->set_req_id(reqId);
@@ -308,13 +321,18 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     //If MVTSO: Read prepared, Set RTS
     if (occType == MVTSO) {
         //Sets RTS timestamp. Favors readers commit chances.
-        Debug("Set up RTS for PointQuery[%lu:%lu]", query->query_seq_num(), query->client_id());
+        Debug("Set up RTS for PointQuery[%lu:%lu]", query->client_id(), query->query_seq_num());
         SetRTS(ts, query->primary_enc_key());
     }
 
-    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
-    delete query;
+    // struct timespec ts_end2;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end2);
+    // uint64_t microseconds_end2 = ts_end2.tv_sec * 1000 * 1000 + ts_end2.tv_nsec / 1000;
+    // auto duration2 = microseconds_end2 - microseconds_start;
+    // Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
 
+    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+   
     if(write->has_committed_value()){ 
         UW_ASSERT(committedProof); //proof must exist
         *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
@@ -322,9 +340,17 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     if(TEST_QUERY) TEST_QUERY_f(write, pointQueryReply);
 
-
+    ////////////
+    //FIXME: REMOVE
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = microseconds_end - microseconds_start;
+    // Warning("PointQuery exec duration: %d us.[%lu:%lu]", duration,  query->client_id(), query->query_seq_num());
+    // if(duration > 10000) Warning("PointQuery took more than 10ms");
 
     ////////////
+    delete query;
     
 
     //2) Sign & Send Reply
@@ -365,7 +391,7 @@ void Server::ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress 
     //Set LocalSnapshot
     syncReply->set_optimistic_tx_id(query_md->useOptimisticTxId);
     query_md->snapshot_mgr.InitLocalSnapshot(local_ss, query->query_seq_num(), query->client_id(), id, query_md->useOptimisticTxId);
-    std::cerr << "USE OPT???? " << query_md->useOptimisticTxId << std::endl;
+    Debug("Use optimistic TxId for snapshot: %d", query_md->useOptimisticTxId);
     //TODO: perform exec and snapshot together if flag query_params.eagerPlusSnapshot is set.
     FindSnapshot(query_md, query);
 
@@ -443,7 +469,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         //queryId = &query_id;
         queryId = &merged_ss->query_digest();
     }
-    Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (seq:client:ver)", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version());
+    Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver)", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
 
      //Only process if below watermark.
     clientQueryWatermarkMap::const_accessor qw;
@@ -462,7 +488,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(hasQuery){
         QueryMetaData *query_md = q->second;
         if(merged_ss->retry_version() < query_md->retry_version || (merged_ss->retry_version() == query_md->retry_version && query_md->started_sync)){
-            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (seq:client:ver) is outdated (currently %d) OR started sync.", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) is outdated (currently %d) OR started sync.", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version(), query_md->retry_version);
              //TODO: if have result, return result
             //if(query_md->has_result){}    // Note: if already received sync for the retry version then result will be sent...
             delete merged_ss; 
@@ -471,7 +497,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         }
     }
     else{
-        Debug("Have not received Query[%lu:%lu:%d] with Id: %s", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(*queryId, 16).c_str());
+        Debug("Have not received Query[%lu:%lu:%d] with Id: %s", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version(), BytesToHex(*queryId, 16).c_str());
     }
 
      //4) Authenticate Client Proposal if applicable     
@@ -503,7 +529,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     if(re_check){ //must re-check retry-version because tbb lookup and insert are not atomic...
         //Ignore if retry version old, or we already started sync for this retry version.
         if(merged_ss->retry_version() < query_md->retry_version || (merged_ss->retry_version() == query_md->retry_version && query_md->started_sync)){
-            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (seq:client:ver) is outdated (currently %d) OR started sync.", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), query_md->retry_version);
+            Debug("Retry version for Sync Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) is outdated (currently %d) OR started sync.", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version(), query_md->retry_version);
             delete merged_ss; 
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
             return;
@@ -714,6 +740,8 @@ void Server::SendQueryReply(QueryMetaData *query_md){
         Debug("Sign Query Result Reply for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
 
         result = queryResultReply->release_result();   //Temporarily release result in order to sign.
+
+        //TODO: FIXME: If want to be able to dispatch it again, need to somehow keep lock longer...
         if(false) { //params.queryReplyBatch){
             TransportAddress *remoteCopy = query_md->original_client->clone();
             auto sendCB = [this, remoteCopy, queryResultReply]() {
@@ -750,7 +778,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                 smsgs.push_back(queryResultReply->mutable_signed_result());
                 SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
             }
-            
+
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
              Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
@@ -765,7 +793,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     }
     else{
         this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-        Debug("Sent Signed Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+        Debug("Sent Query Result (no sigs) for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
         //Note: In this branch result is still part of queryResultReply; thus it suffices to only allocate back to result.
         if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
             result->set_allocated_query_read_set(query_read_set);
@@ -791,10 +819,12 @@ void Server::CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, 
     catch(...) {
         Panic("Trying to send QueryReply with two different reads for the same key");
     }
+
+    Debug("Query[%lu:%lu:%lu] has %d read preds: ", query_md->query_seq_num, query_md->client_id, query_md->retry_version, result->query_read_set().read_predicates_size());
     
     //Note: Sorts by key to ensure all replicas create the same hash. (Note: Not necessary if using ordered map)
     result->set_query_result_hash(generateReadSetSingleHash(result->query_read_set()));
-    //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This avoid copying.
+    //Temporarily release read-set and deps: This way we don't send it. Afterwards, re-allocate it. This trick avoid copying.
     if(query_md->designated_for_reply)  query_read_set = result->release_query_read_set();
     //query_local_deps = result->release_query_local_deps();
     Debug("Read-set hash: %s", BytesToHex(result->query_result_hash(), 16).c_str());
@@ -1181,8 +1211,10 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             // (Can early abort query to not waste exec since sync might fail- or optimistically execute and hope for best) --> won't happen in simulation (unless testing failures)
     
         auto f = [this, p1, txn, txn_dig = txn_id]() mutable {
-            if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+            //if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+            *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
+            Debug("ProcessProposal via Sync. Txn: %s", BytesToHex(txn_dig, 16).c_str());
             const TCPTransportAddress *dummy_remote = new TCPTransportAddress(sockaddr_in()); //must allocate because ProcessProposal binds ref...
             ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true, true); //Set gossip to true ==> No reply; set forceMaterialize to true   (Shouldn't be necessary anymore with the RegisterForce logic)                    
             if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){

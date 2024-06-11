@@ -191,6 +191,33 @@ void Server::ManageDispatchWriteback(const TransportAddress &remote, const std::
       }
 }
 
+void Server::ManageDispatchAbort(const TransportAddress &remote, const std::string &data){
+
+  if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
+    abort.ParseFromString(data);
+    HandleAbort(remote, abort);
+  }
+  else{
+    proto::Abort *ab = GetUnusedAbortMessage();
+    ab->ParseFromString(data);
+    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
+      HandleAbort(remote, *ab);
+    }
+    else{ //mainthreadDispatching = true && dispatchMsgReceive= false.
+      auto f = [this, &remote, ab](){
+        this->HandleAbort(remote, *ab);
+        return (void*) true;
+      };
+      transport->DispatchTP_main(std::move(f));
+    }
+  }
+
+
+
+ 
+
+}
+
 void Server::ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data){
     if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC) && (!params.multiThreading || !params.signClientProposals)){
       phase1FB.ParseFromString(data);
@@ -450,9 +477,133 @@ void Server::ManageDispatchSupplyTx(const TransportAddress &remote, const std::s
 
 //////////////////////////////////////////////////////// Protocol Helper Functions
 
+// New version:
+// Add TableVersion to predicate, not to read set (read set addition is purely for locking purposes)
+// Snapshot stays the same
+// materialize from snapshot!
+  //TODO: FIXME: If there is none in snapshot => don't pick genesis version: pick greatest.
+
+void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts,  
+                              bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
+                              bool add_to_snapshot, SnapshotManager *snapshotMgr,
+                              bool materialize_from_snapshot, const snapshot *ss_txns){
+
+  const std::string &table_key = EncodeTable(table_name); //TODO: Note: If we use ColVersions then "table_name" might also be a ColName. In that case must use EncodeTableCol... (pass a bool is_col)
+  
+  Debug("FindTableVersion for table %s [key:%s]. Called from TS[%lu:%lu]. AddToRead? %d. AddToSnap? %d. Read Materialized? %d",
+         table_name.c_str(), table_key.c_str(), ts.getTimestamp(), ts.getID(), add_to_read_set, add_to_snapshot, materialize_from_snapshot);
+
+  //Read committed
+  std::pair<Timestamp, Server::Value> tsVal;
+
+  //Find the latest committed version (that, if materializing, is in the snapshot) 
+  bool committed_exists = store.get(table_key, ts, tsVal);
+  if(!committed_exists){ //skip getting col version if the col is not an indexed one!!
+    Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", table_key.c_str());  
+    //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
+  }
+  if(materialize_from_snapshot){
+    
+
+    Debug("try to materialize committed TableVersion from ss");
+    //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
+    
+    while(committed_exists){ //not yet found in ss
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      if(ss_txns->count(txn.txndigest())){
+        break; //found 
+      }
+      if(tsVal.first.getTimestamp() == 0UL){ //stop at genesis
+        store.get(table_key, ts, tsVal); //simply pick highTS if there is nothing in snapshot.
+        break;
+      }
+      //find next older version
+      //Note: get fetches the last version <=, but we want stricly < TS. thus we search for tsVal.first-1 //TODO: Change get to use lower_bound?
+      tsVal.first.setTimestamp(tsVal.first.getTimestamp()-1);
+      committed_exists = store.get(table_key, tsVal.first, tsVal);
+    }
+  }
+
+  //if(table_name == "useracct_feedback") Panic("test stop");
+  //NOTE: Don't really need to check prepareds: Since TableVersion is just used to bound the number of comparisons...
+
+  //Find the latest prepared version that is greater than the committed version (that, if materializing, is in the snapshot) 
+  //NOTE: If we want to use this, then we need to keep the prepared dependency also.
+        //Why? Because if this TableVersion aborts, then it cannot be guaranteed to enforce the monotonicity requirement. Thus it is not safe to bound at this version.
+  const proto::Transaction *mostRecentPrepared = nullptr;
+
+  //Read prepared
+  if(occType == MVTSO && params.maxDepDepth > -2){    //TODO: possibly set RTS too here. Note: currently being set for whole Query ReadSet after exec. 
+      mostRecentPrepared = FindPreparedVersion(table_key, ts, committed_exists, tsVal);
+  }
+
+  if(materialize_from_snapshot){
+    //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
+    //TODO: Can definitely do this more efficiently (currently each loop here, loops through all preparedWrites -- though this is small)
+    while(mostRecentPrepared){ //not yet found in ss, and still greater than committed version
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      if(ss_txns->count(mostRecentPrepared->txndigest())){
+        break; //found
+      }
+      //find next older version
+      //Note: FindPreparedVersion fetches the last version <= TS, but we want stricly < TS. thus we search for timestamp()-1 //TODO: Change FindPreparedVersion to use lower_bound?
+      
+      mostRecentPrepared = FindPreparedVersion(table_key, Timestamp(mostRecentPrepared->timestamp().timestamp()-1, mostRecentPrepared->timestamp().id()), committed_exists, tsVal);
+
+    }
+  }
+
+
+  //Once we have found the latest version to read from: 
+  // Add to read pred set / snapshot
+
+  if(add_to_read_set){ //Creating ReadSet
+    UW_ASSERT(readSetMgr);
+
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
+      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+    }
+    else{ //Read committed
+      TimestampMessage tsm;
+      tsVal.first.serialize(&tsm);
+      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
+
+       //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
+      //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
+      if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
+    }
+  }
+
+ if(add_to_snapshot){ //Creating Snapshot
+    UW_ASSERT(snapshotMgr);
+
+    //Use txnDigest from cache
+    if(mostRecentPrepared != nullptr){ //Read prepared
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(mostRecentPrepared->txndigest(), mostRecentPrepared, false);
+    }
+    else{ //Read committed
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(txn.txndigest(), &txn, true);
+    }
+  }
+
+  return;
+
+
+}
+
+
 //TODO: FIXME: Add snapshot set as input, and read only the version supplied in the snapshot set (instead of the latest)
 // google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set
-void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
+void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr){
   //Read the current TableVersion or TableColVersion from CC-store  -- I.e. key_name = "table_name" OR "table_name + delim + column_name" 
   //Note: TableVersion is updated AFTER all TableWrites of a TX have been written. So the TableVersion from CC-store is a pessimistic version; if it is outdated we abort, but that is safe.
 
@@ -493,12 +644,15 @@ void Server::FindTableVersion(const std::string &key_name, const Timestamp &ts, 
  if(add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
-    //TODO: Instead of hashing TXN on demand, can we store the txn_digest somehwere such that we can just re-use it.
+    //Use txnDigest from cache
     if(mostRecentPrepared != nullptr){ //Read prepared
-      snapshotMgr->AddToLocalSnapshot(*mostRecentPrepared, params.hashDigest, false);
+      UW_ASSERT(mostRecentPrepared->has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(mostRecentPrepared->txndigest(), mostRecentPrepared, false);
     }
     else{ //Read committed
-      snapshotMgr->AddToLocalSnapshot(tsVal.second.proof->txn(), params.hashDigest, true);
+      const proto::Transaction &txn = tsVal.second.proof->txn();
+      UW_ASSERT(txn.has_txndigest());
+      snapshotMgr->AddToLocalSnapshot(txn.txndigest(), &txn, true);
     }
   }
 
@@ -1691,6 +1845,10 @@ proto::Writeback *Server::GetUnusedWBmessage() {
   // return msg;
 }
 
+proto::Abort *Server::GetUnusedAbortMessage(){
+  return new proto::Abort();
+}
+
 void Server::FreeReadReply(proto::ReadReply *reply) {
   delete reply;
   // std::unique_lock<std::mutex> lock(readReplyProtoMutex);
@@ -1741,6 +1899,10 @@ void Server::FreeWBmessage(proto::Writeback *msg) {
   // std::unique_lock<std::mutex> lock(WBProtoMutex);
   // //Latency_End(&waitOnProtoLock);
   // WBmessages.push_back(msg);
+}
+
+void Server::FreeAbortMessage(const proto::Abort *msg) {
+  delete msg;
 }
 
 

@@ -51,7 +51,7 @@
 
 #include "store/common/failures.h"
 
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
 
 #include "lib/compression/TurboPFor-Integer-Compression/vp4.h"
 #include "lib/compression/FrameOfReference/include/compression.h"
@@ -434,9 +434,16 @@ struct QueryReadSetMgr {
           ReadMessage *read = read_set->add_read_set();
           //ReadMessage *read = query_md->queryResult->mutable_query_read_set()->add_read_set();
           read->set_key(key);
-          *read->mutable_readtime() = readtime;
 
-          if(is_table_col_ver) read->set_is_table_col_version(true);
+          if(is_table_col_ver){
+            read->set_is_table_col_version(true);
+            //TS doesnt matter. Not used for CC, just for locking
+            read->mutable_readtime()->set_id(0); 
+            read->mutable_readtime()->set_timestamp(0);
+          }
+          else{
+             *read->mutable_readtime() = readtime;
+          }
         }
 
         void AddToReadSet(std::string &&key, const Timestamp &readtime){
@@ -472,6 +479,48 @@ struct QueryReadSetMgr {
                 add_dep->mutable_write()->mutable_prepared_timestamp()->set_timestamp(tx_ts.getTimestamp());
                 add_dep->mutable_write()->mutable_prepared_timestamp()->set_id(tx_ts.getID());
             }
+        }
+
+        //Call this once per executor
+        void AddPredicate(const std::string &table_name){
+
+            proto::ReadPredicate *new_pred = read_set->add_read_predicates();
+            new_pred->set_table_name(table_name);
+
+        }
+        void SetPredicateTableVersion(const TimestampMessage &table_version){
+            //Set TableVersion
+            if(read_set->read_predicates().empty()){
+                Debug("No predicate available to set Table Version");
+                return;
+            }
+            int last_idx = read_set->read_predicates_size() - 1;
+            try{
+                proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+                *current_pred.mutable_table_version() = table_version;
+            }
+            catch(...){
+                Panic("Predicate has not been reserved");
+            }
+          
+        }
+
+        //Call this every time the executor runs. Fill in new col values.
+        void ExtendPredicate(const std::string &predicate){
+            //TODO: Optimize: 
+            //Instead of storing whole where clause for each instance: store where clause once, and extract only the values that need to be instantiated.
+           
+            int last_idx = read_set->read_predicates_size() - 1;
+          
+             try{
+                proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+                current_pred.add_pred_instances(predicate);
+            }
+            catch(...){
+                Panic("Predicate has not been reserved");
+            }
+            
+          
         }
 
       proto::ReadSet *read_set;
@@ -520,7 +569,6 @@ typedef struct QueryParameters {
     const bool optimisticTxID; //use unique hash tx ids (normal ids), or optimistically use timestamp as identifier?
     const bool compressOptimisticTxIDs; //compress the ts Ids using integer compression.
    
-
     const bool mergeActiveAtClient; //When not caching read sets, merge query read sets at client
 
     const bool signClientQueries;
@@ -529,13 +577,22 @@ typedef struct QueryParameters {
     //performance parameters
     const bool parallel_queries;
 
+    const bool useSemanticCC;
+    const bool useActiveReadSet;
+    const bool useColVersions;
+    const uint64_t monotonicityGrace;
+
     QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
-        bool eagerExec, bool eagerPointExec, bool eagerPlusSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
-        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries) : 
+        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
-        eagerExec(eagerExec), eagerPointExec(eagerPointExec), eagerPlusSnapshot(eagerPlusSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
-        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries) {
+        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
+        useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace) {
+            //std::cerr << "eagerPlusSnapshot: " 
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
+            if(useSemanticCC) UW_ASSERT(sql_mode);
+            if(useActiveReadSet) UW_ASSERT(useSemanticCC);
         }
 
 } QueryParameters;
@@ -617,7 +674,9 @@ private:
     std::unordered_map<uint64_t, std::set<uint64_t>> ts_freq; //replicas that have txn committed.
 };
 
-typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
+typedef ::google::protobuf::Map<std::string, proto::ReplicaList> snapshot;
+typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *, bool, const snapshot*)> find_table_version;
+//typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
 typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 

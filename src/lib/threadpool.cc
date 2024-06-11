@@ -36,10 +36,10 @@
 ThreadPool::ThreadPool() {}
 
 //TODO: Make this an input param.
-static bool running_locally = true; //allow using more than 8 cores for local setup.
+//static bool running_locally = false; //allow using more than 8 cores for local testing.
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
-                       bool server, int mode) {
+                       bool server, int mode, bool optimize_for_dev_machine) {              
   // printf("starting threadpool \n");
   // if hardware_concurrency is wrong try this:
   cpu_set_t cpuset;
@@ -61,16 +61,17 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
 
     bool put_all_threads_on_same_core = false;
 
-    if (running_locally) num_cpus = 8;
-    if (num_cpus > 8 && !running_locally) {
+    if (optimize_for_dev_machine){
+      num_cpus = 16;
+      fprintf(stderr, "(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
+    } 
+    if (num_cpus > 8 && !optimize_for_dev_machine) {
       num_cpus = 8;
-      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n",
-              num_cpus);
+      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n", num_cpus);
     }
 
     num_cpus /= total_processes;
-    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id,
-            num_cpus);
+    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
     int offset = process_id * num_cpus; // Offset that determines where first
                                         // core of the server begins.
     uint32_t num_threads = (uint32_t)std::max(1, num_cpus);
@@ -95,13 +96,16 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       //     num_core_for_hotstuff = 0;
       // }
       end = end - num_core_for_hotstuff; // use last core for Hotstuff only
-    } else if (mode == 2) {              // TxBFTSmart
+    } else if (mode == 2) {              // TxBFTSmart && Pequin
       start = 0;                         // use all cores
     } else
       Panic("No valid system defined");
 
     Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
+    
+    //end=2;
+    fprintf(stderr, "Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start; i < end; i++) {
       std::thread *t;
 
@@ -110,7 +114,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i + offset, &cpuset);
-      if (i + offset > 7 && !running_locally)
+      if (i + offset > 7 && !optimize_for_dev_machine)
         return; // XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores
 
       // Mainthread   -- this is ONE thread on which any workload that must be sequential should be run.
@@ -130,7 +134,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             job();
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        Notice("THREADPOOL SETUP: Trying to pin main thread %d to core %d", i, (i+offset) );
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),  &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -163,7 +167,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
           }
         });
-        std::cerr << "THREADPOOL SETUP: Trying to pin thread to core: " << i << " + " << offset << std::endl;
+        Notice("THREADPOOL SETUP: Trying to pin worker thread %d to core %d", i, (i+offset) );
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -179,9 +183,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // }
       // threads.push_back(t);
       // t->detach();
-      Notice("Finished server-side threadpool configurations");
+      //Notice("Finished server-side threadpool configurations");
     }
-    
   }
   //CLIENT THREADPOOL 
   else {
@@ -387,25 +390,15 @@ void ThreadPool::dispatch_indexed(uint64_t id, std::function<void *()> f, std::f
 
   auto worker_id = id % total_indexed_workers;
 
-  // IndexWorkerMap::accessor w;
-  // indexed_worker_thread_request_list.find(w, worker_id);
-  auto w = indexed_worker_thread_request_list.find(worker_id);
-  UW_ASSERT(w != indexed_worker_thread_request_list.end());
-  w->second.enqueue(std::make_pair(std::move(f), info));
-
-  //indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info)); //Non-threadsafe option.
+  indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info));
 }
 //Dispatch a job f to a worker thread of choice (with id), without any callback.
 void ThreadPool::detach_indexed(uint64_t id, std::function<void *()> f) {
   EventInfo *info = nullptr;
   
   auto worker_id = id % total_indexed_workers;
-  // IndexWorkerMap::accessor w;
-  // UW_ASSERT(indexed_worker_thread_request_list.find(w, worker_id));
-  auto w = indexed_worker_thread_request_list.find(worker_id);
-  UW_ASSERT(w != indexed_worker_thread_request_list.end());
-  
-  w->second.enqueue(std::make_pair(std::move(f), info));
+
+  indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info));
 }
 
 
@@ -438,14 +431,8 @@ void ThreadPool::add_n_indexed(int num_threads) {
       while (true) {
         std::pair<std::function<void *()>, EventInfo *> job;
 
-        // IndexWorkerMap::accessor w;
-        // indexed_worker_thread_request_list.find(w, worker_id);
-        // w->second.wait_dequeue(job);
-        // w.release();
-        auto w = indexed_worker_thread_request_list.find(worker_id);
-        UW_ASSERT(w != indexed_worker_thread_request_list.end());
-        w->second.wait_dequeue(job);
-
+        indexed_worker_thread_request_list[worker_id].wait_dequeue(job);
+        
         if (!running) {
           break;
         }

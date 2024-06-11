@@ -55,7 +55,7 @@ SETTING_string(socket_family,
 // Added for SSL only begins
 
 // Enables SSL connection. The default value is false
-SETTING_bool(ssl, "Enable SSL connection (default: true)", true, false, false)
+SETTING_bool(ssl, "Enable SSL connection (default: false)", false, false, false)
 
 // Peloton private key file
 // Currently use hardcoded private key path, may need to change
@@ -92,27 +92,28 @@ SETTING_double(bnlj_buffer_size,
 // Size of the MonoQueue task queue
 SETTING_int(monoqueue_task_queue_size,
             "MonoQueue Task Queue Size (default: 32)",
-            32, 
+            32,  //This is the initial size of the job queue. It can dynamically resize however.
             8, 128,
             false, false)
 
+//NOTE: Pequinstore sidesteps the use of Worker Pool currently -> can just set number of workers to 0.
 // Size of the MonoQueue worker pool
 SETTING_int(monoqueue_worker_pool_size,
-            "MonoQueue Worker Pool Size (default: 8)", //4
-            8, // 4, 
-            1, 32,
+            "MonoQueue Worker Pool Size (default: 0)", //8 //4
+            0,// 8  // 4,  //TODO: Technically only need 6 if we have 8 cores since 2 are unused...
+            0, 32,
             false, false)
 
 // Number of connection threads used by peloton
 SETTING_int(connection_thread_count,
-            "Number of connection threads (default: std::hardware_concurrency())",
-            std::thread::hardware_concurrency(),
+            "Number of connection threads (default: 8)",
+            16, //8, //std::thread::hardware_concurrency(),
             1, 64,
             false, false)
 
 SETTING_int(gc_num_threads,
             "The number of Garbage collection threads to run",
-            1,
+            1,  //TODO: FIXME: DO we need this??
             1, 128,
             true, true)
 
@@ -186,9 +187,9 @@ SETTING_int(brain_task_queue_size,
 
 // Size of the brain worker pool
 SETTING_int(brain_worker_pool_size,
-            "Brain Worker Pool Size (default: 1)",
-            1,
-            1, 16,
+            "Brain Worker Pool Size (default: 0)", //FIXME: FS: I set this to 0 since it's not something we use?
+            0,
+            0, 16,
             false, false)
 
 //===----------------------------------------------------------------------===//
@@ -196,7 +197,7 @@ SETTING_int(brain_worker_pool_size,
 //===----------------------------------------------------------------------===//
 
 SETTING_bool(codegen,
-            "Enable code-generation for query execution (default: true)",
+            "Enable code-generation for query execution (default: false)",
             false,
             true, true)
 
@@ -230,10 +231,18 @@ SETTING_bool(hash_join_bloom_filter,
 SETTING_int(task_execution_timeout,
             "Maximum allowed length of time (in ms) for task "
                 "execution step of optimizer, "
-                "assuming one plan has been found (default 5000)",
-            5000,
-	    1000, 60000,
-	    true, true)
+                "assuming one plan has been found (default 1)",
+            1,
+	    0, 1,	   
+        true, true)
+
+// SETTING_int(task_execution_timeout,
+//             "Maximum allowed length of time (in ms) for task "
+//                 "execution step of optimizer, "
+//                 "assuming one plan has been found (default 5000)",
+//             5000,
+// 	    1000, 60000,
+// 	    true, true)
 
 //===----------------------------------------------------------------------===//
 // GENERAL

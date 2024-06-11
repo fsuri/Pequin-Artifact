@@ -33,7 +33,7 @@
 namespace auctionmark
 {
 
-  const double SCALE_FACTOR = 1;
+  const double DEFAULT_SCALE_FACTOR = 1;
 
   static constexpr uint32_t N_REGIONS = 75;
   static constexpr uint32_t N_GAGS = 100;

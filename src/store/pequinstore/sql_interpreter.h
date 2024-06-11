@@ -74,8 +74,8 @@ static std::string delete_hook("DELETE FROM ");
 //Condition operators
 static std::string and_hook(" AND ");
 static std::string or_hook(" OR ");
-static std::string in_hook("IN");
-static std::string between_hook("BETWEEN");
+static std::string in_hook(" IN ");
+static std::string between_hook(" BETWEEN ");
 
 enum col_t { //Could store col_t instead of String data type.
     BOOL,
@@ -159,9 +159,14 @@ typedef struct ColRegistry {
 typedef std::map<std::string, ColRegistry> TableRegistry_t;
 class SQLTransformer {
     public:
-        SQLTransformer(){}
+        SQLTransformer(const QueryParameters *query_params): query_params(query_params){}
         ~SQLTransformer(){}
+        void RegisterPartitioner(Partitioner *part_, uint32_t num_shards_, uint32_t num_groups_, uint32_t groupIdx_);
+
         void RegisterTables(std::string &table_registry);
+        inline const TableRegistry_t* GetTableRegistry_const() const {
+            return &TableRegistry;
+        } 
         inline TableRegistry_t* GetTableRegistry(){
             return &TableRegistry;
         } 
@@ -173,9 +178,10 @@ class SQLTransformer {
             txn = _txn;
         }
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
-             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
+             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool skip_query_interpretation = false);
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
+        bool IsPoint(const std::string &_query, const std::string &table_name, bool relax = false) const; //Use this if we don't need the p_col_values.
 
         std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no = 1);
 ;        void GenerateTableWriteStatement(std::string &write_statement, std::string &delete_statement, const std::string &table_name, const TableWrite &table_write);
@@ -184,20 +190,29 @@ class SQLTransformer {
             void GenerateTablePurgeStatement_DEPRECATED(std::string &purge_statement, const std::string &table_name, const TableWrite &table_write);
             void GenerateTablePurgeStatement_DEPRECATED(std::vector<std::string> &purge_statements, const std::string &table_name, const TableWrite &table_write);
 
-        
+        bool EvalPred(const std::string &pred, const std::string &table_name, const RowUpdates &row) const;
 
     private:
+        //Partitioner information.
+        Partitioner *part;
+        uint32_t num_shards;
+        uint32_t num_groups; 
+        int groupIdx;
+        std::vector<int> dummyTxnGroups;
+
+        const QueryParameters *query_params;
+
         proto::Transaction *txn;
 
         //Table Schema
         TableRegistry_t TableRegistry;
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 
-            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group);
         void TransformUpdate(size_t pos, std::string_view &write_statement, 
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
         void TransformDelete(size_t pos, std::string_view &write_statement, 
-            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation = false);
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool skip_query_interpretation = false);
 
         //Helper Functions
         typedef struct Col_Update {
@@ -218,11 +233,17 @@ class SQLTransformer {
         bool CheckColConditions(std::string_view &cond_statement, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
         bool CheckColConditions(std::string_view &cond_statement, const ColRegistry &col_registry, std::vector<std::string> &p_col_values, bool relax = false);
 
-        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax = false);
-            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
-            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type);
-            bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value);
+        bool CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, 
+                        bool &terminate_early, bool relax = false) const;
+            void ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value) const ;
+            void GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type) const;
+            bool MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value) const;
         bool CheckColConditionsDumb(std::string_view &cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value);
+
+        //Pred evaluator
+        bool EvalCond(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const ;
+        bool EvalColCondition(std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const;
+        bool Combine(op_t &op_type, bool left, bool right) const;
         
 };
 

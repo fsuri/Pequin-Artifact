@@ -52,6 +52,7 @@ bool NestedLoopJoinExecutor::DInit() {
   return true;
 }
 
+
 /**
  * @brief Creates logical tiles from the two input logical tiles after applying
  * join predicate.
@@ -81,7 +82,17 @@ bool NestedLoopJoinExecutor::DExecute() {
   LOG_TRACE("********** Nested Loop %s Join executor :: 2 children ",
             GetJoinTypeString());
 
-   std::cerr << "NestedLoop Join executor is running" << std::endl;
+   Debug("NestedLoop Join executor is running");
+   auto current_txn = executor_context_->GetTransaction();
+
+  //TODO: FindTableVersions and tentatively store them. Leave it up to the Index_executor to decide to use or not use the version!
+  //Either store in a map inside the txn context
+  //Or update in tx_context each time.
+  //Set TableVersions
+  /*for(auto &child: children_){
+     child->GetTableName();
+  }*/
+  
 
   // Grab info from plan node and check it
   const planner::NestedLoopJoinPlan &node = GetPlanNode<planner::NestedLoopJoinPlan>();
@@ -93,6 +104,9 @@ bool NestedLoopJoinExecutor::DExecute() {
   // Pick out the left and right columns
   const std::vector<oid_t> &join_column_ids_left = node.GetJoinColumnsLeft();
   const std::vector<oid_t> &join_column_ids_right = node.GetJoinColumnsRight();
+
+  //bool first_update_predicate = true;
+  //auto current_txn = executor_context_->GetTransaction();
 
   // We should first deal with the current result. Otherwise we will cache a lot
   // data which is not good to utilize memory. After that we call child execute.
@@ -111,21 +125,67 @@ bool NestedLoopJoinExecutor::DExecute() {
 
     // If left tile result is not done, continue the left tuples
     if (!left_tile_done_) {
-      std::cerr << "NEXT RIGHT TILE" << std::endl;
+      Debug("NEXT RIGHT TILE");
+      //std::cerr << "NEXT RIGHT TILE" << std::endl;
       // Tuple result
       ContainerTuple<executor::LogicalTile> left_tuple(left_tile_.get(), left_tile_row_itr_);
 
       // Grab the values
       if (!join_column_ids_left.empty() && !join_column_ids_right.empty()) {
         std::vector<type::Value> join_values;
+        //std::vector<char *> join_values_serialized;
         for (auto column_id : join_column_ids_left) {
           type::Value predicate_value = left_tuple.GetValue(column_id);
+          // char *buffer = new char[predicate_value.GetLength()];
+          // predicate_value.SerializeTo(buffer, true, nullptr);
           join_values.push_back(predicate_value);
+        }
+
+        // std::cerr << "MADE IT HERE, join values size is " << join_values.size() << std::endl;
+        //std::cerr << "Has snapshot manager is " << current_txn->GetHasSnapshotMgr() << std::endl;
+        //join_values.clear();
+
+        // NOTE: Here is check for empty result
+        if (join_values.size() == 0) {
+          // Empty result
+          //std::cerr << "Empty result" << std::endl;
+          if(current_txn->GetHasSnapshotMgr()){
+            //std::cerr << "Setting the table verison NL join" << std::endl;
+            Debug("Setting the table version for NL join");
+            auto table_name = children_[1]->GetTableName();
+            auto current_txn_timestamp = current_txn->GetBasilTimestamp();
+            auto ss_mgr = current_txn->GetSnapshotMgr();
+            auto find_snapshot = current_txn->GetSnapshotRead();
+            current_txn->GetTableVersion()(table_name, current_txn_timestamp, false, nullptr, find_snapshot, ss_mgr, false, nullptr);
+          }
         }
 
         // Pass the columns and values to right executor
         LOG_TRACE("Update the new value for index predicate");
         children_[1]->UpdatePredicate(join_column_ids_right, join_values);
+        
+        // Time to add predicates to read set manager
+        /*if (current_txn->GetHasReadSetMgr()) {
+          auto read_set_mgr = current_txn->GetQueryReadSetMgr();
+          if (first_update_predicate) {
+            // Add the left side predicate to read set manager
+            if (children_[0]->GetPredicate() != nullptr) {
+              children_[0]->GetPredicate()->DeduceExpressionName();
+              read_set_mgr->AddPredicate(children_[0]->GetTableName(), children_[0]->GetPredicate()->expr_name_);
+            }
+
+            // Add the right side predicate to read set manager
+            if (children_[1]->GetPredicate() != nullptr) {
+              children_[1]->GetPredicate()->DeduceExpressionName();
+              read_set_mgr->AddPredicate(children_[1]->GetTableName(), children_[1]->GetPredicate()->expr_name_);
+            }
+            
+            first_update_predicate = false;
+          }
+
+          read_set_mgr->ExtendPredicate(join_column_ids_right, join_values_serialized);
+          
+        }*/
       }
 
       // Execute the right child to get the right tile

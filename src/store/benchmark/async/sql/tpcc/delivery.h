@@ -32,7 +32,7 @@
 
 namespace tpcc_sql {
 
-static bool use_earliest_new_order_table = false;
+static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
 
 class SQLDelivery : public TPCCSQLTransaction {
  public:

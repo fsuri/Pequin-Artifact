@@ -74,7 +74,7 @@ bool DeleteExecutor::DInit() {
  */
 bool DeleteExecutor::DExecute() {
   Debug("INSIDE DELETE EXECUTOR");
-  //std::cout << "Inside delete executor" << std::endl;
+  //std::cerr << "Inside delete executor" << std::endl;
   //NOTE: Pequinstore functionality: Delete should essentially just be adding a dummy row marked as delete. Nothing more.
 
   PELOTON_ASSERT(target_table_);
@@ -83,10 +83,10 @@ bool DeleteExecutor::DExecute() {
     return false;
   }
 
-  // std::cout << "After child execution" << std::endl;
+  // std::cerr << "After child execution" << std::endl;
   std::unique_ptr<LogicalTile> source_tile(children_[0]->GetOutput());  //This is the tuples that Delete scanned => these are to be deleted.
 
-  // std::cout << "After delete child output" << std::endl;
+  // std::cerr << "After delete child output" << std::endl;
   auto &pos_lists = source_tile.get()->GetPositionLists();
 
   auto &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
@@ -123,7 +123,7 @@ bool DeleteExecutor::DExecute() {
 
     
     Debug("Deleted tuple location [%d:%d]", old_location.block, old_location.offset);
-    //std::cout << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+    //std::cerr << "Deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
     LOG_TRACE("Visible Tuple id : %u, Physical Tuple id : %u ", visible_tuple_id, physical_tuple_id);
 
     ContainerTuple<storage::TileGroup> old_tuple(tile_group, physical_tuple_id);
@@ -166,18 +166,18 @@ bool DeleteExecutor::DExecute() {
               }*/
 
     Debug("Is owner: %d, Is written: %d", is_owner, is_written);
-    // std::cout << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
+    // std::cerr << "Is owner is " << is_owner << ". Is written is " << is_written << std::endl;
 
     if (is_owner == true && is_written == true) {
       // if the transaction is the owner of the tuple, then directly update in place.
       LOG_TRACE("The current transaction is the owner of the tuple");
-      std::cout << "In the if case delete executor" << std::endl;
+      //std::cerr << "In the if case delete executor" << std::endl;
       Panic("This should never be getting triggered in our current setup. TX scope are single statements");
       transaction_manager.PerformDelete(current_txn, old_location);
     } else {
       bool is_ownable = is_owner || transaction_manager.IsOwnable(current_txn, tile_group_header, physical_tuple_id);
 
-      std::cout << "Delete executor in the else case" << std::endl;
+      //std::cerr << "Delete executor in the else case" << std::endl;
       is_ownable = true;  //NOTE: All the ownership biz seems like it can be removed for Pequin //TODO: Remove what is not needed
       if (is_ownable == true) {
         // if the tuple is not owned by any transaction and is visible to current transaction.
@@ -191,15 +191,14 @@ bool DeleteExecutor::DExecute() {
           return false;
         }
 
-
         //THIS IF-BLOCK IS DEPRECATED. PURGE (UNDO-DELETE) IS NOW HANDLED THROUGH insert_executor.cc
         if(current_txn->GetUndoDelete()) Panic("UndoDelete in delete_executor.cc is deprecated");
-              //std::cout << "Undo delete is " << current_txn->GetUndoDelete() << std::endl;
+              //std::cerr << "Undo delete is " << current_txn->GetUndoDelete() << std::endl;
               /*
               // Before getting new location
               if (current_txn->GetUndoDelete()) {
                 // If undoing a delete then reset the begin and commit ids
-                // std::cout << "Made it to undoing deletes" << std::endl;
+                // std::cerr << "Made it to undoing deletes" << std::endl;
                 tile_group_header->SetBeginCommitId(old_location.offset, current_txn->GetTransactionId());
                 tile_group_header->SetEndCommitId(old_location.offset, MAX_CID);
                 tile_group_header->SetTransactionId(old_location.offset, current_txn->GetTransactionId());
@@ -209,7 +208,7 @@ bool DeleteExecutor::DExecute() {
 
                 // if there's no primary index on a table, then index_entry_ptr == nullptr.
                 if (index_entry_ptr != nullptr) {
-                  // std::cout << "Undo delete inside if statement" << std::endl;
+                  // std::cerr << "Undo delete inside if statement" << std::endl;
                   tile_group_header->SetIndirection(old_location.offset, index_entry_ptr);
 
                   // Set the index header in an atomic way.
@@ -222,9 +221,9 @@ bool DeleteExecutor::DExecute() {
 
                 // tile_group_header->SetEndCommitId(old_location.offset, INVALID_CID);
                 Debug("Trying to undo deleted tuple id. block %d, offset %d",  old_location.block, old_location.offset);
-                // std::cout << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
+                // std::cerr << "Trying to undo deleted tuple id is block " << old_location.block << " and offset " << old_location.offset << std::endl;
                 Debug("Undo delete visibility type is: %d", transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset));
-                // std::cout << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
+                // std::cerr << "Undo delete visibility type is " << transaction_manager.IsVisible(current_txn, tile_group_header, old_location.offset) << std::endl;
                 return true;
               }
               */
@@ -233,7 +232,7 @@ bool DeleteExecutor::DExecute() {
         ItemPointer new_location = target_table_->InsertEmptyVersion();
 
         Debug("Delete executor New tuple location[%d:%d]", new_location.block, new_location.offset);
-        //std::cout << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
+        //std::cerr << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;
 
         // PerformDelete() will not be executed if the insertion failed.
         // There is a write lock acquired, but since it is not in the write set, because we haven't yet put them into the write set.
@@ -248,12 +247,12 @@ bool DeleteExecutor::DExecute() {
           transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
           return false;
         }
-        // std::cout << "Got to perform delete" << std::endl;
+        // std::cerr << "Got to perform delete" << std::endl;
         /** NOTE: Old logic */
         /**transaction_manager.PerformDelete(current_txn, old_location,new_location);*/
 
         // Create special "Delete Tuple". Note: Technically only needs the primary key values. The rest can be dummy/empty
-        std::cout << "Delete executor performing delete. Commit: " << current_txn->GetCommitOrPrepare() << ". ForceMat? " << current_txn->GetForceMaterialize() << std::endl;
+        std::cerr << "Delete executor performing delete. Commit: " << current_txn->GetCommitOrPrepare() << ". ForceMat? " << current_txn->GetForceMaterialize() << std::endl;
 
        
         auto new_tile_group_header = target_table_->GetTileGroupById(new_location.block)->GetHeader();

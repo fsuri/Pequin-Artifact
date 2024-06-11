@@ -39,6 +39,7 @@ TrafficCop::TrafficCop(void (*task_callback)(void *), void *task_callback_arg)
       task_callback_arg_(task_callback_arg) {}
 
 void TrafficCop::Reset() {
+  //std::cerr << "reset tcop" << std::endl;
   std::stack<TcopTxnState> new_tcop_txn_state;
   // clear out the stack
   swap(tcop_txn_state_, new_tcop_txn_state);
@@ -93,6 +94,8 @@ ResultType TrafficCop::BeginQueryHelper(size_t thread_id) {
 }
 
 ResultType TrafficCop::CommitQueryHelper() {
+
+
   // do nothing if we have no active txns
   if (tcop_txn_state_.empty())
     return ResultType::NOOP;
@@ -101,14 +104,14 @@ ResultType TrafficCop::CommitQueryHelper() {
   auto txn = curr_state.first;
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   // I catch the exception (ex. table not found) explicitly,
-  // If this exception is caused by a query in a transaction,
-  // I will block following queries in that transaction until 'COMMIT' or
-  // 'ROLLBACK' After receive 'COMMIT', see if it is rollback or really commit.
+  // If this exception is caused by a query in a transaction, 
+  // I will block following queries in that transaction until 'COMMIT' or  'ROLLBACK' After receive 'COMMIT', see if it is rollback or really commit.
   if (curr_state.second != ResultType::ABORTED) {
     // txn committed
     return txn_manager.CommitTransaction(txn);
   } else {
     // otherwise, rollback
+    Panic("Abort should never happen when using Pequinstore Peloton interface");
     return txn_manager.AbortTransaction(txn);
   }
 }
@@ -181,30 +184,31 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     return p_status_;
   }
 
-  auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete execute helper" << std::endl;
+  auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
+    // std::cerr << "Made it to on complete execute helper" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
     result = std::move(values);
     task_callback_(task_callback_arg_);
-    // std::cout << "After task callback execute helper" << std::endl;
+    // std::cerr << "After task callback execute helper" << std::endl;
     Debug("Completed Task Callback Execute helper");
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  //std::cerr << "Setting skip cache in execute helper" << std::endl;
+  //txn->skip_cache = true; //For Table Loading skip cache..
+  
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
-            tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -218,7 +222,8 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
 executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
     //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -227,21 +232,20 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     pequinstore::QueryReadSetMgr *query_read_set_mgr, 
     pequinstore::SnapshotManager *snapshot_mgr,
     size_t k_prepared_versions,
-    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    const pequinstore::snapshot *ss_txns,
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     size_t thread_id) {
 
   Debug("ExecuteReadHelper with mode: %d", mode);
-  std::cerr << "MAKING IT HERE TEEEEEEEEEEEEEEEEEEEEEEEEST" << std::endl;
 
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -252,8 +256,11 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   }
 
   /////////////////////// SET PEQUIN TXN ARGS //////////////////////////////////////
+  txn->SetReadOnly(); //THIS IS A READ QUERY
+
+  txn->SetSqlInterpreter(sql_interpreter);
   // Set TableRegistry pointer
-  txn->SetTableRegistry(table_reg);
+  //txn->SetTableRegistry(table_reg);
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
@@ -304,12 +311,14 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-
+ 
   Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
-  });
+ 
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -337,10 +346,10 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -377,9 +386,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -388,14 +397,14 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -426,10 +435,10 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -467,11 +476,10 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
     return p_status_;
   }
 
-  auto on_complete = [&result, this](executor::ExecutionResult p_status,
-                                     std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+  auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -480,14 +488,12 @@ executor::ExecutionResult TrafficCop::ExecuteSnapshotReadHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -520,10 +526,10 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -563,9 +569,9 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -574,14 +580,14 @@ executor::ExecutionResult TrafficCop::ExecuteFindSnapshotHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
+  
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -604,10 +610,10 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Read helper use existing txn" << std::endl;
+    // std::cerr << "Read helper use existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Read helper create txn" << std::endl;
+    // std::cerr << "Read helper create txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -649,9 +655,9 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -660,14 +666,14 @@ executor::ExecutionResult TrafficCop::ExecuteEagerExecAndSnapshotHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
+ 
 
-  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(),
-        basil_timestamp.getID());
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  Debug("submit read query with TS [%lu:%lu]", basil_timestamp.getTimestamp(), basil_timestamp.getID());
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
@@ -699,10 +705,10 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
 
   concurrency::TransactionContext *txn;
   if (!tcop_txn_state_.empty()) {
-    // std::cout << "Write helper use of existing txn" << std::endl;
+    // std::cerr << "Write helper use of existing txn" << std::endl;
     txn = curr_state.first;
   } else {
-    // std::cout << "Write helper create new txn" << std::endl;
+    // std::cerr << "Write helper create new txn" << std::endl;
     //  No active txn, single-statement txn
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     // new txn, reset result status
@@ -733,12 +739,12 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   // Set whether to force materialize
   txn->SetForceMaterialize(forceMaterialize);
 
-  Notice("IN WRITE HELPER: Txn %s is trying to %s", pequinstore::BytesToHex(*txn_dig, 16).c_str(), commit_or_prepare? "commit" : "prepare");
-  Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
-  Notice("Commit or prepare is %d", commit_or_prepare);
+  Debug("IN WRITE HELPER: Txn %s is trying to %s", pequinstore::BytesToHex(*txn_dig, 16).c_str(), commit_or_prepare? "commit" : "prepare");
+  // Notice("Commit or prepare is %d", txn->GetCommitOrPrepare());
+  // Notice("Commit or prepare is %d", commit_or_prepare);
 
-  std::cout << "Commit Or Prepare:" << commit_or_prepare << std::endl;
-  std::cout << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
+  // std::cerr << "Commit Or Prepare:" << commit_or_prepare << std::endl;
+  // std::cerr << "Txn: Commit Or Prepare:" << txn->GetCommitOrPrepare() << std::endl;
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
     // If the transaction state is ABORTED, the transaction should be aborted
@@ -752,9 +758,9 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
   }
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status, std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    //std::cout << "The status is " << p_status.m_error_message << std::endl;
+    //std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -764,10 +770,11 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
-  });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -813,8 +820,8 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
   txn->GetUndoDelete());
-  // std::cout << "Undo delete in execute purge helper is " << undo_delete <<
-  // std::endl; std::cout << "Txn get undo delete in execute purge helper is "
+  // std::cerr << "Undo delete in execute purge helper is " << undo_delete <<
+  // std::endl; std::cerr << "Txn get undo delete in execute purge helper is "
   // << txn->GetUndoDelete() << std::endl; No read set manager for purge
   txn->SetHasReadSetMgr(false);
   txn->SetIsPointRead(false);
@@ -834,9 +841,9 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is " << p_status.m_error_message << std::endl;
+    // std::cerr << "The status is " << p_status.m_error_message << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
     this->error_message_ = std::move(p_status.m_error_message);
@@ -845,16 +852,15 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
 
   is_queuing_ = true;
 
-  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu",
-            tcop_txn_state_.size());
+  LOG_TRACE("Check Tcop_txn_state Size After ExecuteHelper %lu", tcop_txn_state_.size());
   return p_status_;
 }
 
@@ -920,6 +926,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
 
+  txn->SetReadOnly(); //THIS IS A READ QUERY
+
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
   // Set the predicate
@@ -953,28 +961,28 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
 
   // Is a point read query
   txn->SetIsPointRead(true);
-  
 
 
    Debug("PointRead for: Basil Timestamp to [%lu:%lu]. IsPoint: %d", txn->GetBasilTimestamp().getTimestamp(), txn->GetBasilTimestamp().getID(), txn->IsPointRead());
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
-    // If the transaction state is ABORTED, the transaction should be aborted
-    // but Peloton didn't explicitly abort it yet since it didn't receive a
-    // COMMIT/ROLLBACK.
-    // Here, it receive queries other than COMMIT/ROLLBACK in an broken
-    // transaction,
-    // it should tell the client that these queries will not be executed.
+    Panic("I don't think a point read should ever abort");
+    // If the transaction state is ABORTED, the transaction should be aborted but Peloton didn't explicitly abort it yet since it didn't receive a COMMIT/ROLLBACK.
+    // Here, it receive queries other than COMMIT/ROLLBACK in an broken transaction, it should tell the client that these queries will not be executed.
     p_status_.m_result = ResultType::TO_ABORT;
     return p_status_;
   }
 
+
+  auto dummy = [](){};
+ 
+
   auto on_complete = [&result, this](executor::ExecutionResult p_status,
                                      std::vector<ResultValue> &&values) {
-    // std::cout << "Made it to on complete" << std::endl;
+    // std::cerr << "Made it to on complete" << std::endl;
     this->p_status_ = p_status;
-    // std::cout << "The status is for point read " << p_status.m_error_message
+    // std::cerr << "The status is for point read " << p_status.m_error_message
     // << std::endl;
     //  TODO (Tianyi) I would make a decision on keeping one of p_status or
     //  error_message in my next PR
@@ -982,14 +990,16 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     result = std::move(values);
     task_callback_(task_callback_arg_);
     Debug("calling task callback");
-    // std::cout << "End of on complete" << std::endl;
+    // std::cerr << "End of on complete" << std::endl;
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
-  pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
-    executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
-                                        on_complete);
-  });
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  //TODO: On complete/ ContinueAfterComplete in GetResult is not necessary?
+
+  // auto &pool = threadpool::MonoQueuePool::GetInstance();
+  // pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
+  //   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format, on_complete);
+  // });
 
   is_queuing_ = true;
 
@@ -1030,40 +1040,29 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
 
 /*
  * Prepare a statement based on parse tree. Begin a transaction if necessary.
- * If the query is not issued in a transaction (if txn_stack is empty and it's
- * not
- * BEGIN query), Peloton will create a new transation for it. single_stmt
- * transaction.
+ * If the query is not issued in a transaction (if txn_stack is empty and it's not BEGIN query), Peloton will create a new transation for it. single_stmt transaction.
  * Otherwise, it's a multi_stmt transaction.
- * TODO(Yuchen): We do not need a query string to prepare a statement and the
- * query string may
- * contain the information of multiple statements rather than the single one.
- * Hack here. We store
- * the query string inside Statement objects for printing infomation.
+ * TODO(Yuchen): We do not need a query string to prepare a statement and the query string may contain the information of multiple statements rather than the single one.
+ * Hack here. We store the query string inside Statement objects for printing infomation.
  */
 std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     const std::string &stmt_name, const std::string &query_string,
-    std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
+    std::unique_ptr<parser::SQLStatementList> sql_stmt_list, bool skip_cache,
     const size_t thread_id UNUSED_ATTRIBUTE) {
   LOG_TRACE("Prepare Statement query: %s", query_string.c_str());
 
   // Empty statement
   // TODO (Tianyi) Read through the parser code to see if this is appropriate
-  if (sql_stmt_list.get() == nullptr ||
-      sql_stmt_list->GetNumStatements() == 0) {
+  if (sql_stmt_list.get() == nullptr || sql_stmt_list->GetNumStatements() == 0) {
     // TODO (Tianyi) Do we need another query type called QUERY_EMPTY?
-    std::shared_ptr<Statement> statement =
-        std::make_shared<Statement>(stmt_name, QueryType::QUERY_INVALID,
-                                    query_string, std::move(sql_stmt_list));
+    std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, QueryType::QUERY_INVALID, query_string, std::move(sql_stmt_list));
     return statement;
   }
 
   StatementType stmt_type = sql_stmt_list->GetStatement(0)->GetType();
-  QueryType query_type =
-      StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
+  QueryType query_type = StatementTypeToQueryType(stmt_type, sql_stmt_list->GetStatement(0));
 
-  std::shared_ptr<Statement> statement = std::make_shared<Statement>(
-      stmt_name, query_type, query_string, std::move(sql_stmt_list));
+  std::shared_ptr<Statement> statement = std::make_shared<Statement>(stmt_name, query_type, query_string, std::move(sql_stmt_list));
 
   // We can learn transaction's states, BEGIN, COMMIT, ABORT, or ROLLBACK from
   // member variables, tcop_txn_state_. We can also get single-statement txn or
@@ -1083,8 +1082,7 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
   } else {
     // Begin new transaction when received single-statement query or "BEGIN"
     // from multi-statement query
-    if (statement->GetQueryType() ==
-        QueryType::QUERY_BEGIN) { // only begin a new transaction
+    if (statement->GetQueryType() == QueryType::QUERY_BEGIN) { // only begin a new transaction
       // note this transaction is not single-statement transaction
       LOG_TRACE("BEGIN");
       single_statement_txn_ = false;
@@ -1096,10 +1094,13 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       Debug("Single statement TXN. All queries should be this (since we don't use TX semantics inside Peloton)");
     }
     auto txn = txn_manager.BeginTransaction(thread_id);
+
     // this shouldn't happen
     if (txn == nullptr) {
       LOG_TRACE("Begin txn failed");
     }
+    if(skip_cache) txn->skip_cache = true;
+    
     // initialize the current result as success
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
@@ -1108,26 +1109,24 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     tcop_txn_state_.top().first->AddQueryString(query_string.c_str());
   }
 
-  // TODO(Tianyi) Move Statement Planing into Statement's method
-  // to increase coherence
+
+  // TODO(Tianyi) Move Statement Planing into Statement's method to increase coherence
   try {
-    // Run binder
-    auto bind_node_visitor = binder::BindNodeVisitor(
-        tcop_txn_state_.top().first, default_database_name_);
-    bind_node_visitor.BindNameToNode(
-        statement->GetStmtParseTreeList()->GetStatement(0));
-    auto plan = optimizer_->BuildPelotonPlanTree(
-        statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+    // Run binder 
+    auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
+    bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
+    //Notice("finished binding; try to optimize next");
+    auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);  //FIXME: TODO: FS: This seems to be expensive. Can we change this?
+
+    // Notice("Finished Optimizer; setting plane tree etc next");
     statement->SetPlanTree(plan);
     // Get the tables that our plan references so that we know how to
     // invalidate it at a later point when the catalog changes
-    const std::set<oid_t> table_oids =
-        planner::PlanUtil::GetTablesReferenced(plan.get());
+    const std::set<oid_t> table_oids = planner::PlanUtil::GetTablesReferenced(plan.get());
     statement->SetReferencedTables(table_oids);
 
     if (query_type == QueryType::QUERY_SELECT) {
-      auto tuple_descriptor = GenerateTupleDescriptor(
-          statement->GetStmtParseTreeList()->GetStatement(0));
+      auto tuple_descriptor = GenerateTupleDescriptor(statement->GetStmtParseTreeList()->GetStatement(0));
 
       statement->SetTupleDescriptor(tuple_descriptor);
       LOG_TRACE("select query, finish setting");
@@ -1405,8 +1404,7 @@ ResultType TrafficCop::ExecuteStatement(
         statement->SetNeedsReplan(true);
       }
 
-      ExecuteHelper(statement->GetPlanTree(), params, result, result_format,
-                    thread_id);
+      ExecuteHelper(statement->GetPlanTree(), params, result, result_format, thread_id);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {
@@ -1425,7 +1423,8 @@ ResultType TrafficCop::ExecuteReadStatement(
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -1434,7 +1433,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     pequinstore::QueryReadSetMgr *query_read_set_mgr, //TODO: change to ptr
     pequinstore::SnapshotManager *snapshot_mgr,
     size_t k_prepared_versions,
-    const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns,
+    const pequinstore::snapshot *ss_txns,
      ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     size_t thread_id)   
 {
@@ -1474,7 +1473,7 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement->SetNeedsReplan(true);
       }
 
-      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, table_reg,
+      ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, sql_interpreter, //table_reg,
                         basil_timestamp, find_table_version, read_prepared_pred, 
                         mode,
                         query_read_set_mgr,
@@ -1856,7 +1855,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
         statement->SetNeedsReplan(true);
       }
       Debug("Purge statement. undo_delete: %d", undo_delete);
-      // std::cout << "Undo delete in execute purge statement is " <<
+      // std::cerr << "Undo delete in execute purge statement is " <<
       // undo_delete << std::endl;
       ExecutePurgeHelper(statement->GetPlanTree(), params, result,
                          result_format, basil_timestamp, txn_dig, undo_delete,

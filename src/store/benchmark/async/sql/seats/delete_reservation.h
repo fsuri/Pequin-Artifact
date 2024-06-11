@@ -2,15 +2,17 @@
 #define SEATS_SQL_DELETE_RESERVATION_H 
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
+
 #include <random>
 #include <queue>
+
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
 class SQLDeleteReservation: public SEATSSQLTransaction {
     public: 
-        SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res);
+        SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile);
         virtual ~SQLDeleteReservation();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -20,8 +22,9 @@ class SQLDeleteReservation: public SEATSSQLTransaction {
         std::string c_id_str;
         std::string ff_c_id_str;
         int64_t ff_al_id;
-        std::queue<SEATSReservation> *q;            // insert reservation queue
+    
         std::mt19937 *gen_;
+        SeatsProfile &profile;
 };
 
 // struct GetFlightsResultRow_2 {

@@ -140,16 +140,23 @@ template<class T, class V>
 void VersionedKVStore<T, V>::getValue(const std::string &key, const T &t,
     typename std::set<VersionedKVStore<T, V>::VersionedValue>::iterator &it) {
   //std::shared_lock lock(storeMutex);
+  //std::cerr << "find upper of: " << t.getTimestamp() << std::endl;
   VersionedKVStore<T, V>::VersionedValue v(t);
   typename storeMap::const_accessor a;
   bool inStore = store.find(a, key);
-  it = a->second.upper_bound(v);
+  it = a->second.upper_bound(v);  
+  //TODO: Change get to use lower_bound? Do we want latest version <= TS (use upper_bound), or latest version < TS (use lower_bound)?
+
+  // for(auto &v_val: a->second){
+  //    std::cerr << "all vals: " << v_val.write.getTimestamp() << std::endl;
+  // }
 
   // if there is no valid version at this timestamp
   if (it == a->second.begin()) {
       it = a->second.end();
   } else {
       it--;
+      //std::cerr << "next: " << it->write.getTimestamp() << std::endl;
   }
 }
 

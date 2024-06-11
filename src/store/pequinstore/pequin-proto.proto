@@ -97,14 +97,32 @@ message DepTs {
   required uint64 dep_ts = 2;
 }
 
+message ColValues {
+  repeated bytes col_values = 1;
+}
+message ReadPredicate {
+  required bytes table_name = 1;
+  required TimestampMessage table_version = 2;
+  optional bytes where_clause = 3; //UNUSED
+  repeated bytes col_names = 4; //UNUSED
+  repeated TimestampMessage col_versions = 5; //UNUSED
+  repeated ColValues instantiations = 6; // the col values for each predicate instantiation. //UNUSED
+  //NEW: lazy instantiations (each instance is a full predicate already)
+  repeated bytes pred_instances = 7;
+}
+
 message ReadSet {
   repeated ReadMessage read_set = 1;
   repeated Dependency deps = 2;
+
+  repeated ReadPredicate read_predicates = 3; //TODO: read_set_hash should cover these too.
   
   //Deprecated
-  repeated bytes dep_ids = 3;
-  repeated DepTs dep_ts_ids = 4;
+  repeated bytes dep_ids = 4;
+  repeated DepTs dep_ts_ids = 5;
 }
+
+
 
 
 message QueryGroupMeta {
@@ -136,10 +154,11 @@ message Transaction {
   repeated QueryResultMetaData query_set = 8; //contains QueryReadSets
   map<string, TableWrite> table_writes = 9; //contains all Writes for Queries: --> can be turned into an adhoc write set via encoding function
   optional uint64 last_query_seq = 10; //Used to update queryWatermark.
+  repeated ReadPredicate read_predicates = 11; //Contains predicates if merged client side.
 
-  //not part of TX: server side local information
-  optional bytes txndigest = 11; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
-  optional ReadSet merged_read_set = 12; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
+  //not part of official TX: server side local information
+  optional bytes txndigest = 12; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
+  optional ReadSet merged_read_set = 13; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
   //repeated WriteMessage enc_write_set = 13; //NOT PART OF TX. HACK HERE TO STORE encoded write set before performing CC on TableWrites (serverside)
 }
 
@@ -147,7 +166,7 @@ message Phase1 {
   required uint64 req_id = 1;
   //oneof transaction { //In code still effectively oneof: making both optional is a hack so that we can assign parsed txn to p1 in shardclient + client.
   optional Transaction txn = 2;
-  optional SignedMessage signed_txn =3;
+  optional SignedMessage signed_txn = 3;
   //}
   //required Transaction txn = 2;
   optional bool crash_failure = 4;

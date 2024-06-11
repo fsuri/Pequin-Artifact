@@ -454,6 +454,9 @@ DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); 
 
 //DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
 
+DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
+
 
 ///////////////////////////////////////////////////////////
 
@@ -639,12 +642,14 @@ DEFINE_uint64(max_backoff, 5000, "max time to sleep after aborting.");
 const std::string partitioner_args[] = {
 	"default",
   "warehouse_dist_items",
-  "warehouse"
+  "warehouse",
+  "rw_sql",
 };
 const partitioner_t parts[] {
   DEFAULT,
   WAREHOUSE_DIST_ITEMS,
-  WAREHOUSE
+  WAREHOUSE,
+  RW_SQL
 };
 static bool ValidatePartitioner(const char* flagname,
     const std::string &value) {
@@ -680,6 +685,11 @@ DEFINE_string(connection_str, "postgres://postgres:password@localhost:5432/tpccd
 DEFINE_string(keys_path, "", "path to file containing keys in the system"
 		" (for retwis)");
 DEFINE_uint64(num_keys, 0, "number of keys to generate (for retwis");
+
+/**
+ * Seats/Auctionmark setting
+*/
+DEFINE_uint32(benchbase_scale_factor, 1, "scale factor for seats/auctionmark");
 
 const std::string keys_args[] = {
 	"uniform",
@@ -1085,7 +1095,8 @@ int main(int argc, char **argv) {
         //Create Table
         
     for(int i=0; i<FLAGS_num_tables; ++i){
-      string table_name = "table_" + std::to_string(i);
+      //string table_name = "table_" + std::to_string(i);
+      string table_name = "t" + std::to_string(i);
       table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
     }
 
@@ -1103,18 +1114,42 @@ int main(int argc, char **argv) {
 
   switch (partType) {
     case DEFAULT:
-      part = new DefaultPartitioner();
+    {
+      if(FLAGS_sql_bench){
+        part = new DefaultSQLPartitioner();
+      }
+      else{
+        part = new DefaultPartitioner();
+      }
       break;
+    }
     case WAREHOUSE_DIST_ITEMS:
+    {
+      if(FLAGS_sql_bench) Panic("deprecated partitioner for sql bench");
       part = new WarehouseDistItemsPartitioner(FLAGS_tpcc_num_warehouses);
       break;
+    }
     case WAREHOUSE:
-      part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+    {
+      if(FLAGS_sql_bench){
+        UW_ASSERT(benchMode == BENCH_TPCC_SQL);
+        part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
+      else{
+        UW_ASSERT(benchMode == BENCH_TPCC_SYNC || benchMode == BENCH_TPCC);
+        part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
       break;
+    }
+    case RW_SQL:
+    {
+      UW_ASSERT(benchMode == BENCH_RW_SQL);
+      part = new RWSQLPartitioner(FLAGS_num_tables);
+    }
     default:
       NOT_REACHABLE();
   }
-
+  
 	std::string latencyFile;
   std::string latencyRawFile;
   std::vector<uint64_t> latencies;
@@ -1431,7 +1466,10 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  false,    // FLAGS_pequin_sign_replica_to_replica_sync,
-                                                 false);   //FLAGS_pequin_parallel_queries);
+                                                 false,   //FLAGS_pequin_parallel_queries);
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 0UL);
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1718,8 +1756,8 @@ int main(int argc, char **argv) {
       case BENCH_SEATS_SQL:
         {
           UW_ASSERT(syncClient != nullptr);
-          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_FILE_NAME);
-          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path,
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_LOCATION);
+          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
               seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
@@ -1729,7 +1767,7 @@ int main(int argc, char **argv) {
         {
           UW_ASSERT(syncClient != nullptr);
           std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
-          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path,
+          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
               clientId, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
               FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
               FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);

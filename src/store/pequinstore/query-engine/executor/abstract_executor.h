@@ -16,6 +16,7 @@
 #include "../executor/logical_tile.h"
 #include "../common/internal_types.h"
 #include "../../store/common/timestamp.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton {
 
@@ -80,6 +81,9 @@ class AbstractExecutor {
   void SetBasilTimestamp(Timestamp basil_timestamp) {
     basil_timestamp_ = basil_timestamp;
   }
+
+  virtual const std::string GetTableName() {}
+
 
  protected:
   // NOTE: The reason why we keep the plan node separate from the executor

@@ -57,9 +57,6 @@
 
 namespace pequinstore {
 
-  static bool PRINT_READ_SET = true;
-
-
 //TODO: Problem: FIXME: Probably not safe to modify transaction. -- must hold ongoing lock for entire duration of any tx uses? --> not possible..
 //Solution: Store elsewhere (don't override read-set) -- Refactor CC and Prepare to take read set pointer as argument -- in non-query case, let that read set point to normal readset.
 //Can we still edit read_set_merge field? If so, that is a good place to store it to re-use for Commit -- Test if that causes problems with sending out tx in parallel. (might result in corrupted protobuf messages)
@@ -170,7 +167,7 @@ void Server::wakeSubscribedTx(const std::string query_id, const uint64_t &retry_
 }
 
 //returns pointer to query read set (either from cache, or from txn itself)
-proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn){
+proto::ConcurrencyControl::Result Server::fetchReadSet(queryMetaDataMap::const_accessor &q, const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn){
 
     //pick respective server group from group meta
     const proto::QueryGroupMeta *query_group_md;
@@ -183,18 +180,20 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       query_rs = nullptr;
       return proto::ConcurrencyControl::COMMIT; //return empty readset; ideally don't return anything... -- could make this a void function, and pass return field as argument pointer.
     }
+
     if(query_group_md->has_query_read_set()){
       Debug("Merging Query[%s] Read Set from Transaction[%s]", BytesToHex(query_md.query_id(), 16).c_str(), BytesToHex(txnDigest, 16).c_str());
        //TODO:: In this case, could avoid copies by letting client put all active read sets into the main read set. 
                                                         // --> Client should apply sort function -> will find invalid duplicates and abort early!
       query_rs = &query_group_md->query_read_set();
+      //query_rs = query_group_md->mutable_query_read_set(); //WARNING: SHOULD NEVER MUTATE TX CORE FIELDS
     }
     else{ //else go to cache (via query_id) and check if query_result hash matches. if so, use read set.
       Debug("Try to merge Query[%s] Read Set from Cache", BytesToHex(query_md.query_id(), 16).c_str());
       // If tx includes no read_set_hash => abort; invalid transaction //TODO: Could strengthen Abstain into Abort by incuding proof...
       if(!query_group_md->has_read_set_hash()) return proto::ConcurrencyControl::IGNORE; //ABSTAIN;
 
-      queryMetaDataMap::const_accessor q;
+      //queryMetaDataMap::const_accessor q;
       bool has_query = queryMetaData.find(q, query_md.query_id());
     
       //1) Check whether the replica a) has seen the query, and b) has computed a result/read-set. If not ==> Stop processing
@@ -247,7 +246,10 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
         subscribeTxOnMissingQuery(query_md.query_id(), txnDigest);
         return proto::ConcurrencyControl::WAIT; //Checks whether result or signed result is set. Must contain un-signed result
       }
-      const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
+      
+      //const proto::QueryResult &cached_queryResult = cached_queryResultReply->result();
+      proto::QueryResult &cached_queryResult = *cached_queryResultReply->mutable_result(); //TODO: FIXME: TEST WHETHER IT's OK TO MUTATE THIS
+
 
       if(!cached_queryResult.has_query_read_set()){
         Debug("Cached QueryFailure for current query version;");
@@ -266,10 +268,11 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(const proto::QueryResultM
       } 
      
       //5) Use Read set.
-      query_rs = &cached_queryResult.query_read_set();
+      //query_rs = &cached_queryResult.query_read_set();
+       query_rs = cached_queryResult.mutable_query_read_set();
       Debug("Merged Cached Read set for Query[%s] successfully", BytesToHex(query_md.query_id(), 16).c_str());
   
-      q.release();
+      //q.release();
     }
   
     return proto::ConcurrencyControl::COMMIT;
@@ -289,17 +292,19 @@ void Server::restoreTxn(proto::Transaction &txn){
 
 //NOTE: If storing mergedReadSet inside tx is threadsafe, then technically don't need to pass readSet/depSet as function args, but can just pull from txn.
 
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, 
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, const std::string &txnDigest, 
                                                           uint64_t req_id, const TransportAddress &remote, bool isGossip){
-  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
+  return mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, 0, req_id, &remote, isGossip, nullptr);
 }
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
-  return mergeTxReadSets(readSet, depSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, const std::string &txnDigest, 
+                                                          proto::CommittedProof *proof){ //, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){
+  return mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, 1, 0, nullptr, false, proof); //, groupedSigs, p1Sigs, view);
 } //TODO: In Commit: Call mergeTxReadSets -- if result != Commit, return (implies it's buffered -- commit itself implies that decision cannot be ignore/abort/abstain )
 
 // Call this function before locking keys (only call if query set non empty.) ==> need to lock in this order; need to perform CC on this. 
 // ==> Add the read set as a field to the txn. //FIXME: Txn can't be const in order to do that...  //Return value should be Result, in order to abort early if merge fails (due to incompatible duplicate)
-proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
+proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet,
+     proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
      uint64_t req_id, const TransportAddress *remote, bool isGossip,    //Args for Prepare
      proto::CommittedProof *proof)//, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view){  //Args for Commit
   {
@@ -328,8 +333,10 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     Debug("Already cached a merged read set. Re-using.");
     readSet = &txn.merged_read_set().read_set();
     depSet = &txn.merged_read_set().deps();
+    predSet = &txn.merged_read_set().read_predicates();
     return proto::ConcurrencyControl::COMMIT;
   }
+  
 
   //Else: Try to generate a new mergedReadSet
   std::unique_ptr<proto::ReadSet> mergedReadSet(new proto::ReadSet()); //if this doesn't work, just create a local proto::ReadSet
@@ -355,7 +362,8 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
   //fetch query read sets
   for(proto::QueryResultMetaData &query_md : *txn.mutable_query_set()){
     const proto::ReadSet *query_rs;
-    proto::ConcurrencyControl::Result res = fetchReadSet(query_md, query_rs, txnDigest, txn); 
+    queryMetaDataMap::const_accessor q;
+    proto::ConcurrencyControl::Result res = fetchReadSet(q, query_md, query_rs, txnDigest, txn); //TODO: hold lock accessor before? need to guarantee query_rs cannot be deleted.
 
     if(res == proto::ConcurrencyControl::WAIT){ //Set up waiting.
       //TODO: Subscribe query.
@@ -371,15 +379,44 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     }
     if(query_rs != nullptr && missing_queries.empty()){ //If we are waiting on queries, don't need to build mergedSet.
        //mergedReatSet.extend(query_rs);
-        mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; If we don't want that, can loop through fetchedRead set and move 1 by 1.
+        mergedReadSet->mutable_read_set()->MergeFrom(query_rs->read_set()); //Merge from copies; TODO: If we don't want that, can loop through fetchedRead set and move 1 by 1.
         //mergedReadSet add readSet
         //Merge Query Dependency sets. (If empty, this merge does nothing.)
         mergedReadSet->mutable_deps()->MergeFrom(query_rs->deps());
         //mergedReadSet->mutable_dep_ids()->MergeFrom(query_rs->dep_ids());
         //mergedReadSet->mutable_dep_ts_ids()->MergeFrom(query_rs->dep_ts_ids());
 
-        //TODO: Also need to account for dep_ts
+        Debug("Merging Query with [%d] read preds", query_rs->read_predicates_size());
+        
+        if(!params.query_params.cacheReadSet){
+            mergedReadSet->mutable_read_predicates()->MergeFrom(query_rs->read_predicates());
+        }
+        else{ // If Cached, don't copy, just move.
+          //FIXME: TEST WHETHER THIS WORKS OR IT'S ILLEGAL: 
+            //Note: It's undefined behavior if the thing that it points to is const. 
+            //But if it's called on something that is non const (mutable_read_pred) that is just marked const then it should work
+            //TODO: Could pass two arguments (one const, one non-const to avoid this casting hack)
+          proto::ReadSet *query_rs_mut = const_cast<proto::ReadSet*>(query_rs);
+          int n = query_rs_mut->read_predicates_size(); 
+          for(int i = 0; i < n; ++i){
+            auto next_pred = query_rs_mut->mutable_read_predicates()->ReleaseLast();
+            //Skip some duplicates.. (Note: Not currently guaranteed that predicates are in order..)
+            if(!mergedReadSet->read_predicates().empty() && next_pred->pred_instances_size() == 1){
+              //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
+                if(next_pred->pred_instances()[0] ==  mergedReadSet->read_predicates()[mergedReadSet->read_predicates_size()-1].pred_instances()[0]){
+                  delete next_pred;
+                  continue;
+                }
+            } 
+            Debug("Merge read pred: [%s]: %s", next_pred->table_name().c_str(), next_pred->pred_instances()[0].c_str());
+            mergedReadSet->mutable_read_predicates()->AddAllocated(next_pred);
+          }
+
+           Debug("Merged Query has [%d] read preds", mergedReadSet->read_predicates_size());
+        }
+        
     }
+    q.release();
   }
 
   //Subscribe if we are missing queries (and we have not yet subscribed previously -- could happen in parallel on another thread)
@@ -403,10 +440,15 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
 
   mq.release();
 
-  //If queries had no active read sets ==> return default
+  bool new_reads = true;
+  //If queries had no active read sets ==> return default   
   if(mergedReadSet->read_set().empty()){
     Debug("Tx has no queries with active read sets.");
-    return proto::ConcurrencyControl::COMMIT;
+    new_reads = false; //No new reads -> don't need to sort
+    if(mergedReadSet->read_predicates().empty()){ //NEW: Also try to include merged read preds. Note: If there is a pred -> there will be a read key for TableVersion anyways...
+      return proto::ConcurrencyControl::COMMIT;
+    }
+    //return proto::ConcurrencyControl::COMMIT;
   } 
 
    //attach base read-set 
@@ -431,7 +473,7 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
     //Define sort function
     //In sort function: If we detect duplicate -> abort
     //Implement by throwing an error inside sort, and wrapping it with a catch block.
-  if(params.parallel_CCC){
+  if(params.parallel_CCC && new_reads){
     try {
       std::sort(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), sortReadSetByKey);
       mergedReadSet->mutable_read_set()->erase(std::unique(mergedReadSet->mutable_read_set()->begin(), mergedReadSet->mutable_read_set()->end(), equalReadMsg), mergedReadSet->mutable_read_set()->end()); //Erase duplicates...
@@ -443,15 +485,25 @@ proto::ConcurrencyControl::Result Server::mergeTxReadSets(const ReadSet *&readSe
       return proto::ConcurrencyControl::ABSTAIN;
     }
   }
-  //Sort mergedDepSet in order to erase duplicates. //Note: If not unique, then ManageDeps might try to lock the same dep twice -- potentially causing a lock-order inversion deadlock with CheckDependents.
-  std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
-  mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
-  
+  if(new_reads){
+     //Sort mergedDepSet in order to erase duplicates. //Note: If not unique, then ManageDeps might try to lock the same dep twice -- potentially causing a lock-order inversion deadlock with CheckDependents.
+    std::sort(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), sortDepSet);
+    mergedReadSet->mutable_deps()->erase(std::unique(mergedReadSet->mutable_deps()->begin(), mergedReadSet->mutable_deps()->end(), equalDep), mergedReadSet->mutable_deps()->end()); //Erase duplicates...
+  }
+ 
    //add mergedreadSet to tx - return success
-  if(txn.has_merged_read_set()) Panic("Thread unsafe interaction");
-  txn.set_allocated_merged_read_set(mergedReadSet.release());
+  if(txn.has_merged_read_set()){
+    //Panic("Thread unsafe interaction");
+    Warning("Potentially Thread unsafe interaction. Investigate!"); 
+    //Note: This seems to happen when a server does P1 and Commit basically concurrently. (This can happen if other replicas reached Quorum on P1 without this replica!)
+  } 
+  else{
+      txn.set_allocated_merged_read_set(mergedReadSet.release());
+  }
   readSet = &txn.merged_read_set().read_set();
   depSet = &txn.merged_read_set().deps();
+  predSet = &txn.merged_read_set().read_predicates();
+  Debug("predSet has [%d] read preds", predSet->size());
 
   //TODO: Add depSet handling here: Merge in original dep set; erase duplicates; when merging //FIXME: Turn into a dep. (ReadSet must store Deps then too.. ==> Re-factor this to be deps directly: That way Optimistic TS also can just include the TS in Write!)
   //TODO: At client: mergedSet only works on strings; would need to feed in the equality function for uniqueness.  Instantiate merged_list with KeyEqual. (could store pointers and make euqlity on deref pointers -> no copies made!)
@@ -472,11 +524,13 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
 
+  if(txn.timestamp().timestamp() <= 10000) Panic("Trying to store TX TS [%lu:%lu]", txn.timestamp().timestamp(), txn.timestamp().id());
   proto::ConcurrencyControl::Result result;
 
   //Default -- merge does nothing if there are no queries
   const ReadSet *readSet = &txn.read_set(); 
   const DepSet *depSet = &txn.deps(); 
+  const PredSet *predSet = &txn.read_predicates();
 
   Debug("BASE READ SET");
   for(auto &read : *readSet){
@@ -488,12 +542,14 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   }
 
   //Merge query read sets -- returs immediately if there are no queries 
-  result = mergeTxReadSets(readSet, depSet, txn, txnDigest, reqId, remote, isGossip);
+  result = mergeTxReadSets(readSet, depSet, predSet, txn, txnDigest, reqId, remote, isGossip);
   //If we have an early abstain or Wait (due to invalid request) then return early.
   if(result != proto::ConcurrencyControl::COMMIT){  //query either invalid (Ignore), doomed to fail (abstain/abort), or queries not ready (Wait)
     Debug("Returning. Merge indicated query read sets are not ready or invalid. result = %d", result);
     return result;  //NOTE: Could optimize and turn Abstains into full Abort if we used duplicate reads as proof. (would have to distinguish from the abstains caused by cached mismatch)
   }
+
+
   //Note: if we wait, we might end up never garbage collecting TX from ongoing (and possibly from other replicas Prepare set - since the tx is blocked); Can garbage collect after some time if desired (since we didn't process, theres no impact on decisions)
   //If another client is interested, then it should start fallback and provide read set as well (forward SyncProposal with correct retry version)
     
@@ -525,7 +581,7 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   
   switch (occType) {
     case MVTSO:
-      result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, *readSet, *depSet, conflict, abstain_conflict, fallback_flow, isGossip);
+      result = DoMVTSOOCCCheck(reqId, remote, txnDigest, txn, *readSet, *depSet, *predSet, conflict, abstain_conflict, fallback_flow, isGossip);
       break;
     case TAPIR:
       result = DoTAPIROCCCheck(txnDigest, txn, retryTs);
@@ -552,11 +608,10 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
   return result;
 }
 
-//TODO: Create argument: const ReadSet &readSet
 //TODO: Abort by default if we receive a Timestamp that already exists for a key (duplicate version) -- byz client might do this, but would get immediately reported.
 proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     uint64_t reqId, const TransportAddress &remote,
-    const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet,
+    const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet, const PredSet &predSet,
     const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
   Debug("DoMVTSOCheck[%lu:%lu][%s] with ts %lu.%lu.",
@@ -567,9 +622,12 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
 
   preparedMap::const_accessor a;
-  bool preparedItr = prepared.find(a, txnDigest);
+  bool already_prepared = prepared.find(a, txnDigest);
   //if (preparedItr == prepared.end()) {
-  if(!preparedItr){
+  if(already_prepared){
+    a.release();
+  }
+  else{
     a.release();
     //1) Reject Transactions with TS above Watermark
     if (CheckHighWatermark(ts)) {
@@ -580,11 +638,24 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       //TODO: instead of aborting TXs, we could schedule all TXs with TS > local time to only be executed once we reach the local time. I.e. start a timer for (TS-local_time) and then re-execute
     }
 
+    //1.5 Reject TX that write non-monotonic Table Version
+    if(params.query_params.useSemanticCC){
+      if(!CheckMonotonicTableColVersions(txnDigest, txn)){
+        Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
+        stats.Increment("cc_abstains", 1);
+        stats.Increment("cc_abstains_monotonic", 1);
+        return proto::ConcurrencyControl::ABSTAIN;  
+      }
+    }
+
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
-      // TODO: remove this check when txns only contain read set/write set for the
-      //   shards stored at this replica
+       if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (likewise, Prepare/Commit won't write them) (//TODO: Also skip column versions. Note: Currently just disabled col versions)
+        continue;
+      }
+
       if (!IsKeyOwned(read.key())) {
+         // TODO: Eventually modify TXs to only contain the read/write set relevant to the shard. In that case can remove this check
         continue;
       }
 
@@ -684,9 +755,14 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
     //3) Validate write set for conflicts.
     for (const auto &write : txn.write_set()) {
+      if(write.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
+        continue;
+      }
+      
       if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
         continue;
       }
+    
       // Check for conflicts against committed reads.
       auto committedReadsItr = committedReads.find(write.key());
 
@@ -724,7 +800,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
               stats.Increment("cc_aborts", 1);
               stats.Increment("cc_aborts_rw_conflict", 1);
 
-              if(write.delay()){
+              if(write.is_table_col_version()){
                 stats.Increment("table_col_version_write_abort", 1);
                 stats.Increment("table_col_version_write_abort_" + write.key(), 1);
               }
@@ -813,7 +889,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_rw_conflict", 1);
 
-            if(write.delay()){
+            if(write.is_table_col_version()){
                 stats.Increment("table_col_version_write_abort", 1);
                 stats.Increment("table_col_version_write_abort_" + write.key(), 1);
               }
@@ -885,12 +961,43 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(res != proto::ConcurrencyControl::COMMIT) return res;
     
     }
+
+    //5.5) Check Semantic Conflicts
+    if(params.query_params.useSemanticCC){
+      std::set<std::string> dynamically_active_dependencies;
+      auto res = CheckPredicates(txn, ts, readSet, predSet, dynamically_active_dependencies);
+       if(res != proto::ConcurrencyControl::COMMIT) return res;
+      
+      //Add relevant dynamic deps to the dependency set
+      if(!dynamically_active_dependencies.empty()){
+       
+        //remove duplicates
+        for(const auto &dep: depSet){
+          dynamically_active_dependencies.erase(dep.write().prepared_txn_digest());
+        }
+        //if it is still non-empty after duplicate erasure
+        if(!dynamically_active_dependencies.empty()){
+           //Simply add all deps to the merged_dep set! That way the dep management functions will look at all deps.
+          //HACKY: briefly const cast TX to non-const so we can edit it.(alternatively, we can pass it in as non-const.)
+          proto::Transaction &txn_mut = const_cast<proto::Transaction&>(txn);
+          if(!txn_mut.has_merged_read_set()) txn_mut.mutable_merged_read_set()->mutable_deps()->MergeFrom(txn.deps()); //move all deps into merged set.
+
+          //add the new relevant dynamic deps
+          for(auto &dep: dynamically_active_dependencies){
+            Debug("Txn[%s]: Adding new dynamic dep: %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep, 16).c_str());
+            auto new_dep = txn_mut.mutable_merged_read_set()->add_deps();
+            new_dep->mutable_write()->set_prepared_txn_digest(std::move(dep));
+            new_dep->set_involved_group(groupIdx);
+          }
+        }
+      }
+    }
+
+
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
-    Prepare(txnDigest, txn, readSet);
+    Prepare(txnDigest, txn, readSet); 
   }
-  else{
-     a.release();
-  }
+  
 
   //7) Check whether all outstanding dependencies have committed
     // If not, wait.
@@ -1278,8 +1385,7 @@ void Server::CheckDependents_WithMutex(const std::string &txnDigest) {
         Debug("Dependencies of %s have all committed or aborted.",
             BytesToHex(dependent, 16).c_str());
 
-        proto::ConcurrencyControl::Result result = CheckDependencies(
-            dependent);
+        proto::ConcurrencyControl::Result result = CheckDependencies(dependent);
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
         //Debug("print remote: %p", f->second.remote);
         //waitingDependencies.erase(dependent);
@@ -1343,8 +1449,7 @@ void Server::CheckDependents(const std::string &txnDigest) {
         Debug("Dependencies of %s have all committed or aborted.",
             BytesToHex(dependent, 16).c_str());
 
-        proto::ConcurrencyControl::Result result = CheckDependencies(
-            dependent);
+        proto::ConcurrencyControl::Result result = CheckDependencies(dependent);
         UW_ASSERT(result != proto::ConcurrencyControl::ABORT);
       
        //Note: When waking up from dependency commit/abort -> cannot have any conflict or abstain_conflict for dependent
@@ -1539,7 +1644,19 @@ uint64_t Server::DependencyDepth(const proto::Transaction *txn) const {
 }
 
 bool Server::CheckHighWatermark(const Timestamp &ts) {
+  // struct timespec ts_end3;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end3);
+  // uint64_t microseconds_start = ts_end3.tv_sec * 1000 * 1000 + ts_end3.tv_nsec / 1000;
+
   Timestamp highWatermark(timeServer.GetTime());
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end3);
+  // uint64_t microseconds_end3 = ts_end3.tv_sec * 1000 * 1000 + ts_end3.tv_nsec / 1000;
+  // auto duration3 = microseconds_end3 - microseconds_start;
+  // if(duration3 > 1000) Warning("CheckHighWatermark took %d us", duration3);
+
+
+
   // add delta to current local time
   highWatermark.setTimestamp(highWatermark.getTimestamp() + timeDelta);
   Debug("High watermark: %lu.", highWatermark.getTimestamp());

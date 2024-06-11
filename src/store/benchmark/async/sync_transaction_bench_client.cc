@@ -30,6 +30,7 @@
 #include <iostream>
 #include <random>
 #include <thread>
+#include <sys/time.h>
 
 SyncTransactionBenchClient::SyncTransactionBenchClient(SyncClient &client,
     Transport &transport, uint64_t id, int numRequests, int expDuration,
@@ -51,6 +52,7 @@ void SyncTransactionBenchClient::SendNext() {
   SendNext(&result);
 }
 
+
 static int tries = 0;
 void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   currTxn = GetNextTransaction();
@@ -62,9 +64,9 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
     }
     catch(...){
       std::cerr <<"catch abort" << std::endl;
-      *result = ABORTED_SYSTEM;
+      *result = ABORTED_SYSTEM; //ABORTED_USER;
     }
-    // usleep(10000); //sleep 10 miliseconds
+    //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
     // Panic("stop after one");
     //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);

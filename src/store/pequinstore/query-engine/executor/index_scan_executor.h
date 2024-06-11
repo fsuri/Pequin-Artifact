@@ -16,6 +16,7 @@
 
 #include "../executor/abstract_scan_executor.h"
 #include "../index/scan_optimizer.h"
+#include "../storage/data_table.h"
 #include "../storage/tile_group_header.h"
 #include "../storage/storage_manager.h"
 #include "../concurrency/transaction_manager.h"
@@ -57,8 +58,18 @@ class IndexScanExecutor : public AbstractScanExecutor {
 
   bool DExecute();
 
+
+  void SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr);
+    bool IsImplicitPointRead(concurrency::TransactionContext *current_txn);
+    void TryForceReadSetAddition(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &timestamp);
   void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
+
+
+  inline const std::string GetTableName() override {
+    return table_->GetName();
+  }
+
 
 
  private:
@@ -134,7 +145,12 @@ class IndexScanExecutor : public AbstractScanExecutor {
   storage::DataTable *table_ = nullptr;
 
   std::vector<oid_t> updated_column_ids;
+
+  bool is_metadata_table_;
+  bool is_primary_index;
   bool already_added_table_col_versions;
+  bool first_execution;
+  bool is_implicit_point_read_;
 
   // TODO make predicate_ a unique_ptr
   // this is a hack that prevents memory leak

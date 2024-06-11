@@ -53,7 +53,7 @@ public:
   // copy constructor panics
   ThreadPool(const ThreadPool& tp) { Panic("Unimplemented"); }
 
-  void start(int process_id = 0, int total_processes = 1, bool hyperthreading = true, bool server = true, int mode = 0);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
+  void start(int process_id = 0, int total_processes = 1, bool hyperthreading = true, bool server = true, int mode = 0, bool optimize_for_dev_machine = false);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
   void stop();
 
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);

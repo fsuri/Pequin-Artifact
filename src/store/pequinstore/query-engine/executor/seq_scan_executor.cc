@@ -12,7 +12,8 @@
 
 #include "../executor/seq_scan_executor.h"
 
-#include "../../store/common/backend/sql_engine/table_kv_encoder.h"
+#include "../catalog/catalog.h"
+#include "../../store/common/table_kv_encoder.h"
 #include "../common/container_tuple.h"
 #include "../common/internal_types.h"
 #include "../common/logger.h"
@@ -71,6 +72,12 @@ bool SeqScanExecutor::DInit() {
 
   old_predicate_ = predicate_;
 
+  already_added_table_col_versions = false;
+  first_execution = true;
+
+  bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //Note: seq_scan never used for meta data tables.
+  UW_ASSERT(!is_metadata_table_);
+
   if (target_table_ != nullptr) {
     table_tile_group_count_ = target_table_->GetTileGroupCount();
 
@@ -83,7 +90,7 @@ bool SeqScanExecutor::DInit() {
   return true;
 }
 
-static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
+//static bool USE_ACTIVE_READ_SET = true; //If true, then Must use Table_Col_Version
 static bool USE_ACTIVE_SNAPSHOT_SET = false; //Currently, our Snapshots are always Complete (non-Active)
 
 void SeqScanExecutor::GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names) {
@@ -110,14 +117,20 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
 
   // Pointer to current version in linked list
   ItemPointer tuple_location = head_tuple_location;
+
+   size_t num_iters = 0;
+
   // Find the right version to read
   bool done = false;
 
   bool found_committed = false;
   bool found_prepared = false;
 
-  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr(); //In Snapshot only mode to not need to evaluate reads
-  size_t num_iters = 0;
+ 
+  //If in snapshot only mode don't need to produce a result. Note: if doing pointQuery DO want the result => FOR NESTED LOOP JOIN WE NEED RESULT.
+  //bool snapshot_only_mode = false; 
+  bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr() && !current_txn->IsNLJoin(); 
+ 
 
 
   while(!done) {
@@ -168,11 +181,14 @@ void SeqScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, s
     }
     position_map[tuple_location.block].push_back(tuple_location.offset); 
 
+  
     // If active read set then add to read
-    if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+    if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+    //if (USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
   }
   // If not using active read set, always add to read set
-  if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+  if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
+  //if (!USE_ACTIVE_READ_SET) ManageReadSet(current_txn, tile_group, tile_group_header, tuple_location, current_txn->GetQueryReadSetMgr());
 }
 
 void SeqScanExecutor::ManageSnapshot(storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &timestamp, 
@@ -222,14 +238,18 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
     ItemPointer tuple_location, size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared) {
 
   // Shorthand for table store interface functions
-  bool perform_read = current_txn->GetHasReadSetMgr();
 
+  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
+  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+
+  //Note: For find snapshot only mode we also want to read and produce a result (necessary for nested joins), but we will not record a readset
+  bool perform_read = current_txn->GetHasReadSetMgr() || (perform_find_snapshot && !current_txn->IsNLJoin()); 
+ 
   bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
   auto snapshot_set = current_txn->GetSnapshotSet();
   UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
 
-  bool perform_find_snapshot = current_txn->GetHasSnapshotMgr();
-  auto snapshot_mgr = current_txn->GetSnapshotMgr();
+ 
   UW_ASSERT(!(perform_read_on_snapshot && perform_find_snapshot)); //shouldn't do both simultaneously currently
 
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
@@ -295,6 +315,13 @@ bool SeqScanExecutor::FindRightRowVersion(const Timestamp &txn_timestamp, std::s
       ManageSnapshot(tile_group_header, tuple_location, committed_timestamp, snapshot_mgr);
       done = true;
     } else {
+
+      //Note: this check is technically redundant: FindSnapshot currently also always causes PerformRead to be triggered.
+      if(tile_group_header->GetMaterialize(tuple_location.offset)) {
+          Debug("Don't add force materialized to snapshot, continue reading"); //Panic("Nothing should be force Materialized in current test");
+          return done;
+      }
+
       auto const &read_prepared_pred = current_txn->GetReadPreparedPred();
       Timestamp const &prepared_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       // Add to snapshot if tuple satisfies read prepared predicate and haven't read more than k versions
@@ -333,6 +360,87 @@ void SeqScanExecutor::PrepareResult(std::unordered_map<oid_t, std::vector<oid_t>
 }
 
 
+void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp){
+  if(!already_added_table_col_versions){
+     
+    //UW_ASSERT(!is_metadata_table_);
+    if (current_txn->CheckPredicatesInitialized()) {
+      Debug("Set Read Table/Col versions");
+
+      //shorthands
+      bool get_read_set = current_txn->GetHasReadSetMgr();
+      bool find_snapshot = current_txn->GetHasSnapshotMgr();
+      auto ss_mgr = current_txn->GetSnapshotMgr();
+      bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+      auto snapshot_set = current_txn->GetSnapshotSet();
+
+      // Read table version and table col versions
+      current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+      
+       //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
+      //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
+      //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
+      
+      if(catalog::Catalog::GetInstance()->GetQueryParams()->useColVersions && catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet){
+        // Table column version : FIXME: Read version per Col, not composite key
+        std::unordered_set<std::string> column_names;
+        //std::vector<std::string> col_names;
+        GetColNames(predicate_, column_names);
+        if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
+
+        for (auto &col : column_names) {
+          Debug("Col name is: %s", col.c_str());
+          current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, get_read_set, query_read_set_mgr, find_snapshot, ss_mgr, perform_read_on_snapshot, snapshot_set);
+          //col_names.push_back(col);
+        }
+      }
+    }
+  }
+  already_added_table_col_versions = true;
+}
+
+void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
+
+  if(!current_txn->GetHasReadSetMgr()) return;
+
+  if (!current_txn->CheckPredicatesInitialized()) return;
+
+  if(first_execution){
+     /* Reserve a new predicate in the readset manager */
+    query_read_set_mgr->AddPredicate(target_table_->GetName());
+    first_execution = false;
+  }
+
+  //FIXME: must copy?  //   auto pred_copy = predicate_->Copy();
+    //  auto pred_copy = predicate_->Copy();
+    // pred_copy->DeduceExpressionName();
+  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
+  auto &pred = predicate_->expr_name_;
+  query_read_set_mgr->ExtendPredicate(pred);
+  Debug("Adding new read set predicate instance: %s ", pred);
+
+  // // // Index predicate in string form
+  //     /*std::string index_pred = "";
+  //     for (int i = 0; i < values_.size(); i++) {
+  //       std::string col_name = table_->GetSchema()->GetColumn(key_column_ids_[i]).GetName();
+  //       std::string op = ExpressionTypeToString(expr_types_[i], true);
+  //       std::string val = values_[i].ToString();
+
+  //       index_pred = col_name + op + val + " AND ";
+  //     }*/
+  //   auto pred_copy = predicate_->Copy();
+  //   pred_copy->DeduceExpressionName();
+    
+  //   std::string full_pred = "SELECT * FROM " + table_->GetName() + " WHERE " + pred_copy->expr_name_;
+  //   // Truncate the last AND
+  //   /*if (pred_copy->expr_name_.length() == 0) {
+  //     full_pred = full_pred.substr(0, full_pred.length()-5);
+  //   }*/
+    
+  //   query_read_set_mgr->ExtendPredicate(full_pred);
+  //     std::cerr << "The readset predicate is " << full_pred << std::endl;
+}
+
 void SeqScanExecutor::Scan() {
   concurrency::TransactionManager &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto current_txn = executor_context_->GetTransaction();
@@ -349,31 +457,15 @@ void SeqScanExecutor::Scan() {
 
   std::unordered_map<oid_t, std::vector<oid_t>> position_map;
 
+  SetPredicate(current_txn, query_read_set_mgr);
+  SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
 
-  // Get TableVersion and TableColVersions
-  if (current_txn->CheckPredicatesInitialized()) {
-    current_txn->GetTableVersion()(target_table_->GetName(), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-
-    //If Scanning (Non_active read set), then don't need to include ColVersions in ActiveReadSet. Changes to index could not be affecting the observed read set.
-    //However, if we use Active Read set, then the read_set is only the keys that hit the predicate. 
-    //Thus we need the ColVersion to detect changes to col values that might be relevant to ActiveRS (i.e. include ColVersion for all Col in search predicate)
-    if(USE_ACTIVE_READ_SET){ 
-      std::unordered_set<std::string> column_names;
-      GetColNames(predicate_, column_names);
-      if(predicate_ != nullptr) std::cerr << "pred: " << predicate_->GetInfo() << std::endl;
-
-      for (auto &col : column_names) {
-        std::cerr << "extracted col: " << col <<  std::endl;
-        current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), current_txn_timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
-      }
-    }
-  }
 
   // Iterate through each linked list per row
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cout << "Offset is " << offset << std::endl;
+      //std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
@@ -419,7 +511,10 @@ void SeqScanExecutor::OldScan() {
   ////////////////////////////////////  TAKE TABLE VERSION / TABLE-COL VERSION/////////////////////////////////////////////////////////////////
 
   // Read table version and table col versions
-  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, has_read_set_mgr, query_read_set_mgr, perform_find_snapshot, snapshot_mgr);
+ 
+  current_txn->GetTableVersion()(target_table_->GetName(), timestamp, has_read_set_mgr, query_read_set_mgr, perform_find_snapshot, snapshot_mgr, perform_read_on_snapshot, snapshot_set);
+
+  //NOTE: Don't need TableColVersion when doing seq_scan  //TODO: Need them to safe guar
 
   //NOTE: Don't need TableColVersion when doing seq_scan  //TODO: Need them to safe guard Active Reads if we don't have SemanticCC
     // // Table column version 
@@ -428,7 +523,7 @@ void SeqScanExecutor::OldScan() {
     // GetColNames(predicate_, column_names);
 
     // for (auto &col : column_names) {
-    //   std::cout << "Col name is " << col << std::endl;
+    //   std::cerr << "Col name is " << col << std::endl;
     //   current_txn->GetTableVersion()(EncodeTableCol(target_table_->GetName(), col), timestamp, current_txn->GetHasReadSetMgr(), query_read_set_mgr, current_txn->GetHasSnapshotMgr(), current_txn->GetSnapshotMgr());
     //   //col_names.push_back(col);
     // }
@@ -439,7 +534,7 @@ void SeqScanExecutor::OldScan() {
   for (auto indirection_array : target_table_->active_indirection_arrays_) {
     int indirection_counter = indirection_array->indirection_counter_;
     for (int offset = 0; offset < indirection_counter; offset++) {
-      std::cout << "Offset is " << offset << std::endl;
+      //std::cerr << "Offset is " << offset << std::endl;
       ItemPointer *head = indirection_array->GetIndirectionByOffset(offset);
       if (head == nullptr) {
         // return false;
@@ -464,7 +559,7 @@ void SeqScanExecutor::OldScan() {
 
         // Get the associated tile group header so we can find the timestamp
         if (new_location.IsNull()) {
-          // std::cout << "New location is null" << std::endl;
+          // std::cerr << "New location is null" << std::endl;
           break;
         }
 
@@ -478,9 +573,9 @@ void SeqScanExecutor::OldScan() {
       }
 
       Debug( "location timestamp is: [%lu:%lu]", tile_group_header->GetBasilTimestamp(location.offset).getTimestamp(),  tile_group_header->GetBasilTimestamp(location.offset).getID());
-      // std::cout << "Location timestamp is " <<
+      // std::cerr << "Location timestamp is " <<
       // tile_group_header->GetBasilTimestamp(location.offset).getTimestamp()
-      // << std::endl; std::cout << "Current tuple id is " << curr_tuple_id <<
+      // << std::endl; std::cerr << "Current tuple id is " << curr_tuple_id <<
       // std::endl;
       //
 
@@ -525,7 +620,7 @@ void SeqScanExecutor::OldScan() {
             // encoded_key = encoded_key + "///" + val.ToString();
             primary_key_cols.push_back(val.ToString());
             // primary_key_cols.push_back(val.GetAs<const char*>());
-            // std::cout << "read set value is " << val.ToString() << std::endl;
+            // std::cerr << "read set value is " << val.ToString() << std::endl;
           }
 
           const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
@@ -614,18 +709,18 @@ void SeqScanExecutor::OldScan() {
               // encoded_key = encoded_key + "///" + val.ToString();
               primary_key_cols.push_back(val.ToString());
               // Debug("Read set value: %s", val.ToString().c_str());
-              //  std::cout << "read set value is " << val.ToString() << std::endl;
+              //  std::cerr << "read set value is " << val.ToString() << std::endl;
             }
             const Timestamp &time = tile_group_header->GetBasilTimestamp(location.offset); 
             // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
             // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-            //   std::cout << "Primary key columns are " <<
+            //   std::cerr << "Primary key columns are " <<
             //   primary_key_cols[i] << std::endl;
             // }
             std::string &&encoded = EncodeTableRow(target_table_->GetName(), primary_key_cols);
             Debug("encoded read set key is: %s. Version: [%lu: %lu]",  encoded.c_str(), time.getTimestamp(), time.getID());
-            // std::cout << "Encoded key from read set is " << encoded << std::endl;
+            // std::cerr << "Encoded key from read set is " << encoded << std::endl;
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
             // ts_message.set_timestamp(time.getTimestamp());
@@ -728,7 +823,7 @@ void SeqScanExecutor::OldScan() {
             // encoded_key = encoded_key + "///" + val.ToString();
             primary_key_cols.push_back(val.ToString());
             // primary_key_cols.push_back(val.GetAs<const char*>());
-            // std::cout << "read set value is " << val.ToString()
+            // std::cerr << "read set value is " << val.ToString()
             //           << std::endl;
           }
 
@@ -796,7 +891,7 @@ void SeqScanExecutor::OldScan() {
               // encoded_key = encoded_key + "///" + val.ToString();
               primary_key_cols.push_back(val.ToString());
               // Debug("Read set value: %s", val.ToString().c_str());
-              //  std::cout << "read set value is " << val.ToString() <<
+              //  std::cerr << "read set value is " << val.ToString() <<
               //  std::endl;
             }
             const Timestamp &time = tile_group_header->GetBasilTimestamp(
@@ -804,14 +899,14 @@ void SeqScanExecutor::OldScan() {
             // logical_tile->AddToReadSet(std::tie(encoded_key, time));
 
             // for (unsigned int i = 0; i < primary_key_cols.size(); i++) {
-            //   std::cout << "Primary key columns are " <<
+            //   std::cerr << "Primary key columns are " <<
             //   primary_key_cols[i] << std::endl;
             // }
             std::string &&encoded =
                 EncodeTableRow(target_table_->GetName(), primary_key_cols);
             Debug("encoded read set key is: %s. Version: [%lu: %lu]",
                   encoded.c_str(), time.getTimestamp(), time.getID());
-            // std::cout << "Encoded key from read set is " << encoded <<
+            // std::cerr << "Encoded key from read set is " << encoded <<
             // std::endl;
             // TimestampMessage ts_message = TimestampMessage();
             // ts_message.set_id(time.getID());
@@ -933,15 +1028,15 @@ void SeqScanExecutor::OldScan() {
       found_committed = false;
 
       /*if (position_list.size() > 0) {
-        std::cout << "Adding to position list" << std::endl;
+        std::cerr << "Adding to position list" << std::endl;
         std::unique_ptr<LogicalTile> logical_tile(
             LogicalTileFactory::GetTile());
         logical_tile->AddColumns(tile_group, column_ids_);
         logical_tile->AddPositionList(std::move(position_list));
         LOG_TRACE("Information %s", logical_tile->GetInfo().c_str());
-        std::cout << "Before release" << std::endl;
+        std::cerr << "Before release" << std::endl;
         SetOutput(logical_tile.release());
-        std::cout << "After release" << std::endl;
+        std::cerr << "After release" << std::endl;
         // return true;
       }*/
 
@@ -983,7 +1078,7 @@ void SeqScanExecutor::OldScan() {
 bool SeqScanExecutor::DExecute() {
   // Scanning over a logical tile.
   std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
-  std::cout << "Executing seq scan for table: " << target_table_->GetName() << std::endl;
+  Debug("Executing seq scan for table: %s", target_table_->GetName().c_str());
   if (children_.size() == 1 &&
       // There will be a child node on the create index scenario,
       // but we don't want to use this execution flow
@@ -1056,11 +1151,11 @@ bool SeqScanExecutor::DExecute() {
 
     while (result_itr_ < result_.size()) { // Avoid returning empty tiles
       if (result_[result_itr_]->GetTupleCount() == 0) {
-        std::cout << "No tuples in tile" << std::endl;
+        //std::cerr << "No tuples in tile" << std::endl;
         result_itr_++;
         continue;
       } else {
-        std::cout << "Output here for tile " << result_itr_ << std::endl;
+        //std::cerr << "Output here for tile " << result_itr_ << std::endl;
         LOG_TRACE("Information %s", result_[result_itr_]->GetInfo().c_str());
         SetOutput(result_[result_itr_]);
         result_itr_++;
@@ -1096,6 +1191,17 @@ void SeqScanExecutor::UpdatePredicate(const std::vector<oid_t> &column_ids,
   // Currently a hack that prevent memory leak we should eventually make prediate_ a unique_ptr
   new_predicate_.reset(new_predicate);
   predicate_ = new_predicate;
+
+  // Set the readset manager predicate
+  auto current_txn = executor_context_->GetTransaction();
+  if (current_txn->GetHasReadSetMgr()) {
+    pequinstore::QueryReadSetMgr *query_read_set_mgr = current_txn->GetQueryReadSetMgr();
+    auto pred_copy = predicate_->Copy();
+    pred_copy->DeduceExpressionName();
+        
+    std::string full_pred = "SELECT * FROM " + target_table_->GetName() + " WHERE " + pred_copy->expr_name_;
+    query_read_set_mgr->ExtendPredicate(full_pred);
+  }
 }
 
 // Transfer a list of equality predicate to a expression tree

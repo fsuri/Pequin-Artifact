@@ -163,7 +163,7 @@ class QueryResultProtoBuilder {
   inline void AddToRow(RowProto *row, std::string &t){
     //Appends field to a row
     FieldProto *field = row->add_fields();
-    field->set_data(t);
+    field->set_data(std::move(t));
   }
 
   inline void AddToRow_s(RowProto *row, const std::string &t){

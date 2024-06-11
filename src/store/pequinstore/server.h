@@ -79,6 +79,11 @@ enum OCCType {
 
 
 //TEST/DEBUG variables
+static bool PRINT_READ_SET = false; //print out the read set of a query
+static bool PRINT_RESULT_ROWS = false; //print out the result of a query
+static bool PRINT_SNAPSHOT = false; //print out the snapshot set of a query
+//static bool PROFILE_EXEC_LAT = true; //record exec time 
+
 static bool TEST_QUERY = false; //true;   //create toy results for queries
 static bool TEST_SNAPSHOT = false; //true;  //create toy snapshots for queries
 static bool TEST_READ_SET = false; //true;  //create toy read sets for queries
@@ -126,6 +131,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
   virtual void CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::string &index_name, const std::vector<uint32_t> &index_col_idx) override;
+
+  virtual void CacheCatalog(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
+      const std::vector<uint32_t> &primary_key_col_idx) override;
 
   //Deprecated
   void LoadTableData_SQL(const std::string &table_name, const std::string &table_data_path, const std::vector<uint32_t> &primary_key_col_idx);
@@ -208,6 +216,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     proto::Transaction* txn, void* valid); //bool valid);
   
   //Handle Abort during Execution
+  void ManageDispatchAbort(const TransportAddress &remote, const std::string &data);
   void HandleAbort(const TransportAddress &remote, const proto::Abort &msg);
 
   //Fallback handler functions
@@ -443,7 +452,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     typedef tbb::concurrent_hash_map<std::string, MissingTxns> queryMissingTxnsMap;  //std::unordered_set<std::string>
     queryMissingTxnsMap queryMissingTxns;  //List of Transactions missing for a Query to materialize snapshot.
 
-    void FindTableVersion(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
+    void FindTableVersion(const std::string &key_name, const Timestamp &ts, 
+                              bool add_to_read_set, QueryReadSetMgr *readSetMgr, 
+                              bool add_to_snapshot, SnapshotManager *snapshotMgr,
+                              bool materialize_from_snapshot, const snapshot *ss_txns);
+    void FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
@@ -709,14 +722,20 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef google::protobuf::RepeatedPtrField<ReadMessage> ReadSet;
   typedef google::protobuf::RepeatedPtrField<WriteMessage> WriteSet;
   typedef google::protobuf::RepeatedPtrField<proto::Dependency> DepSet;
+  //typedef std::vector<proto::ReadPredicate*> PredSet;
+  typedef google::protobuf::RepeatedPtrField<proto::ReadPredicate> PredSet;
+  
   void subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
-  proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
-  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, proto::Transaction &txn, const std::string &txnDigest, uint8_t prepare_or_commit,
-     uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
+  proto::ConcurrencyControl::Result fetchReadSet(queryMetaDataMap::const_accessor &q, const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                    const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                    const std::string &txnDigest, proto::CommittedProof *proof); // proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
+                                                          const std::string &txnDigest, uint8_t prepare_or_commit,
+                                                          uint64_t req_id, const TransportAddress *remote, bool isGossip,      //Args for Prepare
      proto::CommittedProof *proof); //Args for commit  //proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   
   
@@ -732,7 +751,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       Timestamp &retryTs);
   proto::ConcurrencyControl::Result DoMVTSOOCCCheck(
       uint64_t reqId, const TransportAddress &remote,
-      const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet,
+      const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet, const PredSet &predSet,
       const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
       bool fallback_flow = false, bool isGossip = false);
 
@@ -757,24 +776,17 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   bool ManageDependencies(const DepSet &depSet, const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, const uint64_t &reqId, bool fallback_flow = false, bool isGossip = false);
       bool ManageDependencies_WithMutex(const std::string &txnDigest, const proto::Transaction &txn, const TransportAddress &remote, uint64_t reqId, bool fallback_flow = false, bool isGossip = false);
   
-  void GetWriteTimestamps(
-      std::unordered_map<std::string, std::set<Timestamp>> &writes);
-  void GetWrites(
-      std::unordered_map<std::string, std::vector<const proto::Transaction *>> &writes);
-  void GetPreparedReadTimestamps(
-      std::unordered_map<std::string, std::set<Timestamp>> &reads);
-  void GetPreparedReads(
-      std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
+  void GetWriteTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &writes);
+  void GetWrites(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &writes);
+  void GetPreparedReadTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &reads);
+  void GetPreparedReads(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
-  void GetCommittedWrites(const std::string &key, const Timestamp &ts,
-      std::vector<std::pair<Timestamp, Value>> &writes);
-  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts,
-    std::pair<Timestamp, Server::Value> &write);
+  void GetCommittedWrites(const std::string &key, const Timestamp &ts, std::vector<std::pair<Timestamp, Value>> &writes);
+  bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts, std::pair<Timestamp, Server::Value> &write);
   void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
     std::vector<std::pair<Timestamp, const proto::Transaction *>> &writes);
 
-  void Commit(const std::string &txnDigest, proto::Transaction *txn,
-      proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
+  void Commit(const std::string &txnDigest, proto::Transaction *txn, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view);
   void CommitWithProof(const std::string &txnDigest,  proto::CommittedProof *proof);
   void UpdateCommittedReads(proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, proto::CommittedProof *proof);
   void CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val);
@@ -782,12 +794,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void Abort(const std::string &txnDigest, proto::Transaction *txn);
   void CheckDependents(const std::string &txnDigest);
       void CheckDependents_WithMutex(const std::string &txnDigest);
-  proto::ConcurrencyControl::Result CheckDependencies(
-      const std::string &txnDigest);
-  proto::ConcurrencyControl::Result CheckDependencies(
-      const proto::Transaction &txn);
-  proto::ConcurrencyControl::Result CheckDependencies(
-    const proto::Transaction &txn, const DepSet &depSet);
+  proto::ConcurrencyControl::Result CheckDependencies(const std::string &txnDigest);
+  proto::ConcurrencyControl::Result CheckDependencies(const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result CheckDependencies(const proto::Transaction &txn, const DepSet &depSet);
   bool CheckHighWatermark(const Timestamp &ts);
   bool BufferP1Result(proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict, const std::string &txnDigest, 
       uint64_t &reqId, const TransportAddress *&remote, bool &wake_fallbacks, bool &forceMaterialize, bool isGossip = false, int fb =0);
@@ -808,6 +817,26 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       proto::SignedMessage *signedMessage, signedCallback cb);
   void SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB);
 
+  /* BEGIN Semantic CC functions */ 
+
+//TODO: Parameterize. 
+  uint64_t write_monotonicity_grace;
+  std::string GetEncodedRow(const proto::Transaction &txn, const RowUpdates &row, const std::string &table_name);
+  bool CheckMonotonicTableColVersions(const std::string &txn_digest, const proto::Transaction &txn); 
+  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const Timestamp &txn_ts, const ReadSet &txn_read_set, const PredSet &pred_set, std::set<std::string> &dynamically_active_dependencies);
+  proto::ConcurrencyControl::Result CheckPredicates(const proto::Transaction &txn, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies); 
+  proto::ConcurrencyControl::Result CheckReadPred(const Timestamp &txn_ts, const proto::ReadPredicate &pred, const ReadSet &txn_read_set, std::set<std::string> &dynamically_active_dependencies);
+  proto::ConcurrencyControl::Result CheckTableWrites(const proto::Transaction &txn, const Timestamp &txn_ts, const std::string &table_name, const TableWrite &table_write);
+  void RecordReadPredicatesAndWrites(const proto::Transaction &txn, const Timestamp &ts, bool commit_or_prepare);
+  void ClearPredicateAndWrites(const proto::Transaction &txn);
+  bool CheckGCWatermark(const Timestamp &ts); 
+  bool EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name);
+  bool EvaluatePred_peloton(const std::string &pred, const RowUpdates &row, const std::string &table_name);
+  bool Eval(peloton::expression::AbstractExpression *predicate, const RowUpdates row, peloton::catalog::Schema *schema);
+  peloton::catalog::Schema* ConvertColRegistryToSchema(ColRegistry *col_registry);
+
+  /* END Semantic CC functions */
+
   //main protocol messages
   proto::ReadReply *GetUnusedReadReply();
   proto::Phase1Reply *GetUnusedPhase1Reply();
@@ -816,6 +845,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::Phase1 *GetUnusedPhase1message();
   proto::Phase2 *GetUnusedPhase2message();
   proto::Writeback *GetUnusedWBmessage();
+  proto::Abort *GetUnusedAbortMessage();
   void FreeReadReply(proto::ReadReply *reply);
   void FreePhase1Reply(proto::Phase1Reply *reply);
   void FreePhase2Reply(proto::Phase2Reply *reply);
@@ -823,6 +853,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreePhase1message(proto::Phase1 *msg);
   void FreePhase2message(proto::Phase2 *msg);
   void FreeWBmessage(proto::Writeback *msg);
+  void FreeAbortMessage(const proto::Abort *msg);
 
   //Fallback messages:
   proto::Phase1FB *GetUnusedPhase1FBmessage();
@@ -863,7 +894,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 
   inline bool IsKeyOwned(const std::string &key) const {
-    return static_cast<int>((*part)(key, numShards, groupIdx, dummyTxnGroups) % numGroups) == groupIdx;
+    if(sql_bench){
+      return static_cast<int>((*part)("", key, numShards, groupIdx, dummyTxnGroups, true) % numGroups) == groupIdx; 
+      //It's wasteful to incur a copy of the "table-name" for each single key... 
+      //TODO: For writes: Try to get table_name from Write. //TODO: Maybe just check anyways?
+      //TODO: Instead of copying Table Name + copying values to w_id => can we try just casting? reinterpret cast?
+    }
+    else{
+      return static_cast<int>((*part)(key, numShards, groupIdx, dummyTxnGroups) % numGroups) == groupIdx;
+    }
   }
 
   // Global objects.
@@ -1047,6 +1086,15 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
+
+  /* MAPS FOR SEMANTIC CC */
+  //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  
+  typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TablePredicateMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
+  TablePredicateMap tablePredicates;
+
+  typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TableWriteMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
+  TableWriteMap tableWrites;
+  /* END MAPS FOR SEMANTIC CC*/
 
   //XXX key locks for atomicity of OCC check
   tbb::concurrent_unordered_map<std::string, std::mutex> lock_keys;

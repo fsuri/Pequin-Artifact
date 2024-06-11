@@ -1,20 +1,19 @@
 #include "store/benchmark/async/sql/seats/find_open_seats.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
+
 #include <fmt/core.h>
 #include <queue>
 
 
 namespace seats_sql {
 
-SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &new_res_queue, std::vector<CachedFlight> &cached_flight_ids) : 
-    SEATSSQLTransaction(timeout), gen_(&gen) {
+SQLFindOpenSeats::SQLFindOpenSeats(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) : 
+    SEATSSQLTransaction(timeout), gen_(&gen), profile(profile) {
 
-        int64_t flight_index = std::uniform_int_distribution<int64_t>(1, cached_flight_ids.size())(gen) - 1;
-        CachedFlight &flight = cached_flight_ids[flight_index];
+        int64_t flight_index = std::uniform_int_distribution<int64_t>(1, profile.cached_flights.size())(gen) - 1; //TODO: Turn into a profile function.
+        CachedFlight &flight = profile.cached_flights[flight_index];
 
         f_id = flight;
-        q = &new_res_queue;
     }
 
 SQLFindOpenSeats::~SQLFindOpenSeats() {};
@@ -47,41 +46,64 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     //double seat_price = fr_row.f_price;
     double _seat_price = base_price + (base_price * (1.0 - (seats_left/((double)seats_total))));
 
-    query = fmt::format("SELECT r_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id.flight_id);
+    query = fmt::format("SELECT r_id, r_c_id, r_f_id, r_seat FROM {} WHERE r_f_id = {}", RESERVATION_TABLE, f_id.flight_id);
     client.Query(query, queryResult, timeout);
 
-    int8_t unavailable_seats[TOTAL_SEATS_PER_FLIGHT];
-    memset(unavailable_seats, 0, TOTAL_SEATS_PER_FLIGHT);
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
 
-    GetSeatsResultRow sr_row = GetSeatsResultRow();
+
+    //////////////// UPDATE PROFILE /////////////////////
+
+    // int8_t unavailable_seats[TOTAL_SEATS_PER_FLIGHT];
+    auto &unavailable_seats = profile.getSeatsBitSet(f_id.flight_id);
+    //memset(unavailable_seats, 0, TOTAL_SEATS_PER_FLIGHT);
+    profile.resetFlightCache(f_id.flight_id);
+
+    GetSeatsResultRow sr_row;
 
     for (std::size_t i = 0; i < queryResult->size(); i++) {
         deserialize(sr_row, queryResult, i);
         int seat = (int) sr_row.r_seat - 1; //seats are numbered from 1 (not from 0)
         unavailable_seats[seat] = (int8_t) 1;
-        std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
+        //std::cerr << "SEAT: " << i << "is unavailable!" << std::endl;
+        //profile.cacheCustomerBooking(sr_row.r_c_id, f_id.flight_id);
     }
+
+    auto airport_depart_id = f_id.depart_ap_id;
 
     std::string open_seats_str = "Seats [";
     std::string reserved_seats_str = "Seats [";
   
     std::deque<SEATSReservation> tmp;
     for (int seat = 1; seat <= TOTAL_SEATS_PER_FLIGHT; seat++) {   
-        if (unavailable_seats[seat-1] == 0) open_seats_str += fmt::format(" {},", seat);
         if (unavailable_seats[seat-1] == 1) reserved_seats_str += fmt::format(" {},", seat);
 
-         int64_t c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(*gen_);  //FIXME:  seems to be generated based on depart airport in benchbase?
-         tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
+        if (unavailable_seats[seat-1] == 0) {
+            open_seats_str += fmt::format(" {},", seat);
+            //TODO:? Benchbase also returns a price (that is higher for first class seats) -- but it seems to be unused.
+
+            int64_t c_id = profile.getRandomCustomerId(airport_depart_id);
+            //Pick random customer if customer is already booked on this flight.
+            while(profile.isCustomerBookedOnFlight(c_id, f_id.flight_id)){
+                c_id = profile.getRandomCustomerId();
+            }
         
+            //std::cerr << "FIND OPEN SEAT: PUSH TO INSERT Q. c_id: " << c_id << ". f_id: " << f_id.flight_id << ". seat: " << seat << std::endl;
+            tmp.push_back(SEATSReservation(NULL_ID, c_id, f_id, seat));   //TODO: set the f_al_id too? FIXME: FlightID != single id.  //TODO: id should be the clients id.? No r_id?
+        }
     }
 
     //shuffle randomly and then push back a subset of the open seats for new reservations
-    //Note: We also push back some reservations for which seats already exist. This is intentional. Those will trigger rollbacks.
     std::random_shuffle(tmp.begin(), tmp.end());
 
-    while(!tmp.empty() && q->size() < MAX_PENDING_INSERTS){
-        q->push(tmp.front());
+    while(!tmp.empty()){
+        profile.insert_reservations.push(tmp.front());
         tmp.pop_front();
+    }
+    while(profile.insert_reservations.size() > MAX_PENDING_INSERTS){
+        profile.insert_reservations.pop();
     }
 
     open_seats_str += fmt::format("] are available on flight {} for price {}", f_id.flight_id, _seat_price);
@@ -90,7 +112,6 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
     fprintf(stderr, "Available: %s\n", open_seats_str.c_str());
     fprintf(stderr, "Unavailable: %s\n", reserved_seats_str.c_str());
 
-    Debug("COMMIT");
-    return client.Commit(timeout);
+    return result;
 }
 }

@@ -88,10 +88,12 @@ Catalog::Catalog() : pool_(new type::EphemeralPool()) {
  */
 void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
                                       storage::Database *database) {
+  std::cerr << "Begin bootstrap system catalogs" << std::endl;
   oid_t database_oid = database->GetOid();
   catalog_map_.emplace(database_oid,
                        std::shared_ptr<SystemCatalogs>(
                            new SystemCatalogs(txn, database, pool_.get())));
+  std::cerr << "Create new system catalogs" << std::endl;
   auto system_catalogs = catalog_map_[database_oid];
 
   // Create indexes on catalog tables, insert them into pg_index
@@ -200,9 +202,11 @@ void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
 
   // Insert catalog tables into pg_table
   // pg_database record is shared across different databases
+  std::cerr << "Bootstrap first table catalog insert" << std::endl;
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, CATALOG_DATABASE_OID, CATALOG_SCHEMA_NAME, DATABASE_CATALOG_OID,
       DATABASE_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
+  std::cerr << "Bootstrap second table catalog insert" << std::endl;
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, database_oid, CATALOG_SCHEMA_NAME, SCHEMA_CATALOG_OID,
       SCHEMA_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
@@ -257,6 +261,14 @@ void Catalog::Bootstrap() {
 // CREATE FUNCTIONS
 //===----------------------------------------------------------------------===//
 
+const pequinstore::QueryParameters * Catalog::GetQueryParams(){
+  return query_params;
+}
+
+void Catalog::SetQueryParams(const pequinstore::QueryParameters *query_param){
+  query_params = query_param;
+}
+
 ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
                                    const std::string &database_name) {
   Debug("Reached create database");
@@ -266,12 +278,12 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
                            database_name);
   }
 
-  //std::cout << "Create databse 0.2" << std::endl;
+  std::cerr << "Create databse 0.2" << std::endl;
   auto pg_database = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr);
-  //std::cout << "Create databse 0.6" << std::endl;
+  std::cerr << "Create databse 0.6" << std::endl;
   auto storage_manager = storage::StorageManager::GetInstance();
 
-  //std::cout << "Create databse 1" << std::endl;
+  std::cerr << "Create databse 1" << std::endl;
 
   // Check if a database with the same name exists
   auto database_object =
@@ -280,13 +292,14 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   if (database_object != nullptr)
     throw CatalogException("Database " + database_name + " already exists");
 
-  //std::cout << "Create databse 2" << std::endl;
+  std::cerr << "Create databse 2" << std::endl;
 
   // Create actual database
   oid_t database_oid = pg_database->GetNextOid();
+  std::cout << "Database oid is " << database_oid << std::endl;
 
   storage::Database *database = new storage::Database(database_oid);
-  //std::cout << "Create databse 3" << std::endl;
+  std::cerr << "Create databse 3" << std::endl;
 
   // TODO: This should be deprecated, dbname should only exists in pg_db
   database->setDBName(database_name);
@@ -295,7 +308,7 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
     storage_manager->AddDatabaseToStorageManager(database);
   }
 
-  //std::cout << "Create databse 4" << std::endl;
+  std::cerr << "Create databse 4" << std::endl;
 
   // put database object into rw_object_set
   txn->RecordCreate(database_oid, INVALID_OID, INVALID_OID);
@@ -303,14 +316,14 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   // Insert database record into pg_db
   pg_database->InsertDatabase(txn, database_oid, database_name, pool_.get());
 
-  //std::cout << "Create databse 5" << std::endl;
+  std::cerr << "Create databse 5" << std::endl;
 
   // add core & non-core system catalog tables into database
   BootstrapSystemCatalogs(txn, database);
 
   catalog_map_[database_oid]->Bootstrap(txn, database_name);
 
-  //std::cout << "Create databse 6" << std::endl;
+  std::cerr << "Create databse 6" << std::endl;
 
   LOG_TRACE("Database %s created. Returning RESULT_SUCCESS.",
             database_name.c_str());
@@ -417,6 +430,7 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
   auto pg_attribute =
       catalog_map_[database_object->GetDatabaseOid()]->GetColumnCatalog();
   oid_t table_oid = pg_table->GetNextOid();
+  std::cerr << "Table " << table_name << " inserted with oid " << table_oid << std::endl;
   bool own_schema = true;
   bool adapt_table = false;
   auto table = storage::TableFactory::GetDataTable(
@@ -1410,12 +1424,10 @@ Catalog::GetDatabaseCatalogEntry(concurrency::TransactionContext *txn,
   LOG_TRACE("Looking for database %u", database_oid);
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_oid);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
-    throw CatalogException("Database " + std::to_string(database_oid) +
-                           " is not found");
+    throw CatalogException("Database " + std::to_string(database_oid) + " is not found");
   }
 
   return database_object;
@@ -1428,31 +1440,58 @@ Catalog::GetDatabaseCatalogEntry(concurrency::TransactionContext *txn,
 std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
     concurrency::TransactionContext *txn, const std::string &database_name,
     const std::string &schema_name, const std::string &table_name) {
+
+  //std::cerr << "Call GetTableCatalogEntry" << std::endl;
+
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_start0 = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
   if (txn == nullptr) {
-    throw CatalogException("Do not have transaction to get table object " +
-                           database_name + "." + table_name);
+    throw CatalogException("Do not have transaction to get table object " + database_name + "." + table_name);
   }
 
-  LOG_TRACE("Looking for table %s in database %s", table_name.c_str(),
-            database_name.c_str());
+  LOG_TRACE("Looking for table %s in database %s", table_name.c_str(), database_name.c_str());
+
+  // fprintf(stderr, "Looking for database %s\n", database_name.c_str());
+  //FIXME: This does a secondary index scan on pg_database
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_name);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_name);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
+    Panic("should never happen");
     throw CatalogException("Database " + database_name + " is not found");
   }
 
+  // fprintf(stderr, "Looking for table %s in database %s\n", table_name.c_str(), database_name.c_str());
+  //  //FIXME: This does a secondary index scan on pg_table
+  
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_start = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration0 = microseconds_start - microseconds_start0;
+  //  Warning("DatabaseRead Latency: %dus", duration0);
+   //if(duration0 > 600) Panic("slow DB Catalog scan");
+
+ 
+
   // Check in pg_table using txn
-  auto table_object =
-      database_object->GetTableCatalogEntry(table_name, schema_name);
+  auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
+
+  
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = microseconds_end - microseconds_start;
+  // Warning("TableRead Latency: %dus", duration);
+  //if(duration > 600) Panic("slow Table Catalog scan");
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
     // throw table not found exception and explicitly abort txn
-    throw CatalogException("Table " + schema_name + "." + table_name +
-                           " is not found");
+    throw CatalogException("Table " + schema_name + "." + table_name + " is not found");
   }
+
+  //std::cerr << "returning table object" << std::endl;
 
   return table_object;
 }
@@ -1460,6 +1499,8 @@ std::shared_ptr<TableCatalogEntry> Catalog::GetTableCatalogEntry(
 std::shared_ptr<TableCatalogEntry>
 Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
                               oid_t database_oid, oid_t table_oid) {
+
+  std::cerr << "Call GetTableCatalogEntry (oid)" << std::endl;
   if (txn == nullptr) {
     throw CatalogException("Do not have transaction to get table object " +
                            std::to_string(database_oid) + "." +
@@ -1469,12 +1510,10 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
   LOG_TRACE("Looking for table %u in database %u", table_oid, database_oid);
 
   // Check in pg_database, throw exception and abort txn if not exists
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_oid);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid);
 
   if (!database_object || database_object->GetDatabaseOid() == INVALID_OID) {
-    throw CatalogException("Database " + std::to_string(database_oid) +
-                           " is not found");
+    throw CatalogException("Database " + std::to_string(database_oid) + " is not found");
   }
 
   // Check in pg_table using txn
@@ -1482,8 +1521,7 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
 
   if (!table_object || table_object->GetTableOid() == INVALID_OID) {
     // throw table not found exception and explicitly abort txn
-    throw CatalogException("Table " + std::to_string(table_oid) +
-                           " is not found");
+    throw CatalogException("Table " + std::to_string(table_oid) + " is not found");
   }
 
   return table_object;
@@ -1492,8 +1530,7 @@ Catalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
 std::shared_ptr<SystemCatalogs>
 Catalog::GetSystemCatalogs(const oid_t database_oid) {
   if (catalog_map_.find(database_oid) == catalog_map_.end()) {
-    throw CatalogException("Failed to find SystemCatalog for database_oid = " +
-                           std::to_string(database_oid));
+    throw CatalogException("Failed to find SystemCatalog for database_oid = " + std::to_string(database_oid));
   }
   return catalog_map_[database_oid];
 }

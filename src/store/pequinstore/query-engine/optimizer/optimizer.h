@@ -162,7 +162,7 @@ class Optimizer : public AbstractOptimizer {
    *properties
    */
   void ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_id,
-                        std::shared_ptr<OptimizeContext> root_context);
+                        std::shared_ptr<OptimizeContext> root_context, int i = 0);
 
   //////////////////////////////////////////////////////////////////////////////
   /// Metadata

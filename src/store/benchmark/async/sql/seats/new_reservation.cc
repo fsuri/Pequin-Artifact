@@ -6,42 +6,100 @@
 
 namespace seats_sql {
     
-SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, std::queue<SEATSReservation> &insert_res, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res) : 
-    SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen) {
-        if (!insert_res.empty()) {
-            SEATSReservation res = insert_res.front();
+// SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, SeatsProfile &profile) : 
+//     SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen), profile(profile) {
+//         if (!profile.insert_reservations.empty()) {
+//             SEATSReservation res = profile.insert_reservations.front();
+//             f_id = res.flight.flight_id; 
+//             flight = res.flight;
+//             seatnum = res.seat_num;
+//             if (res.c_id != NULL_ID) 
+//                 c_id = res.c_id;
+//             else
+//                 c_id = std::uniform_int_distribution<int64_t>(1, profile.num_customers)(gen);
+            
+//             if (seatnum == -1)   
+//                 seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
+
+//             profile.insert_reservations.pop();
+//         } else { 
+//             Panic("should not be triggered");
+//         }
+//         time = std::time(nullptr);
+//         attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
+//         auto attr_dist = std::uniform_int_distribution<int64_t>(1, 100000);
+//         for (int i = 0; i < NEW_RESERVATION_ATTRS_SIZE; i++) {
+//             attributes.push_back(attr_dist(gen));
+//         }
+//         price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
+       
+//          fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
+//      Debug("NEW_RESERVATION for customer %ld", c_id);
+
+        
+        
+//         int8_t* seats = profile.getSeatsBitSet(f_id);
+
+
+//     }
+
+SQLNewReservation::SQLNewReservation(uint32_t timeout, std::mt19937 &gen, int64_t r_id, SeatsProfile &profile) : 
+    SEATSSQLTransaction(timeout), r_id(r_id), gen_(&gen), profile(profile) 
+{
+    has_reservation = false;
+    while (!profile.insert_reservations.empty()) {
+            SEATSReservation res = profile.insert_reservations.front();
+            profile.insert_reservations.pop();
+
             f_id = res.flight.flight_id; 
             flight = res.flight;
             seatnum = res.seat_num;
+
+
             if (res.c_id != NULL_ID) 
                 c_id = res.c_id;
-            else
-                c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-            
+            else {
+                Panic("new res should always have a customer?");
+                 c_id = std::uniform_int_distribution<int64_t>(1, profile.num_customers)(gen);
+            }
+               
+            auto &seats = profile.getSeatsBitSet(f_id);
+            if (profile.isFlightFull(seats))
+            {
+                continue; //The flight is fully booked.
+            }
+            else if(profile.isCustomerBookedOnFlight(res.c_id, f_id)){
+                continue; //The customer already has a reservation on this flight.
+            }
+
             if (seatnum == -1)   
                 seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
 
-            insert_res.pop();
-        } else { 
-            Panic("should not be triggered");
-            f_id = std::uniform_int_distribution<int64_t>(1, NUM_FLIGHTS)(gen);
-            seatnum = std::uniform_int_distribution<int64_t>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
-            c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen);
-        }
-        time = std::time(nullptr);
-        attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
-        auto attr_dist = std::uniform_int_distribution<int64_t>(1, 100000);
-        for (int i = 0; i < NEW_RESERVATION_ATTRS_SIZE; i++) {
-            attributes.push_back(attr_dist(gen));
-        }
-        price = std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); //TODO: Should be 2x this?
-        update_q = &update_res;
-        delete_q = &delete_res;
+            has_reservation = true;        
+    } 
+    if(!has_reservation){
+        Debug("Failed to find a valid pending insert Reservation");
+        return;
+    } 
+
+    time = std::time(nullptr);
+    attributes.reserve(NEW_RESERVATION_ATTRS_SIZE);
+    auto attr_dist = std::uniform_int_distribution<int64_t>(1, 100000);
+    for (int i = 0; i < NEW_RESERVATION_ATTRS_SIZE; i++) {
+        attributes.push_back(attr_dist(gen));
     }
+    price = 2 * std::uniform_real_distribution<double>(MIN_RESERVATION_PRICE, MAX_RESERVATION_PRICE)(gen); 
+    
+    fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
+    Debug("NEW_RESERVATION for customer %ld", c_id);
+}
 
 SQLNewReservation::~SQLNewReservation() {} 
 
 transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
+
+    if(!has_reservation) return ABORTED_USER;
+
     if (attributes.size() != NEW_RESERVATION_ATTRS_SIZE) 
         Panic("Wrong number of attributes (%ld) given in NewReservation Transaction", attributes.size());
 
@@ -53,8 +111,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     std::string query;
 
-    fprintf(stderr,"NEW_RESERVATION %ld. for customer %ld. Flight: %d. Seatnum: %d.  \n", r_id, c_id, f_id, seatnum);
-    Debug("NEW_RESERVATION for customer %ld", c_id);
     client.Begin(timeout);
 
     // (1) Get Flight information. (GetFlight)
@@ -162,15 +218,27 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     }
 
 
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+
+    //Mark this seat as successfully reserved
+    auto &seats = profile.getSeatsBitSet(f_id);
+    seats[seatnum-1] = 1;
+    //profile.cacheCustomerBooking(c_id, f_id);
+
+    //Requeue reservation to play with later
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
         std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
          std::cerr << "NEW_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
-        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+        profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
-    return client.Commit(timeout);
+    return result;
 }       
 }

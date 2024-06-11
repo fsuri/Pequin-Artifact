@@ -37,7 +37,7 @@ store/benchmark/async/tpcc/tpcc_generator
 store/benchmark/async/sql/tpcc/sql_tpcc_generator
 store/benchmark/async/sql/tpcch/sql_tpcch_generator
 store/benchmark/async/sql/seats/sql_seats_generator
-store/benchmark/async/sql/auctionmark/auctionmark_generator
+store/benchmark/async/sql/auctionmark/sql_auctionmark_generator
 store/benchmark/async/sql/tpcc/sql_tpcc_generator
 store/benchmark/async/smallbank/smallbank_generator_main
 store/benchmark/async/smallbank/smallbank_generator
@@ -97,6 +97,7 @@ bft_tapir/client
 create_keys/create_key
 keys
 
+callgrind*
 ################################################################################
 # vim
 ################################################################################

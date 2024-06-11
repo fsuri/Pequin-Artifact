@@ -30,7 +30,7 @@
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
-
+  
 namespace tpcc_sql {
 
 SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
@@ -187,8 +187,11 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   client.Write(statement, timeout);
 
   client.Wait(results);
-  assert(results[0]->has_rows_affected());
-  assert(results[1]->has_rows_affected());
+  UW_ASSERT(results[0]->has_rows_affected());
+  UW_ASSERT(results[1]->has_rows_affected());
+  UW_ASSERT(results[2]->has_rows_affected());
+  UW_ASSERT(results[3]->has_rows_affected());
+  
 
   Debug("COMMIT");
   return client.Commit(timeout);

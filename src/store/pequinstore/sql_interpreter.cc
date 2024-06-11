@@ -72,6 +72,15 @@ using namespace std;
     // 3. Proto Wrapper -> WriteCont: deCerialize Proto (perform arithmetic) + Stringify TableWrite     //Note: Can only stringify basic types; if we want to support Array, then we need to serialize somehow
     // 4. TableWrite -> Peloton: De-stringify into correct type.
 
+//server side only
+void SQLTransformer::RegisterPartitioner(Partitioner *part_, uint32_t num_shards_, uint32_t num_groups_, uint32_t groupIdx_){
+    part = part_;
+    num_shards = num_shards_;
+    num_groups = num_groups_;
+    groupIdx = groupIdx_;
+}
+
+
 void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This table registry file does not need to include the rows.
 
     Debug("Register tables from registry: %s", table_registry.c_str());
@@ -132,9 +141,11 @@ void SQLTransformer::RegisterTables(std::string &table_registry){ //TODO: This t
             }
             Debug(fmt::format("Secondary Index: {} with key cols: [{}]", index_name, fmt::join(index_cols,"|")).c_str());
         }
+
+        //Register all Tables for read/write set encodings
+        EncodeTable(table_name);
     }
 }
-
 
 bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax){
     //Using Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-select/
@@ -173,7 +184,8 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
 }
 
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
+    uint64_t &target_group, bool skip_query_interpretation){
 
     //match on write type:
     size_t pos = 0;
@@ -189,7 +201,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb);
+        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
@@ -197,7 +209,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, skip_query_interpretation);
+        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -208,7 +220,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
     // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
@@ -417,6 +429,12 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
         RowUpdates *row_update = table_write->add_rows();
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+        row_update->set_write_set_idx(txn->write_set_size()-1);
+        
+        //Invoke partitioner function to figure out which group/shard we want to send to.
+        std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+        target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
+
         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
         //     std::string *col_val = row_update->add_column_values();
         //     *col_val = std::move(value_list[col_idx]);
@@ -589,17 +607,26 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         // table_ver->set_value("");
         bool changed_table = false; // false //FOR NOW ALWAYS SETTING TO TRUE due to UPDATE INDEX issue (see above comment) TODO: Implement TableColumnVersion optimization
 
-        
+        if(!query_params->useColVersions) changed_table = true;   //Note: If not using col versions, must include table version
         //Write TableColVersions
-        for(auto &[col, _]: col_updates){
-            std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
-            if(!col_registry.indexed_cols.count(col)) continue; //only set col version for indexed columns
+        
+        if(query_params->useColVersions){ //useColVersions is currently DEPRECATED  
+            for(auto &[col, _]: col_updates){
+                std::cerr << "Trying to set Table Col Version for col: " << col << std::endl;
+                if(!query_params->useActiveReadSet && !col_registry.indexed_cols.count(col)) continue; 
+                //If using Active Set: Must use all columns we update; if not, then only set the col version for indexed columns
+                
+                //col version is necessary to figure out whether or not there is an update to a table that could have affected whether index sees it
+                //if we are only updating non-index cols => index will have seen complete picture
+                //however, the predicate evaluation might still change. So if we are using an active read set, then we must include the table version even if we update non-index cols
 
-            WriteMessage *write = txn->add_write_set();   
-            write->set_key(table_name + unique_delimiter + std::string(col));  
-            write->set_delay(true);
-             //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
-             //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
+                WriteMessage *write = txn->add_write_set();   
+                write->set_key(table_name + unique_delimiter + std::string(col));  
+                write->set_value("");
+                write->set_is_table_col_version(true);
+                //If a TX has multiple Queries with the same Col updates there will be duplicates. Does that matter? //Writes are sorted to avoid deadlock.
+                //TODO: to avoid duplicates: store the idx of the cols accessed and write Version only later.
+            }
         }
 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
@@ -617,6 +644,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             
             RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //row_update->mutable_column_values()->Resize(col_registry.col_names.size(), ""); Resize seems to not work for strings
+            row_update->set_write_set_idx(txn->write_set_size()-1);
             //std::cerr << "Row size: " <<  row_update->mutable_column_values()->size() << std::endl;
           
             //TODO: Do this for UPDATE and DELETE too. //TODO: For Delete: Set all columns. Set values only for the columns we care about.
@@ -639,7 +667,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                 //std::string field_val(DecodeType(field, col_registry.col_name_type[col]));
 
 
-                std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
+                Debug("Checking column: %s with field %s", col.c_str(), std::visit(StringVisitor(), field_val).c_str());
                 
                
                 //Replace value with col value if applicable. Then operate arithmetic by casting ops to uint64_t and then turning back to string.
@@ -649,7 +677,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
                 if(change_val){
                      //std::cerr << "Checking column: " << col << " , with field " << std::visit(StringVisitor(), field_val) << std::endl;
-                     std::cerr << "Updating col: " << col << " , new val: " << set_val << std::endl;
+                     Debug("Updating col: %s => new val: %s", col.c_str(), set_val.c_str());
                 } 
                 //TODO: return bool if set_val is changed. In that case, record which columsn changed. and add a CC-store write entry per column updated.
                
@@ -727,7 +755,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, bool skip_query_interpretation){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
+    uint64_t &target_group, bool skip_query_interpretation){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
@@ -785,7 +814,8 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         WriteMessage *write = txn->add_write_set();
         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
-        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry);
+        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //Note: This reserves value entries for the entire row
+        row_update->set_write_set_idx(txn->write_set_size()-1);
         row_update->set_deletion(true);
 
         std::string enc_key = EncodeTableRow(table_name, p_col_values);
@@ -800,7 +830,16 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             std::string &col_value = (*row_update->mutable_column_values())[col_registry.col_name_index[col_name]];
             col_value = std::move(p_col_values.at(col_idx++));
         }
-        
+
+          //Invoke partitioner function to figure out which group/shard we want to send to.
+        std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+        target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
+    
+        /*TEST CODE ONLY*/
+        // std::string test_purge_statement;
+        // GenerateTablePurgeStatement(test_purge_statement, table_name, *table_write);
+        // std::cerr << "test purge dummy statement: " << test_purge_statement << std::endl;
+      
         //Create a QueryResult -- set rows affected to 1.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){
             result->set_rows_affected(1); 
@@ -861,6 +900,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             WriteMessage *write = txn->add_write_set();
             write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
             RowUpdates *row_update = AddTableWriteRow(table_write, *col_registry_ptr);
+            row_update->set_write_set_idx(txn->write_set_size()-1);
             row_update->set_deletion(true);
 
             std::vector<const std::string*> primary_key_column_values;
@@ -966,6 +1006,10 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     bool has_delete = false;
 
     for(auto &row: table_write.rows()){
+
+        UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         if(row.has_deletion() && row.deletion()){
 
@@ -1051,6 +1095,8 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     for(auto &row: table_write.rows()){
+          UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
         
         if(row.has_deletion() && row.deletion()){
             delete_statements.push_back("");
@@ -1134,8 +1180,11 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
     //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
     
-    for(auto &row: table_write.rows()){
-        //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+    for(auto &row: table_write.rows()){  //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+        UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
+       
 
         purge_statement += "(";
         if(fine_grained_quotes){ // Use this to add fine grained quotes:
@@ -1171,6 +1220,10 @@ void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::string &purge_s
 
     for(auto &row: table_write.rows()){
         //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
+
+         UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         for(auto &[col_name, p_idx]: col_registry.primary_key_cols_idx){
             if(fine_grained_quotes){
                 if(col_registry.col_quotes[p_idx]) purge_conds[col_name].push_back("\'" + row.column_values()[p_idx] + "\'");
@@ -1203,6 +1256,10 @@ void SQLTransformer::GenerateTablePurgeStatement_DEPRECATED(std::vector<std::str
 
     for(auto &row: table_write.rows()){
          //generate a purge statement per row.
+
+         UW_ASSERT(part);
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+
         purge_statements.push_back("");
         std::string &purge_statement = purge_statements.back();
         purge_statement = fmt::format("DELETE FROM {0} WHERE ", table_name);
@@ -1699,7 +1756,7 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 
     //Else: Transform map into p_col_values only (in correct order); extract just the primary key cols.
     for(auto &[col_name, idx]: col_registry.primary_key_cols_idx){
-        std::cerr << "extracted p_ cols: " << col_name << std::endl;
+        Debug("extracted p_cols: %s", col_name.c_str());
         p_col_values.push_back(std::move(p_col_value.at(col_name)));
     }
    
@@ -1728,10 +1785,24 @@ bool SQLTransformer::CheckColConditions(std::string_view &cond_statement, const 
 }
 
 
+bool SQLTransformer::IsPoint(const std::string &_query, const std::string &table_name, bool relax) const {
+  std::string_view cond_statement(_query);
+
+  UW_ASSERT(TableRegistry.count(table_name));
+  const auto &col_registry = TableRegistry.at(table_name);
+
+  std::map<std::string, std::string> p_col_value; 
+  bool terminate_early = false;
+  size_t end = 0;
+
+  return CheckColConditions(end, cond_statement, col_registry, p_col_value, terminate_early, relax);
+}
+
 //TODO: check that column type is primitive: If its array or Timestamp --> defer it to query engine.
 
 //Note: Don't pass cond_statement by reference inside recursion.
-bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, bool &terminate_early, bool relax){
+bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value, 
+        bool &terminate_early, bool relax) const {
     //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
 
     //std::cerr << "view cond statement: " << cond_statement << std::endl;
@@ -1843,7 +1914,7 @@ bool SQLTransformer::CheckColConditions(size_t &end, std::string_view cond_state
     }
 }
 
-void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value){
+void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const ColRegistry &col_registry, std::map<std::string, std::string> &p_col_value) const{
     //Note: Expecting all conditions to be of form "col_name = X"
     //Do not currently support boolean conditions, like "col_name";
     //std::cerr << "extract: cond statement: " << cond_statement << std::endl;
@@ -1855,8 +1926,17 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
     const std::string &left_str = static_cast<std::string>(left);
     //if(col_registry.primary_key_cols.count(left_str)){ //if primary key and equality --> add value to map so we can compute enc_key for point read/write
         std::string_view right = cond_statement.substr(pos + 3);
-        const std::string &type = col_registry.col_name_type.at(left_str);
-        p_col_value[left_str] = TrimValueByType(right, type);
+
+        //Ignore reflexive args:
+        if(left == right) return;
+
+        try{
+            const std::string &type = col_registry.col_name_type.at(left_str);
+            p_col_value[left_str] = TrimValueByType(right, type);
+        }
+        catch(...){
+            Panic("Col registry does not have this col: %s", left_str.c_str());
+        }
     //}
     // std::cerr << "right val: " << right << std::endl;
     // std::cerr << "trim val: " << TrimValueByType(right, type) << std::endl;
@@ -1864,7 +1944,7 @@ void SQLTransformer::ExtractColCondition(std::string_view cond_statement, const 
     return;
 }
 
-void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type){
+void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &op_pos, size_t &op_pos_post, op_t &op_type) const {
     
     if((op_pos = cond_statement.find(and_hook)) != std::string::npos){ //if AND exists.
         op_type = SQL_AND;
@@ -1875,10 +1955,14 @@ void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &o
          op_pos_post = op_pos + or_hook.length();
     }
     else if((op_pos = cond_statement.find(in_hook)) != std::string::npos){ //if IN exists.
+        // std::cerr << "SPECIAL COND: " << cond_statement << std::endl;
+        // Panic("stop");
          op_type = SQL_SPECIAL;
          op_pos_post = op_pos + in_hook.length();
     }
     else if((op_pos = cond_statement.find(between_hook)) != std::string::npos){ //if BETWEEN exists.
+        // std::cerr << "SPECIAL COND: " << cond_statement << std::endl;
+        // Panic("stop");
          op_type = SQL_SPECIAL;
          op_pos_post = op_pos + between_hook.length();
     }
@@ -1890,7 +1974,7 @@ void SQLTransformer::GetNextOperator(std::string_view &cond_statement, size_t &o
         
 }
 
-bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value)
+bool SQLTransformer::MergeColConditions(op_t &op_type, std::map<std::string, std::string> &l_p_col_value, std::map<std::string, std::string> &r_p_col_value) const
 {
     switch (op_type) {
         case SQL_NONE:
@@ -2051,6 +2135,263 @@ bool SQLTransformer::CheckColConditionsDumb(std::string_view &cond_statement, co
 
 //     // if not, use query ;; pass an arg that tells query interpreter to skip interpretation we already know it must use query protocol.
 // }
+
+
+/////////////////////////// CUSTOM EVAL PRED CODE ///////////////////////////////////////////
+bool SQLTransformer::EvalPred(const std::string &pred, const std::string &table_name, const RowUpdates &row) const {
+  std::string_view cond_statement(pred);
+
+  UW_ASSERT(TableRegistry.count(table_name));
+  const auto &col_registry = TableRegistry.at(table_name);
+
+  size_t end = 0;
+
+  return EvalCond(end, cond_statement, col_registry, row);
+}
+
+
+//Note: Don't pass cond_statement by reference inside recursion.
+bool SQLTransformer::EvalCond(size_t &end, std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const {
+    //Note: If relax = true ==> primary_key_compare checks for subset, if false ==> checks for equality.
+
+    size_t pos = 0;
+    pos = cond_statement.find_first_of("()");
+
+    bool curr_cond = false;
+   
+    //Base case:  Either a) no () exist, or b) the first ( is to the right of some clause. e.g. x=5 AND (...)
+    if(pos == std::string_view::npos || (pos > 0 && cond_statement.substr(pos, 1) == "(")){   
+        //split on operators if existent. --> apply col merge left to right. //Note: Multi statements without () are left binding by default.
+        op_t op_type(SQL_START);
+        op_t next_op_type;
+        size_t op_pos; 
+        size_t op_pos_post = 0; 
+
+        while(op_type != SQL_NONE){
+            cond_statement = cond_statement.substr(op_pos_post);
+            pos -= op_pos_post; //adjust pos accordingly;
+
+            GetNextOperator(cond_statement, op_pos, op_pos_post, next_op_type); //returns SQL_NONE && op_pos = length if no more operators.
+            if(next_op_type == SQL_SPECIAL){
+                Panic("We cannot eval special ops");
+            } 
+
+             bool next_cond = true;
+            //std::cerr << "pos"
+             //Check if operator > pos. if so this is first op inside a >. Ignore setting it (just break while loop). Call recursion for right hand side.
+            if(op_pos > pos){
+                next_op_type = SQL_NONE; // equivalent to break;
+                size_t dummy = 0;
+                next_cond = EvalCond(dummy, cond_statement.substr(pos), col_registry, row);
+            }
+            else{
+                next_cond = EvalColCondition(cond_statement.substr(0, op_pos), col_registry, row);
+                Debug("Eval Pred: next_cond: %d", next_cond);
+            }
+          
+            curr_cond = Combine(op_type, curr_cond, next_cond);
+            
+            op_type = next_op_type;
+        }
+
+        Debug("Eval Pred: return curr_cond: %d", curr_cond);
+        return curr_cond;
+    }
+
+    // Recurse on opening (
+    // Return on closing )  ==> This is left value
+    // find operator, then find opening ( (if any) ==> Recurse on it, return closing ). ==> This is right value
+    // Apply merge. Return
+    if(cond_statement.substr(pos, 1) == "("){ //Start recursion
+        cond_statement.remove_prefix(pos+1);
+
+        //Recurse --> Returns result inside ")"  
+        bool cond = EvalCond(end, cond_statement, col_registry, row);   //End = pos after ) that matches opening (  (or base case no bracket.)
+      
+        if(end == std::string::npos || cond_statement.substr(end, 1) == ")"){ //this is the right side of a statement -> return.
+            return cond;
+        }
+       
+        //else: this is the left side of a statement. ==> there must be at least one operator to the right.
+
+        //FIND AND/OR. (search after end)
+        cond_statement = cond_statement.substr(end); //Note, this does not modify the callers view.
+
+        op_t next_op_type;
+        size_t op_pos; 
+        size_t op_pos_post = 0; 
+        
+        GetNextOperator(cond_statement, op_pos, op_pos_post, next_op_type); //returns SQL_NONE && op_pos = length if no more operators.
+        if(next_op_type == SQL_SPECIAL){
+           Panic("don't support eval for special ops");
+        } 
+        if(next_op_type == SQL_NONE){
+            return cond;
+        }
+
+        //After that recurse on right cond.
+        bool right_cond = EvalCond(end, cond_statement.substr(op_pos_post), col_registry, row);
+
+        //Merge left and right side of operator
+        return Combine(next_op_type, cond, right_cond);
+    }
+
+    //Recursive cases:
+    if(cond_statement.substr(pos, 1) == ")"){ //End recursion.
+        std::string_view sub_cond = cond_statement.substr(0, pos);
+      
+        //Note: Anything between 0 and ) must be normal statement.
+        // Recurse to use base case and return result.
+        size_t dummy;
+
+        return EvalCond(dummy, sub_cond, col_registry, row); 
+        end = pos+1; //Next level receives and end 
+    }
+}
+
+bool SQLTransformer::EvalColCondition(std::string_view cond_statement, const ColRegistry &col_registry, const RowUpdates &row) const{
+  
+    //Input statement like: "al_id = 50" or "depart_time <= 5000000"  //TODO: Figure out if strings have quotes.
+    //Eval to true, if row has a col_value that fulfills this pred
+
+    //std::cerr << "cond: " << cond_statement << std::endl;
+    
+              
+    
+    //TODO: Check with operand: =, !=, >=, <=  (note, the latter only apply to numerics)
+    size_t pos = cond_statement.find_first_of("=!<>");
+    if(pos == std::string::npos) Panic("must have an operator");
+    auto op_statement = cond_statement.substr(pos); // e.g. "= 50"
+
+    //std::cerr << "op stmt: [" << op_statement << std::endl;
+
+    size_t end_op_pos = op_statement.find(" ");
+    auto op = op_statement.substr(0, end_op_pos); //e.g. "=" or ">="
+
+    //std::cerr << "op: [" << op << std::endl;
+    
+
+    //Extract left and right side
+    std::string_view left = cond_statement.substr(0, pos-1); //e.g. "al_id"
+
+    std::string_view right = op_statement.substr(end_op_pos +1); //e.g. 50
+
+    //std::cerr << "left: [" << left << std::endl;
+    //std::cerr << "right: [" << right << std::endl;
+
+    //reflexive args: //e.g. al_id = al_id
+    if(left == right) return true;
+
+
+    //TODO: Check if row is a conflict.
+    // I.e. check if col value of row == right value. (look up via left val)
+    const std::string &left_str = static_cast<std::string>(left);
+    Debug("Col to compare: %s", left_str.c_str());
+
+    try{
+       auto &idx = col_registry.col_name_index.at(left_str);
+       auto &row_col_val = row.column_values()[idx];
+       //std::cerr << "row_col_val: [" << row_col_val << std::endl;
+    
+       //TrimValue(right, col_registry.col_quotes[idx]); //trim if type str. //NOTE: Don't need to trim. Peloton preds come without quotes
+       const std::string &right_str = static_cast<std::string>(right);
+
+    //    for(auto &[name, type] : col_registry.col_name_type){
+    //     std::cerr << name << ":" << type << std::endl;
+    //    }
+
+       auto &type = col_registry.col_name_type.at(left_str);
+       
+       if(type == "TEXT" || type == "VARCHAR"){
+            Debug("Operator '%s'. Pred_val: %s. Row_val: %s", static_cast<std::string>(op).c_str(), right_str.c_str(), row_col_val.c_str());
+            if(op == "="){
+                //std::cerr << "=" << std::endl;
+                return right_str == row_col_val;
+            }
+            else if(op == "!="){
+                //std::cerr << "!=" << std::endl;
+                return right_str != row_col_val;
+            }
+            else{
+                  Panic("invalid string operand: %s", static_cast<std::string>(op).c_str());
+            }
+       }
+       else{ //must be numeric.
+
+        //FIXME: Stod is not safe for MAX_UINT64 //TODO: cast depending on col type. Use `std::stoull(row_col_val)` for BIGINT
+        auto row_val = std::stod(row_col_val);
+        auto pred_val = std::stod(right_str);
+          
+        Debug("Operator '%s'. Pred_val: %.2f. Row_val: %.2f", static_cast<std::string>(op).c_str(), pred_val, row_val);
+        if(op == "="){
+            //std::cerr << "=" << std::endl;
+            return row_val == pred_val;
+        }
+        else if(op == "!="){
+            //std::cerr << "!=" << std::endl;
+            return row_val != pred_val;
+        }
+        else if(op == "<"){
+            //std::cerr << "<=" << std::endl;
+            return row_val < pred_val;
+        }
+        else if(op == ">"){
+            //std::cerr << ">=" << std::endl;
+            return row_val > pred_val;
+        }
+        else if(op == "<="){
+            //std::cerr << "<=" << std::endl;
+            return row_val <= pred_val;
+        }
+        else if(op == ">="){
+            //std::cerr << ">=" << std::endl;
+            return row_val >= pred_val;
+        }
+        else{
+            Panic("invalid operand: %s", static_cast<std::string>(op).c_str());
+        }
+      }
+    }
+    catch(...){
+      Panic("invalid col name: %s", left_str.c_str());
+      return false;
+    }
+
+ return false;  
+}
+
+
+bool SQLTransformer::Combine(op_t &op_type, bool left, bool right) const
+{
+    switch (op_type) {
+        case SQL_NONE:
+            Panic("Should never be Merging Conditions on None");
+            break;
+        case SQL_START:
+        {
+            return right;
+        }   
+            break;
+        case SQL_AND: 
+        {
+            return left & right;
+        }
+            break;
+        case SQL_OR: 
+        { 
+          return left || right;
+        }    
+            break;
+        
+        default:   
+            NOT_REACHABLE();
+
+    }
+
+    
+    return true;
+  
+}
 
 
 

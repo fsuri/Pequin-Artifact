@@ -31,7 +31,7 @@
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
-namespace tpcc_sql {
+namespace tpcc_sql { 
 
 SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
@@ -109,7 +109,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
   // (2.5) Retrieve DISTRICT row. Update year to date balance.
   statement = fmt::format("UPDATE {} SET d_ytd = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_ytd() + h_amount, d_id, d_w_id);
-  client.Write(statement, queryResult, timeout);
+  client.Write(statement, queryResult, timeout); 
 
 
   // (3) Select Customer (based on last name OR customer number)
@@ -137,6 +137,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     Debug("Customer: %u", c_id);
   }
 
+  if(queryResult->empty()) Panic("couldn't find customer?");
   ////////////Updates
 
 
@@ -161,13 +162,13 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
             c_row.get_balance(), c_row.get_ytd_payment(), c_row.get_payment_cnt(), c_row.get_data(), 
             c_row.get_id(), c_row.get_d_id(), c_row.get_w_id());
   client.Write(statement, queryResult, timeout);  
-  assert(queryResult->has_rows_affected());
+  UW_ASSERT(queryResult->has_rows_affected());
 
   // (5) Create History entry.
   statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
             "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, queryResult, timeout);
-  assert(queryResult->has_rows_affected());
+  UW_ASSERT(queryResult->has_rows_affected());
   
 
   Debug("COMMIT");

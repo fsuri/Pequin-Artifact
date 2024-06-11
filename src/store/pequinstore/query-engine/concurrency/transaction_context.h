@@ -37,7 +37,7 @@ class TriggerData;
 }  // namespace trigger*/
 
 static pequinstore::read_prepared_pred default_read_prepared_pred = [](const std::string &s){Debug("Initializer call, do nothing"); return true;};
-static pequinstore::find_table_version default_find_table_version = [](const std::string &s, const Timestamp &t, bool b, pequinstore::QueryReadSetMgr *q, bool b2, pequinstore::SnapshotManager *sm){Debug("Initializer call, do nothing");};
+static pequinstore::find_table_version default_find_table_version = [](const std::string &s, const Timestamp &t, bool b, pequinstore::QueryReadSetMgr *q, bool b2, pequinstore::SnapshotManager *sm, bool b3, const pequinstore::snapshot *ss){Debug("Initializer call, do nothing");};
 
 
 namespace concurrency {
@@ -281,10 +281,21 @@ public:
    */
   void SetReadOnly() { read_only_ = true; }
 
-  const pequinstore::TableRegistry_t * GetTableRegistry() { return table_reg_;}
+  const pequinstore::TableRegistry_t* GetTableRegistry() { 
+    //return table_reg_;
+    UW_ASSERT(sql_interpreter_);
+    return sql_interpreter_->GetTableRegistry_const();
+  }
    
-  void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
-    table_reg_ = table_reg;
+  // void SetTableRegistry(const pequinstore::TableRegistry_t *table_reg){
+  //   table_reg_ = table_reg;
+  // }
+
+  void SetSqlInterpreter(const pequinstore::SQLTransformer *sql_interpreter){
+    sql_interpreter_ = sql_interpreter;
+  }
+  const pequinstore::SQLTransformer * GetSqlInterpreter(){
+    return sql_interpreter_;
   }
 
   Timestamp GetBasilTimestamp() { return basil_timestamp_; }
@@ -423,11 +434,11 @@ public:
     snapshot_read_ = snapshot_read;
   }
 
-  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *GetSnapshotSet() {
+  const pequinstore::snapshot *GetSnapshotSet() {
     return snapshot_set_;
   }
 
-  void SetSnapshotSet(const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set) {
+  void SetSnapshotSet(const pequinstore::snapshot *snapshot_set) {
     snapshot_set_ = snapshot_set;
   }
 
@@ -451,6 +462,9 @@ public:
 
   void SetIsPointRead(bool is_point_read) { is_point_read_ = is_point_read; }
 
+  bool IsNLJoin() {return is_nl_join_;}
+  void SetIsNLJoin(bool is_nl_join){ is_nl_join_ = is_nl_join;}
+
   /**
    * @brief      Gets the isolation level.
    *
@@ -462,6 +476,7 @@ public:
 
   /** cache for table catalog objects */
   catalog::CatalogCache catalog_cache;
+  bool skip_cache = false;
 
 private:
   //===--------------------------------------------------------------------===//
@@ -502,6 +517,7 @@ private:
   /** timestamp when the transaction began */
   uint64_t timestamp_;
 
+  const pequinstore::SQLTransformer *sql_interpreter_;
   // Reference to the TableRegistry
   const pequinstore::TableRegistry_t *table_reg_;
 
@@ -546,7 +562,7 @@ private:
   bool snapshot_read_ = false;
 
   /** Snapshot set */
-  const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *snapshot_set_ = nullptr;
+  const pequinstore::snapshot *snapshot_set_ = nullptr;
 
   bool predicates_initialized = false;
   /** Read prepared predicate */
@@ -575,6 +591,8 @@ private:
 
   /** Whether this is a point read query */
   bool is_point_read_ = false;
+
+  bool is_nl_join_ = false;
 
   ReadWriteSet rw_set_;
   CreateDropSet rw_object_set_;

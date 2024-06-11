@@ -1,32 +1,32 @@
 #include "store/benchmark/async/sql/seats/update_reservation.h"
 #include "store/benchmark/async/sql/seats/seats_constants.h"
-#include "store/benchmark/async/sql/seats/reservation.h"
+
 #include <fmt/core.h>
 
 namespace seats_sql {
-SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &update_res, std::queue<SEATSReservation> &delete_res)
-    : SEATSSQLTransaction(timeout), gen_(&gen) {
-        if (!update_res.empty()) {
-            SEATSReservation r = update_res.front();
+SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile)
+    : SEATSSQLTransaction(timeout), gen_(&gen), profile(profile) {
+        if (!profile.update_reservations.empty()) {
+            SEATSReservation r = profile.update_reservations.front();
             r_id = r.r_id;
             c_id = r.c_id;
             flight = r.flight;
             f_id = flight.flight_id;
+            curr_seat = r.seat_num;
             seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen);
-            update_res.pop();
+            while(seatnum == curr_seat) seatnum = std::uniform_int_distribution<int>(1, TOTAL_SEATS_PER_FLIGHT)(gen); //pick a new seat
+            profile.update_reservations.pop();
         } else { 
             // no reservations to update so make this transaction fail
             Panic("should not be triggered");
-            c_id = NULL_ID;
-            r_id = NULL_ID;
-            flight = CachedFlight();
-            f_id = NULL_ID;
-            seatnum = 0;
         }
         attr_idx = std::uniform_int_distribution<int64_t>(0, 3)(gen);
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
-        update_q = &update_res;
-        delete_q = &delete_res;
+       
+
+        std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
+        Debug("UPDATE_RESERVATION");
+
     }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}
@@ -41,8 +41,6 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
 
-    std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
-    Debug("UPDATE_RESERVATION");
     client.Begin(timeout);
 
     // (1) Check if Seat is taken (CheckSeat)
@@ -69,6 +67,7 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
   
+    //Note: We will read from cache
     query = fmt::format("UPDATE {} SET r_seat = {}, {} = {} WHERE r_id = {} AND r_c_id = {} AND r_f_id = {}", 
                         RESERVATION_TABLE, seatnum, reserve_seats[attr_idx], attr_val, r_id, c_id, f_id);
     client.Write(query, queryResult, timeout);
@@ -78,16 +77,26 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
+     Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+
+    auto &seats = profile.getSeatsBitSet(f_id);
+    seats[seatnum-1] = 1; //set new seat
+    seats[curr_seat-1] = 0;      //unset old seat
+
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
-        std::cerr << "Update_RES: PUSH TO DELETE Q" << std::endl;
-        delete_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+         std::cerr << "UPDATE_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
-         std::cerr << "Update_RES: PUSH TO UPDATE Q" << std::endl;
-        update_q->push(SEATSReservation(r_id, c_id, flight, seatnum));
+         std::cerr << "UPDATE_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 
-    return client.Commit(timeout);
+    return result;
 }
 }
 

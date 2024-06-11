@@ -23,6 +23,9 @@ class TrueTime
    
     uint64_t GetTime();
     void GetTimeAndError(uint64_t &time, uint64_t &error);
+    
+    uint64_t MStoTS(const uint64_t &time_milis);
+    uint64_t TStoMS(const uint64_t &time_stamp);
 
 private:
 	uint64_t simError;

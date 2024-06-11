@@ -24,29 +24,45 @@ namespace peloton {
 namespace binder {
 
 void BinderContext::AddRegularTable(parser::TableRef *table_ref,
-                                    const std::string default_database_name,
+                                    const std::string &default_database_name,
                                     concurrency::TransactionContext *txn) {
   table_ref->TryBindDatabaseName(default_database_name);
   auto table_alias = table_ref->GetTableAlias();
-  AddRegularTable(table_ref->GetDatabaseName(), table_ref->GetSchemaName(),
-                  table_ref->GetTableName(), table_alias, txn);
+  AddRegularTable(table_ref->GetDatabaseName(), table_ref->GetSchemaName(), table_ref->GetTableName(), table_alias, txn);
 }
 
-void BinderContext::AddRegularTable(const std::string db_name,
-                                    const std::string schema_name,
-                                    const std::string table_name,
-                                    const std::string table_alias,
+void BinderContext::AddRegularTable(const std::string &db_name,
+                                    const std::string &schema_name,
+                                    const std::string &table_name,
+                                    const std::string &table_alias,
                                     concurrency::TransactionContext *txn) {
-  // using catalog object to retrieve meta-data
-  auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn,
-                                                                            db_name,
-                                                                            schema_name,
-                                                                            table_name);
 
-  if (regular_table_alias_map_.find(table_alias) !=
-          regular_table_alias_map_.end() ||
-      nested_table_alias_map_.find(table_alias) !=
-          nested_table_alias_map_.end()) {
+                                      //TODO: FIXME: THIS SEEMS TO BE EXPENSIVE
+  // using catalog object to retrieve meta-data
+    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+   //std::cerr << "table_name: " << table_name << ". Alias: " << table_alias << std::endl;
+
+  //TODO: Somehow bind to txn context without looking up?
+
+  //std::cerr << "AddRegularTable -> GetTableCatalogEntry" << std::endl;
+  auto table_object = catalog::Catalog::GetInstance()->GetTableCatalogEntry(txn, db_name, schema_name, table_name);
+
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end2 = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+ 
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  //  auto duration2 = microseconds_end2 - microseconds_start2;
+  // // if(duration2 > 2000){
+  // //   Panic("GetTablecatalogEntry exceeded 2ms: %d", duration2);
+  // // }
+
+  if (regular_table_alias_map_.find(table_alias) != regular_table_alias_map_.end() || nested_table_alias_map_.find(table_alias) != nested_table_alias_map_.end()) {
+    Panic("duplicate");
     throw Exception("Duplicate alias " + table_alias);
   }
   regular_table_alias_map_[table_alias] = table_object;
@@ -174,6 +190,13 @@ bool BinderContext::CheckNestedTableColumn(
 
 void BinderContext::GenerateAllColumnExpressions(
     std::vector<std::unique_ptr<expression::AbstractExpression>> &exprs) {
+
+      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  struct timespec ts_start;
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+   
+
   for (auto &entry : regular_table_alias_map_) {
     auto &table_obj = entry.second;
     auto col_cnt = table_obj->GetColumnCatalogEntries().size();
@@ -203,6 +226,17 @@ void BinderContext::GenerateAllColumnExpressions(
       exprs.emplace_back(tv_expr);
     }
   }
+
+
+  clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+ 
+  //Should not take more than 1 ms (already generous) to parse and prepare.
+   auto duration = microseconds_end - microseconds_start;
+  if(duration > 50){
+    Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration);
+  }
+
 }
 
 }  // namespace binder

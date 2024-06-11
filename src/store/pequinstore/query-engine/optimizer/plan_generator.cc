@@ -115,21 +115,32 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
 }
 
 void PlanGenerator::Visit(const PhysicalIndexScan *op) {
+
+       //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   vector<oid_t> column_ids = GenerateColumnsForScan();
-  auto predicate = GeneratePredicateForScan(
-      expression::ExpressionUtil::JoinAnnotatedExprs(op->predicates),
-      op->table_alias, op->table_);
+  auto predicate = GeneratePredicateForScan(expression::ExpressionUtil::JoinAnnotatedExprs(op->predicates), op->table_alias, op->table_);
 
   vector<expression::AbstractExpression *> runtime_keys;
 
   // Create index scan desc
-  planner::IndexScanPlan::IndexScanDesc index_scan_desc(
-      op->index_id, op->key_column_id_list, op->expr_type_list, op->value_list,
-      runtime_keys);
+  planner::IndexScanPlan::IndexScanDesc index_scan_desc(op->index_id, op->key_column_id_list, op->expr_type_list, op->value_list, runtime_keys);
   output_plan_.reset(new planner::IndexScanPlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
-          op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
+      storage::StorageManager::GetInstance()->GetTableWithOid(op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
       predicate.release(), column_ids, index_scan_desc, false));
+
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+ 
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration2 = microseconds_end - microseconds_start;
+  // if(duration2 > 50){
+  //   Warning("Visit(Index) exceeded 50us: %d", duration2);
+  // }
 }
 
 void PlanGenerator::Visit(const ExternalFileScan *op) {
@@ -446,6 +457,35 @@ PlanGenerator::GenerateTableTVExprs(
   return exprs;
 }
 
+vector<unique_ptr<expression::AbstractExpression>>
+PlanGenerator::GenerateTableTVExprsColRegistry(
+    const std::string &alias, pequinstore::ColRegistry *col_registry) {
+  // TODO(boweic): we seems to provide all columns here, in case where there are
+  // a lot of attributes and we're only visiting a few this is not efficient
+  /*oid_t db_id = table->GetDatabaseOid();
+  oid_t table_id = table->GetTableOid();
+  auto column_objects = table->GetColumnCatalogEntries();*/
+
+  vector<unique_ptr<expression::AbstractExpression>> exprs(
+      col_registry->col_names.size());
+  int col_id = 0;
+  for (auto &col_name : col_registry->col_names) {
+    Debug("Col name is: %s", col_name.c_str());
+    expression::TupleValueExpression *col_expr = new expression::TupleValueExpression(col_name.c_str(), alias.c_str());
+
+    auto col_type = col_registry->col_name_type.at(col_name);
+    if (col_type == "FLOAT") col_type = "DECIMAL";
+    if (col_type == "TEXT") col_type = "VARCHAR";
+    col_expr->SetValueType(peloton::StringToTypeId(col_type));
+    Debug("Col name: %s. Col type: %s", col_name.c_str(), col_type.c_str());
+    
+    //col_expr->SetBoundOid(db_id, table_id, col_id);
+    exprs[col_id].reset(col_expr);
+    col_id++;
+  }
+  return exprs;
+}
+
 // Generate columns for scan plan
 vector<oid_t> PlanGenerator::GenerateColumnsForScan() {
   vector<oid_t> column_ids;
@@ -473,6 +513,25 @@ PlanGenerator::GeneratePredicateForScan(
     return nullptr;
   }
   auto exprs = GenerateTableTVExprs(alias, table);
+  ExprMap table_expr_map;
+  for (oid_t idx = 0; idx < exprs.size(); ++idx) {
+    table_expr_map[exprs[idx].get()] = idx;
+  }
+  unique_ptr<expression::AbstractExpression> predicate =
+      std::unique_ptr<expression::AbstractExpression>(predicate_expr->Copy());
+  expression::ExpressionUtil::EvaluateExpression({table_expr_map},
+                                                 predicate.get());
+  return predicate;
+}
+
+std::unique_ptr<expression::AbstractExpression>
+PlanGenerator::GeneratePredicateForScanColRegistry(
+    const std::shared_ptr<expression::AbstractExpression> predicate_expr,
+    const std::string &alias, pequinstore::ColRegistry *col_registry) {
+  if (predicate_expr == nullptr) {
+    return nullptr;
+  }
+  auto exprs = GenerateTableTVExprsColRegistry(alias, col_registry);
   ExprMap table_expr_map;
   for (oid_t idx = 0; idx < exprs.size(); ++idx) {
     table_expr_map[exprs[idx].get()] = idx;

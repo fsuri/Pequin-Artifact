@@ -37,6 +37,9 @@ int64_t DateFunctions::Now() {
   uint64_t day_base = year_base * 10000 * 27;  // skip the time zone
   uint64_t month_base = day_base * 32;
 
+  std::cerr << "shouldn't be called2" << std::endl;
+  exit(0);
+
   gettimeofday(&tv, NULL);
   time_info = gmtime(&(tv.tv_sec));
 

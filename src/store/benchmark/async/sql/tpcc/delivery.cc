@@ -37,15 +37,15 @@ SQLDelivery::SQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
     : TPCCSQLTransaction(timeout), w_id(w_id), d_id(d_id) {
   o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
   ol_delivery_d = std::time(0);
-}
-
+} 
+  
 SQLDelivery::~SQLDelivery() {
 }
 
 transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
-  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency
@@ -64,12 +64,18 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
    //Issue a Point Read and Point Update to EarliestNewOrder table. (this avoids needing to find Min and then delete it)
   if(use_earliest_new_order_table){
-    statement = fmt::format("SELECT * FROM {} WHERE no_d_id = {} AND no_w_id = {};", EARLIEST_NEW_ORDER_TABLE, d_id, w_id);
+    statement = fmt::format("SELECT * FROM {} WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
     client.Query(statement, queryResult, timeout);
+
+    if (queryResult->empty()) {
+      // Note: technically we're supposed to check each district in this warehouse  ==>> We instead are doing a TX for each district sequentially (see tpcc_client.cc)
+      return client.Commit(timeout);
+    }
+
     deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
 
-    statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE no_d_id = {} AND no_w_id = {};", EARLIEST_NEW_ORDER_TABLE, d_id, w_id);
-    client.Query(statement, timeout);
+    statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
+    client.Write(statement, timeout);
   }
   else{
     statement = fmt::format("SELECT MIN(no_o_id) FROM {} WHERE no_d_id = {} AND no_w_id = {};", NEW_ORDER_TABLE, d_id, w_id);

@@ -141,7 +141,7 @@ _Message_VA(enum Message_Type type, FILE *fp,
             ++fbasename;
         else
             fbasename = fname;
-        char filepos[32];
+        char filepos[50];
         snprintf(filepos, sizeof(filepos)/sizeof(filepos[0]),
                  "(%s:%d):", fbasename, line);
         fprintf(fp, "%-15s %-19s ",
@@ -215,7 +215,9 @@ _Message_DebugEnabled(const char *fname)
     static int nPats;
     if (!parsed) {
         parsed = true;
+
         const char *env = getenv("DEBUG");
+        //fprintf(stderr, "TEST DEBUG: %s \n", env); 
         if (env && strlen(env)) {
             buf = strdup(env);
             if (!buf)

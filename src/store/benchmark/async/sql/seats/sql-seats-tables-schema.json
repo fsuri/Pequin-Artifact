@@ -216,18 +216,17 @@
         "BIGINT"
       ],
       [
-        "d_distance",
-        "FLOAT"
-      ],
-      [
         "d_ap_id1",
         "BIGINT"
+      ],
+      [
+        "d_distance",
+        "FLOAT"
       ]
     ],
     "primary_key_col_idx": [
       0,
-      1,
-      2
+      1
     ],
     "row_data_path": "sql-seats-data/airport_distance.csv",
     "table_name": "airport_distance"
@@ -790,7 +789,8 @@
     ],
     "indexes": {
       "r_flight_index": [
-        2
+        2,
+        1
       ]
     },
     "primary_key_col_idx": [

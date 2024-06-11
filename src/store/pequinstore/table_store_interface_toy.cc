@@ -17,7 +17,7 @@ ToyTableStore::~ToyTableStore() {}
 
 // Execute a statement directly on the Table backend, no questions asked, no
 // output
-void ToyTableStore::ExecRaw(const std::string &sql_statement) {
+void ToyTableStore::ExecRaw(const std::string &sql_statement, bool skip_cache) {
   std::cerr << "EXECUTING RAW ON TOY INTERFACE" << std::endl;
 }
 

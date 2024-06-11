@@ -3,13 +3,14 @@
 
 #include "store/benchmark/async/sql/seats/seats_transaction.h"
 #include <random>
-#include "cached_flight.h"
+
+#include "store/benchmark/async/sql/seats/seats_profile.h"
 
 namespace seats_sql {
 
 class SQLFindFlights: public SEATSSQLTransaction {
     public: 
-        SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<CachedFlight> &cached_flight_ids); 
+        SQLFindFlights(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile); 
         virtual ~SQLFindFlights();
         virtual transaction_status_t Execute(SyncClient &client);
     private:
@@ -18,8 +19,9 @@ class SQLFindFlights: public SEATSSQLTransaction {
         int64_t start_time;  // unix timestamp of earliest departure
         int64_t end_time;    // unix timestamp of latest departure
         int64_t distance;    // max distance willing to travel
-        std::vector<CachedFlight> *cached_flights;
+      
         std::mt19937 &gen;
+        SeatsProfile &profile;
 };
 
 struct GetNearbyAirportsResultRow {

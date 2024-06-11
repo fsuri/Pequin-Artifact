@@ -30,7 +30,7 @@
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
-namespace tpcc_sql {
+namespace tpcc_sql { 
 
 SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
@@ -94,7 +94,9 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER");
   std::cerr << "NEW ORDER" << std::endl;
-  Debug("Warehouse: %u", w_id);
+  Debug("Warehouse: %u", w_id); 
+
+  std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
 
   client.Begin(timeout);
 

@@ -12,7 +12,7 @@ public:
 
   // Execute a statement directly on the Table backend, no questions asked, no
   // output
-  void ExecRaw(const std::string &sql_statement) override;
+  void ExecRaw(const std::string &sql_statement, bool skip_cache = true) override;
 
   void LoadTable(const std::string &load_statement,
                  const std::string &txn_digest, const Timestamp &ts,

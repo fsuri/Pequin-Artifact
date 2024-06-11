@@ -114,7 +114,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     client.Query(statement, timeout); 
   }
               
-  if(get_buyer_items){
+  if(get_buyer_items){ 
      //getBuyerItems
     std::cerr << "getBuyerItems" << std::endl;
    statement = fmt::format("SELECT {} FROM {}, {} "
@@ -138,6 +138,12 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
   
 
   client.Wait(results);
+
+  Debug("COMMIT");
+  auto tx_result = client.Commit(timeout);
+  if(tx_result != transaction_status_t::COMMITTED) return tx_result;
+
+  //////////////// UPDATE PROFILE /////////////////////
 
   //Deserialize
   int offset = 1;
@@ -197,9 +203,9 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
     offset++;
   }
 
-  
-  Debug("COMMIT");
-  return client.Commit(timeout);
+
+
+  return tx_result;
 }
 
 } // namespace auctionmark

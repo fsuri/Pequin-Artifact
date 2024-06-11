@@ -130,17 +130,22 @@ void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool has
 
 void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const uint64_t &timestamp, const uint64_t &id, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
 
-  Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
+  //Debug("USE OPTIMISTIC? %d", useOptimisticTxId);
+
+  if(timestamp == 0 && id == 0) return; // don't need to include genesis TX in snapshot...
 
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
-    Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());
+    
+    //Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());
+    
     committed_or_prepared? local_ss->add_local_txns_committed(txnDigest) : local_ss->add_local_txns_prepared(txnDigest);
   }
   else{ //Add (merged) Timestamp to snapshot
     //ts_comp.AddToBucket(txn->timestamp()); //If we want to compute a delta manually first use this.
 
-    Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
+    //Debug("Add mergedTS[%lu] (original: [%lu:%lu] to snapshot)", MergeTimestampId(timestamp, id), timestamp, id);
+    
     // merge ts and id into one 64 bit number and add to snapshot
     committed_or_prepared? local_ss->add_local_txns_committed_ts(MergeTimestampId(timestamp, id)) : local_ss->add_local_txns_prepared_ts(MergeTimestampId(timestamp, id));
   

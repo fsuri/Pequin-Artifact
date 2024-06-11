@@ -87,53 +87,41 @@ inline void MonoQueuePool::SubmitTask(const F &func) {
 }
 
 inline MonoQueuePool &MonoQueuePool::GetInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(
-      settings::SettingId::monoqueue_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(
-      settings::SettingId::monoqueue_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
 
   std::string name = "main-pool";
 
-  static MonoQueuePool mono_queue_pool(name,
-                                       static_cast<uint32_t>(task_queue_size),
-                                       static_cast<uint32_t>(worker_pool_size));
+  static MonoQueuePool mono_queue_pool(name, static_cast<uint32_t>(task_queue_size), static_cast<uint32_t>(worker_pool_size));
   return mono_queue_pool;
 }
 
 inline MonoQueuePool &MonoQueuePool::GetBrainInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(
-      settings::SettingId::brain_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(
-      settings::SettingId::brain_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::brain_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::brain_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
 
   std::string name = "brain-pool";
 
-  static MonoQueuePool brain_queue_pool(
-      name, static_cast<uint32_t>(task_queue_size),
-      static_cast<uint32_t>(worker_pool_size));
+  static MonoQueuePool brain_queue_pool(name, static_cast<uint32_t>(task_queue_size), static_cast<uint32_t>(worker_pool_size));
   return brain_queue_pool;
 }
 
 inline MonoQueuePool &MonoQueuePool::GetExecutionInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(
-      settings::SettingId::monoqueue_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(
-      settings::SettingId::monoqueue_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
 
   std::string name = "executor-pool";
 
-  static MonoQueuePool brain_queue_pool(
-      name, static_cast<uint32_t>(task_queue_size),
-      static_cast<uint32_t>(worker_pool_size));
+  static MonoQueuePool brain_queue_pool(name, static_cast<uint32_t>(task_queue_size), static_cast<uint32_t>(worker_pool_size));
   return brain_queue_pool;
 }
 

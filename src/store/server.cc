@@ -201,12 +201,14 @@ DEFINE_validator(trans_protocol, &ValidateTransMode);
 const std::string partitioner_args[] = {
 	"default",
   "warehouse_dist_items",
-  "warehouse"
+  "warehouse",
+  "rw_sql"
 };
 const partitioner_t parts[] {
   DEFAULT,
   WAREHOUSE_DIST_ITEMS,
-  WAREHOUSE
+  WAREHOUSE,
+  RW_SQL
 };
 static bool ValidatePartitioner(const char* flagname,
     const std::string &value) {
@@ -338,6 +340,8 @@ DEFINE_bool(indicus_replica_gossip, false, "use gossip between replicas to excha
 /*
  Pequin settings
 */
+DEFINE_bool(optimize_tpool_for_dev_machine, false, "use 16 instead of 8 cores when running on dev machine for faster loading");
+
 DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
 
 DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
@@ -358,6 +362,13 @@ DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); 
 DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
 
 DEFINE_bool(pequin_parallel_queries, true, "dispatch queries to parallel worker threads");
+
+DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+//TODO: parameterize these.
+DEFINE_uint64(pequin_monotonicity_grace, 20, "(ms) graceperiod for writes that arrive out of order (to account for clock skew and varying TX execution times)");
+DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
+DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
+//TODO: Active Snapshot set (optional), false
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -455,6 +466,8 @@ int main(int argc, char **argv) {
 
   Notice("Starting server.");
 
+
+
   // parse configuration
   std::ifstream configStream(FLAGS_config_path);
   if (configStream.fail()) {
@@ -512,7 +525,7 @@ int main(int argc, char **argv) {
   int threadpool_mode = 0; //default for Basil.
   if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
-  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 2;
+  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
 
   switch (trans) {
     case TRANS_TCP:
@@ -522,7 +535,7 @@ int main(int argc, char **argv) {
 			// 	tport = new TCPTransport(0.0, 0.0, 0, false, 0, 1);
 			// 	break;
 			// }
-      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode);
+      tport = new TCPTransport(0.0, 0.0, 0, false, FLAGS_indicus_process_id, FLAGS_indicus_total_processes, FLAGS_indicus_hyper_threading, true, threadpool_mode, FLAGS_optimize_tpool_for_dev_machine);
 			 //TODO: add: process_id + total processes (max_grpid/ machines (= servers/n))
       break;
     case TRANS_UDP:
@@ -543,22 +556,41 @@ int main(int argc, char **argv) {
     }
   }
 
+
   std::mt19937 unused;
   switch (partType) {
     case DEFAULT:
-      part = new DefaultPartitioner();
+    {
+      if(FLAGS_sql_bench){
+        part = new DefaultSQLPartitioner();
+      }
+      else{
+        part = new DefaultPartitioner();
+      }
       break;
+    }
     case WAREHOUSE_DIST_ITEMS:
+    {
+      if(FLAGS_sql_bench) Panic("deprecated partitioner for sql bench");
       part = new WarehouseDistItemsPartitioner(FLAGS_tpcc_num_warehouses);
       break;
+    }
     case WAREHOUSE:
-      part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, unused);
+    {
+      if(FLAGS_sql_bench){
+        part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, unused);
+      }
+      else{
+        part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, unused);
+      }
       break;
+    }
+    case RW_SQL:
+      part = new RWSQLPartitioner(FLAGS_num_tables);
     default:
       NOT_REACHABLE();
   }
-  // Notice("Shir: debugging server 2\n");
-
+  
   // parse occ type
   occ_type_t occ_type = OCC_TYPE_UNKNOWN;
   int numOCCTypes = sizeof(occ_type_args);
@@ -623,7 +655,8 @@ int main(int argc, char **argv) {
           //Create Table
           
       for(int i=0; i<FLAGS_num_tables; ++i){
-        string table_name = "table_" + std::to_string(i);
+        //string table_name = "table_" + std::to_string(i);
+        string table_name = "t" + std::to_string(i);
         table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
       }
 
@@ -729,7 +762,7 @@ int main(int argc, char **argv) {
       default:
           NOT_REACHABLE();
       }
-    
+
       pequinstore::QueryParameters query_params(FLAGS_store_mode,
                                                  0,
                                                  0,
@@ -747,7 +780,10 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_merge_active_at_client,
                                                  FLAGS_pequin_sign_client_queries,
                                                  FLAGS_pequin_sign_replica_to_replica_sync,
-                                                 FLAGS_pequin_parallel_queries);
+                                                 FLAGS_pequin_parallel_queries,
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 FLAGS_pequin_monotonicity_grace);
 
       pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                       FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1008,11 +1044,10 @@ int main(int argc, char **argv) {
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
 
-    Notice("Shir: debugging server 222222222222\n");
-
+    UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
     Notice("Benchmark: SQL with Loaded Table Registry");
-    // std::cerr<<"Benchmark: SQL with Loaded Table Registry\n";
     std::cerr << FLAGS_data_file_path <<"   data file path \n";
+
     std::ifstream generated_tables(FLAGS_data_file_path);
     json tables_to_load;
     try {
@@ -1021,21 +1056,46 @@ int main(int argc, char **argv) {
     catch (const std::exception &e) {
       Panic("Failed to load Table JSON Schema");
     }
-    
+       
     //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
-  
-    //Load all tables. 
+     
+    //Create all table schemas. 
     for(auto &[table_name, table_args]: tables_to_load.items()){ 
       const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
       const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
       //Create Table
       server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
       //Create Secondary Indices
+
       for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
         server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
       }
+    }
+      
+    //Create a Peloton cache...
+    if(proto == PROTO_PEQUIN){
+      for(auto &[table_name, table_args]: tables_to_load.items()){ 
+        //if(table_name != "item_purchase") continue;
+        const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+        const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+        //Create Table
+        server->CacheCatalog(table_name, column_names_and_types, primary_key_col_idx);   
+      }
+    }
 
+
+        //Load all table data -- NOTE: We do this only AFTER we have loaded all the schemas to avoid concurrency issues inside Peloton...
+        for(auto &[table_name, table_args]: tables_to_load.items()){ 
+          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+
+          //If Table has no pre-generated data: Generate some (This is done for RW-SQL)
           if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
+
+            // Skip loading relevant tables for this shard. //TODO: Assert that this is using RWSQLPartitioner
+            std::vector<int> dummyTxnGroups;
+            if ((*part)(table_name, "", FLAGS_num_shards, FLAGS_group_idx, dummyTxnGroups, false) % FLAGS_num_groups != FLAGS_group_idx) continue;
+
             //std::vector<std::vector<std::string>> values;
             row_segment_t *values = new row_segment_t();
             for(int j=0; j<FLAGS_num_keys_per_table; ++j){

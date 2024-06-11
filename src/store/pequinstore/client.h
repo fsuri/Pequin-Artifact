@@ -61,8 +61,9 @@
 
 namespace pequinstore {
 
+static bool PROFILING_LAT = true; 
 
-static bool TEST_READ_SET = true;  //print out read set
+static bool TEST_READ_SET = false;  //print out read set
 
 static bool FORCE_SCAN_CACHING = false;
 static bool relax_point_cond = true;
@@ -203,6 +204,7 @@ class Client : public ::Client {
   // void ClearQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
   // void RetryQuery(uint64_t query_seq_num, std::vector<uint64_t> &involved_groups);
 
+  void AddWriteSetIdx(proto::Transaction &txn);
 
   ///////////////   Commit protocol structures and functions
 
@@ -407,6 +409,14 @@ class Client : public ::Client {
   struct Latency_t getLatency;
   size_t getIdx;
   struct Latency_t commitLatency;
+
+  uint64_t exec_start_ms;
+  uint64_t exec_end_ms;
+  std::map<uint64_t, uint64_t> query_start_times;
+  // uint64_t query_start_ms;
+  // uint64_t query_end_ms;
+  uint64_t commit_start_ms;
+  uint64_t commit_end_ms;
 };
 
 } // namespace pequinstore

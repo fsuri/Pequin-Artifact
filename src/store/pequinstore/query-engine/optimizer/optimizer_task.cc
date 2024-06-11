@@ -31,12 +31,9 @@ void OptimizerTask::ConstructValidRules(
     std::vector<RuleWithPromise> &valid_rules) {
   for (auto &rule : rules) {
     // Check if we can apply the rule
-    bool root_pattern_mismatch =
-        group_expr->Op().GetType() != rule->GetMatchPattern()->Type();
+    bool root_pattern_mismatch = group_expr->Op().GetType() != rule->GetMatchPattern()->Type();
     bool already_explored = group_expr->HasRuleExplored(rule.get());
-    bool child_pattern_mismatch =
-        group_expr->GetChildrenGroupsSize() !=
-        rule->GetMatchPattern()->GetChildPatternsSize();
+    bool child_pattern_mismatch = group_expr->GetChildrenGroupsSize() != rule->GetMatchPattern()->GetChildPatternsSize();
     if (root_pattern_mismatch || already_explored || child_pattern_mismatch) {
       continue;
     }

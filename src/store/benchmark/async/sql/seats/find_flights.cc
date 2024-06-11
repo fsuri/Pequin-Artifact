@@ -7,30 +7,27 @@ namespace seats_sql {
 
 const int MAX_NUM_FLIGHTS = 10;
 
-SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<CachedFlight> &cached_flight_ids) :
-    SEATSSQLTransaction(timeout), gen(gen)
+SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) :
+    SEATSSQLTransaction(timeout), gen(gen), profile(profile)
     {
         //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
-        //TODO implement cached_flight_ids.  
+        //TODO implement profile.cached_flights.  
         //If we get a result > 1, try to cache the flights found.
                     //Load some initially too. (LoadProfile) (Load flights from the CSV, up to a cache limit flight ids)
     
-        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_RANDOM_AIRPORTS || cached_flight_ids.empty()) {
+        if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_FIND_FLIGHTS_RANDOM_AIRPORTS || profile.cached_flights.empty()) {
             //Select two random airport ids. 
             //Note: They might not actually fly to each other. In that case the query will return no flights.
-            depart_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen);
-            arrive_aid = std::uniform_int_distribution<int64_t>(1, NUM_AIRPORTS)(gen); //FIXME: Should pick randomOtherAiport (based on depart_aid)
-            start_time = std::uniform_int_distribution<std::time_t>(MIN_TS, MAX_TS)(gen); //FIXME: Should be random upcoming Date? See SEATSProfile (Currently makes sense given Loaded flights)
-            start_time = start_time - (start_time % seats_sql::MS_IN_DAY); //normalize to start of day
+            depart_aid = profile.getRandomAirportId();
+            arrive_aid = profile.getRandomOtherAirport(depart_aid);
+            start_time = profile.getRandomUpcomingDate();
             end_time = start_time + MS_IN_DAY * 2; //up to 2 days from start_time.
         }
         else{
             //Use an existing flight to guarantee to get back results.
-            //TODO: Client needs to load existing flights. And then pick random flight id.
-            //from the flight, we extract depart and arrive airport_id
-           
-            int64_t flight_index = std::uniform_int_distribution<int64_t>(1, cached_flight_ids.size())(gen) - 1;
-            CachedFlight &flight = cached_flight_ids[flight_index];
+               
+            int64_t flight_index = std::uniform_int_distribution<int64_t>(1, profile.cached_flights.size())(gen) - 1;
+            CachedFlight &flight = profile.cached_flights[flight_index];
             depart_aid = flight.depart_ap_id;
             arrive_aid = flight.arrive_ap_id;
             uint64_t range = seats_sql::MS_IN_DAY / 2;
@@ -48,7 +45,6 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, std::vector<
         }
 
         UW_ASSERT(start_time < end_time);
-        cached_flights = &cached_flight_ids;
     }
 
 SQLFindFlights::~SQLFindFlights() {}
@@ -153,7 +149,14 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     //     airport_infos.push_back(ai_row);
     // }
 
-    // print info of flight
+
+    Debug("COMMIT");
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+     //////////////// UPDATE PROFILE /////////////////////
+        
+    // Convert the data into FlightIds that other transactions can use
     for (int i = 0; i < queryResult->size(); i++) {
         deserialize(flight_row, queryResult, i);
         int64_t f_id = flight_row.f_id; 
@@ -174,10 +177,10 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
         cf.depart_ap_id = flight_row.f_depart_ap_id; 
         cf.depart_time = depart_time;
         cf.arrive_ap_id = flight_row.f_arrive_ap_id;
-        addFlightToCache(*cached_flights, cf, gen);
+        profile.addFlightToCache(cf);
     }
-    Debug("COMMIT");
-    return client.Commit(timeout);
+    
+    return result;
 
 }
 }

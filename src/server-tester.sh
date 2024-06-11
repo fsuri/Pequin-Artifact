@@ -16,21 +16,22 @@ FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
 ASYNC_SERVER="true"
 
-# FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
+#FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+#FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
 
-
-while getopts f:g:cpath:p:z:num_ops:num_keys: option; do
+while getopts f:g:p:s:z:o:k: option; do
 case "${option}" in
 f) F=${OPTARG};;
 g) NUM_GROUPS=${OPTARG};;
-cpath) CONFIG=${OPTARG};;
-p) PROTOCOL=${OPTARG};;
+p) CONFIG=${OPTARG};;
+s) PROTOCOL=${OPTARG};;
 z) ZIPF=${OPTARG};;
-num_ops) NUM_OPS_TX=${OPTARG};;
-num_keys) NUM_KEYS_IN_DB=${OPTARG};;
+o) NUM_OPS_TX=${OPTARG};;
+k) NUM_KEYS_IN_DB=${OPTARG};;
 esac;
 done
 
@@ -64,6 +65,13 @@ echo '[2] Starting new servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
-		DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --async_server=$ASYNC_SERVER --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --local_config=$LOCAL &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+
+		# Shir : my previous cmd 
+		# DEBUG=store/$STORE/* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --async_server=$ASYNC_SERVER --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --local_config=$LOCAL &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+		
+		
+		#echo Starting Replica $(($i+$j*$N))
+		#valgrind --tool=callgrind --instr-atstart=no
+		DEBUG=store/$STORE/ store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --local_config=$LOCAL --optimize_tpool_for_dev_machine &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

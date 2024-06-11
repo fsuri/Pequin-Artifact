@@ -91,7 +91,8 @@ public:
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     //////////////////////// PEQUIN ARGS //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -207,7 +208,8 @@ public:
   executor::ExecutionResult ExecuteReadHelper(
     std::shared_ptr<planner::AbstractPlan> plan, const std::vector<type::Value> &params, std::vector<ResultValue> &result, const std::vector<int> &result_format, 
     //////////////////////// PEQUIN ARGS ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    const pequinstore::TableRegistry_t *table_reg,
+    const pequinstore::SQLTransformer *sql_interpreter,
+    //const pequinstore::TableRegistry_t *table_reg,
     const Timestamp &basil_timestamp,
     pequinstore::find_table_version *find_table_version,
     pequinstore::read_prepared_pred *read_prepared_pred,
@@ -297,7 +299,7 @@ public:
   std::shared_ptr<Statement>
   PrepareStatement(const std::string &statement_name,
                    const std::string &query_string,
-                   std::unique_ptr<parser::SQLStatementList> sql_stmt_list,
+                   std::unique_ptr<parser::SQLStatementList> sql_stmt_list, bool skip_cache = false,
                    size_t thread_id = 0);
 
   bool BindParamsForCachePlan(
@@ -381,7 +383,8 @@ private:
   std::shared_ptr<Statement> statement_;
 
   // Default database name
-  std::string default_database_name_ = DEFAULT_DB_NAME;
+ // std::string default_database_name_ = DEFAULT_DB_NAME;
+  std::string default_database_name_ = CATALOG_DATABASE_NAME;
 
   int rows_affected_;
 

@@ -219,7 +219,7 @@ void GetToSeqScan::Transform(
     UNUSED_ATTRIBUTE OptimizeContext *context) const {
   const LogicalGet *get = input->Op().As<LogicalGet>();
 
-  std::cerr << "TRANSFORM: Get to Seq Scan" << std::endl;
+  //std::cerr << "TRANSFORM: Get to Seq Scan" << std::endl;
 
   auto result_plan = std::make_shared<OperatorExpression>(
       PhysicalSeqScan::make(get->get_id, get->table, get->table_alias,
@@ -260,7 +260,13 @@ void GetToIndexScan::Transform(
   UNUSED_ATTRIBUTE std::vector<std::shared_ptr<OperatorExpression>> children = input->Children();
   PELOTON_ASSERT(children.size() == 0);
 
-   std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+
+  // std::cerr << "TRANSFORM: Get to Index Scan" << std::endl;
     //std::cerr << "input: " << input->GetInfo() << std::endl;
 
   const LogicalGet *get = input->Op().As<LogicalGet>();
@@ -309,11 +315,11 @@ void GetToIndexScan::Transform(
   }
 
   if (get->predicates.empty()) {
-     std::cerr << "USE SEQ SCAN FOR THIS KIND OF PRED" << std::endl;
+     //std::cerr << "USE SEQ SCAN FOR THIS KIND OF PRED" << std::endl;
   }
   // Check whether any index can fulfill predicate predicate evaluation
   if (!get->predicates.empty()) {
-    std::cerr << "USE INDEX FOR THIS KIND OF PRED" << std::endl;
+    //std::cerr << "USE INDEX FOR THIS KIND OF PRED" << std::endl;
     std::vector<oid_t> key_column_id_list;
     std::vector<ExpressionType> expr_type_list;
     std::vector<type::Value> value_list;
@@ -335,7 +341,7 @@ void GetToIndexScan::Transform(
         else{ //NOTE: FIXME: THIS IS A HACK TO BE ABLE TO CONSIDER REFLEXIVE COLUMN NAMES FOR THE HEURISTIC
           auto column_ref = (expression::TupleValueExpression *) expr->GetChild(1);
           std::string col_name(column_ref->GetColumnName());
-          std::cerr << "reflexive: " << col_name << std::endl;
+          //std::cerr << "reflexive: " << col_name << std::endl;
           auto column_id = get->table->GetColumnCatalogEntry(col_name)->GetColumnId();
         
           key_column_id_list.push_back(column_id);
@@ -392,7 +398,7 @@ void GetToIndexScan::Transform(
       //Trying to design a simple heuristic to favor primary vs secondary index.
 
       bool is_primary_index = index_object->GetIndexConstraint() == IndexConstraintType::PRIMARY_KEY;
-      std::cerr << "Table: " << get->table->GetTableName() << ". Compute weight for index type: " << is_primary_index << std::endl;
+      Debug("Table: %s. Compute weight for index type: %s", get->table->GetTableName().c_str(), (is_primary_index? "Primary" : "Secondary"));
       // for(auto &col: index_col_set){
       //   std::cerr << "col: " << col << std::endl;
       // }
@@ -421,21 +427,20 @@ void GetToIndexScan::Transform(
         }
       }
      
-      std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
+      //std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
       //If index fully covers the condition. //Give preference to primary key.
       if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
      
-      std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
+     // std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
 
       
       if (min_distance < closest_index || (min_distance == closest_index && index_key_column_id_list.size() > max_num_matching_cols )){
-        std::cout << "Adding index plan for table " << get->table->GetTableName() << std::endl;
+        //std::cerr << "Adding index plan for table " << get->table->GetTableName() << std::endl;
         auto index_scan_op = PhysicalIndexScan::make(
             get->get_id, get->table, get->table_alias, get->predicates,
             get->is_for_update, index_id, index_key_column_id_list,
             index_expr_type_list, index_value_list);
-        transformed.push_back(
-            std::make_shared<OperatorExpression>(index_scan_op));
+        transformed.push_back(std::make_shared<OperatorExpression>(index_scan_op));
         closest_index = min_distance;
         max_num_matching_cols = index_key_column_id_list.size();
       }
@@ -473,6 +478,12 @@ void GetToIndexScan::Transform(
       }*/
     }
   }
+
+  //  struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = microseconds_end - microseconds_start;
+  // Warning("Transform Latency: %dus", duration);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -737,7 +748,7 @@ void InnerJoinToInnerNLJoin::Transform(
   // first build an expression representing hash join
   const LogicalInnerJoin *inner_join = input->Op().As<LogicalInnerJoin>();
 
-  std::cerr << "TRANSFORM: INNER JOIN TO NL"<< std::endl;
+  //std::cerr << "TRANSFORM: INNER JOIN TO NL"<< std::endl;
 
   auto children = input->Children();
   PELOTON_ASSERT(children.size() == 2);

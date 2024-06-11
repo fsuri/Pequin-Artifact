@@ -56,20 +56,20 @@ TransactionContext *TransactionManager::BeginTransaction(
     // - REPEATABLE_READS, or
     // - READ_COMMITTED.
     // transaction processing with decentralized epoch manager
-    //std::cout << "created txn else clause" << std::endl;
+    //std::cerr << "created txn else clause" << std::endl;
     cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
         thread_id, TimestampType::READ);
     txn = new TransactionContext(thread_id, type, read_id);
-    //std::cout << "created txn" << std::endl;
+    //std::cerr << "created txn" << std::endl;
   }
 
   if (read_only) {
     txn->SetReadOnly();
   }
 
-  txn->SetTimestamp(function::DateFunctions::Now());
+  //txn->SetTimestamp(function::DateFunctions::Now());
 
-  //std::cout << "begin txn at the end" << std::endl;
+  //std::cerr << "begin txn at the end" << std::endl;
   return txn;
 }
 
@@ -187,11 +187,11 @@ VisibilityType TransactionManager::IsVisible(
   cid_t txn_vis_id;
 
   if (type == VisibilityIdType::READ_ID) {
-    // std::cout << "Is read id" << std::endl;
+    // std::cerr << "Is read id" << std::endl;
     txn_vis_id = current_txn->GetReadId();
   } else {
     PELOTON_ASSERT(type == VisibilityIdType::COMMIT_ID);
-    // std::cout << "Is commit id" << std::endl;
+    // std::cerr << "Is commit id" << std::endl;
     txn_vis_id = current_txn->GetCommitId();
   }
 
@@ -199,7 +199,7 @@ VisibilityType TransactionManager::IsVisible(
   bool activated = (txn_vis_id >= tuple_begin_cid);
   // the tuple is not visible.
   bool invalidated = (txn_vis_id >= tuple_end_cid);
-  // std::cout << "activate is " << activated << " and invalidated is "
+  // std::cerr << "activate is " << activated << " and invalidated is "
   //<< invalidated << std::endl;
 
   if (tuple_txn_id == INVALID_TXN_ID) {
@@ -209,7 +209,7 @@ VisibilityType TransactionManager::IsVisible(
       return VisibilityType::DELETED;
     } else {
       // aborted tuple
-      // std::cout << "invisible 1" << std::endl;
+      // std::cerr << "invisible 1" << std::endl;
       return VisibilityType::INVISIBLE;
     }
   }
@@ -230,7 +230,7 @@ VisibilityType TransactionManager::IsVisible(
       return VisibilityType::DELETED;
     } else {
       // old version of the tuple that is being updated by current txn
-      // std::cout << "invisible 2" << std::endl;
+      // std::cerr << "invisible 2" << std::endl;
       return VisibilityType::INVISIBLE;
     }
   } else {
@@ -239,24 +239,24 @@ VisibilityType TransactionManager::IsVisible(
       if (tuple_begin_cid == MAX_CID) {
         // in this protocol, we do not allow cascading abort. so never read an
         // uncommitted version.
-        // std::cout << "invisible 3" << std::endl;
+        // std::cerr << "invisible 3" << std::endl;
         return VisibilityType::INVISIBLE;
       } else {
         // the older version may be visible.
         if (activated && !invalidated) {
           return VisibilityType::OK;
         } else {
-          // std::cout << "invsible 4" << std::endl;
+          // std::cerr << "invsible 4" << std::endl;
           return VisibilityType::INVISIBLE;
         }
       }
     } else {
       // if the tuple is not owned by any transaction.
       if (activated && !invalidated) {
-        // std::cout << "visible 5" << std::endl;
+        // std::cerr << "visible 5" << std::endl;
         return VisibilityType::OK;
       } else {
-        // std::cout << "invisible 5" << std::endl;
+        // std::cerr << "invisible 5" << std::endl;
         return VisibilityType::INVISIBLE;
       }
     }

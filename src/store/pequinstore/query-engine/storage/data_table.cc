@@ -297,19 +297,19 @@ bool DataTable::InstallVersion(const AbstractTuple *tuple,
                                ItemPointer *index_entry_ptr) {
   if (CheckConstraints(tuple) == false) {
     Debug("Check constraints false");
-    // std::cout << "Check constraints false" << std::endl;
+    // std::cerr << "Check constraints false" << std::endl;
     LOG_TRACE("InsertVersion(): Constraint violated");
     return false;
   }
-  // std::cout << "Past check constraints" << std::endl;
+  // std::cerr << "Past check constraints" << std::endl;
   //  Index checks and updates
   if (InsertInSecondaryIndexes(tuple, targets_ptr, transaction, index_entry_ptr) == false) {
-    // std::cout << "Inside if insertinsecondaryindexes" << std::endl;
+    // std::cerr << "Inside if insertinsecondaryindexes" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
   Debug("Past insert and into secondary indexes");
-  // std::cout << "Past insert into secondary indexes" << std::endl;
+  // std::cerr << "Past insert into secondary indexes" << std::endl;
   return true;
 }
 
@@ -358,9 +358,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     // ItemPointer *old_location;
     auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
     if (result == false) {
-      std::cout << "The result is false" << std::endl;
       Debug("InsertTuple result false");
-      // std::cout << "result is false" << std::endl;
+      // std::cerr << "result is false" << std::endl;
       //  check_fk = false;
       exists = false;
       // return INVALID_ITEMPOINTER;
@@ -394,31 +393,34 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     //If TX tries to write to a tuple that it previously wrote itself (i.e. prepared)
     //Distinguish whether we are trying to rollback a prepare, or upgrade it to commit.
     if (ts == transaction->GetBasilTimestamp()) {
-      std::cout << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
-       std::cout << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
+      Debug("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16), transaction->GetCommitOrPrepare());
+      // std::cerr << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
+      //  std::cerr << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
      
-      std::cout << "Duplicate" << std::endl;
+      // std::cerr << "Duplicate" << std::endl;
       is_duplicate = true;
       bool is_prepared = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
-        std::cout << "In undo delete for purge" << std::endl;
+        Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+        //std::cerr << "In undo delete for purge" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-          std::cout << "Updating both pointers" << std::endl;
+           Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+          //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          std::cout << "prev loc" << prev_loc.block << ", " << prev_loc.offset << std::endl;
-          std::cout << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
+          //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
-          std::cout << "Updating head pointer" << std::endl;
+          //std::cerr << "Updating head pointer" << std::endl;
+           Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
@@ -431,7 +433,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           PELOTON_ASSERT(res == true);
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
-          std::cout << "Updating prev pointer" << std::endl;
+          //std::cerr << "Updating prev pointer" << std::endl;
+           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
         }
@@ -473,23 +476,39 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           
           Debug("Wrote commit proof for tuple: [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
         } else {
-          std::cout << "Should upgrade is " << should_upgrade << std::endl;
-          std::cout << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
-          std::cout << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
-          std::cout << "Same columns is " << same_columns << std::endl;
-          std::cout << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
-          std::cout << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
+          // std::cerr << "Should upgrade is " << should_upgrade << std::endl;
+          // std::cerr << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
+          // std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
+          // std::cerr << "Same columns is " << same_columns << std::endl;
+          // std::cerr << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
+          // std::cerr << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
 
-          std::cout << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
-          std::cout << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
+          // std::cerr << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
+          // std::cerr << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
           
-             Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
-          if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) Panic("Tried to prepare twice or commit twice for same TX");
+          // Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
+
+          if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) {
+            Notice("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+                  pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
+                  same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
+                  pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
+                  curr_pointer.block, curr_pointer.offset);
+            //Panic("Tried to prepare twice or commit twice for same TX: %s", );
+          }
+          else{
+            Debug("Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+                  pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
+                  same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
+                  pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
+                  curr_pointer.block, curr_pointer.offset);
+          }
         }
       }
 
     } else {
-      std::cout << "Data table performing update" << std::endl;
+      Debug("Data table performing update");
+      //std::cerr << "Data table performing update" << std::endl;
       is_duplicate = false;
 
       ItemPointer location = GetEmptyTupleSlot(tuple);
@@ -499,7 +518,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
 
       //TEST VALUES WRITTEN
-      // std::cout << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
+      // std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
       // for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
       //     auto val = tuple->GetValue(col_idx);
       //     Debug("Write col %d. Value: %s", col_idx, val.ToString().c_str());  
@@ -517,9 +536,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       IncreaseTupleCount(1);
 
       if (result == false) {
-        std::cout << "The result is false" << std::endl;
+        //std::cerr << "The result is false" << std::endl;
         Debug("InsertTuple result false");
-        // std::cout << "result is false" << std::endl;
+        // std::cerr << "result is false" << std::endl;
         //  check_fk = false;
         exists = false;
         // return INVALID_ITEMPOINTER;
@@ -537,7 +556,7 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
                             ItemPointer **index_entry_ptr, bool check_fk) {
   if (CheckConstraints(tuple) == false) {
     Debug("Index constraint violated");
-    // std::cout << "Index Constraint violated" << std::endl;
+    // std::cerr << "Index Constraint violated" << std::endl;
     LOG_TRACE("InsertTuple(): Constraint violated");
     return false;
   }
@@ -565,7 +584,7 @@ bool DataTable::InsertTuple(const AbstractTuple *tuple, ItemPointer location,
   if (InsertInIndexes(tuple, location, transaction, index_entry_ptr,
                       old_location) == false) {
     Debug("Index Constraint violated old location");
-    // std::cout << "Index Constraint violated old location" << std::endl;
+    // std::cerr << "Index Constraint violated old location" << std::endl;
     LOG_TRACE("Index constraint violated");
     return false;
   }
@@ -640,7 +659,7 @@ DataTable::CheckIfInIndex(const storage::Tuple *tuple,
     return ItemPointer(0, 0);
     /*ItemPointer *first_element = old_locations[0];
     if (first_element->IsNull()) {
-      Debug("First element is null"); // std::cout << "First element is null"
+      Debug("First element is null"); // std::cerr << "First element is null"
                                       // << std::endl;
     }*/
 
@@ -745,15 +764,15 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
       index->ScanKey(key.get(), old_locations);
       ItemPointer *first_element = old_locations[0];
       if (first_element->IsNull()) {
-        Debug("First element is null"); // std::cout << "First element is null"
+        Debug("First element is null"); // std::cerr << "First element is null"
                                         // << std::endl;
       }
       /*if (old_location->IsNull()) {
-        std::cout << "Old location is null" << std::endl;
+        std::cerr << "Old location is null" << std::endl;
       }*/
       old_location.block = first_element->block;
       old_location.offset = first_element->offset;
-      // std::cout << "Old location block is " << old_location.block << " and
+      // std::cerr << "Old location block is " << old_location.block << " and
       // offset is " << old_location.offset << std::endl;
 
       return false;
@@ -776,7 +795,7 @@ bool DataTable::InsertInSecondaryIndexes(
   // we must check whether the updated column is a secondary index column.
   // insertion happens only if the updated column is a secondary index column.
   if (targets_ptr == nullptr) {
-    Debug("Targets pointer == null"); // std::cout << "Targets pointer is null"
+    Debug("Targets pointer == null"); // std::cerr << "Targets pointer is null"
                                       // << std::endl;
   }
   std::unordered_set<oid_t> targets_set;
@@ -786,7 +805,7 @@ bool DataTable::InsertInSecondaryIndexes(
     }
   }
 
-  // std::cout << "After iterating through targets_ptr" << std::endl;
+  // std::cerr << "After iterating through targets_ptr" << std::endl;
 
   bool res = true;
 
@@ -828,7 +847,7 @@ bool DataTable::InsertInSecondaryIndexes(
     std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
 
     key->SetFromTuple(tuple, indexed_columns, index->GetPool());
-    // std::cout << "After setting key from tuple" << std::endl;
+    // std::cerr << "After setting key from tuple" << std::endl;
 
     switch (index->GetIndexType()) {
     case IndexConstraintType::PRIMARY_KEY:

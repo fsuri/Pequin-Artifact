@@ -5,17 +5,17 @@
 
 namespace seats_sql{
 
-SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, std::queue<SEATSReservation> &existing_res, std::queue<SEATSReservation> &insert_res) : 
-    SEATSSQLTransaction(timeout), gen_(&gen) {
-         std::cerr << "DELETE_RESERVATION" << std::endl;
-    Debug("DELETE_RESERVATION");
+SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) : 
+    SEATSSQLTransaction(timeout), gen_(&gen), profile(profile) {
+        
 
-        UW_ASSERT(!existing_res.empty());
-        SEATSReservation r = existing_res.front();
-        existing_res.pop();
+        UW_ASSERT(!profile.delete_reservations.empty());
+        SEATSReservation r = profile.delete_reservations.front();
+        profile.delete_reservations.pop();
 
-        std::cerr << "r_id: " << r.r_id << std::endl; 
-        c_id = r.c_id;
+        std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
+        Debug("DELETE_RESERVATION");
+        c_id = r.c_id; //Default: Delete using Customer Id
         flight = r.flight;
         f_id = flight.flight_id;
         c_id_str = "";
@@ -32,12 +32,9 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
         else if(rand <= PROB_DELETE_WITH_CUSTOMER_ID_STR + PROB_DELETE_WITH_FREQUENTFLYER_ID_STR){
             ff_c_id_str = std::to_string(c_id);
             c_id = NULL_ID;
-            ff_al_id = flight.airline_id; //TODO: Replace this with the airline ID belonging to the reservation...
+            ff_al_id = flight.airline_id; 
         }
         //Default: Delete using their CustomerId 
-        
-
-        q = &insert_res;
     }
 
 SQLDeleteReservation::~SQLDeleteReservation() {}
@@ -94,16 +91,11 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     //Next, get the reservation information of the Customer (GetCustomerReservation)
     // query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
     //                     "WHERE c_id = {} AND c_id = r_c_id AND f_id = {} AND f_id = r_f_id", CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
-    /*query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
-                        "WHERE c_id = {} AND c_id = r_c_id "
-                        "AND f_id = {} AND f_id = r_f_id "
-                        "AND r_f_id = {} "
-                        "AND r_c_id = r_c_id AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
-                        CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id, f_id);*/
+   
     query = fmt::format("SELECT c_sattr00, c_sattr02, c_sattr04, c_iattr00, c_iattr02, c_iattr04, c_iattr06, f_seats_left, r_id, r_seat, r_price, r_iattr00 FROM {}, {}, {} "
                         "WHERE c_id = {} AND c_id = r_c_id "
                         "AND f_id = {} AND f_id = r_f_id "
-                        "AND r_c_id = r_c_id AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
+                        "AND r_f_id = r_f_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
                         CUSTOMER_TABLE, FLIGHT_TABLE, RESERVATION_TABLE, c_id, f_id);
                    
     client.Query(query, queryResult, timeout);
@@ -159,11 +151,24 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
         return ABORTED_USER;
     }
 
+    auto result = client.Commit(timeout);
+    if(result != transaction_status_t::COMMITTED) return result;
+
+
+     //////////////// UPDATE PROFILE /////////////////////
+    
+    //Remove booking from cache
+    auto &seats = profile.getSeatsBitSet(f_id);
+    seats[seat-1] = 0;
+    //profile.deleteCustomerBooking(c_id, f_id);
+
     //Re-queue reservation
     int requeue = std::uniform_int_distribution<int>(1, 100)(*gen_);
-    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) q->push(SEATSReservation(NULL_ID, c_id, flight, seat));
+    if (requeue <= PROB_REQUEUE_DELETED_RESERVATION) profile.insert_reservations.push(SEATSReservation(NULL_ID, c_id, flight, seat));
 
-    Debug("Deleted reservation on flight %s for customer %s. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
-    return client.Commit(timeout);
+    Debug("Deleted reservation on flight %s for customer %d. [seatsLeft=%d]", f_id, c_id, seats_left + 1);
+    
+
+    return result;
 }
 }

@@ -173,9 +173,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           CustomerRow& c)
 {
-  uint32_t  id;
-  uint32_t  d_id;
   uint32_t  w_id;
+  uint32_t  d_id;
+  uint32_t  id;
   std::string first;
   std::string middle;
   std::string last;
@@ -204,9 +204,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   //       std::cerr << "  Has Value: " << field_val << std::endl;
   //   }
 
-  row->get(0, &id);
+  row->get(0, &w_id);
   row->get(1, &d_id);
-  row->get(2, &w_id);
+  row->get(2, &id);
   row->get(3, &first);
   row->get(4, &middle);
   row->get(5, &last);

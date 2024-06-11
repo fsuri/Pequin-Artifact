@@ -103,12 +103,7 @@ void SignMessages(const std::vector<::google::protobuf::Message*>& msgs,
 
   std::vector<const std::string*> messageStrs;
   for (unsigned int i = 0; i < msgs.size(); i++) {
-    if(signedMessages[i]){
-      Debug("signedMessages[%d] exists", i);
-    }
-    else{
-      Debug("signedMessages[%d] was already freed", i);
-    }
+    if(!signedMessages[i]) Panic("signedMessages[%d] was already freed", i);
     signedMessages[i]->set_process_id(processId);
     UW_ASSERT(msgs[i]->SerializeToString(signedMessages[i]->mutable_data()));
     messageStrs.push_back(&signedMessages[i]->data());
@@ -1859,14 +1854,38 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
               blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
           }
           for (const auto &dep : group_md.query_read_set().deps()) {
-              blake3_hasher_update(&hasher, (unsigned char *) &dep.write().prepared_txn_digest()[0],
-                dep.write().prepared_txn_digest().length());
+              blake3_hasher_update(&hasher, (unsigned char *) &dep.write().prepared_txn_digest()[0], dep.write().prepared_txn_digest().length());
+          }
+          for(const auto &pred: group_md.query_read_set().read_predicates()){
+              blake3_hasher_update(&hasher, (unsigned char *) &pred.table_name()[0], pred.table_name().length()); 
+              uint64_t readtimeId = pred.table_version().id();
+              uint64_t readtimeTs = pred.table_version().timestamp();
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(readtimeId));
+              blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
+              for(auto const &instance: pred.instantiations()){
+                for(auto const &col_value: instance.col_values()){
+                  blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+                }  
+              }
           }
         }
       }
     }
+    //Hash read_predicates directly (in case was merged by client already)
+    for(const auto &pred: txn.read_predicates()){
+      blake3_hasher_update(&hasher, (unsigned char *) &pred.table_name()[0], pred.table_name().length()); 
+      uint64_t readtimeId = pred.table_version().id();
+      uint64_t readtimeTs = pred.table_version().timestamp();
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(readtimeId));
+      blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(readtimeTs));
+      for(auto const &instance: pred.instantiations()){
+        for(auto const &col_value: instance.col_values()){
+          blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+        }  
+      }
+    }
 
-  
+
     //Account for TableWrites too: 
     //Protobuf Map has undefined order; in particular, every INSTANCE of the object could have a different order 
     //=> must sort to be deterministic. BLAKE3 hash is not commutative, the order matters
@@ -1884,7 +1903,11 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
       blake3_hasher_update(&hasher, (unsigned char *) &(*table)[0], table->length());
 
       for(const auto &row: table_write->rows()){
-          if(row.has_deletion()) blake3_hasher_update(&hasher, (void *) row.deletion(), sizeof(row.deletion()));
+          if(row.has_deletion()){
+            // bool del = row.deletion();
+            // blake3_hasher_update(&hasher, (unsigned char *) &del, sizeof(del));
+            blake3_hasher_update(&hasher, &(const unsigned char &) row.deletion(), sizeof(row.deletion()));
+          }
           for(const auto &val: row.column_values()){
             blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
           }
@@ -1969,11 +1992,26 @@ std::string generateReadSetSingleHash(const proto::ReadSet &query_read_set) {
       blake3_hasher_update(&hasher, (unsigned char *) &readtimeId, sizeof(read.readtime().id()));
       blake3_hasher_update(&hasher, (unsigned char *) &readtimeTs, sizeof(read.readtime().timestamp()));
   }
+
+  //Note: Dependencies do not need to be hashed
+
+  //hash the read_predicates
+  for (auto const &pred: query_read_set.read_predicates()){
+    //Note: Table Version need not match.
+     //Note: Technicaly don't need to hash instantiations either. 
+      //If there is more than 1 then it is a right join clause. In that case, the result/read-set already uniquely captures this pred set, and the client could set it himself...
+      for(auto const &instance: pred.instantiations()){
+        for(auto const &col_value: instance.col_values()){
+          blake3_hasher_update(&hasher, (unsigned char *) &col_value[0], col_value.length());
+        }  
+      }
+    //Everything else in the predicate (table name, where clause is nothing the replica computed -- the client input it so it already knows it.)
+  }
+
    // copy the digest into the output array
   blake3_hasher_finalize(&hasher, (unsigned char *) &hash_chain[0], BLAKE3_OUT_LEN);
   return hash_chain;
 }
-
 
 std::string generateReadSetSingleHash(const std::map<std::string, TimestampMessage> &read_set) { 
 
@@ -2070,7 +2108,7 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength) {
 }
 
 //FIXME: This Function is not taking into account the Timestamps. TODO: Add the timestamp checks (like in concurrencycontrol.cc)
-bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) {
+bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) { //a is the conflict proof, b the current txn
   for (const auto &ra : a.read_set()) {
     std::cerr << "a key: " << ra.key() << std::endl;
     for (const auto &wb : b.write_set()) {
@@ -2099,6 +2137,10 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
   if(a.merged_read_set().read_set_size() > a.read_set_size()) return true; //If the conflict TX has a merged read set that we aren't checking
   if(b.query_set().size() > 0) return true; //Or our TX has some query read set that may be cached and not accessible...
             //TODO: We cannot accept a singular replica Abort Vote when caching read set. We must wait for f+1...
+
+  //TODO: Add support for conflict detection when using predicates.. (check all read preds vs writes, and vice versa)
+  //FIXME: For now just allow to pass.
+  if(a.query_set().size() > 0) return true;
 
   //Note: There should be no write/write conflicts
   // for (const auto &wa : a.write_set()) {

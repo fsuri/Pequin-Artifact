@@ -40,8 +40,9 @@ namespace pequinstore {
 
 class TableStore {
     public:
-        TableStore() {};
-        TableStore(std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred) {
+        TableStore(): sql_interpreter(nullptr) {};
+        TableStore(const QueryParameters *query_params, std::string &table_registry_path, find_table_version &&find_table_version, read_prepared_pred &&read_prepared_pred):
+            query_params(query_params), sql_interpreter(query_params) {
             sql_interpreter.RegisterTables(table_registry_path);
             record_table_version = std::move(find_table_version);
             can_read_prepared = std::move(read_prepared_pred);
@@ -71,7 +72,7 @@ class TableStore {
         //Backend specific implementations
 
         //Execute a statement directly on the Table backend, no questions asked, no output
-        virtual void ExecRaw(const std::string &sql_statement) = 0;
+        virtual void ExecRaw(const std::string &sql_statement, bool skip_cache = true) = 0;
 
         virtual void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) = 0;
 
@@ -107,6 +108,7 @@ class TableStore {
         // virtual std::string ExecReadOnSnapshot(const std::string &query_id, std::string &query_statement, const Timestamp &ts, QueryReadSetMgr &readSetMgr, bool abort_early = false) = 0; 
 
 
+        const QueryParameters *query_params;
         find_table_version record_table_version;  //void function that finds current table version  ==> set bool accordingly whether using for read set or snapshot. Set un-used manager to nullptr
         read_prepared_pred can_read_prepared; //bool function to determine whether or not to read prepared row
         SQLTransformer sql_interpreter;

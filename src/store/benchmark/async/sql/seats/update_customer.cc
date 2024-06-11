@@ -4,9 +4,11 @@
 
 namespace seats_sql {
 
-SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen) 
-    : SEATSSQLTransaction(timeout) {
-        c_id = std::uniform_int_distribution<int64_t>(1, NUM_CUSTOMERS)(gen); //FIXME: Original bench tries to select customer based on airports.
+SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) 
+    : SEATSSQLTransaction(timeout), profile(profile) {
+
+        c_id = profile.getRandomCustomerId();
+
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_UPDATE_WITH_CUSTOMER_ID_STR) {
             c_id_str = std::to_string(c_id);
             c_id = NULL_ID;

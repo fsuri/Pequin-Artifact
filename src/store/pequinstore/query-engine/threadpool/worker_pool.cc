@@ -13,27 +13,42 @@
 #include "../threadpool/worker_pool.h"
 
 #include "../common/logger.h"
+#include <iostream>
 
 namespace peloton {
 namespace threadpool {
 
 namespace {
 
-void WorkerFunc(std::string thread_name, std::atomic_bool *is_running,
+void WorkerFunc(size_t i, std::string thread_name, std::atomic_bool *is_running,
                 TaskQueue *task_queue) {
   constexpr auto kMinPauseTime = std::chrono::microseconds(1);
   constexpr auto kMaxPauseTime = std::chrono::microseconds(1000);
 
   LOG_INFO("Thread %s starting ...", thread_name.c_str());
 
+  //Pin Thread to core.
+  pthread_t self = pthread_self(); 
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(i, &cpuset);
+  int rc = pthread_setaffinity_np(self, sizeof(cpu_set_t), &cpuset);
+  if (rc != 0) {
+    std::cerr << "Error calling pthread_setaffinity_np: " << rc << std::endl;
+    exit(0);
+  }
+  //
+
   auto pause_time = kMinPauseTime;
   while (is_running->load() || !task_queue->IsEmpty()) {
     std::function<void()> task;
     if (!task_queue->Dequeue(task)) {
       // Polling with exponential back-off
+      //std::cerr << "Sleeping for " << pause_time.count() << " us" << std::endl; //TODO: Instead of sleeping, should use the blocking moodycamel call "try_dequeue"
       std::this_thread::sleep_for(pause_time);
       pause_time = std::min(pause_time * 2, kMaxPauseTime);
     } else {
+      std::cerr << "Thread [" << i << "] running on core: " << sched_getcpu() << std::endl;
       task();
       pause_time = kMinPauseTime;
     }
@@ -56,7 +71,7 @@ void WorkerPool::Startup() {
   if (is_running_.compare_exchange_strong(running, true)) {
     for (size_t i = 0; i < num_workers_; i++) {
       std::string name = pool_name_ + "-worker-" + std::to_string(i);
-      workers_.emplace_back(WorkerFunc, name, &is_running_, &task_queue_);
+      workers_.emplace_back(WorkerFunc, i, name, &is_running_, &task_queue_);
     }
   }
 }
