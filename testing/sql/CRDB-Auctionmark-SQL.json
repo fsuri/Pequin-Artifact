@@ -128,13 +128,13 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [1]
+    [144]
   ],
   "client_processes_per_client_node": [
     [8]
   ],
   "client_threads_per_process": [
-    [1]
+    [6]
   ],
 
   "client_nodes_per_server": 1,
@@ -288,7 +288,7 @@
   "output_latency_scale": 1000,
   "_src_commit_hash": "threadpool_test",
   "stats_file_name": "stats.json",
-  "base_local_exp_directory":  "/home/liam/Code/Pequin-Artifact/output",
+  "base_local_exp_directory":  "/users/liam0215/Pequin-Artifact/output",
   "base_mounted_fs_path": "/mnt/extra",
   "base_remote_bin_directory_nfs": "/users/liam0215/indicus",
   "base_remote_exp_directory": "/mnt/extra/experiments",
@@ -303,7 +303,7 @@
   "out_directory_name": "out",
   "server_bin_name": "server",
   "server_port": 7087,
-  "src_directory": "/home/liam/Code/Pequin-Artifact/src",
+  "src_directory": "/users/liam0215/Pequin-Artifact/src",
   "make_collect_bins": [
     "store/benchmark/async/benchmark",
     "store/server"

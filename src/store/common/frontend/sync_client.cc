@@ -63,6 +63,9 @@ void SyncClient::Get(const std::string &key, uint32_t timeout) {
 void SyncClient::Wait(std::vector<std::string> &values) {
   //values.clear(); //TODO: Add this for safekeeping -- not sure if existing code cared about it.
   for (auto promise : getPromises) {
+    if (promise->GetReply() > 0) {
+      throw std::exception();
+    }
     values.push_back(promise->GetValue());
     delete promise;
   }

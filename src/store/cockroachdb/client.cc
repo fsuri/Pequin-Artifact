@@ -243,14 +243,21 @@ void Client::Write(std::string &write_statement, write_callback wcb,
         return conn->execute(write_statement);
     }();
      stats.Increment("writes_issued", 1);
-    // TODO handle qcb
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
     wcb(REPLY_OK, tao_res);
   } catch (const tao::pq::integrity_constraint_violation &e) {
+    std::cerr << "Tx write integrity constraint violation" << '\n';
+    std::cerr << e.what() << '\n';
     auto result = new taopq_wrapper::TaoPQQueryResultWrapper();
     wcb(REPLY_OK, result);
   } catch (const tao::pq::transaction_rollback &e) {
+    std::cerr << "Tx write transaction rollback" << std::endl;
+    std::cerr << e.what() << std::endl;
+    if (tr != nullptr) {
+      tr->rollback();
+      tr = nullptr;
+    }
     wcb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {
     std::cerr << "Tx write failed" << '\n';
@@ -269,8 +276,13 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
      stats.Increment("num_commit", 1);
     ccb(COMMITTED);
   } catch (const std::exception &e) {
-    ////std::cerr << e.what() << '\n';
-     stats.Increment("num_aborts", 1);
+    std::cerr << "Tx commit failed" << std::endl;
+    std::string error_message = e.what();
+    std::cerr << error_message << std::endl;
+    if (error_message.find("restart transaction") != std::string::npos) {
+        tr = nullptr;
+    }
+    stats.Increment("num_aborts", 1);
     ccb(ABORTED_SYSTEM);
   }
 }

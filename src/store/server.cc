@@ -913,7 +913,7 @@ int main(int argc, char **argv) {
     Notice("Starting CRDB Server Object");
     server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
                                       FLAGS_replica_idx, FLAGS_num_shards,
-                                      FLAGS_num_groups);
+                                      FLAGS_num_groups, FLAGS_data_file_path);
     Notice("Finished creating CRDB Server Object");
     break;
   }

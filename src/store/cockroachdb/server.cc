@@ -31,7 +31,7 @@ void Server::exec_sql(std::string sql) {
 }
 
 Server::Server(const transport::Configuration &config, KeyManager *keyManager,
-               int groupIdx, int idx, int numShards, int numGroups)
+               int groupIdx, int idx, int numShards, int numGroups, std::string &table_registry_path)
     : config(config),
       keyManager(keyManager),
       groupIdx(groupIdx),
@@ -62,7 +62,7 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
   }
   host = std::string(host_name);
   system("pkill -9 -f \"cockroach start\"");
-
+  system("pkill -9 -f \"python3 -m http.server\"");
   /**
    * --advertise-addr determines which address to tell other nodes to use.
    * --listen-addr determines which address(es) to listen on for connections
@@ -156,6 +156,15 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     Notice("Invoke proxy script: %s", proxy_cmd.c_str());
     status = system(proxy_cmd.c_str());
   }
+
+  auto registry_path = std::filesystem::path(table_registry_path);
+  if (registry_path.has_filename()) {
+    registry_path.remove_filename();
+  }
+  std::string registry_path_string = registry_path;
+  std::string file_server_cmd = "cd " + registry_path_string + "; python3 -m http.server 3000 &";
+  status = system(file_server_cmd.c_str());
+  Notice("File server started on port 3000 at path: %s", registry_path_string.c_str());
 }
 
 void Server::Load(const string &key, const string &value,
@@ -204,12 +213,9 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
   // https://www.cockroachlabs.com/docs/v22.2/use-a-local-file-server
   // data path should be a url
   if (id == numGroups * config.n - 1) {
-    std::string file_server_path = std::filesystem::path(table_data_path).remove_filename();
-    std::string file_server_cmd = "cd " + file_server_path + "; python3 -m http.server 3000 &";
-    int status = system(file_server_cmd.c_str());
-    Notice("File server started on port 3000");
-
     std::string table_file_name = std::filesystem::path(table_data_path).filename();
+    auto parent_path = std::filesystem::path(table_data_path).parent_path();
+    std::string parent_dir = parent_path.filename();
     std::string table_column_name;
     for (auto &[col, type] : column_names_and_types) {
       table_column_name += "" + col + ",";
@@ -220,16 +226,14 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
     std::string copy_table_statement_crdb = fmt::format(
         "IMPORT INTO {0} ({1}) CSV DATA "
-        "(\'http://localhost:3000/{2}\') "
+        "(\'http://localhost:3000/{2}/{3}\') "
         "WITH skip = \'1\'",
         table_name, table_column_name,
-        table_file_name);  // FIXME: does one need to specify column names?
-                          // Target columns don't appear to be enforced
+        parent_dir, table_file_name);
 
     Notice("Load Table Data for table: %s", table_name.c_str());
     exec_sql(copy_table_statement_crdb);
     stats.Increment("TablesLoaded", 1);
-    system("pkill -f \"python3 -m http.server\"");
   }
 }
 

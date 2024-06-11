@@ -19,7 +19,7 @@ namespace cockroachdb {
 class Server : public ::Server {
  public:
   Server(const transport::Configuration &config, KeyManager *keyManager,
-         int groupIdx, int idx, int numShards, int numGroups);
+         int groupIdx, int idx, int numShards, int numGroups, std::string &table_registry_path);
   ~Server();
   void Load(const string &key, const string &value, const Timestamp timestamp);
 
