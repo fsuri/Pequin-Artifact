@@ -102,6 +102,7 @@ public:
   std::unordered_map<uint64_t, std::string> bStatNames;
 
   int proposedCounter;
+  bool firstReceive;
   
   bool EbatchTimerRunning;
   int EbatchTimerId;

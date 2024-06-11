@@ -54,7 +54,7 @@
       "sig_batch": 2,
       "sig_batch_timeout": 4,
       "ebatch_size": 1,
-      "ebatch_tout": 10,
+      "ebatch_tout": 2,
       "multi_threading": true,
 	  "mainThreadDispatching": false,
 	  "dispatchMessageReceive": false,
@@ -79,7 +79,7 @@
   ],
 
   "client_total": [
-    [10]
+    [1]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -90,13 +90,13 @@
   "client_nodes_per_server": 1,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "client_debug_output": "store/hotstuffpg/*",
-  "server_debug_output": "store/hotstuffpg/*",
+  "client_debug_output": "store/hotstuffpgstore/*",
+  "server_debug_output": "store/hotstuffpgstore/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 100,
-  "client_ramp_down": 10,
-  "client_ramp_up": 10,
+  "client_experiment_length": 20,
+  "client_ramp_down": 5,
+  "client_ramp_up": 5,
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",

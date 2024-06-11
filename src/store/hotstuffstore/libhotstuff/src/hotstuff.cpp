@@ -521,6 +521,18 @@ void HotStuffBase::do_consensus(const block_t &blk) {
 void HotStuffBase::do_decide(Finality &&fin) {
     part_decided++;
     state_machine_execute(fin);
+
+
+
+    // struct timeval tv;
+    // gettimeofday(&tv, nullptr);
+    // struct tm *tm = localtime(&tv.tv_sec);
+    // fprintf(stderr,
+    //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: in do decide for cmd_idx, cmd_height: %d ,%d \n",
+    //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
+    //     tm->tm_hour, tm->tm_min, tm->tm_sec,
+    //     (int)(tv.tv_usec / 100), getpid(),fin.cmd_idx, fin.cmd_height);
+
     auto it = decision_waiting.find(fin.cmd_hash);
     if (it != decision_waiting.end())
     {
@@ -652,6 +664,17 @@ void HotStuffBase::start(
 
     exec_pending.reg_handler(ec, [this](exec_queue_t &q) {
         std::pair<commit_cb_t, Finality> e;
+
+        // struct timeval tv;
+        // gettimeofday(&tv, nullptr);
+        // struct tm *tm = localtime(&tv.tv_sec);
+        // fprintf(stderr,
+        //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: new in exec_pending\n",
+        //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
+        //     tm->tm_hour, tm->tm_min, tm->tm_sec,
+        //     (int)(tv.tv_usec / 100), getpid());
+
+
         while (q.try_dequeue(e))
         {
             // execute the command
@@ -672,6 +695,18 @@ void HotStuffBase::start(
             if (decision_made.count(cmd_hash)) {
                 // command has been committed
                 auto seqinfo = decision_made[cmd_hash];
+
+
+                // struct timeval tv;
+                // gettimeofday(&tv, nullptr);
+                // struct tm *tm = localtime(&tv.tv_sec);
+                // fprintf(stderr,
+                //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: new in committed txn index, height: %d, %d\n",
+                //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
+                //     tm->tm_hour, tm->tm_min, tm->tm_sec,
+                //     (int)(tv.tv_usec / 100), getpid(), seqinfo.first, seqinfo.second);
+
+                    
                 //e.second(Finality(id, 0, 0, height, cmd_hash, uint256_t()));
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, seqinfo.first, seqinfo.second, cmd_hash, uint256_t())));
                 continue;

@@ -265,17 +265,11 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             
             ## set-up dbs for pg-smr
             if config['replication_protocol'] == 'hotstuffpg':
-                print("66666666666666666666666666666666666666666666666666666666")
                 print("Shir: setting up databases for postgres usage")
-                # Dropping old pg cluster (if exists)
-                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
-                run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r;'
                 # Creating a single db per machine
-                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
-                run_remote_command_sync(cmd8, config['emulab_user'], server_host)
-                print("Waiting for the setup")
-
-                time.sleep(config['server_load_time'])
+                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1;'
+                cmd = cmd7 + cmd8 +cmd
 
 
             ##
