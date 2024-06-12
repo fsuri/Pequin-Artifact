@@ -20,15 +20,29 @@ display_banner() {
 }
 
 
+setting_db() {
+    local dbname="$1"
+    echo "Setting $dbname:"
+    su - $USER -c "echo \"SELECT 'CREATE DATABASE $dbname' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$dbname')\gexec\" | psql"
+    su - $USER -c "echo \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pequin_user\" | psql -d $dbname"
+    su - $USER -c "echo \"alter default privileges in schema public grant all on tables to pequin_user; alter default privileges in schema public grant all on sequences to pequin_user;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET DEFAULT_TRANSACTION_ISOLATION TO SERIALIZABLE ;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET lock_timeout = 100 ;\" | psql -d $dbname"
+}
+
+
 unistall_flag=false
 drop_postgres_cluster=false
 db_num=1
-
+reset_cluster=false
 
 # Parse command-line options
 # while test $# != 0; do
 #     case "$1" in
-while getopts 'urn:v' flag; do
+while getopts 'urscn:v' flag; do
     case "${flag}" in
     u) 
         read -r -p "Are you sure you want to uninstall postgres? [y/N] " response
@@ -46,7 +60,22 @@ while getopts 'urn:v' flag; do
         drop_postgres_cluster=true
         echo "Dropping existing postgres clusters"
         ;;
+    s) 
+        reset_cluster=true
+        echo "Trying to reset the cluster"
+        ;;
     
+    c)   # Cloud lab option: if things still exist: just reset, and otherwise create db
+        echo "Preparing cloudlab for exp."
+        output="$(pg_lsclusters -h)"
+        if [[ -n $output ]] ; then
+            echo "A cluster already exists, just reset it"
+            reset_cluster=true
+        else
+            echo "No cluster exists, moving on to creating pgdata cluster with 1 db"
+        fi
+        ;;
+
     n)
         db_num=$2
         echo "Setting up $db_num databases"
@@ -85,6 +114,24 @@ if [ "$drop_postgres_cluster" = true ] ; then
     else
         sudo rm -rf $DATA
     fi
+    exit 1
+fi
+
+### reseting the cluster by deleting and recreating the public schema
+if [ "$reset_cluster" = true ] ; then
+    display_banner "Reseting Postgres Cluster" 
+
+    output=$(su - $USER -c "echo \"SELECT datname FROM pg_database ;\" | psql")
+
+    # Remove all dbs with name db*
+    echo "$output" | grep -oE '\bdb\w*' | while read -r dbname; do
+
+        echo "Dropping database $dbname"
+        su - $USER -c "echo \" DROP DATABASE IF EXISTS \"$dbname\";\" | psql"
+
+        setting_db $dbname
+
+    done
     exit 1
 fi
 
@@ -139,15 +186,7 @@ else
     # Setting the databases
     for i in $(seq 1 $db_num);
     do
-        echo "Setting db$i:"
-        su - $USER -c "echo \"SELECT 'CREATE DATABASE db$i' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'db$i')\gexec\" | psql"
-        su - $USER -c "echo \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pequin_user\" | psql -d db$i"
-        su - $USER -c "echo \"alter default privileges in schema public grant all on tables to pequin_user; alter default privileges in schema public grant all on sequences to pequin_user;\" | psql -d db$i"
-        su - $USER -c "echo \"ALTER DATABASE db$i SET DEFAULT_TRANSACTION_ISOLATION TO SERIALIZABLE ;\" | psql -d db$i"
-        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d db$i"
-        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d db$i"
-        su - $USER -c "echo \"ALTER DATABASE db$i SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d db$i"
-        su - $USER -c "echo \"ALTER DATABASE db$i SET lock_timeout = 100 ;\" | psql -d db$i"
+        setting_db db$i
     done
 
 fi
