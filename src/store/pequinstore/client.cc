@@ -329,8 +329,8 @@ void Client::Write(std::string &write_statement, write_callback wcb,
           // } 
 
        
-      //FIXME: Just for testing currently:
-      if(point_target_group != 0) Panic("Trying to use a Shard other than 0");  
+      //if(point_target_group != 0) Panic("Trying to use a Shard other than 0");  //FIXME: Just for testing currently:
+
       if (!IsParticipant(point_target_group)) {
         txn.add_involved_groups(point_target_group);
         bclient[point_target_group]->Begin(client_seq_num);
@@ -447,6 +447,18 @@ void Client::Query(const std::string &query, query_callback qcb,
       std::string encoded_key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
       auto itr = point_read_cache.find(encoded_key);
       if(itr != point_read_cache.end()){
+
+          if(PROFILING_LAT){
+            struct timespec ts_start;
+            clock_gettime(CLOCK_MONOTONIC, &ts_start);
+            uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+            
+            //Should not take more than 1 ms (already generous) to parse and prepare.
+            auto duration = query_end_ms - query_start_times[query_seq_num];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
+            Warning("PointQuery[%d] Cache latency in ms [%d]. in us [%d]", query_seq_num, duration/1000, duration);
+        }
+
+
         Debug("Supply point query result from cache! (Query seq: %d)", query_seq_num);
         auto res = new sql::QueryResultProtoWrapper(itr->second);
         qcb(REPLY_OK, res);
@@ -462,8 +474,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     //Invoke partitioner function to figure out which group/shard we need to request from. 
     int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
-    //FIXME: Just for testing currently:
-    if(target_group != 0) Panic("Trying to use a Shard other than 0");
+    //if(target_group != 0) Panic("Trying to use a Shard other than 0");   //FIXME: Remove: Just for testing single-shard setup currently
 
     std::vector<uint64_t> involved_groups = {target_group};
     pendingQuery->SetInvolvedGroups(involved_groups);
@@ -493,11 +504,13 @@ void Client::Query(const std::string &query, query_callback qcb,
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
+      stats.Increment("PointQueryAttempts", 1);
     }
     else{
       rcb = std::bind(&Client::QueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
+      stats.Increment("QueryAttempts", 1);
     }
 
 

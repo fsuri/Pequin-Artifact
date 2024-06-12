@@ -916,8 +916,9 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 
 
 // Apply a set of Table Writes (versioned row creations) to the Table backend
-void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest,
+bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest,
                                         const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize) {
+  bool this_shard_has_writes = false;
 
   //return; //FIXME: REMOVE. Currently testing how much isolated impact this has.
                                         
@@ -942,7 +943,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
   Debug("Apply TableWrite[%s] for txn %s. TS [%lu:%lu]. Commit? %d. ForceMat? %d", table_name.c_str(), BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), commit_or_prepare, forceMaterialize);
 
-  if (table_write.rows().empty()) return;
+  if (table_write.rows().empty()) return false;
 
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
@@ -966,6 +967,7 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
   // Execute Write Statement
   if (!write_statement.empty()) {
+    this_shard_has_writes = true;
 
     //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
 
@@ -1022,6 +1024,8 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
   // if (!delete_statement.empty()) {
   for (auto &delete_statement : delete_statements) { // TODO: Find a way to parallelize these statement calls (they don't conflict)
+    this_shard_has_writes = true;
+
     Notice("Delete statement: %s", delete_statement.c_str());
     Debug("Delete statement: %s. Commit/Prepare: %d", delete_statement.c_str(), commit_or_prepare);
     if(commit_or_prepare) UW_ASSERT(commit_proof);
@@ -1051,6 +1055,8 @@ void PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // Debug("getCPU says on core: %d", sched_getcpu());
   // UW_ASSERT(core == sched_getcpu());
   Latency_End(&writeLats[core]);
+
+  return this_shard_has_writes;
 }
 
 void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest) {

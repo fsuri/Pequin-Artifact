@@ -209,7 +209,7 @@ void ToyTableStore::ExecPointRead(
 // * or specific cols...
 
 // Apply a set of Table Writes (versioned row creations) to the Table backend
-void ToyTableStore::ApplyTableWrite(const std::string &table_name,
+bool ToyTableStore::ApplyTableWrite(const std::string &table_name,
                                     const TableWrite &table_write,
                                     const Timestamp &ts,
                                     const std::string &txn_digest,
@@ -217,6 +217,7 @@ void ToyTableStore::ApplyTableWrite(const std::string &table_name,
                                     bool commit_or_prepare,
                                     bool forcedMaterialize) {
   std::cerr << "APPLY TABLE WRITE ON TOY INTERFACE" << std::endl;
+  return true;
 }
 
 void ToyTableStore::PurgeTableWrite(const std::string &table_name,

@@ -566,6 +566,7 @@ int main(int argc, char **argv) {
     case WAREHOUSE:
     {
       if(FLAGS_sql_bench){
+        Notice("Using WarehouseSQLPartitioner");
         part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, unused);
       }
       else{
@@ -931,7 +932,7 @@ int main(int argc, char **argv) {
   //SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
   bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
-  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2)
+  //if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2) NOTE: obsolete, since we don't use Peloton Tpool anymore.
      // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
      //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
 	if(FLAGS_indicus_multi_threading && pinned_protocol){

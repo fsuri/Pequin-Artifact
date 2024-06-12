@@ -528,15 +528,19 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 
 
 //Note: for Multi-shard TXs only want to write the rows that are relevant to the shard managed by this replica. The ownership logic happens inside the sql_interpreter GenerateWriteSatement logic.
-void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+std::vector<std::string> Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 
     Debug("Apply all TableWrites for Txn[%s]. TS[%lu:%lu]. ForceMat? %d", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), forceMaterialize);
 
+    std::vector<std::string> locally_relevant_tables; //contains the set of tables for which the TXN contained updates that were relevant to the local shard. 
+                                                      //E.g. if this shard only holds warehouse w_id=1, but the write was to w_id=2, then we won't record an updated TableVersion.
+
     //TODO: Parallelize application of each table's writes. Note: This requires multi-threading + callback to ensure synchronous join
         //Not urgent: Realistically most transactions do not touch that many tables...
     for (const auto &[table_name, table_write] : txn.table_writes()){
-        table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
+        bool this_shard_has_writes = table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
+        if(this_shard_has_writes) locally_relevant_tables.push_back(EncodeTable(table_name));
     }
 
     materializedMap::accessor mat;
@@ -547,6 +551,8 @@ void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts
 
     //Wake any queries waiting for materialization of Txn:
     CheckWaitingQueries(txn_digest, ts.getTimestamp(), ts.getID());  
+
+    return locally_relevant_tables;
 }
 
 //DEPRECATED:

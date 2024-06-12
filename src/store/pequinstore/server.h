@@ -502,7 +502,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 
     //Materialization
-    void ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+    std::vector<std::string> ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
     // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
     //             const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);

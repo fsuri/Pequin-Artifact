@@ -10,22 +10,22 @@
   ],
   "replication_protocol": ["pequin"],
   "client_protocol_mode": ["pequin"],
-  "num_shards": [1],
-  "num_groups": [1],
+  "num_shards": [3],
+  "num_groups": [3],
   
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-   "_NOTE: Set this to 13 if using 1 warehouse + ASAN. 60 if ASAN true":false,
-   "server_load_time": 15,
+   "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true":false,
+   "server_load_time": 5,
    "_server_load_time": 52,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 5,
+	  "tpcc_num_warehouses": 3,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -121,14 +121,14 @@
 		  "eager_plus_snapshot": true,
 		   
 		  "query_read_prepared": true,
-		  "query_cache_read_set": true,
+		  "query_cache_read_set": false,
 		  "query_merge_active_at_client": true,
 		  
 		  "query_optimistic_txid": true,
 		  "query_compress_optimistic_txid": false,
 		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 100,
+		  "monotonicity_grace": 50,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,
@@ -141,7 +141,7 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [30]
+    [1]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -160,18 +160,37 @@
   "_server_debug_output": "store/pequinstore/concurrencycontrol*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 23,
-  "client_ramp_down": 7,
-  "client_ramp_up": 5,
+  
+  "client_experiment_length": 13,
+  "client_ramp_down": 2,
+  "client_ramp_up": 3,
+  
   "default_remote_shell": "bash",
-  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
   "project_name": "pequin-pg0",
   "fault_tolerance": 1,
-  "server_names": [
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
+	
+  ],
+
+  "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+    }
+  ],
+  
+  "server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "eu-central-1-0", "eu-central-1-1", "eu-central-1-2", "ap-southeast-2-0",
+    "ap-southeast-2-1", "ap-southeast-2-2"] 
 	
   ],
 
@@ -179,7 +198,12 @@
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
+      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
+        "ap-northeast-1-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"],
+"eu-central-1": ["eu-central-1-0", "eu-central-1-1", "eu-central-1-2"],
+      "ap-southeast-2": ["ap-southeast-2-0", "ap-southeast-2-1", "ap-southeast-2-2"]
     }
   ],
 

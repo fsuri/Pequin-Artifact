@@ -253,17 +253,20 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(queryMetaDataMap::const_a
 
       if(!cached_queryResult.has_query_read_set()){
         Debug("Cached QueryFailure for current query version;");
+         stats.Increment("cached_read_set_missing", 1);
         return proto::ConcurrencyControl::ABSTAIN;
       } 
 
       if(cached_query_md->failure){
         Debug("Cached QueryFailure for current query version");
+         stats.Increment("cached_read_set_failure", 1);
         return proto::ConcurrencyControl::ABSTAIN; //Replica has already previously voted to abstain by reporting an exec failure (conflicting tx already committed, or sync request aborted) -- choice won't change
       } 
  
       if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
         Debug("Txn[%s]. Query[%s].Cached wrong read-set %s. Require %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(query_md.query_id(), 16).c_str(),
                 BytesToHex(cached_queryResult.query_result_hash(), 16).c_str(), BytesToHex(query_group_md->read_set_hash(), 16).c_str());
+        stats.Increment("cached_read_set_different", 1);
         return proto::ConcurrencyControl::ABSTAIN;
       } 
      
@@ -643,7 +646,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(!CheckMonotonicTableColVersions(txnDigest, txn)){
         Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
         stats.Increment("cc_abstains", 1);
-        stats.Increment("cc_abstains_monotonic", 1);
+        stats.Increment("cc_abstains_non_monotonic", 1);
         return proto::ConcurrencyControl::ABSTAIN;  
       }
     }

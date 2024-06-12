@@ -564,6 +564,8 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['benchmark_name'] == 'rw-sql':
             replica_command += ' --num_tables %d' % config['num_tables']
             replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+        elif config['benchmark_name'] == 'tpcc-sql':
+             replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         
         
        
