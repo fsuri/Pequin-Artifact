@@ -66,7 +66,8 @@ class Client : public ::Client {
   virtual void Abort(abort_callback acb, abort_timeout_callback atcb,
                      uint32_t timeout) override;
 
-  // inline const Stats &GetStats() const { return stats; }
+//   virtual void SQLRequest(std::string &statement, sql_callback scb,
+//     sql_timeout_callback stcb, uint32_t timeout) override;
 
   virtual void Query(const std::string &query_statement, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override;

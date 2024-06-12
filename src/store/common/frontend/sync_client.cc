@@ -63,9 +63,6 @@ void SyncClient::Get(const std::string &key, uint32_t timeout) {
 void SyncClient::Wait(std::vector<std::string> &values) {
   //values.clear(); //TODO: Add this for safekeeping -- not sure if existing code cared about it.
   for (auto promise : getPromises) {
-    if (promise->GetReply() > 0) {
-      throw std::exception();
-    }
     values.push_back(promise->GetValue());
     delete promise;
   }
@@ -193,7 +190,9 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
  
   for (auto &promise : queryPromises) {
     try{
+      std::cerr << "About to call ReleaseQueryResult" << std::endl;
       values.push_back(promise->ReleaseQueryResult());
+      std::cerr << "Done releasing query result" << std::endl;
     }
     catch(...){
       std::cerr << "CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE" << std::endl;

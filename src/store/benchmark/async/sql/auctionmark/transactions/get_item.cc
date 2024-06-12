@@ -70,11 +70,13 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   //                         "FROM {} INNER JOIN {} ON u_r_id = r_id WHERE u_id = '{}' AND r_id = r_id",  TABLE_USERACCT, TABLE_REGION, seller_id);                
   client.Query(statement, timeout);
 
+  std::cerr << "about to call wait" << std::endl;
   client.Wait(results);
-
+  std::cerr << "done waiting in get item" << std::endl;
   //Panic("stop after first get_item");
 
-  if(results[0]->empty() || results[1]->empty()){
+  if(results[0]->empty() || results[1]->empty()) {
+    Debug("Results empty, aborting GET ITEM");
     client.Abort(timeout);
     return ABORTED_USER;
   } 

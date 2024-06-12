@@ -145,7 +145,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     return ABORTED_USER;
   }
 
-UW_ASSERT(iir.ib_id == max_bid);
+  UW_ASSERT(iir.ib_id == max_bid);
   //std::string getBuyerInfo = fmt::format("SELECT u_id, u_balance FROM {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
 
   // Set item_purchase_id
@@ -169,7 +169,7 @@ UW_ASSERT(iir.ib_id == max_bid);
 
   // Update item status to close
   std::string updateItem = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, ItemStatus::CLOSED, current_time, item_id, seller_id);
-   client.Write(updateItem, timeout, true);
+  client.Write(updateItem, timeout, true);
 
 
   std::string updateUserBalance = "UPDATE " + std::string(TABLE_USERACCT) + " SET u_balance = u_balance + {} WHERE u_id = '{}'";
