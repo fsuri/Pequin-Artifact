@@ -67,6 +67,8 @@
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
+// Postgres store
+#include "store/postgresstore/server.h"
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/indicusstore/common.h"
@@ -94,7 +96,9 @@ enum protocol_t {
     // BftSmart
     PROTO_BFTSMART,
     // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART
+		PROTO_AUGUSTUS_SMART,
+    // Postgres
+    PROTO_PG
 };
 
 enum transmode_t {
@@ -138,7 +142,8 @@ const std::string protocol_args[] = {
     "hotstuff",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
+	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+  "pg",
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -150,7 +155,8 @@ const protocol_t protos[] {
       PROTO_HOTSTUFF,
       PROTO_AUGUSTUS,
       PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART
+			PROTO_AUGUSTUS_SMART,
+      PROTO_PG
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -433,7 +439,7 @@ DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false 
  * Benchmark settings.
  */
 DEFINE_string(keys_path, "", "path to file containing keys in the system");
-DEFINE_uint64(num_keys, 0, "number of keys to generate");
+DEFINE_uint64(num_keys, 1, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
 DEFINE_uint64(num_tables, 1, "number of tables to generate");
@@ -657,7 +663,7 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config.n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
+  std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
   keyManager.PreLoadPubKeys(true);
 
@@ -689,6 +695,7 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
+      case PROTO_PG:
         break;
       case PROTO_HOTSTUFF:
       case PROTO_BFTSMART:
@@ -923,6 +930,15 @@ int main(int argc, char **argv) {
 		break;
 	}
 
+  case PROTO_PG: {
+    bool FLAGS_local_config = false;
+    server = new postgresstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+    break;
+  }
+
   default: {
       NOT_REACHABLE();
   }
@@ -995,7 +1011,7 @@ int main(int argc, char **argv) {
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
      UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
      Notice("Benchmark: SQL with Loaded Table Registry");
-       std::ifstream generated_tables(FLAGS_data_file_path);
+     std::ifstream generated_tables(FLAGS_data_file_path);
        json tables_to_load;
        try {
           tables_to_load = json::parse(generated_tables);

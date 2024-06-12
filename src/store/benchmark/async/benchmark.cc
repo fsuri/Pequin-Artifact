@@ -500,7 +500,7 @@ const std::string protocol_args[] = {
   "bftsmart",
 // Augustus-BFTSmart
 	"augustus",
-  "postgres"
+  "pg"
 };
 const protomode_t protomodes[] {
   PROTO_BLACKHOLE,
