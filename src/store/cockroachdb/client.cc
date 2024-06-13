@@ -129,6 +129,9 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
   Notice("Begin Transaction");
   try {
+    if (tr != nullptr) {
+      Panic("why is tr not nullptr???");
+    }
     // Create a new Tx
     tr = conn->transaction(tao::pq::isolation_level::serializable,
                            tao::pq::access_mode::read_write);
@@ -235,14 +238,16 @@ void Client::Query(const std::string &query_statement, query_callback qcb,
 
 void Client::Write(std::string &write_statement, write_callback wcb, 
   write_timeout_callback wtcb, uint32_t timeout) {
-  std::cerr << "In Write" << std::endl;
   try {
     if (tr == nullptr) {
+      std::cerr << "tr is null" << std::endl;
       wcb(REPLY_FAIL, nullptr);
       return;
     }
 
+    std::cerr << "executing write" << std::endl;
     tao::pq::result result = tr->execute(write_statement);
+    std::cerr << "finished executing write" << std::endl;
     stats.Increment("writes_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
@@ -261,6 +266,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
   } catch (const tao::pq::in_failed_sql_transaction &e) {
     std::cerr << "Tx write failed" << std::endl;
     std::cerr << e.what() << std::endl;
+    tr = nullptr;
     wcb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {
     std::cerr << "Tx write failed" << '\n';
@@ -272,12 +278,12 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 // Commit all Get(s) and Put(s) since Begin().
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
                     uint32_t timeout) {
-  std::cerr << "In Commit" << std::endl;
   try {
     tr->commit();
     tr = nullptr;
     //std::cout << "commit " << '\n';
-     stats.Increment("num_commit", 1);
+    stats.Increment("num_commit", 1);
+    std::cerr << "COMMITTED" << std::endl;
     ccb(COMMITTED);
   } catch (const std::exception &e) {
     std::cerr << "Tx commit failed" << std::endl;
@@ -304,7 +310,6 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
     std::cerr << e.what() << std::endl;
     Panic("Tx abort failed");
   }
-  
 }
 
 }  // namespace cockroachdb

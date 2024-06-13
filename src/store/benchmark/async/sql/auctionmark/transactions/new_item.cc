@@ -151,7 +151,11 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
 
   //CATEGORY
   queryResult = std::move(results[offset]);
-  UW_ASSERT(!queryResult->empty());
+  if (!queryResult->empty()) {
+    std::cerr << "category not found: " << category_id << std::endl;
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
 
   uint64_t category_p_id;
   uint64_t category_c_id;

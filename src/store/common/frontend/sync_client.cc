@@ -35,6 +35,8 @@ SyncClient::~SyncClient() {
 }
 
 void SyncClient::Begin(uint32_t timeout) {
+  asyncPromises.clear();
+  queryPromises.clear();
   Promise promise(timeout);
   client->Begin([promisePtr = &promise](uint64_t id){ promisePtr->Reply(0); },
       [](){}, timeout);
@@ -187,12 +189,11 @@ void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_re
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
   values.clear();
   bool aborted = false;
- 
+  
+  int num_promises = queryPromises.size();
   for (auto &promise : queryPromises) {
     try{
-      std::cerr << "About to call ReleaseQueryResult" << std::endl;
       values.push_back(promise->ReleaseQueryResult());
-      std::cerr << "Done releasing query result" << std::endl;
     }
     catch(...){
       std::cerr << "CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE" << std::endl;
@@ -202,6 +203,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
   }
   queryPromises.clear();
   if(aborted){
+    std::cerr << "Wait aborting, num promises: " << num_promises << std::endl;
     values.clear();
     throw std::exception(); //Propagate Abort exception
   }
@@ -210,6 +212,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
 
 void SyncClient::asyncWait() {
   bool aborted = false;
+  int num_promises = asyncPromises.size();
   for (auto promise : asyncPromises) {
     int status = promise->GetReply();
     if(status > 0) aborted = true;
@@ -217,7 +220,10 @@ void SyncClient::asyncWait() {
   }
   asyncPromises.clear();
 
-  if(aborted) throw std::exception(); //Propagate Abort exception
+  if(aborted) {
+    std::cerr << "asyncWait aborting, num promises: " << num_promises << std::endl;
+    throw std::exception(); //Propagate Abort exception
+  }
 }
 
 ///////// Callbacks

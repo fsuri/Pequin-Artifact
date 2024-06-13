@@ -146,6 +146,12 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     // Server::exec_sql(
     //     "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
     //     "TEXT NOT NULL)");
+    std::string lock_timeout_cmd = "cockroach sql --insecure --host=" + host +
+                             std::string() + ":" + port + 
+                             " --execute=\"ALTER DATABASE defaultdb SET lock_timeout = '50ms';\"" +
+                             " --user=root";
+    Notice("Issuing SQL command %s", lock_timeout_cmd.c_str());
+    status = system(lock_timeout_cmd.c_str());
   }
   if (idx == numShards - 1) {
     // If node is the last one in the group, serve as load balancer

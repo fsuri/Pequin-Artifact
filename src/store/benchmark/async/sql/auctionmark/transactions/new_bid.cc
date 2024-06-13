@@ -150,14 +150,27 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
         "AND ib_id = ib_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
         TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id, item_id, seller_id); // add redundancy.
     client.Query(statement, timeout);
-   
+    std::cerr << "about to enter wait" << std::endl;
     client.Wait(results);
+    std::cerr << "left wait" << std::endl;
 
-    deserialize(newBidId, results[0]);
+    try {
+      deserialize(newBidId, results[0]);
+    } catch (std::exception &e) {
+      std::cerr << "deserialize 1" << std::endl;
+      std::cerr << e.what() << std::endl;
+      Panic("Wtf");
+    }
     ++newBidId;
 
     getItemMaxBidRow imbr;
-    deserialize(imbr, results[1]);
+    try {
+      deserialize(imbr, results[1]);
+    } catch (std::exception &e) {
+      std::cerr << "deserialize 2" << std::endl;
+      std::cerr << e.what() << std::endl;
+      Panic("Wtf");
+    }
 
     bool updateMaxBid = false;
     // Check whether this bidder is already the max bidder

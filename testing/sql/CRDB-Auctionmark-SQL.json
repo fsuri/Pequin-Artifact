@@ -128,13 +128,13 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [144]
+    [48]
   ],
   "client_processes_per_client_node": [
     [8]
   ],
   "client_threads_per_process": [
-    [6]
+    [3]
   ],
 
   "client_nodes_per_server": 1,

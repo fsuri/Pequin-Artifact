@@ -72,11 +72,18 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
   //HACK Check whether we have an ITEM_MAX_BID record. 
-        //If not, we read via ITEM_BID only.
-        //Alternatively: If not, we'll insert one  //TODO: We must cache this in order to be able to read from it.
+  //If not, we read via ITEM_BID only.
+  //Alternatively: If not, we'll insert one  //TODO: We must cache this in order to be able to read from it.
 
   std::string getItemMaxBid = fmt::format("SELECT imb_ib_id FROM {} WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, item_id, seller_id);
   client.Query(getItemMaxBid, queryResult, timeout);
+  if (queryResult->empty()) {
+    // TODO:
+    // Panic("TODO: Take care of item max bid not existing");
+    std::cerr << "TODO: Take care of item max bid not existing in New Purchase" << std::endl;
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
   int max_bid;
   deserialize(max_bid, queryResult);
 
@@ -198,8 +205,9 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     client.Write(insertUserItem, timeout, true);
   }
 
+  std::cerr << "about to async wiat" << std::endl;
   client.asyncWait();
-
+  std::cerr << "done async waiting" << std::endl;
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);

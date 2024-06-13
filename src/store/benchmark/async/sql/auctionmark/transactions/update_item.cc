@@ -70,10 +70,15 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   std::string updateItem = fmt::format("UPDATE {} SET i_description = '{}', i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, description, current_time, item_id, seller_id);
   client.Write(updateItem, queryResult, timeout);
-  if(!queryResult->has_rows_affected()){
-    Debug("Unable to update closed auction");
-    client.Abort(timeout);
-    return ABORTED_USER;
+  try {
+    if(!queryResult->has_rows_affected()){
+      Debug("Unable to update closed auction");
+      client.Abort(timeout);
+      return ABORTED_USER;
+    }
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;;
+    Panic("What just happened?");
   }
 
   //DELETE ITEM_ATTRIBUTE
