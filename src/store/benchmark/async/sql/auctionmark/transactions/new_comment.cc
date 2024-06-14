@@ -74,11 +74,12 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_response, ic_created, ic_updated) "
                         "VALUES ({}, '{}', '{}', '{}', '{}', '', {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, current_time, current_time);
   client.Write(statement, queryResult, timeout);
-  if(queryResult->rows_affected() == 0){
-    Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
-    client.Abort(timeout);
-    return ABORTED_USER;
-  }
+  //Note: this case should not be possible unless there was a concurrency error. And if there was a concurrency error, then semantically speaking we should be retrying TX and not aborting!!
+  // if(queryResult->rows_affected() == 0){
+  //   Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
+  //   client.Abort(timeout);
+  //   return ABORTED_USER;
+  // }
 
    //updateItemComments
   statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);

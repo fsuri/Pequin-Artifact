@@ -109,6 +109,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                           TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
                                           item_id, seller_id, item_id, seller_id);
       client.Query(getItemInfo, queryResult, timeout);
+      client.asyncWait();
   }
   else{
     // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
@@ -130,6 +131,9 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                         // //The only unknown are: ib_id and u_id
     client.Query(getItemInfo, queryResult, timeout);
   }
+
+  client.Wait(results);
+
   if(queryResult->empty()){
     std::cerr << "NO MAX BID" << std::endl;
     Debug("No ITEM_MAX_BID is available record for item");
@@ -150,7 +154,7 @@ UW_ASSERT(iir.ib_id == max_bid);
 
   // Set item_purchase_id
 
-  client.Wait(results);
+ 
   //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
   if(!results[0]->empty()){
     std::cerr << "ALREADY PURCHASED" << std::endl;

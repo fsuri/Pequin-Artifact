@@ -77,11 +77,14 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
   }
 
   //DELETE ITEM_ATTRIBUTE
+  bool deleted_first_attribute = false;
   if(delete_attribute){
     std::string ia_id = GetUniqueElementId(item_id, 0);
     std::string deleteItemAttribute = fmt::format("DELETE FROM {} WHERE ia_id = '{}' AND ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, ia_id, item_id, seller_id);
     client.Write(deleteItemAttribute, queryResult, timeout);
+    if(queryResult->rows_affected() == 1) deleted_first_attribute = true;
   }
+ 
 
   //ADD ITEM_ATTRIBUTE
   if (add_attribute.size() > 0 && add_attribute[0] != "-1") {
@@ -92,12 +95,18 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
     std::string getMaxItemAttributeId = fmt::format("SELECT MAX(ia_id) FROM {} WHERE ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, item_id, seller_id);
     client.Query(getMaxItemAttributeId, queryResult, timeout);
     if(queryResult->empty()){
-      ia_id = GetUniqueElementId(item_id, 0);
+      //HACK to avoid re-using attribute ID (just to be consistent with the else case)
+      if(deleted_first_attribute) ia_id = GetUniqueElementId(item_id, 1);
+      else ia_id = GetUniqueElementId(item_id, 0);
     }
     else{
       deserialize(ia_id, queryResult);
+      //Note: Pequinstore does not yet implement read your own write semantics. (Note that in an ideal implementation, the Select staement should see the preceeding Delete)
+      //      To hack around this, we just enforce here that item attribute IDs always increase. I.e. if we had ia_id=0, but deleted it, then the new row will still be ia_id=1 
+      ia_id = GetNextElementId(ia_id); 
     }
 
+    // Can this write (Insert) be blind here? Semantically yes, because it is to a unique position (since we read the Max); if it is not unique, then Max will abort.
     std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) "
                                                   "VALUES ('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR, ia_id, item_id, seller_id, gag_id, gav_id);
     client.Write(insertItemAttribute, queryResult, timeout);

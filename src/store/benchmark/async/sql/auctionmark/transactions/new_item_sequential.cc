@@ -186,7 +186,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);
   client.Write(insertItem, queryResult, timeout);          
-  if(!queryResult->has_rows_affected()){
+  if(!queryResult->has_rows_affected()){ //Note: this shouldn't get triggered -> the above Abort check handles it.
     client.Abort(timeout);
     return ABORTED_USER;
   }                              
