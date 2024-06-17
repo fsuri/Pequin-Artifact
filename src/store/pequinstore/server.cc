@@ -2184,47 +2184,49 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  
 
-  //TODO: If this is slow -> dispatch it to be async...
-  // auto f = [this, ongoingTxn, ts, txnDigest, table_and_col_versions](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted
-  //   ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
-   
-  //   //Apply TableVersion and TableColVersion 
-  //   for(auto table_or_col_version: table_and_col_versions){   
-  //     Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
-  //     std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[*table_or_col_version];
-  //     std::unique_lock lock(x.first);
-  //     x.second.insert(pWrite);
-  //   }
-  // };
-  // transport->DispatchTP_noCB(std::move(f));
+  if(ASYNC_WRITES){
+    auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
+      UW_ASSERT(ongoingTxn);
+      std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
+    
+      //Apply TableVersion 
+      for(auto table: locally_relevant_table_changes){   //TODO: Ideally also only update Writes in RecordReadPredicatesAndWrites for the relevant table changes
+        Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
+        std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[std::move(table)];
+        std::unique_lock lock(x.first);
+        x.second.insert(pWrite);
+      }
+      return (void*) true;
+    };
+    transport->DispatchTP_noCB(std::move(f));
+  }
+  else{
+    std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
 
-  std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
-  
-  // for (const auto &[table_name, table_write] : txn.table_writes()){
-  //   ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
-  //   //Apply TableVersion  ==> currently moved below
-  //   // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
-  //   // std::unique_lock lock(x.first);
-  //   // x.second.insert(pWrite);
-  // }
+    // for (const auto &[table_name, table_write] : txn.table_writes()){
+    //   ApplyTableWrites(table_name, table_write, ts, txnDigest, nullptr, false);
+    //   //Apply TableVersion  ==> currently moved below
+    //   // std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[table_name];
+    //   // std::unique_lock lock(x.first);
+    //   // x.second.insert(pWrite);
+    // }
 
- 
-  //Apply TableVersion and TableColVersion 
-  //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
-                                                            //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
-  // for(auto table_or_col_version: table_and_col_versions){   
-  //   Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
-  //   std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[*table_or_col_version];
-  //   std::unique_lock lock(x.first);
-  //   x.second.insert(pWrite);
-  // }
-  for(auto table: locally_relevant_table_changes){   //TODO: Ideally also only update Writes in RecordReadPredicatesAndWrites for the relevant table changes
-    Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
-    std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[std::move(table)];
-    std::unique_lock lock(x.first);
-    x.second.insert(pWrite);
+    //Apply TableVersion and TableColVersion 
+    //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
+                                                              //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
+    // for(auto table_or_col_version: table_and_col_versions){   
+    //   Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
+    //   std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[*table_or_col_version];
+    //   std::unique_lock lock(x.first);
+    //   x.second.insert(pWrite);
+    // }
+    for(auto table: locally_relevant_table_changes){   //TODO: Ideally also only update Writes in RecordReadPredicatesAndWrites for the relevant table changes
+      Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
+      std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[std::move(table)];
+      std::unique_lock lock(x.first);
+      x.second.insert(pWrite);
+    }
   }
 }
 
@@ -2410,43 +2412,60 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     }
   }
 
-  //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
-                            // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
-                            // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
-  std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*txn, ts, txnDigest, proof);
-  // for (const auto &[table_name, table_write] : txn->table_writes()){
-  //   ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
-  //   //val.val = "";
-  //   //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
-  //                                                         //If not, then must call SetTableVersion as callback from within Peloton once it is done.
-  //   //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
-
-    
-   if(params.query_params.useSemanticCC){
+  if(params.query_params.useSemanticCC){
     RecordReadPredicatesAndWrites(*txn, ts, true);
     //Note on safety: We are not holding a lock on TableVersion while committing. This means the server-local writes are not guaranteed to be observed by concurrent read predicates
     //This is fine globally, because reaching Commit locally, implies that a Quorum of servers have prepared already. 
     //Since that prepare DID hold locks, safety is already enforced. Recording them here simply upgrades them to commit status.
   }
-  
-  //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
-  // }
-  //Apply TableVersion and TableColVersion
-  //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
-                                                            //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
-  //NOTE: Applying table versions last is necessary for correctness:
-          //It guarantees that a reader cannot see a table version without having seen a snapshot that includes *all* the table version txn's writes.
-          //Consequently, if we see a snapshot that is incomplete, then the CC check will still check for conflict against this write txn in question.
-  // for(auto table_or_col_version: table_and_col_versions){   
-  //    Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
-  //   val.val = ""; 
-  //   store.put(*table_or_col_version, val, ts);  
-  // }
-  //Only apply TableVersions for writes that are relevant to this shard.
-  for(auto table: locally_relevant_table_changes){   
-     Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
-    val.val = ""; 
-    store.put(std::move(table), val, ts);  
+
+  if(ASYNC_WRITES){
+    auto f = [this, val, txn, ts, txnDigest]() mutable {   //not very safe: Need to rely on fact that txn won't be deleted (should never be, since it is part of proof)
+      std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*txn, ts, txnDigest, val.proof);
+    
+       //Apply TableVersion 
+      for(auto table: locally_relevant_table_changes){   
+        Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
+        val.val = ""; 
+        store.put(std::move(table), val, ts);  
+      }
+      return (void*) true;
+    };
+    transport->DispatchTP_noCB(std::move(f));
+  }
+  else{
+    //Apply TableWrites: //TODO: Apply also for Prepare: Mark TableWrites as prepared. TODO: add interface func to set prepared, and clean also.. commit should upgrade them. //FIXME: How does SQL update handle exising row
+                              // alternatively: don't mark prepare/commit inside the table store, only in CC store. But that requires extra lookup for all keys in read set.
+                              // + how do we remove prepared rows? Do we treat it as SQL delete (at ts)? row becomes invisible -- fully removed from CC store.
+    std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*txn, ts, txnDigest, proof);
+    // for (const auto &[table_name, table_write] : txn->table_writes()){
+    //   ApplyTableWrites(table_name, table_write, ts, txnDigest, proof);
+    //   //val.val = "";
+    //   //store.put(table_name, val, ts);     //TODO: Confirm that ApplyTableWrite is synchronous -- i.e. only returns after all writes are applied. 
+    //                                                         //If not, then must call SetTableVersion as callback from within Peloton once it is done.
+    //   //Note: Should be safe to apply TableVersion table by table (i.e. don't need to wait for all TableWrites to finish before applying TableVersions)
+
+      
+    
+    //   //Note: Does one have to do special handling for Abort? No ==> All prepared versions just produce unecessary conflicts & dependencies, so there is no safety concern.
+    // }
+    //Apply TableVersion and TableColVersion
+    //TODO: for max efficiency (minimal wait time to update): Set_change table in table_write, and write TableVersion as soon as TableWrite has been applied
+                                                              //Do the same for Table_Col_Version. TODO: this requires parsing out the table_name however.
+    //NOTE: Applying table versions last is necessary for correctness:
+            //It guarantees that a reader cannot see a table version without having seen a snapshot that includes *all* the table version txn's writes.
+            //Consequently, if we see a snapshot that is incomplete, then the CC check will still check for conflict against this write txn in question.
+    // for(auto table_or_col_version: table_and_col_versions){   
+    //    Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", (*table_or_col_version).c_str(), ts.getTimestamp(), ts.getID());
+    //   val.val = ""; 
+    //   store.put(*table_or_col_version, val, ts);  
+    // }
+    //Only apply TableVersions for writes that are relevant to this shard.
+    for(auto table: locally_relevant_table_changes){   
+      Debug("Commit TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
+      val.val = ""; 
+      store.put(std::move(table), val, ts);  
+    }
   }
 
 }

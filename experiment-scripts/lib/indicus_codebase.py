@@ -382,6 +382,10 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_client_hosts', config['client_total'],
             '--num_client_threads', client_threads
             ]])
+        
+        #server load time
+        if 'server_load_time' in config:
+            replica_command += ' --server_load_time %d' % config['server_load_time']
 
         #add multiple processes commands for threadpool assignments.
         replica_command += ' --indicus_process_id %d' % k

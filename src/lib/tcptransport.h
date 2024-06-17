@@ -100,6 +100,7 @@ public:
     void DispatchTP_main(std::function<void*()> f);
     void IssueCB(std::function<void(void*)> cb, void* arg);
     void IssueCB_main(std::function<void(void*)> cb, void* arg);
+    void CancelLoadBonus() override;
     //Indexed Threadpool
     void AddIndexedThreads(int num_threads); 
     void DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb);

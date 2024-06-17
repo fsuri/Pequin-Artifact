@@ -35,8 +35,7 @@
 
 ThreadPool::ThreadPool() {}
 
-//TODO: Make this an input param.
-//static bool running_locally = false; //allow using more than 8 cores for local testing.
+static bool use_load_bonus = true; //TODO: Make this an input param
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode, bool optimize_for_dev_machine) {              
@@ -104,9 +103,13 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
     
-    //end=2;
+    if(use_load_bonus){
+      load_running = true;
+    }
+
     fprintf(stderr, "Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
-    for (uint32_t i = start; i < end; i++) {
+    for (uint32_t i = start - use_load_bonus; i < end; i++) {
+      UW_ASSERT(i >= 0);
       std::thread *t;
 
       // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
@@ -122,15 +125,16 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                         // start == 0 -->run main_thread on first core.
         t = new std::thread([this, i] {
           while (true) {
+            if (!running) {
+              break;
+            }
+
             std::function<void *()> job;
 
             main_thread_request_list.wait_dequeue(job);
              Debug("Main Thread %d running job on CPU %d", i, sched_getcpu());
             //Notice("Main Thread %d running job on CPU %d", i, sched_getcpu());
 
-            if (!running) {
-              break;
-            }
             job();
           }
         });
@@ -143,21 +147,28 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
         t->detach();
       }
       // Worker Thread -- these threads are best used to perform asynchronous jobs (e.g. Reads or Crypto)
-      if ((i + put_all_threads_on_same_core) > start) { // if run with >=3 cores: start==1 &
+      if ((i + put_all_threads_on_same_core) > start || use_load_bonus) { // if run with >=3 cores: start==1 &
           // put_all_threads_on_same_core == 0 --> workers start on cores 2+; if < 3 cores: start == 0, put_all = 1
-        t = new std::thread([this, i] {
+
+        bool is_load_only_thread = !((i + put_all_threads_on_same_core) > start); //if the thread would not have been started without load_bonus.
+
+        t = new std::thread([this, i, is_load_only_thread] {
           while (true) {
-            std::pair<std::function<void *()>, EventInfo *> job;
-
+            if(is_load_only_thread && !load_running){ 
+              Notice("Turning off load-only worker thread %d", i);
+              break;
+            }
             
-            worker_thread_request_list.wait_dequeue(job);
-            Debug("Worker Thread %d running job on CPU %d", i, sched_getcpu());
-            //Notice("Worker Thread %d running job on CPU %d", i, sched_getcpu());
-
-           // Debug("popped job on CPU %d.", i);
             if (!running) {
               break;
             }
+
+            std::pair<std::function<void *()>, EventInfo *> job;
+            worker_thread_request_list.wait_dequeue(job);
+           // Debug("popped job on CPU %d.", i);
+            Debug("Worker Thread %d running job on CPU %d", i, sched_getcpu());
+            //Notice("Worker Thread %d running job on CPU %d", i, sched_getcpu());
+           
             if (job.second) {
               job.second->r = job.first();
               // This _should_ be thread safe
@@ -167,7 +178,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
           }
         });
-        Notice("THREADPOOL SETUP: Trying to pin worker thread %d to core %d", i, (i+offset) );
+        Notice("THREADPOOL SETUP: Trying to pin worker thread %d to core %d. Load only? %d", i, (i+offset), is_load_only_thread);
         int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
         if (rc != 0) {
           Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -228,6 +239,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       CPU_SET(i, &cpuset);
       int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),
                                       &cpuset);
+
       if (rc != 0) {
         Panic("Error calling pthread_setaffinity_np: %d", rc);
       }
@@ -257,6 +269,17 @@ void ThreadPool::EventCallback(evutil_socket_t fd, short what, void *arg) {
   info->tp->FreeEvent(info->ev);
   info->tp->FreeEventInfo(info);
 }
+
+// void ThreadPool::cancel_load_threads(uint64_t n){
+//   n = std::min(n, threads.size());
+//   auto f = [this, n](){
+//     for(int i = 0; i < n; ++i){
+//       pthread_cancel(threads[i]->native_handle());
+//     }
+//     return (void*) true;
+//   };
+//   detach_main(f);
+// }
 
 //Dispatch a job f to the worker threads. Once complete, we will issue a callback cb on the process eventBase
 void ThreadPool::dispatch(std::function<void *()> f,

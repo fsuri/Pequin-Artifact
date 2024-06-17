@@ -77,6 +77,7 @@ enum OCCType {
   TAPIR = 1
 };
 
+static bool ASYNC_WRITES = true; //Perform TableWrites asynchronously.
 
 //TEST/DEBUG variables
 static bool PRINT_READ_SET = false; //print out the read set of a query

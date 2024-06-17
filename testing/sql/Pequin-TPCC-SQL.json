@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["pequin"],
   "client_protocol_mode": ["pequin"],
-  "num_shards": [3],
-  "num_groups": [3],
+  "num_shards": [1],
+  "num_groups": [1],
   
   "benchmark_type": "sql_bench",  
   
@@ -19,13 +19,13 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true":false,
-   "server_load_time": 22,
-   "_server_load_time": 52,
+   "_server_load_time": 28,
+   "server_load_time": 46,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 9,
+	  "tpcc_num_warehouses": 20,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -91,12 +91,12 @@
 		  "mainThreadDispatching": true,
 		  "dispatchMessageReceive": false,
 		  "parallel_reads": true,     
-		  "parallel_CCC": true,
+		  "parallel_CCC": false,
 		  "dispatchCallbacks": true,
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": true,
+		  "no_fallback": false,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -141,7 +141,7 @@
   "codebase_name": "indicus",
 
   "client_total": [
-    [30]
+    [50]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -161,23 +161,23 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 13,
-  "client_ramp_down": 2,
-  "client_ramp_up": 3,
+  "client_experiment_length": 20,
+  "client_ramp_down": 5,
+  "client_ramp_up": 5,
   
   "default_remote_shell": "bash",
-  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
   "project_name": "pequin-pg0",
   "fault_tolerance": 1,
-  "_server_names": [
+  "server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
 	
   ],
 
-  "_server_regions": [
+  "server_regions": [
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
@@ -185,7 +185,7 @@
     }
   ],
   
-  "server_names": [
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
@@ -194,7 +194,7 @@
 	
   ],
 
-  "server_regions": [
+  "_server_regions": [
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],

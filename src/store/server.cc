@@ -127,6 +127,8 @@ DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
 DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
+DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients start");
+
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
 	"tapir",
@@ -949,6 +951,17 @@ int main(int argc, char **argv) {
 		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
 		Debug("Main Process running on CPU %d.", sched_getcpu());
 	}
+
+  if(FLAGS_server_load_time >  0){
+    uint64_t delay_ms = FLAGS_server_load_time * 1000;
+    auto f = [tport](){
+      tport->CancelLoadBonus();
+    };
+    tport->Timer(delay_ms, f);
+  }
+  else{
+    tport->CancelLoadBonus();
+  }
 
   // parse keys
   std::vector<std::string> keys;

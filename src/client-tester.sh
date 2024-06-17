@@ -23,8 +23,8 @@ FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #BENCHMARK="seats-sql"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 
-BENCHMARK="auctionmark-sql"
-FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+#BENCHMARK="auctionmark-sql"
+#FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 
 
 while getopts c:f:g:p:s:d:z:o:k:b: option; do

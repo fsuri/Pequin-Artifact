@@ -316,16 +316,13 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
     }
 
-    Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
-
-
-  Notice("Iriginal statement: %s", write_statement.c_str());
-    Notice("Transformed Write into re-con read_statement: %s", read_statement.c_str());
+   Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
    
-   Debug("Current read set: Before next write.");
-   for(auto read: txn.read_set()){
-      Debug("Read set already contains: %s", read.key().c_str());
-  }
+   //Testing/Debug only
+  //  Debug("Current read set: Before next write.");
+  //  for(auto read: txn.read_set()){
+  //     Debug("Read set already contains: %s", read.key().c_str());
+  //   }
 
     if(read_statement.empty()){ //Must be point operation (Insert/Delete)
       //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.

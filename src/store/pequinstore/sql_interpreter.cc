@@ -423,7 +423,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         if(result->empty()){
             Debug("Insert continuation has a no result -> Insert!. Enc-key: %s", enc_key.c_str());
             //Note: Read set already contains an entry: If no value, then default is read version 0. If there is a deleted value, then read version = deleted version (+ dep if prepared)
-            
+
             // //Check whether read set contains key already (e.g. in case the last read was for a delete): If so, do nothing; if not, add genesis.
             // bool has_read = false;
             // for(auto read: txn->read_set()){
@@ -467,6 +467,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
 }
 
+//DEPRECATED: This version was overly optimistic in how it handled "Blind Inserts". It would, by default, treat all Inserts as blind -- this would cause concurrency errors (and retries) when not intended.
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsertOLD(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write, bool skip_query_interpretation){
