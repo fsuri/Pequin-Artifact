@@ -194,7 +194,7 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
 
 // Execute the write operation and return the result.
 inline void Client::Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout) {
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write) {
   
   try {
     if (transaction == nullptr) {

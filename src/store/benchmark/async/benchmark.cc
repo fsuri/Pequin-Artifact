@@ -85,6 +85,9 @@
 #include "store/bftsmartstore_stable/client.h"
 // Postgres
 #include "store/postgresstore/client.h"
+// CRDB
+#include "store/cockroachdb/client.h"
+
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -118,7 +121,8 @@ enum protomode_t {
   PROTO_BFTSMART,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  PROTO_CRDB
 };
 
 enum benchmode_t {
@@ -523,7 +527,9 @@ const protomode_t protomodes[] {
   PROTO_BFTSMART,
   // Augustus-BFTSmart
 	PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  // Cockroach Database
+  PROTO_CRDB
 };
 
 //Note: this should match the size of protomodes
@@ -544,10 +550,12 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
+
   int n = sizeof(protocol_args);
   for (int i = 0; i < n; ++i) {
     if (value == protocol_args[i]) {
@@ -1203,8 +1211,9 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
-  keyManager->PreLoadPubKeys(false);
+
+  KeyManager *keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
+  //keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
     std::cerr << "If specifying closest replicas, must specify all "
@@ -1390,6 +1399,7 @@ int main(int argc, char **argv) {
       case PROTO_HOTSTUFF:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
+      case PROTO_CRDB:
       case PROTO_AUGUSTUS:
         switch (read_quorum) {
           case READ_QUORUM_ONE:
@@ -1593,6 +1603,14 @@ int main(int argc, char **argv) {
     case PROTO_POSTGRES: {
       client = new postgresstore::Client(FLAGS_connection_str, clientId);
       break;
+    }
+
+    case PROTO_CRDB: {
+      client = new cockroachdb::Client(
+            *config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport,
+            FLAGS_indicus_phase1_decision_timeout,
+            TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
     }
 
     default:

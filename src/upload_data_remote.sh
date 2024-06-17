@@ -65,6 +65,7 @@ if [ $FIRST_TIME_CONNECTION = 1 ]; then
 fi
 
 #Upload schemas to clients //TODO: make sure generator has been run locally so this file exists.
+<<<<<<< HEAD
 parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-tables-schema.json ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_clients[@]} 
 
 #Upload schemas to servers
@@ -72,6 +73,15 @@ parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-$
 
 #Upload data to servers
 parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_servers[@]} 
+=======
+parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-tables-schema.json ${USER}@{}.liamcrdb.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_clients[@]} 
+
+#Upload schemas to servers
+parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-tables-schema.json ${USER}@{}.liamcrdb.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_servers[@]} 
+
+#Upload data to servers
+parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data ${USER}@{}.liamcrdb.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_servers[@]} 
+>>>>>>> cockroach_liam_testing
 
 
 if [ "$BENCHMARK_NAME" = "tpcc" ]; then
@@ -81,15 +91,23 @@ fi
 
 if [ "$BENCHMARK_NAME" = "seats" ]; then
 	#upload profile info to clients
+<<<<<<< HEAD
 	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data/cached_flights.csv ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/sql-${BENCHMARK_NAME}-data/" ::: ${arr_clients[@]} 
 	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data/airport_ids.csv ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/sql-${BENCHMARK_NAME}-data/" ::: ${arr_clients[@]} 
 	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data/airport_flights.csv ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/sql-${BENCHMARK_NAME}-data/" ::: ${arr_clients[@]} 
+=======
+	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/sql-${BENCHMARK_NAME}-data/cached_flights.csv ${USER}@{}.liamcrdb.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/sql-${BENCHMARK_NAME}-data/" ::: ${arr_clients[@]} 
+>>>>>>> cockroach_liam_testing
 		
 fi
  
 if [ "$BENCHMARK_NAME" = "auctionmark" ]; then
 	#upload profile info to clients
+<<<<<<< HEAD
 	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/auctionmark_profile ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_clients[@]} 
+=======
+	parallel "rsync -v -r -e ssh ./store/benchmark/async/sql/${BENCHMARK_NAME}/auctionmark_profile ${USER}@{}.liamcrdb.pequin-pg0.utah.cloudlab.us:/users/${USER}/benchmark_data/" ::: ${arr_clients[@]} 
+>>>>>>> cockroach_liam_testing
 fi
 
 

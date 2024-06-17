@@ -8,35 +8,22 @@
     ["client_total", "client_processes_per_client_node",
       "client_threads_per_process"]
   ],
-  "replication_protocol": ["pg"],
-  "client_protocol_mode": ["pg"],
+  "replication_protocol": ["crdb"],
+  "client_protocol_mode": ["crdb"],
   "num_shards": [1],
   "num_groups": [1],
   
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "tpcc-sql",
-  "benchmark_schema_file_path": "/users/giridhn/benchmark_data/sql-tpcc-tables-schema.json",
+  "benchmark_name": "auctionmark-sql",
+  "benchmark_schema_file_path": "/users/liam0215/benchmark_data/sql-auctionmark-tables-schema.json",
   
-   "_NOTE: Set this to 13 if using 1 warehouse + ASAN":false,
-   "server_load_time": 15,
+   "server_load_time": 30,
   
-  "_TPCC_SQL_ARGS_" :0,
-  	  "_note: parititoner is unused currently": 0,
-	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 5,
-	  
-	  "tpcc_stock_level_ratio": 4,
-	  "tpcc_delivery_ratio": 4,
-	  "tpcc_order_status_ratio": 4,
-	  "tpcc_payment_ratio": 44,
-	  "tpcc_new_order_ratio": 44,
-	  
-	  "tpcc_c_c_id": 0,
-  	  "tpcc_c_c_last": 0,
+  "_AUCTIONMARK_SQL_ARGS_" :0,
+  	  "_TODO: SCALE FACTOR?": 0,
+	 
 
-
- 
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
@@ -76,8 +63,8 @@
 		  "adjust_batch_size": false,
 		  
 		  "max_dep_depth": -1,
-			  "_max_dep_depth": 1,
-			  "_max_dep_depth": -2, 
+      "_max_dep_depth": 1,
+      "_max_dep_depth": -2, 
 		  "rts_mode": 0, 
 	
 		  "p1_decision_timeout": 10,	
@@ -128,7 +115,7 @@
 		  "query_merge_active_at_client": true,
 		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 30,
+		  "monotonicity_grace": 10,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,
@@ -137,47 +124,54 @@
       
     }
   ],
-  "experiment_name": "postgres-test",
+  "experiment_name": "liamcrdb",
   "codebase_name": "indicus",
 
   "client_total": [
-    [2]
+    [48]
   ],
   "client_processes_per_client_node": [
     [8]
   ],
   "client_threads_per_process": [
-    [1]
+    [5]
   ],
 
   "client_nodes_per_server": 1,
-  "_NOTE: Pin again since now we don't use Peloton threads":0,
-  "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "client_debug_output": false,
-  "_client_debug_output": "store/pequinstore/*",
-  "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/server.cc",
+  "_client_debug_output": false,
+  "client_debug_output": "store/cockroachdb/*",
+  "_server_debug_output": false, 
+  "server_debug_output": "store/cockroachdb/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 10,
-  "client_ramp_down": 2,
-  "client_ramp_up": 2,
+  "client_experiment_length": 30,
+  "client_ramp_down": 5,
+  "client_ramp_up": 5,
   "default_remote_shell": "bash",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "project_name": "pequin-pg0",
-  "fault_tolerance": 0,
+  "project_name": "pequin-PG0",
+  "fault_tolerance": 1,
+
   "server_names": [
    
-    ["us-east-1-0"] 
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2"]
+	
+  ],
+  "_server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2"] 
 	
   ],
 
   "server_regions": [
    
     {
-      "us-east-1": ["us-east-1-0"]
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
     }
   ],
 
@@ -294,14 +288,14 @@
   "output_latency_scale": 1000,
   "_src_commit_hash": "threadpool_test",
   "stats_file_name": "stats.json",
-  "base_local_exp_directory":  "/home/ng446/Pequin-Artifact/output",
+  "base_local_exp_directory":  "/users/liam0215/Pequin-Artifact/output",
   "base_mounted_fs_path": "/mnt/extra",
-  "base_remote_bin_directory_nfs": "/users/giridhn/indicus",
+  "base_remote_bin_directory_nfs": "/users/liam0215/indicus",
   "base_remote_exp_directory": "/mnt/extra/experiments",
   "bin_directory_name": "bin",
   "client_bin_name": "benchmark",
   "client_name_format_str": "client-%d-%d",
-  "emulab_user": "giridhn",
+  "emulab_user": "liam0215",
   "max_bandwidth": "1gibps",
   "max_file_descriptors": 65535,
   "max_retries": 1,
@@ -309,7 +303,7 @@
   "out_directory_name": "out",
   "server_bin_name": "server",
   "server_port": 7087,
-  "src_directory": "/home/ng446/Pequin-Artifact/src",
+  "src_directory": "/users/liam0215/Pequin-Artifact/src",
   "make_collect_bins": [
     "store/benchmark/async/benchmark",
     "store/server"
@@ -345,8 +339,6 @@
   "client_gc_debug_trace": false,
   "client_cpuprofile": false,
   "server_gc_debug_trace": false,
-  "_server_wrap_command": "valgrind --tool=none %s",
-  "_server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s"
-
+  "_server_wrap_command": "valgrind --tool=none %s"
 
 }

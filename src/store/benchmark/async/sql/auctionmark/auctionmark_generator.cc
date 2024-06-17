@@ -1047,7 +1047,8 @@ void GenerateUserFeedbackRow(TableWriter &writer, AuctionMarkProfile &profile, L
     values.push_back(bid.bidderId.encode()); //uf_from_id
     values.push_back(std::to_string(1)); //uf_rating
     values.push_back(std::to_string(profile.get_loader_start_time())); //uf_date
-    
+    values.push_back(""); // uf_sattr0
+
     writer.add_row(TABLE_USERACCT_FEEDBACK, values);
   }
 }
