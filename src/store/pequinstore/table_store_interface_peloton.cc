@@ -164,24 +164,33 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
 
   ///////////
 
+  std::shared_ptr<peloton::Statement> statement;
+
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
-  UW_ASSERT(sql_stmt_list);
-  // PELOTON_ASSERT(sql_stmt_list);
-  if (!sql_stmt_list->is_valid) {
-    Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
+  try{
+    auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
+    UW_ASSERT(sql_stmt_list);
+    // PELOTON_ASSERT(sql_stmt_list);
+    if (!sql_stmt_list->is_valid) {
+      Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
+    }
+    Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
+    statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list), skip_cache);
+    if (statement.get() == nullptr) {
+      tcop->setRowsAffected(0);
+      Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
+          (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
+    }
   }
-  Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
-  auto statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list), skip_cache);
-  if (statement.get() == nullptr) {
-    tcop->setRowsAffected(0);
-    Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
-        (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
+  catch(...){
+    Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
   }
+
+
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
@@ -689,6 +698,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   if(!write->committed_value().empty()){ //Indicate that the committed version produced a result. If not, just return empty result
     //NOTE: value == "r" for readable, "d" for delete, "f" for failed pred
     //if tuple_descriptor.empty() => could write value = "" (empty) => frontend will handle it
+    Debug("Committed value: %s", write->committed_value().c_str());
     if(write->committed_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
       row = queryResultBuilder.new_row();
       //Debug("Committed row has %lu cols", tuple_descriptor.size());
@@ -713,6 +723,8 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
     Debug("PointRead Committed Val: %s. Version:[%lu:%lu]", BytesToHex(write->committed_value(), 20).c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID());
   }
   else{
+    Debug("No committed value"); 
+    if(write->has_committed_timestamp()) Panic("shouldnt!");
     write->clear_committed_value();
     //WARNING: Accessing mutable_committed_value in traffic topturns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
   }
@@ -721,7 +733,7 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
   //if (rows < 2) return; // no prepared //FIX: Remove this line. We might read only a prepared row, and no committed one.
 
   if(!write->prepared_value().empty()){ //Indicate that the prepared version produced a result. If not, just return empty result
-
+    Debug("Prepared value: %s", write->prepared_value().c_str());
     if(write->prepared_value() == "r"){ //only consume a row if the row exists for this version (i.e. write nothing to result if version was delete)
          
         // if(rows != 2) Panic("current test should always see committed. Statement: %s", statement->GetQueryString().c_str()); 
@@ -750,6 +762,8 @@ void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &com
           prepared_timestamp.getTimestamp(), prepared_timestamp.getID(), BytesToHex(write->prepared_txn_digest(), 16).c_str());
   }
   else{
+    Debug("No prepared value");
+    if(write->has_prepared_timestamp()) Panic("shouldnt!");
     write->clear_prepared_value();
     //WARNING: Accessing mutable_prepared_value turns "has_committed/prepared_value" to true, even if they are empty!! Clear them if empty!.
   }

@@ -184,7 +184,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   // (5) Create History entry.
   statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
             "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
-  client.Write(statement, timeout);
+  client.Write(statement, timeout, false, true); //sync, blind write
 
   client.Wait(results);
   UW_ASSERT(results[0]->has_rows_affected());

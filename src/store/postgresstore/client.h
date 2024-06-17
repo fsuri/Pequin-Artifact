@@ -66,7 +66,7 @@ class Client : public ::Client {
 
   // Get the result (rows affected) for a given write SQL statement
   inline virtual void Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout) override;
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false) override;
 
  private:
   std::shared_ptr<tao::pq::connection> connection;

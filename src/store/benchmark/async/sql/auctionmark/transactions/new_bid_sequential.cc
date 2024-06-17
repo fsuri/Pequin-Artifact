@@ -199,7 +199,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
         //insertItemBid
         statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
                 "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, i_current_price, newBid, current_time, current_time);
-        client.Write(statement, queryResult, timeout);
+        client.Write(statement, queryResult, timeout, true); //blind_write: we earlier read the max from ITEM_BID. If there is duplicates, read to max will throw a conflict.
 
         if(updateMaxBid){
             //updateItemMaxBid
@@ -208,7 +208,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
                   "       imb_ib_u_id = {}, "
                   "       imb_updated = {} "
                   " WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, newBidId, item_id, seller_id, current_time, item_id, seller_id);
-          client.Write(statement, queryResult, timeout);
+          client.Write(statement, queryResult, timeout, true); //blind write:
         }
     }
   }
@@ -216,18 +216,17 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
       //insertItemBid
     statement = fmt::format("INSERT INTO {} (ib_i_id, ib_u_id, ib_id, ib_buyer_id, ib_bid, ib_max_bid, ib_created, ib_updated) "
             "VALUES ('{}', '{}', {}, '{}', {}, {}, {}, {})", TABLE_ITEM_BID, item_id, seller_id, newBidId, buyer_id, ir.i_initial_price, newBid, current_time, current_time);
-    client.Write(statement, queryResult, timeout);
+    client.Write(statement, queryResult, timeout, true); //blind write: we read from ITEM to read num_bids
 
     //insertItemMaxBid
     statement = fmt::format("INSERT INTO {} (imb_i_id, imb_u_id, imb_ib_id, imb_ib_i_id, imb_ib_u_id, imb_created, imb_updated) "
             "VALUES ('{}', '{}', {}, '{}', '{}', {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, newBidId, item_id, seller_id, current_time, current_time);
-    client.Write(statement, queryResult, timeout);
+    client.Write(statement, queryResult, timeout, true); //blind write: we read from ITEM to read num_bids
 
      //updateItem
     statement = fmt::format("UPDATE {} SET i_num_bids = i_num_bids + 1, i_current_price = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", 
                               TABLE_ITEM, i_current_price, current_time, item_id, seller_id);
     client.Write(statement, queryResult, timeout);
-
   }
  
    Debug("COMMIT");

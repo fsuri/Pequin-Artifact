@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CLIENTS=5
+CLIENTS=1
 F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"
@@ -23,8 +23,8 @@ FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #BENCHMARK="seats-sql"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 
-#BENCHMARK="auctionmark-sql"
-#FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+BENCHMARK="auctionmark-sql"
+FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 
 
 while getopts c:f:g:p:s:d:z:o:k:b: option; do

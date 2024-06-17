@@ -101,7 +101,7 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
 
 // Execute the write operation and return the result.
 inline void Client::Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout) {
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write) {
   // try {
   auto result = transaction->execute(write_statement);
   const auto wrapped_result = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(result));

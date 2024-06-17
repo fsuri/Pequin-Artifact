@@ -293,7 +293,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb,
 //primary_key_encoding_support is an encoding_helper function: Specify which columns of a write statement correspond to the primary key; each vector belongs to one insert. 
 //In case of nesting or concat --> order = order of reading
 void Client::Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout){
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write){ //blind_write: default false, must be explicit application choice to skip.
 
     
     //////////////////
@@ -304,54 +304,54 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     std::string read_statement;
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
-
-    uint64_t point_target_group;
+    uint64_t point_target_group = 0;
 
     //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
     pendingWriteStatements.push_back(write_statement);
-    sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation);
+
+    try{
+      sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
+    }
+    catch(...){
+      Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
+    }
 
     Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
-    
-  
+
+
+  Notice("Iriginal statement: %s", write_statement.c_str());
+    Notice("Transformed Write into re-con read_statement: %s", read_statement.c_str());
+   
+   Debug("Current read set: Before next write.");
+   for(auto read: txn.read_set()){
+      Debug("Read set already contains: %s", read.key().c_str());
+  }
+
     if(read_statement.empty()){ //Must be point operation (Insert/Delete)
       //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
       //NOTE: must return a QueryResult... 
       Debug("No read statement, immediately writing");
       sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
-      write_continuation(REPLY_OK, write_result);
 
       //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
-          //     //Cache point read results. This can help optimize common point Select + point Update patterns.
-          // if(!result.empty()){ //only cache if we did find a row.
-          //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
-          //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
-          // } 
-
-       
-      //if(point_target_group != 0) Panic("Trying to use a Shard other than 0");  //FIXME: Just for testing currently:
+        //     //Cache point read results. This can help optimize common point Select + point Update patterns.
+        // if(!result.empty()){ //only cache if we did find a row.
+        //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+        //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
+        // } 
 
       if (!IsParticipant(point_target_group)) {
         txn.add_involved_groups(point_target_group);
         bclient[point_target_group]->Begin(client_seq_num);
-      }
-                
-  
+      }            
+
+      write_continuation(REPLY_OK, write_result);
     }
     else{
-      //  auto qcb = [this, write_continuation, wcb](int status, const query_result::QueryResult *result) mutable { 
-
-      //   //result ==> replace with protoResult type
-      //   const query_result::QueryResult *write_result = write_continuation(result);
-      //   wcb(REPLY_OK, write_result);
-      //   return;
-      // };
-      // auto qtcb = [this, wtcb](int status) {
-      //   wtcb(status);
-      //   return;
-      // };
       Debug("Issuing re-con Query");
-      Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //never cache results from write transformation
+      Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+      //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
+      //TODO: add a field for "is_point" (for Inserts we already know!)
     }
     return;
   }

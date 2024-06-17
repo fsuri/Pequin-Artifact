@@ -876,6 +876,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
     //check whether value and timestamp are valid
     req->numReplies++;
     if (write->has_committed_value() && write->has_committed_timestamp()) {
+        Debug("ReqId %d reads committed write");
         if (params.validateProofs) {
         if (!has_proof) {
             Debug("[group %i] Missing proof for committed write.", group);

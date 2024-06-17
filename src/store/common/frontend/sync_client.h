@@ -82,9 +82,9 @@ class SyncClient {
   void SQLRequest(std::string &statement, uint32_t timeout);
 
   //Issue write Sql statement, wait for computation result
-  virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+  virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool blind_write = false); 
   //Write without in-built waiting -- e.g. for parallel writes.
-  void Write(std::string &statement,  uint32_t timeout, bool async = false);
+  void Write(std::string &statement, uint32_t timeout, bool async = false, bool blind_write = false);
 
   //Issue query Sql statement, wait for computation result. 
   virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool cache_result = false);

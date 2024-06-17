@@ -106,10 +106,9 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
       ia_id = GetNextElementId(ia_id); 
     }
 
-    // Can this write (Insert) be blind here? Semantically yes, because it is to a unique position (since we read the Max); if it is not unique, then Max will abort.
     std::string insertItemAttribute = fmt::format("INSERT INTO {} (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) "
                                                   "VALUES ('{}', '{}', '{}', '{}', '{}', '')", TABLE_ITEM_ATTR, ia_id, item_id, seller_id, gag_id, gav_id);
-    client.Write(insertItemAttribute, queryResult, timeout);
+    client.Write(insertItemAttribute, queryResult, timeout, true); //blind-write: because it is to a unique position (since we read the Max); if it is not unique, then Max will abort.
   }
   
   Debug("COMMIT");

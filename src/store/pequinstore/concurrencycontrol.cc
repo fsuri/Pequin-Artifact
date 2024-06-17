@@ -669,15 +669,16 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       bool has_write = GetPreceedingCommittedWrite(read.key(), ts, committedWrite);
       if(has_write){  //If replica does not have preceeding write locally it must have been read from a different replica
         // readVersion < committedTs < ts   (if readVersion == committedTS no conflict)
+        
         //Conflict if: readTS < preceeding Write. Exception: readTS = genesis and preceeding Write := deletion
-        if (Timestamp(read.readtime()) < committedWrite.first && !(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d")) { // && committedWrite.first < ts) {
+        if(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d") continue;
+        if (Timestamp(read.readtime()) < committedWrite.first) { // && committedWrite.first < ts) {
       //   }
       // }
       // std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
       // GetCommittedWrites(read.key(), read.readtime(), committedWrites);
       // for (const auto &committedWrite : committedWrites) {
-      //   // readVersion < committedTs < ts
-      //   //     GetCommittedWrites only returns writes larger than readVersion
+      //   // readVersion < committedTs < ts   //     GetCommittedWrites only returns writes larger than readVersion
       //   if (committedWrite.first < ts) {
           if (params.validateProofs) {
               conflict = committedWrite.second.proof;
@@ -711,18 +712,23 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         std::shared_lock lock(preparedWritesItr->second.first);
 
         std::vector<std::pair<Timestamp, const proto::Transaction *>> preparedPreceedingWrites;
-        GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); 
+        GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); //get the latest prepared Write (preceeding TS). If it is not the one we read -> abstain.
         for (const auto &[preparedTs, preparedTx] : preparedPreceedingWrites) {
         //for (const auto &preparedTs : preparedWritesItr->second.second) {
           if (Timestamp(read.readtime()) < preparedTs && preparedTs < ts) {
 
             //Check for exception:
+            bool exempt = false;
             if(read.readtime().timestamp() == 0 && read.readtime().id() == 0){
                 for(auto &write: preparedTx->write_set()){
                   if(read.key() == write.key()){
-                      if(write.value() == "d") continue; //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                      if(write.value() == "d"){ //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                        exempt = false;
+                        break;
+                      }; 
                   }
                 }
+                if(exempt) continue;
             } 
 
             Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s [plain:%s]:"

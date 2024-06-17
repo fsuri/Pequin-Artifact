@@ -2084,7 +2084,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   for (const auto &read : readSet) {
     bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //don't need to record reads to TableVersion (not checked for normal cc)
-    Notice("prepare reads: %s", read.key().c_str());
+    //Notice("prepare reads: %s", read.key().c_str());
     if (!table_v && IsKeyOwned(read.key())) { 
       //preparedReads[read.key()].insert(p.first->second.second);
       //preparedReads[read.key()].insert(a->second.second);
@@ -2126,7 +2126,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       //Better solution: Mark keys as skip inside the write itself? That way client controls what gets skipped. 
       //Not really BFT, but it simplifies. Otherwise have to go and consult the TableRegistry...
       //Attack: Byz client applies version after tablewrite..Causes honest Tx to not respect safety.
-     Notice("prepare write: %s", read.key().c_str());
+     //Notice("prepare write: %s", read.key().c_str());
     if (IsKeyOwned(write.key())) { 
 
       std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
@@ -2327,7 +2327,7 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
 
   for (const auto &read : *readSet) {
      bool table_v = read.has_is_table_col_version() && read.is_table_col_version(); //Don't need to record read table versions, not checked by normal cc
-      Notice("committed reads: %s", read.key().c_str());
+     // Notice("committed reads: %s", read.key().c_str());
     if (table_v || !IsKeyOwned(read.key())) {
       continue;
     }
@@ -2370,7 +2370,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //   continue;
     // }
 
-     Notice("commit write: %s", write.key().c_str());
+     //Notice("commit write: %s", write.key().c_str());
     if (!IsKeyOwned(write.key())) {
       continue;
     }
@@ -2511,7 +2511,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
   //if (itr != prepared.end()) {
     for (const auto &read : txn->read_set()) {
     //for (const auto &read : itr->second.second->read_set()) {
-       Notice("clean prepare reads: %s", read.key().c_str());
+       //Notice("clean prepare reads: %s", read.key().c_str());
       if(read.has_is_table_col_version() && read.is_table_col_version()) continue;
       if (IsKeyOwned(read.key())) {
         //preparedReads[read.key()].erase(a->second.second);
@@ -2523,7 +2523,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     }
     for (const auto &write : txn->write_set()) {
     //for (const auto &write : itr->second.second->write_set()) {
-       Notice("clean prepared write: %s", write.key().c_str());
+       //Notice("clean prepared write: %s", write.key().c_str());
        //Note: Table versions are owned by all -> thus remove them. Not really important, since this has no CC bearing... Would be fine to keep them too (does not affect safety/liveness, only efficiency).
       if ((write.has_is_table_col_version() && write.is_table_col_version())|| IsKeyOwned(write.key())) { 
         //preparedWrites[write.key()].erase(itr->second.first);
