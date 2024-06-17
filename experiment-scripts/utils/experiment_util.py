@@ -561,7 +561,7 @@ def run_experiment(config_file, client_config_idx, executor):
 
             client_threads = start_clients(config, local_exp_directory,
                     remote_exp_directory, i)
-            print("started clients python script testing")
+            #print("started clients python script testing")
             wait_for_clients_to_terminate(config, client_threads)
             kill_clients(config, executor)
             time.sleep(1)

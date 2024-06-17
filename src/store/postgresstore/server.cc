@@ -32,6 +32,8 @@
 #include <cstdlib>
 #include <fmt/core.h>
 #include <regex>
+#include <chrono>
+#include <ctime>
 
 namespace postgresstore {
 
@@ -439,8 +441,19 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
   Debug("Shir: Load Table data!");
   std::cerr<<"Shir: Load Table data\n";
   std::cerr << "Shir data path is " << table_data_path << std::endl;
+  auto start = std::chrono::system_clock::now();
+  std::time_t start_time = std::chrono::system_clock::to_time_t(start);
+  std::cerr << "start time is "  << std::ctime(&start_time) << std::endl;
+
   std::string copy_table_statement = fmt::format("COPY {0} FROM '{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
-  this->exec_statement(copy_table_statement);
+  std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
+  t1.detach();
+  //this->exec_statement(copy_table_statement);
+  
+  // Some computation here
+  auto end = std::chrono::system_clock::now();
+  std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+  std::cerr << "end time is " << std::ctime(&end_time) << std::endl;
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
@@ -458,6 +471,7 @@ void Server::LoadTableRow(const std::string &table_name, const std::vector<std::
 
 void Server::exec_statement(const std::string &sql_statement) {
   auto connection = connectionPool->connection();
+  //std::thread t1([connection, sql_statement]() { connection->execute(sql_statement); });
   connection->execute(sql_statement);
 }
 
