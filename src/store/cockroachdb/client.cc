@@ -214,15 +214,12 @@ void Client::Query(const std::string &query_statement, query_callback qcb,
   std::cerr << "In Query" << std::endl;
   try {
     if (tr == nullptr) {
-      std::cerr << "txn null, reply fail" << std::endl;
       qcb(REPLY_FAIL, nullptr);
       return;
     }
-    std::cerr << "about to execute statement" << std::endl;
     tao::pq::result result = [this, &query_statement]() {
       return tr->execute(query_statement);
     }();
-    std::cerr << "done executing statement" << std::endl;
     stats.Increment("queries_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
@@ -240,14 +237,11 @@ void Client::Write(std::string &write_statement, write_callback wcb,
   write_timeout_callback wtcb, uint32_t timeout) {
   try {
     if (tr == nullptr) {
-      std::cerr << "tr is null" << std::endl;
       wcb(REPLY_FAIL, nullptr);
       return;
     }
 
-    std::cerr << "executing write" << std::endl;
     tao::pq::result result = tr->execute(write_statement);
-    std::cerr << "finished executing write" << std::endl;
     stats.Increment("writes_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =
         new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
@@ -283,7 +277,6 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     tr = nullptr;
     //std::cout << "commit " << '\n';
     stats.Increment("num_commit", 1);
-    std::cerr << "COMMITTED" << std::endl;
     ccb(COMMITTED);
   } catch (const std::exception &e) {
     std::cerr << "Tx commit failed" << std::endl;
@@ -300,10 +293,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 // Abort all Get(s) and Put(s) since Begin().
 void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
                    uint32_t timeout) {
-  std::cerr << "In Abort" << std::endl;
   try {
-    tr->rollback();
-    tr = nullptr;
+    if (tr != nullptr) {
+      tr->rollback();
+      tr = nullptr;
+    }
     acb();
   } catch (const std::exception &e) {
     std::cerr << "Tx abort failed" << std::endl;

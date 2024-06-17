@@ -54,7 +54,6 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
   Debug("NEW COMMENT");
 
-
   client.Begin(timeout);
 
   //Set comment_id;

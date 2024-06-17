@@ -35,8 +35,8 @@ SyncClient::~SyncClient() {
 }
 
 void SyncClient::Begin(uint32_t timeout) {
-  asyncPromises.clear();
-  queryPromises.clear();
+  // asyncPromises.clear();
+  // queryPromises.clear();
   Promise promise(timeout);
   client->Begin([promisePtr = &promise](uint64_t id){ promisePtr->Reply(0); },
       [](){}, timeout);
@@ -90,6 +90,15 @@ transaction_status_t SyncClient::Commit(uint32_t timeout) {
     Wait(strs);
   }
 
+  if (queryPromises.size() > 0) {
+    std::vector<std::unique_ptr<const query_result::QueryResult>> values;
+    Wait(values);
+  }
+
+  if (asyncPromises.size() > 0) {
+    asyncWait();
+  }
+
   Promise promise(timeout);
 
   client->Commit(std::bind(&SyncClient::CommitCallback, this, &promise,
@@ -104,6 +113,15 @@ void SyncClient::Abort(uint32_t timeout) {
   if (getPromises.size() > 0) {
     std::vector<std::string> strs;
     Wait(strs);
+  }
+
+  if (queryPromises.size() > 0) {
+    std::vector<std::unique_ptr<const query_result::QueryResult>> values;
+    Wait(values);
+  }
+
+  if (asyncPromises.size() > 0) {
+    asyncWait();
   }
 
   Promise promise(timeout);
@@ -126,7 +144,7 @@ void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_
 }
 
 void SyncClient::SQLRequest(std::string &statement, uint32_t timeout) {
-   Promise *promise = new Promise(timeout);
+  Promise *promise = new Promise(timeout);
   queryPromises.emplace_back(promise);
   
   client->SQLRequest(statement, std::bind(&SyncClient::SQLCallback, this, promise,
@@ -203,7 +221,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
   }
   queryPromises.clear();
   if(aborted){
-    std::cerr << "Wait aborting, num promises: " << num_promises << std::endl;
+    asyncWait();
     values.clear();
     throw std::exception(); //Propagate Abort exception
   }
@@ -221,7 +239,8 @@ void SyncClient::asyncWait() {
   asyncPromises.clear();
 
   if(aborted) {
-    std::cerr << "asyncWait aborting, num promises: " << num_promises << std::endl;
+    std::vector<std::unique_ptr<const query_result::QueryResult>> throw_away_values;
+    Wait(throw_away_values);
     throw std::exception(); //Propagate Abort exception
   }
 }

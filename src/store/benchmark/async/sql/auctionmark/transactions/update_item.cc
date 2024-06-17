@@ -70,20 +70,17 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   std::string updateItem = fmt::format("UPDATE {} SET i_description = '{}', i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, description, current_time, item_id, seller_id);
   client.Write(updateItem, queryResult, timeout);
-  try {
-    if(!queryResult->has_rows_affected()){
-      Debug("Unable to update closed auction");
-      client.Abort(timeout);
-      return ABORTED_USER;
-    }
-  } catch (std::exception &e) {
-    std::cerr << e.what() << std::endl;;
-    Panic("What just happened?");
+
+  if(!queryResult->has_rows_affected()){
+    Debug("Unable to update closed auction");
+    client.Abort(timeout);
+    return ABORTED_USER;
   }
 
   //DELETE ITEM_ATTRIBUTE
   if(delete_attribute){
-    std::string ia_id = GetUniqueElementId(item_id, 0);
+    std::string ia_id;
+    ia_id = GetUniqueElementId(item_id, 0);
     std::string deleteItemAttribute = fmt::format("DELETE FROM {} WHERE ia_id = '{}' AND ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, ia_id, item_id, seller_id);
     client.Write(deleteItemAttribute, queryResult, timeout);
   }
@@ -99,7 +96,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
     if(queryResult->empty()){
       ia_id = GetUniqueElementId(item_id, 0);
     }
-    else{
+    else {
       deserialize(ia_id, queryResult);
     }
 

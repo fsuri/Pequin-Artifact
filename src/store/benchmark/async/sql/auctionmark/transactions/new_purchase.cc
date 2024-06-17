@@ -189,6 +189,8 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::string updateSellerBalance = fmt::format(updateUserBalance, iir.i_current_price, seller_id);
   client.Write(updateSellerBalance, timeout, true);
 
+  client.asyncWait();
+
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
   std::cerr << "Inserting UserAcct_ITEM" << std::endl;
@@ -202,12 +204,8 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_ip_id, ui_ip_ib_id, ui_ip_ib_i_id, ui_ip_ib_u_id, ui_created) "
                                              "VALUES ('{}', '{}', '{}', {}, {}, '{}', '{}', {})", TABLE_USERACCT_ITEM,
                                              iir.ib_buyer_id, item_id, seller_id, ip_id, iir.ib_id, item_id, seller_id, current_time);
-    client.Write(insertUserItem, timeout, true);
+    client.Write(insertUserItem, queryResult, timeout);
   }
-
-  std::cerr << "about to async wiat" << std::endl;
-  client.asyncWait();
-  std::cerr << "done async waiting" << std::endl;
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);
