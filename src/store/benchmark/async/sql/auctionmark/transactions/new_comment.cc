@@ -73,8 +73,11 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   //insertItemComment
   statement = fmt::format("INSERT INTO {} (ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_response, ic_created, ic_updated) "
                         "VALUES ({}, '{}', '{}', '{}', '{}', '', {}, {})", TABLE_ITEM_COMMENT, ic_id, item_id, seller_id, buyer_id, question, current_time, current_time);
-  client.Write(statement, queryResult, timeout);
-  if(queryResult->rows_affected() == 0){
+  client.Write(statement, queryResult, timeout, true); //blind write; we read from TableITEM to get num_comments => thus our id should be unique. 
+
+  if(queryResult->rows_affected() == 0){ //Note: Original benchbase code does not use a blind write, and throws a UserAbort if its duplicated. I've changed it here: To me this makes more sense.
+    //Note: this case should not be possible unless there was a concurrency error. And if there was a concurrency error, then semantically speaking we should be retrying TX and not aborting!!
+    Panic("this case should not trigger");
     Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
     client.Abort(timeout);
     return ABORTED_USER;

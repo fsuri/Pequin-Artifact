@@ -131,6 +131,8 @@ DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
 DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
+DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients start");
+
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
 	"tapir",
@@ -572,6 +574,7 @@ int main(int argc, char **argv) {
     case WAREHOUSE:
     {
       if(FLAGS_sql_bench){
+        Notice("Using WarehouseSQLPartitioner");
         part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, unused);
       }
       else{
@@ -947,7 +950,7 @@ int main(int argc, char **argv) {
   //SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
   bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
-  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2)
+  //if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2) NOTE: obsolete, since we don't use Peloton Tpool anymore.
      // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
      //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
 	if(FLAGS_indicus_multi_threading && pinned_protocol){
@@ -964,6 +967,17 @@ int main(int argc, char **argv) {
 		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
 		Debug("Main Process running on CPU %d.", sched_getcpu());
 	}
+
+  if(FLAGS_server_load_time >  0){
+    uint64_t delay_ms = FLAGS_server_load_time * 1000;
+    auto f = [tport](){
+      tport->CancelLoadBonus();
+    };
+    tport->Timer(delay_ms, f);
+  }
+  else{
+    tport->CancelLoadBonus();
+  }
 
   // parse keys
   std::vector<std::string> keys;

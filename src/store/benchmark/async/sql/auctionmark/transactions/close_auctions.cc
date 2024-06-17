@@ -31,6 +31,7 @@ namespace auctionmark {
 
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
+  Panic("Pequinstore cannot yet implement CloseAuctions with rounds>1 as this requires read-your-own-write semantics (Next auction round needs to reflect the new status, or else we will re-read the same)");
   std::cerr << std::endl << "CLOSE AUCTION" << std::endl;
   //generate params
   start_time = profile.get_last_close_auctions_time();
@@ -104,7 +105,7 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
 
         std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
                                            "VALUES('{}', '{}', '{}', {})", TABLE_USERACCT_ITEM, mbr.buyerId, dir.itemId, dir.sellerId, current_time);
-        client.Write(insertUserItem, timeout, true);
+        client.Write(insertUserItem, timeout, true); //non-blind write
 
         itemStatus = ItemStatus::WAITING_FOR_PURCHASE;
 

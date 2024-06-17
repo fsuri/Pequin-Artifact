@@ -205,7 +205,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);
-  client.Write(insertItem, timeout, true);          
+  client.Write(insertItem, timeout, true, true);    //blind-write: Select i_id should already catch duplicates         
                      
    //Insert ITEM_ATTRIBUTE tuples
   std::string insertItemAttribute = "INSERT INTO " + std::string(TABLE_ITEM_ATTR) + " (ia_id, ia_i_id, ia_u_id, ia_gav_id, ia_gag_id, ia_sattr0) VALUES ('{}', '{}', '{}', '{}', '{}', '')";

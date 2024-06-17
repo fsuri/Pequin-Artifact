@@ -693,6 +693,11 @@ void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void TCPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   tp.issueMainThreadCallback(std::move(cb), arg);
 }
+
+void TCPTransport::CancelLoadBonus(){
+  tp.cancel_load_threads();
+}
+
 void TCPTransport::AddIndexedThreads(int num_threads){
   tp.add_n_indexed(num_threads);
 }

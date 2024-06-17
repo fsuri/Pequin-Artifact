@@ -386,6 +386,10 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_client_hosts', config['client_total'],
             '--num_client_threads', client_threads
             ]])
+        
+        #server load time
+        if 'server_load_time' in config:
+            replica_command += ' --server_load_time %d' % config['server_load_time']
 
         #add multiple processes commands for threadpool assignments.
         replica_command += ' --indicus_process_id %d' % k
@@ -568,6 +572,8 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['benchmark_name'] == 'rw-sql':
             replica_command += ' --num_tables %d' % config['num_tables']
             replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+        elif config['benchmark_name'] == 'tpcc-sql':
+             replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         
         
        

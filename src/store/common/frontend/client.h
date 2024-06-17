@@ -95,7 +95,7 @@ class Client {
 
   // Get the result (rows affected) for a given write SQL statement
   inline virtual void Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout){Panic("This protocol store does not implement support for Write Statements"); };   //TODO: Can probably avoid using Callbacks at all. Just void write-through.
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false){Panic("This protocol store does not implement support for Write Statements"); };   //TODO: Can probably avoid using Callbacks at all. Just void write-through.
 
   inline const Stats &GetStats() const { return stats; }
 

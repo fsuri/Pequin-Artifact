@@ -108,7 +108,7 @@ void Client::Query(const std::string &query_statement, query_callback qcb,
 //inline virtual void Wait(vector of results) { just do nothing unless overriden} ;; Wait will call getResult, which in turn will trigger the Query callbacks
 
 // Get the result (rows affected) for a given write SQL statement
-void Client::Write(std::string &write_statement, write_callback wcb, write_timeout_callback wtcb, uint32_t timeout){
+void Client::Write(std::string &write_statement, write_callback wcb, write_timeout_callback wtcb, uint32_t timeout, bool blind_write){
 
   Debug("Invoked Txn[%d] Write statement %s", seq_no, write_statement.c_str());
 

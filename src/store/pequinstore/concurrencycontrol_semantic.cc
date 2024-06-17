@@ -138,8 +138,11 @@ proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transacti
     for(auto &pred: pred_set){ //Note: there will be #preds for the query == number of tables in the SQL query 
           // => Check whether they are invalidated by any recent write to the Table
         auto res = CheckReadPred(txn_ts, pred, txn_read_set, dynamically_active_dependencies);
-        if(res != proto::ConcurrencyControl::COMMIT) return res;
+        if(res != proto::ConcurrencyControl::COMMIT){
+          stats.Increment("cc_aborts_semantic_read_conflict", 1);
+          return res;
           //TODO: Return ABORT if conflict is with committed (in this case, must pass a CommitProof too) (Note: we don't currently support verification of these at client)
+        }
     }
     
                 
@@ -147,8 +150,11 @@ proto::ConcurrencyControl::Result Server::CheckPredicates(const proto::Transacti
     for(auto &[table_name, table_write]: txn.table_writes()){
        // => Check whether they are invalidated by any recently prepared/committed read predicate on the Table
         auto res = CheckTableWrites(txn, txn_ts, table_name, table_write); //0 = no conflict, 1 = conflict with commit, 2 = conflict with prepared.
-        if(res != proto::ConcurrencyControl::COMMIT) return res;
+        if(res != proto::ConcurrencyControl::COMMIT){
+          stats.Increment("cc_aborts_semantic_write_conflict", 1);
+          return res;
           //TODO: Return ABORT if conflict is with committed (in this case, must pass a CommitProof too) (Note: we don't currently support verification of these at client)
+        }
     }
   
     return proto::ConcurrencyControl::COMMIT;

@@ -109,6 +109,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                           TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
                                           item_id, seller_id, item_id, seller_id);
       client.Query(getItemInfo, queryResult, timeout);
+      client.asyncWait();
   }
   else{
     // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
@@ -130,6 +131,9 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
                                         // //The only unknown are: ib_id and u_id
     client.Query(getItemInfo, queryResult, timeout);
   }
+
+  client.Wait(results);
+
   if(queryResult->empty()){
     std::cerr << "NO MAX BID" << std::endl;
     Debug("No ITEM_MAX_BID is available record for item");
@@ -150,7 +154,7 @@ UW_ASSERT(iir.ib_id == max_bid);
 
   // Set item_purchase_id
 
-  client.Wait(results);
+ 
   //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
   if(!results[0]->empty()){
     std::cerr << "ALREADY PURCHASED" << std::endl;
@@ -165,7 +169,7 @@ UW_ASSERT(iir.ib_id == max_bid);
 
   std::string insertPurchase = fmt::format("INSERT INTO {} (ip_ib_i_id, ip_ib_u_id, ip_id, ip_ib_id, ip_date) "
                                             "VALUES ('{}', '{}', {}, {}, {}) ", TABLE_ITEM_PURCHASE, item_id, seller_id, ip_id, iir.ib_id, current_time);
-  client.Write(insertPurchase, timeout, true);
+  client.Write(insertPurchase, timeout, true, true); //blind-write because we already read to check for duplicates.  //Note: Could alternatively remove the read, and just do a non-blind insert here.
 
   // Update item status to close
   std::string updateItem = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, ItemStatus::CLOSED, current_time, item_id, seller_id);
@@ -195,7 +199,7 @@ UW_ASSERT(iir.ib_id == max_bid);
     std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_ip_id, ui_ip_ib_id, ui_ip_ib_i_id, ui_ip_ib_u_id, ui_created) "
                                              "VALUES ('{}', '{}', '{}', {}, {}, '{}', '{}', {})", TABLE_USERACCT_ITEM,
                                              iir.ib_buyer_id, item_id, seller_id, ip_id, iir.ib_id, item_id, seller_id, current_time);
-    client.Write(insertUserItem, timeout, true);
+    client.Write(insertUserItem, timeout, true, true); //async, blind-write: If Update fails, it already contains a read set.
   }
 
   client.asyncWait();

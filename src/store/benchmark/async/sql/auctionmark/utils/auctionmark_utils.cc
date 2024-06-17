@@ -54,8 +54,15 @@ uint64_t GetScaledTimestamp(uint64_t benchmark_start, uint64_t client_start, uin
 
 std::string GetUniqueElementId(std::string item_id_, int idx) {
     ItemId item_id = ItemId(item_id_);
-    UserId seller_id = item_id.get_seller_id();
+    const UserId &seller_id = item_id.get_seller_id();
     return ItemId(seller_id, idx).encode();
+}
+
+std::string GetNextElementId(std::string item_id_){
+  ItemId item_id = ItemId(item_id_);
+  const UserId &seller_id = item_id.get_seller_id();
+  int next_idx = item_id.get_item_ctr() + 1;
+  return ItemId(seller_id, next_idx).encode();
 }
 
 uint64_t GetProcTimestamp(std::vector<uint64_t> benchmark_times) {

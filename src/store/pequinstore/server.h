@@ -77,6 +77,7 @@ enum OCCType {
   TAPIR = 1
 };
 
+static bool ASYNC_WRITES = true; //Perform TableWrites asynchronously.
 
 //TEST/DEBUG variables
 static bool PRINT_READ_SET = false; //print out the read set of a query
@@ -502,7 +503,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
 
     //Materialization
-    void ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+    std::vector<std::string> ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
     // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
     //             const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
@@ -728,7 +729,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void subscribeTxOnMissingQuery(const std::string &query_id, const std::string &txnDigest);
   void wakeSubscribedTx(const std::string query_id, const uint64_t &retry_version);
   void restoreTxn(proto::Transaction &txn);
-  proto::ConcurrencyControl::Result fetchReadSet(const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
+  proto::ConcurrencyControl::Result fetchReadSet(queryMetaDataMap::const_accessor &q, const proto::QueryResultMetaData &query_md, const proto::ReadSet *&query_rs, const std::string &txnDigest, const proto::Transaction &txn);
   proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 
                                                     const std::string &txnDigest, uint64_t req_id, const TransportAddress &remote, bool isGossip);
   proto::ConcurrencyControl::Result mergeTxReadSets(const ReadSet *&readSet, const DepSet *&depSet, const PredSet *&predSet, proto::Transaction &txn, 

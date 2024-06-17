@@ -185,8 +185,8 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);
-  client.Write(insertItem, queryResult, timeout);          
-  if(!queryResult->has_rows_affected()){
+  client.Write(insertItem, queryResult, timeout, true); //blind-write: Select i_id should already catch duplicates          
+  if(!queryResult->has_rows_affected()){ //Note: this shouldn't get triggered in most cases -> the above Abort check handles it. (it can perhaps still trigger in high concurrency settings)
     client.Abort(timeout);
     return ABORTED_USER;
   }                              
