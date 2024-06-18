@@ -420,6 +420,8 @@ void Client::Query(const std::string &query, query_callback qcb,
    }
 
 
+    //TEST: Set TS only at the end.
+    //txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
 
     txn.set_last_query_seq(query_seq_num);
     Debug("Query[%lu:%lu:%lu] (client:tx-seq:query-seq). TS: [%lu:%lu]: %s.", 
@@ -969,13 +971,15 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
     }
 
-    Debug("Try Commit. PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
-    for(auto &write: txn.write_set()){
-      Debug("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
-    }
-     Debug("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
-    for(auto &read: txn.read_set()){
-      Debug("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
+    if(TEST_READ_SET){
+      Debug("Try Commit. PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &write: txn.write_set()){
+        Debug("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
+      }
+      Debug("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &read: txn.read_set()){
+        Debug("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
+      }
     }
 
     //TODO: Remove duplicate Writes and TableWrites 
@@ -1015,6 +1019,8 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
     }
 
+    //TEST: Set TS only at the end.
+    //txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
 
     PendingRequest *req = new PendingRequest(client_seq_num, this);
     pendingReqs[client_seq_num] = req;

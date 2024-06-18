@@ -967,7 +967,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       proto::ConcurrencyControl::Result res = proto::ConcurrencyControl_Result_COMMIT;
       //Check Read deps
       CheckDepLocalPresence(txn, depSet, res);
-      if(res != proto::ConcurrencyControl::COMMIT) return res;
+      if(res != proto::ConcurrencyControl::COMMIT){
+        stats.Increment("cc_semantic_abort");
+        return res;
+      }
     
     }
 

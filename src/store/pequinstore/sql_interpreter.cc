@@ -1345,13 +1345,18 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
         //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     //Create separate Delete statements for each delete
 
+    write_statement.clear();
     // write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+    // Notice("Table[%s] generating write statement.", table_name.c_str());
 
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     for(auto &row: table_write.rows()){
           UW_ASSERT(part);
-        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) {
+            //Notice("Skip row for table %s", table_name.c_str());
+            continue;
+        } 
         
         if(row.has_deletion() && row.deletion()){
             delete_statements.push_back("");
@@ -1432,15 +1437,15 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
         purge_statement = "";
         return;
     } 
-    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
-    purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
-    
+   
+ 
     for(auto &row: table_write.rows()){  //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         UW_ASSERT(part);
-        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
-
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx){
+            //Notice("[%s]. Row is for group %d. Current group. %d", table_name.c_str(), (*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups, groupIdx);
+            continue; 
+        }
        
-
         purge_statement += "(";
         if(fine_grained_quotes){ // Use this to add fine grained quotes:
             for(int i = 0; i < row.column_values_size(); ++i){
@@ -1460,9 +1465,14 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
 
         //purge_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
     }
-    purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
-   
-    purge_statement += ";";
+  
+    //Only generate the full purge_statement if there were relevant rows to add
+    if(!purge_statement.empty()){
+        purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+        //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+        purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name) + purge_statement;
+        purge_statement += ";";
+    }
 }
 
 //Deprecated

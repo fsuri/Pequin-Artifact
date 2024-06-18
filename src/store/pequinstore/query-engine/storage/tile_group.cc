@@ -318,23 +318,19 @@ oid_t TileGroup::InsertTupleFromCheckpoint(oid_t tuple_slot_id,
 type::Value TileGroup::GetValue(oid_t tuple_id, oid_t column_id) {
   PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
   oid_t tile_column_id, tile_offset;
-  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset,
-                                          tile_column_id);
+  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset, tile_column_id);
   return GetTile(tile_offset)->GetValue(tuple_id, tile_column_id);
 }
 
-void TileGroup::SetValue(type::Value &value, oid_t tuple_id,
-                         oid_t column_id) {
+void TileGroup::SetValue(type::Value &value, oid_t tuple_id, oid_t column_id) {
   PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
   oid_t tile_column_id, tile_offset;
-  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset,
-                                          tile_column_id);
+  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset, tile_column_id);
   GetTile(tile_offset)->SetValue(value, tuple_id, tile_column_id);
 }
 
 
-std::shared_ptr<Tile> TileGroup::GetTileReference(
-    const oid_t tile_offset) const {
+std::shared_ptr<Tile> TileGroup::GetTileReference(const oid_t tile_offset) const {
   PELOTON_ASSERT(tile_offset < tile_count_);
   return tiles[tile_offset];
 }

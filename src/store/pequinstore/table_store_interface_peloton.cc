@@ -307,7 +307,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
   // Execute on Peloton  //Note -- this should be a synchronous call. I.e.
   // ExecRaw should not return before the call is done.
 
-  Debug("Beginning of exec raw. Statement: %s", sql_statement);
+  Debug("Beginning of exec raw. Statement: %s", sql_statement.c_str());
   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
   //std::cerr << "Got the cop" << std::endl;
 
@@ -969,6 +969,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
   std::string write_statement; // empty if no writes
+  //UW_ASSERT(write_statement.empty());
   //  std::string delete_statement; //empty if no deletes
   std::vector<std::string> delete_statements;
   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statements, table_name, table_write);
@@ -1021,14 +1022,14 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
       Panic("Write failure");
 
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
- 
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 1000){
-    Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
-  }
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  
+    //Should not take more than 1 ms (already generous) to parse and prepare.
+    auto duration = microseconds_end - microseconds_start;
+    if(duration > 1000){
+      Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
+    }
   }
 
   // Execute Delete Statement
@@ -1040,7 +1041,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   for (auto &delete_statement : delete_statements) { // TODO: Find a way to parallelize these statement calls (they don't conflict)
     this_shard_has_writes = true;
 
-    Notice("Delete statement: %s", delete_statement.c_str());
+    //Notice("Delete statement: %s", delete_statement.c_str());
     Debug("Delete statement: %s. Commit/Prepare: %d", delete_statement.c_str(), commit_or_prepare);
     if(commit_or_prepare) UW_ASSERT(commit_proof);
     
@@ -1098,13 +1099,11 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   peloton::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
-  std::shared_ptr<std::string> txn_dig(
-      std::make_shared<std::string>(txn_digest));
+  std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-  std::string
-      purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
-  sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name,
-                                              table_write);
+  std::string purge_statement; // empty if no writes/deletes (i.e. nothing to abort)
+  UW_ASSERT(purge_statement.empty());
+  sql_interpreter.GenerateTablePurgeStatement(purge_statement, table_name, table_write);
   // std::vector<std::string> purge_statements;
   // sql_interpreter.GenerateTablePurgeStatement(purge_statements, table_name, table_write);
 
