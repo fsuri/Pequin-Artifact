@@ -60,6 +60,8 @@ ColumnStatsCatalog::ColumnStatsCatalog(concurrency::TransactionContext *txn)
                                       {0, 1},
                                       false,
                                       IndexType::BWTREE);
+
+    //Notice("Creating ColumnStatsCatalog");
 }
 
 ColumnStatsCatalog::~ColumnStatsCatalog() {}
@@ -122,6 +124,9 @@ bool ColumnStatsCatalog::InsertColumnStats(concurrency::TransactionContext *txn,
   tuple->SetValue(ColumnId::COLUMN_NAME, val_column_name, pool);
   tuple->SetValue(ColumnId::HAS_INDEX, val_has_index, nullptr);
 
+
+  //Notice("Insert ColumnStats");
+
   // Insert the tuple into catalog table
   return InsertTuple(txn, std::move(tuple));
 }
@@ -144,6 +149,7 @@ std::unique_ptr<std::vector<type::Value>> ColumnStatsCatalog::GetColumnStats(con
                                                                              oid_t database_id,
                                                                              oid_t table_id,
                                                                              oid_t column_id) {
+                                                                              //Notice("Get ColumnStats");
   std::vector<oid_t> column_ids(
       {ColumnId::NUM_ROWS, ColumnId::CARDINALITY, ColumnId::FRAC_NULL,
        ColumnId::MOST_COMMON_VALS, ColumnId::MOST_COMMON_FREQS,
@@ -198,6 +204,8 @@ size_t ColumnStatsCatalog::GetTableStats(concurrency::TransactionContext *txn,
                                          oid_t table_id,
                                          std::map<oid_t,
                               std::unique_ptr<std::vector<type::Value>>> &column_stats_map) {
+
+                               // Notice("Get TableStats");
   std::vector<oid_t> column_ids(
       {ColumnId::COLUMN_ID, ColumnId::NUM_ROWS, ColumnId::CARDINALITY,
        ColumnId::FRAC_NULL, ColumnId::MOST_COMMON_VALS,
@@ -209,11 +217,7 @@ size_t ColumnStatsCatalog::GetTableStats(concurrency::TransactionContext *txn,
   values.push_back(type::ValueFactory::GetIntegerValue(database_id).Copy());
   values.push_back(type::ValueFactory::GetIntegerValue(table_id).Copy());
 
-  auto result_tiles =
-      GetResultWithIndexScan(txn,
-                             column_ids,
-                             index_offset,
-                             values);
+  auto result_tiles = GetResultWithIndexScan(txn, column_ids, index_offset, values);
 
   PELOTON_ASSERT(result_tiles->size() <= 1);  // unique
   if (result_tiles->size() == 0) {
@@ -226,21 +230,15 @@ size_t ColumnStatsCatalog::GetTableStats(concurrency::TransactionContext *txn,
     return 0;
   }
 
-  type::Value num_rows, cardinality, frac_null, most_common_vals,
-      most_common_freqs, hist_bounds, column_name, has_index;
+  type::Value num_rows, cardinality, frac_null, most_common_vals, most_common_freqs, hist_bounds, column_name, has_index;
   for (size_t tuple_id = 0; tuple_id < tuple_count; ++tuple_id) {
     num_rows = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::NUM_ROWS_OFF);
-    cardinality =
-        tile->GetValue(tuple_id, 1 + ColumnStatsOffset::CARDINALITY_OFF);
+    cardinality = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::CARDINALITY_OFF);
     frac_null = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::FRAC_NULL_OFF);
-    most_common_vals =
-        tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COMMON_VALS_OFF);
-    most_common_freqs =
-        tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COMMON_FREQS_OFF);
-    hist_bounds =
-        tile->GetValue(tuple_id, 1 + ColumnStatsOffset::HIST_BOUNDS_OFF);
-    column_name =
-        tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COLUMN_NAME_OFF);
+    most_common_vals = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COMMON_VALS_OFF);
+    most_common_freqs = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COMMON_FREQS_OFF);
+    hist_bounds = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::HIST_BOUNDS_OFF);
+    column_name = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::COLUMN_NAME_OFF);
     has_index = tile->GetValue(tuple_id, 1 + ColumnStatsOffset::HAS_INDEX_OFF);
 
     std::unique_ptr<std::vector<type::Value>> column_stats(

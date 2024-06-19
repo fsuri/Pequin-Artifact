@@ -37,6 +37,7 @@ void StatsCalculator::CalculateStats(GroupExpression *gexpr,
 }
 
 void StatsCalculator::Visit(const LogicalGet *op) {
+  // Notice("Using StatsCalculator");
   if (op->table == nullptr) {
     // Dummy scan
     return;
@@ -44,6 +45,9 @@ void StatsCalculator::Visit(const LogicalGet *op) {
   auto table_stats = std::dynamic_pointer_cast<TableStats>(
       StatsStorage::GetInstance()->GetTableStats(op->table->GetDatabaseOid(),
                                                  op->table->GetTableOid(), txn_));
+
+  //Notice("Tableid: %d. Num rows: %d",  op->table->GetTableOid(), table_stats->num_rows);
+
   // First, get the required stats of the base table
   std::unordered_map<std::string, std::shared_ptr<ColumnStats>> required_stats;
   for (auto &col : required_cols_) {
@@ -53,8 +57,7 @@ void StatsCalculator::Visit(const LogicalGet *op) {
   auto root_group = memo_->GetGroupByID(gexpr_->GetGroupID());
   // Compute selectivity at the first time
   if (root_group->GetNumRows() == -1) {
-    std::unordered_map<std::string, std::shared_ptr<ColumnStats>>
-        predicate_stats;
+    std::unordered_map<std::string, std::shared_ptr<ColumnStats>> predicate_stats;
     for (auto &annotated_expr : op->predicates) {
       auto predicate = annotated_expr.expr.get();
       ExprSet expr_set;
@@ -78,6 +81,8 @@ void StatsCalculator::Visit(const LogicalGet *op) {
     column_stats->num_rows = root_group->GetNumRows();
     root_group->AddStats(column_name, column_stats);
   }
+
+  //Notice("Rootgroup. Num rows: %d",  root_group->GetNumRows());
 }
 
 void StatsCalculator::Visit(const LogicalQueryDerivedGet *) {

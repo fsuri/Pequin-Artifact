@@ -156,8 +156,8 @@
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
   "_client_debug_output": "store/pequinstore/*",
-  "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/concurrencycontrol*",
+  "_server_debug_output": false,
+  "server_debug_output": "store/pequinstore/query-engine/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   
