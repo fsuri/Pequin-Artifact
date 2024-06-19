@@ -42,9 +42,8 @@ class DefaultCostModel : public AbstractCostModel {
     output_cost_ = 0.f;
   }
   void Visit(const PhysicalSeqScan *op) {
-    auto table_stats = std::dynamic_pointer_cast<TableStats>(
-        StatsStorage::GetInstance()->GetTableStats(
-            op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
+    Notice("Using Default Cost model");
+    auto table_stats = std::dynamic_pointer_cast<TableStats>(StatsStorage::GetInstance()->GetTableStats(op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
     if (table_stats->GetColumnCount() == 0) {
       output_cost_ = 1.f;
       return;
@@ -52,9 +51,8 @@ class DefaultCostModel : public AbstractCostModel {
     output_cost_ = table_stats->num_rows * DEFAULT_TUPLE_COST;
   }
   void Visit(UNUSED_ATTRIBUTE const PhysicalIndexScan *op) {
-    auto table_stats = std::dynamic_pointer_cast<TableStats>(
-        StatsStorage::GetInstance()->GetTableStats(
-            op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
+     Notice("Using Default Cost model");
+    auto table_stats = std::dynamic_pointer_cast<TableStats>(StatsStorage::GetInstance()->GetTableStats(op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
     if (table_stats->GetColumnCount() == 0 || table_stats->num_rows == 0) {
       output_cost_ = 0.f;
       return;
