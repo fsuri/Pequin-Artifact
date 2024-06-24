@@ -461,13 +461,16 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
   Debug("Shir: Load Table data!");
   std::cerr<<"Shir: Load Table data\n";
   std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
+  std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
+  t1.detach();
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   Debug("Shir: Load Table rows!");
   std::cerr<< "Shir: Load Table rows!\n";
   std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
-  this->exec_statement(sql_statement);
+  std::thread t1([this, sql_statement]() { this->exec_statement(sql_statement); });
+  t1.detach();
 }
 
 //!!"Deprecated" (Unused)

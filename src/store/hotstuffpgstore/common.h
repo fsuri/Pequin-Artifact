@@ -41,7 +41,10 @@
 #include <mutex>
 #include <google/protobuf/message.h>
 
-#include "store/common/backend/sql_engine/table_kv_encoder.h"
+#include "store/common/table_kv_encoder.h"
+
+
+
 
 namespace hotstuffpgstore {
 

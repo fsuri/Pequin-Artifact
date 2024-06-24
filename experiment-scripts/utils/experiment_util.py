@@ -271,6 +271,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1;'
                 cmd = cmd7 + cmd8 +cmd
 
+                # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -c;'
+                # cmd = cmd7  +cmd
+
+
 
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
