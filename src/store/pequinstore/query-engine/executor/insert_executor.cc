@@ -284,24 +284,23 @@ bool InsertExecutor::DExecute() {
         }
 
                /*NEW: Try to add acquire lock code */
-        bool is_owner = transaction_manager.IsOwner(current_txn, tile_group_header, old_location.offset);
+        // bool is_owner = transaction_manager.IsOwner(current_txn, tile_group_header, old_location.offset);
 
-        bool is_written = transaction_manager.IsWritten(current_txn, tile_group_header, old_location.offset);
+        // bool is_written = transaction_manager.IsWritten(current_txn, tile_group_header, old_location.offset);
 
-        bool is_ownable = is_owner || transaction_manager.IsOwnable(current_txn, tile_group_header, old_location.offset);
+        // bool is_ownable = is_owner || transaction_manager.IsOwnable(current_txn, tile_group_header, old_location.offset);
 
-        if (!is_owner || !is_written) {
-          if (is_ownable) {
-            bool acquire_ownership_success = is_owner || transaction_manager.AcquireOwnership(current_txn, tile_group_header, old_location.offset);
+        // if (!is_owner || !is_written) {
+        //   if (is_ownable) {
+        //     bool acquire_ownership_success = is_owner || transaction_manager.AcquireOwnership(current_txn, tile_group_header, old_location.offset);
 
-            if (acquire_ownership_success == false) {
-              Panic("Fail to acquire ownership when inserting new tuple. Set txn failure.");
-              transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
-              return false;
-            }
-          }
-        }
-
+        //     if (acquire_ownership_success == false) {
+        //       Panic("Fail to acquire ownership when inserting new tuple. Set txn failure.");
+        //       transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
+        //       return false;
+        //     }
+        //   }
+        // }
 
         // bool same_columns = true;
         /*bool should_upgrade = !tile_group_header->GetCommitOrPrepare(old_location.offset) && new_tile_group->GetHeader()->GetCommitOrPrepare(new_location.offset);
@@ -365,14 +364,14 @@ bool InsertExecutor::DExecute() {
         /** NEW: Yield ownership if necessary */
         if (install_res == false) {
           Panic("Fail to install new tuple. Set txn failure.");
-          if (is_owner == false) {
-            // If the ownership is acquire inside this update executor, we
-            // release it here
-            transaction_manager.YieldOwnership(current_txn, tile_group_header, old_location.offset);
-          }
+          // if (is_owner == false) {
+          //   // If the ownership is acquire inside this update executor, we
+          //   // release it here
+          //   transaction_manager.YieldOwnership(current_txn, tile_group_header, old_location.offset);
+          // }
 
-          transaction_manager.SetTransactionResult(current_txn,  ResultType::FAILURE);
-          return false;
+          // transaction_manager.SetTransactionResult(current_txn,  ResultType::FAILURE);
+          // return false;
         }
 
         // finally install new version into the table
