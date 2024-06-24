@@ -1046,6 +1046,7 @@ int main(int argc, char **argv) {
 
         //Load all table data -- NOTE: We do this only AFTER we have loaded all the schemas to avoid concurrency issues inside Peloton...
         for(auto &[table_name, table_args]: tables_to_load.items()){ 
+          //if(table_name!="warehouse" && table_name != "district") continue;
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
 
@@ -1072,6 +1073,7 @@ int main(int argc, char **argv) {
           //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
           std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
           server->LoadTableData(table_name, row_data_path, column_names_and_types, primary_key_col_idx);
+          
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){
           //   const std::vector<std::string> &values = row;

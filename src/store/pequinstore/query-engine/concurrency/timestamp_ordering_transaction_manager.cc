@@ -127,6 +127,7 @@ bool TimestampOrderingTransactionManager::AcquireOwnership(
   // consider a transaction that is executed under snapshot isolation.
   // in this case, commit_id is not equal to read_id.
   if (last_reader_cid > current_txn->GetCommitId()) {
+    Panic("Serializability conflict");
     latch.Unlock();
 
     return false;

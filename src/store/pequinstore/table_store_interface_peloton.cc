@@ -231,6 +231,7 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
     tuple_descriptor = statement->GetTupleDescriptor();
     Debug("Query Read successful. ");
   } else {
+    Panic("Query read failure");
     return ""; //return empty string. (empty result)
     //Panic("Query read failure");
   }

@@ -36,14 +36,13 @@ TransactionContext *TransactionManager::BeginTransaction(
   TransactionContext *txn = nullptr;
 
   if (type == IsolationLevelType::SNAPSHOT) {
+    Panic("Using Snapshot");
     // transaction processing with decentralized epoch manager
     // the DBMS must acquire
-    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
-        thread_id, TimestampType::SNAPSHOT_READ);
+    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::SNAPSHOT_READ);
 
     if (protocol_ == ProtocolType::TIMESTAMP_ORDERING) {
-      cid_t commit_id = EpochManagerFactory::GetInstance().EnterEpoch(
-          thread_id, TimestampType::COMMIT);
+      cid_t commit_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::COMMIT);
 
       txn = new TransactionContext(thread_id, type, read_id, commit_id);
     } else {
@@ -57,10 +56,10 @@ TransactionContext *TransactionManager::BeginTransaction(
     // - READ_COMMITTED.
     // transaction processing with decentralized epoch manager
     //std::cerr << "created txn else clause" << std::endl;
-    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
-        thread_id, TimestampType::READ);
+    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::READ);
     txn = new TransactionContext(thread_id, type, read_id);
     //std::cerr << "created txn" << std::endl;
+    //Notice("Serializable: read_id: %d", read_id);
   }
 
   if (read_only) {
