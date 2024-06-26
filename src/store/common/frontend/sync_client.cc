@@ -243,12 +243,12 @@ void SyncClient::PutTimeoutCallback(Promise *promise, int status, const std::str
 }
 
 void SyncClient::CommitCallback(Promise *promise, transaction_status_t status) {
-  std::cerr<< "Shir: Commit callback\n";
+  // std::cerr<< "Shir: Commit callback\n";
   promise->Reply(status);
 }
 
 void SyncClient::CommitTimeoutCallback(Promise *promise) {
-  std::cerr<< "Shir: Commit Timeout callback\n";
+  // std::cerr<< "Shir: Commit Timeout callback\n";
   promise->Reply(REPLY_TIMEOUT);
 }
 

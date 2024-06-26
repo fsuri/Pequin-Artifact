@@ -80,7 +80,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   past_ranges.clear();
   statements.clear();
 
-  std::cerr << "Shir  33 + liveops= " << liveOps<< std::endl;
+  // std::cerr << "Shir  33 + liveops= " << liveOps<< std::endl;
 
 
   Debug("Start next Transaction");
@@ -90,8 +90,10 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
   //Execute #liveOps queries
   for(int i=0; i < liveOps; ++i){
-    std::cerr << "LiveOp: " << i << std::endl;
-    std::cerr << "starts size: " << starts.size() << std::endl;
+    // std::cerr << "LiveOp: " << i << std::endl;
+    // std::cerr << "starts size: " << starts.size() << std::endl;
+    Debug("LiveOp: %d",i);
+    Debug("starts size: %d",starts.size());
     //UW_ASSERT(liveOps <= (querySelector->numKeys)); //there should never be more ops than keys; those should've been cancelled. FIXME: new splits might only be cancelled later.
 
     // std::cerr << "Shir  44" << std::endl;
@@ -105,7 +107,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     // std::cerr << "Shir  55" << std::endl;
 
     if(DISABLE_WRAP_AROUND && right_bound < left_bound){
-      std::cerr << "DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0" << std::endl;
+      Debug("DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0");
       left_bound = 0;
       //continue;
     }
@@ -116,7 +118,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
       if(!AdjustBounds(left_bound, right_bound, tables[i])){
-        std::cerr << "CANCELLED REDUNDANT QUERY" << std::endl;  
+        Debug("CANCELLED REDUNDANT QUERY");
         continue;
       } 
     }
@@ -127,7 +129,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     std::string &statement = statements.back();
 
     Debug("Start new RW-SQL Request: %s", statement);
-    std::cerr << "Start new RW-SQL Request: " << statement << std::endl;
 
     SubmitStatement(client, statement, i);
     //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
@@ -144,11 +145,10 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
   transaction_status_t commitRes = client.Commit(timeout);
 
-  std::cerr << "Shir: passed commit !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"  << std::endl;
 
 
 
-  std::cerr << "TXN COMMIT STATUS: " << commitRes << std::endl;
+  Debug("TXN COMMIT STATUS: %d",commitRes);
 
   //Panic("stop after one");
 
@@ -200,20 +200,24 @@ void RWSQLTransaction::SubmitStatement(SyncClient &client, std::string &statemen
   else{
    
     if(PARALLEL_QUERIES){ 
-      std::cerr << "Issue parallel Write request" << std::endl;
+      // std::cerr << "Issue parallel Write request" << std::endl;
+      Debug("Issue parallel Write request");
       client.SQLRequest(statement, timeout);  //client.Write
     }
     else{
-      std::cerr << "Issue sequential Write request" << std::endl;
+      // std::cerr << "Issue sequential Write request" << std::endl;
+      Debug("Issue sequential Write request");
       std::unique_ptr<const query_result::QueryResult> queryResult;
       client.SQLRequest(statement, queryResult, timeout);  //client.Write
     
       UW_ASSERT(queryResult->rows_affected());
-      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+      Debug("Num rows affected: %d",queryResult->rows_affected());
+      // std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
 
       int expected_size = (ends[i] - starts[i] + 1) % querySelector->numKeys;
       if(queryResult->rows_affected() < expected_size){ //ranges[i] + 1
-        std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
+        // std::cerr << "Was not able to read all expected rows -- Check whether initialized correctly serverside" << std::endl;
+        Debug("Was not able to read all expected rows -- Check whether initialized correctly serverside");
         //TODO: if key doesn't exist => INSERT IT
         //Insert all -- just issue a bunch of point writes (bundle under one statement?) => TODO: Currently sql_interpreter does not support multi-writes
         //ideally just insert the missing ones, but we cannot tell WHICH ones are missing at the app layer -- queryResult only has num_rows_affected. //T
@@ -235,7 +239,8 @@ void RWSQLTransaction::GetResults(SyncClient &client){
 
 
       // if(!readOnly) UW_ASSERT(queryResult->rows_affected());
-      std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+      // std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
+      Debug("Num rows affected: %d",queryResult->rows_affected() );
     }
   }
 
@@ -245,13 +250,14 @@ void RWSQLTransaction::GetResults(SyncClient &client){
 bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
 {
   
-  std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
+  // std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
+  Debug("ADJUSTING NEXT QUERY:");
   //return false if statement is to be skipped.    
-  std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
+  // std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
 
     //shrink in every loop (never grow!)
     for(auto [l, r]: past_ranges){
-      std::cerr << "Compare against: " << l << ":" << r << std::endl;
+      // std::cerr << "Compare against: " << l << ":" << r << std::endl;
       if(wrap(r-l)+1 == 0) return false; //previous query read everything.
 
       //Linearize all Keys onto a plane: 0 - (numKeys-1 + numKeys)  right side must always be >= left 
@@ -268,7 +274,8 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
         
         if(l < numKeys && r < numKeys){  // one of left/right must be in higher plane, so check for conflict there
          //case c: l/r are in left plane; 
-          std::cerr << "dynamically lift l/r into higher plane" << std::endl;
+          // std::cerr << "dynamically lift l/r into higher plane" << std::endl;
+          Debug("dynamically lift l/r into higher plane");
           l += numKeys;
           r += numKeys;
           if(left > r || right < l) continue; //no overlap in higher plane either.
@@ -287,18 +294,18 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
 
       //2) subsumed    l  <= left right <= r
       if(l <= left && right <= r){
-        std::cerr << "case 1" << std::endl;
+        // std::cerr << "case 1" << std::endl;
         return false;
       } 
 
       //3) encompass   left < l  r < right
       // => split
       if(left < l && r < right){
-        std::cerr << "case 3" << std::endl;
-          std::cerr << "l: " << l << std::endl;
-           std::cerr << "r: " << r << std::endl;
+        // std::cerr << "case 3" << std::endl;
+        //   std::cerr << "l: " << l << std::endl;
+        //    std::cerr << "r: " << r << std::endl;
           liveOps+=2;
-          std::cerr << "SPLITTING INTO TWO. One: l: " << (left % numKeys) << "; r: " << ((l-1) %numKeys) << ". Two: l: " << ((r+1) %numKeys) << "; r: " << (right % numKeys) << std::endl;
+          // std::cerr << "SPLITTING INTO TWO. One: l: " << (left % numKeys) << "; r: " << ((l-1) %numKeys) << ". Two: l: " << ((r+1) %numKeys) << "; r: " << (right % numKeys) << std::endl;
           starts.push_back(left % numKeys);
           ends.push_back((l-1) % numKeys);
           tables.push_back(table);
@@ -310,7 +317,7 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
 
       //4) overlap  l <= left <= r <= right   Or: left <= l <= right <= r
       //=> move out of bounds;
-      std::cerr << "case 4" << std::endl;
+      // std::cerr << "case 4" << std::endl;
       if(l <= left) left = r+1;  
       if(right <= r) right = l-1;
 
@@ -327,7 +334,7 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
     //if not spanning across planes, add to both planes:
     //if(left < numKeys && right < numKeys) past_ranges.push_back({left + numKeys, right + numKeys}); // => do it in-place instead
 
-    std::cerr << "Output Left: " << left << " Right: " << right << std::endl;
+    // std::cerr << "Output Left: " << left << " Right: " << right << std::endl;
 
     return true;
 }
@@ -336,9 +343,9 @@ bool RWSQLTransaction::AdjustBounds(int &left, int &right, uint64_t table)
 bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table)
 {
   
-  std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
+  // std::cerr << "ADJUSTING NEXT QUERY: " << std::endl;
   //return false if statement is to be skipped.    
-  std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
+  // std::cerr << "Input Left: " << left << " Right: " << right << std::endl;
 
   UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
 
@@ -346,7 +353,7 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
 
     //shrink in every loop (never grow!)
      for(auto &[l, r]: past_ranges){
-        std::cerr << "Comparing against past range: l="<< l << ", r=" << r << std::endl;
+        // std::cerr << "Comparing against past range: l="<< l << ", r=" << r << std::endl;
         if(l <= r){
           if(r-l+1 == numKeys) return false;
 
@@ -360,7 +367,7 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
             if(left < l && r < right){
               //create two new updates instead!
               //Add them back to the queue; when we process them, we might have to shrink them again.
-              std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+              // std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
               liveOps+=2;
               starts.push_back(left);
               ends.push_back(wrap(l-1));
@@ -381,7 +388,7 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
             if(right > r)  left = wrap(std::max(r+1, left)); //it must be that l <= left <= r
             //in both cases, make them non-overlapping.
 
-            std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
+            // std::cerr << "adjusted to Left: " << left << " Right: " << right << std::endl;
 
             
           }
@@ -392,7 +399,7 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
             //              l               r     right left      ==> split into two: left to l, r to right
             // right left   l               r                     ==> split into two: left to l, r to right
             if(right > r || left < l) {
-               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+              //  std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
               liveOps+=2;
               starts.push_back(left);
               ends.push_back(wrap(l-1));
@@ -445,7 +452,7 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
             //             r   right left  l
             if(r < right && left < l) {   
               //create two parallel reads: one from r to right, and one from left to l
-               std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
+              //  std::cerr << "SPLITTING INTO TWO. One: l: " << left << "; r: " << (wrap(l-1)) << ". Two: l: " << (wrap(r+1)) << "; r: " << right << std::endl;
               liveOps+=2;
               starts.push_back(left);
               ends.push_back(wrap(l-1));
@@ -498,18 +505,18 @@ bool RWSQLTransaction::AdjustBounds_manual(int &left, int &right, uint64_t table
           }
         }
         
-        std::cerr << "New left:" << left << std::endl;
-        std::cerr << "New right:" << right << std::endl;
+        // std::cerr << "New left:" << left << std::endl;
+        // std::cerr << "New right:" << right << std::endl;
              
 
         int new_size = wrap(right - left) + 1;
-        std::cerr << "size: " << size << std::endl;
-        std::cerr << "new size: " << new_size << std::endl;
+        // std::cerr << "size: " << size << std::endl;
+        // std::cerr << "new size: " << new_size << std::endl;
         if(new_size > size) return false;  //Confirm that we shrank range (and not accidentally flipped signs and made it bigger)
         size = new_size;
     }
 
-    std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
+    // std::cerr << "Adjusted to Left: " << left << " Right: " << right << std::endl;
     UW_ASSERT(left < querySelector->numKeys && right < querySelector->numKeys);
     past_ranges.push_back({left, right});
 

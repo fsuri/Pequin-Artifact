@@ -154,14 +154,14 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
         query_res = new sql::QueryResultProtoWrapper();
       }
 
-      std::cerr << "Shir: For the following statement:     "<<statement << std::endl;
-      std::cerr << "Shir: rows affected is:     "<<query_res->rows_affected() << std::endl;
-      // std::cerr << "Shir: WAS IT ABORTED?:     "<<query_res->rows_affected() << std::endl;
-      std::cerr << "Shir: status is:     "<<status << std::endl;
+      // std::cerr << "Shir: For the following statement:     "<<statement << std::endl;
+      // std::cerr << "Shir: rows affected is:     "<<query_res->rows_affected() << std::endl;
+      // // std::cerr << "Shir: WAS IT ABORTED?:     "<<query_res->rows_affected() << std::endl;
+      // std::cerr << "Shir: status is:     "<<status << std::endl;
     
       scb(status, query_res);
 
-      std::cerr << "Shir: does it get here?" << std::endl;
+      // std::cerr << "Shir: does it get here?" << std::endl;
 
 
     };

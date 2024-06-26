@@ -53,22 +53,23 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
   std::string db_name = "db1";
   if (localConfig){
-    std::cerr << "Shir: using local config (pg server)\n";
+    // std::cerr << "Shir: using local config (pg server)\n";
+    Debug("Shir: using local config (pg server");
     db_name = "db" + std::to_string(1 + idx);
   }
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
   std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
-  std::cerr<<"Shir: 33333333333333333333333333333333333333333333333333333333333\n";
-  std::cerr << connection_str <<"\n";
+  // std::cerr<<"Shir: 33333333333333333333333333333333333333333333333333333333333\n";
+  // std::cerr << connection_str <<"\n";
   Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
 
 
   connectionPool = tao::pq::connection_pool::create(connection_str);
 
   Debug("PostgreSQL client created! Id: %d", idx);
-  std::cerr << "PostgreSQL client created! Id:  "<< idx <<"\n";
+  // std::cerr << "PostgreSQL client created! Id:  "<< idx <<"\n";
 
 }
 
@@ -90,7 +91,7 @@ Server::~Server() {}
 }
 
 std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg) {
-  std::cerr<<"Shir: recieved a message of type:    "<<type.c_str()<<"   and looking for the right handler\n";
+  // std::cerr<<"Shir: recieved a message of type:    "<<type.c_str()<<"   and looking for the right handler\n";
   Debug("Execute: %s", type.c_str());
   proto::SQL_RPC sql_rpc;
   proto::TryCommit try_commit;
@@ -146,7 +147,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 
 
 void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
-  std::cerr<< "Shir Execute with callback: "<< type.c_str()<<"\n" ;
+  // std::cerr<< "Shir Execute with callback: "<< type.c_str()<<"\n" ;
   Debug("Execute with callback: %s", type.c_str());
 
   proto::SQL_RPC sql_rpc;
@@ -180,7 +181,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     if (tr){
       // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. 
       if (type == sql_rpc_template.GetTypeName()) {
-        std::cerr<<sql_rpc.query()<<"\n";
+        // std::cerr<<sql_rpc.query()<<"\n";
         results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
       } else if (type == try_commit_template.GetTypeName()) {
         results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
@@ -202,7 +203,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
       reply->set_status(REPLY_OK); // OR should it be reply_ok?
       results.push_back(returnMessage(reply));
       }else{
-        std::cerr<< type<<"\n";
+        // std::cerr<< type<<"\n";
 
         // std::cerr << "Shir print:    " << "Panic" << std::endl;
         abort;
@@ -266,7 +267,8 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
   Debug("Trying to commit a txn %d",req_id);
   // std::cerr << "Shir print:    " << "Trying to commit a txn  " <<req_id << std::endl;
 
-  std::cerr<<"the tr pointer for commit is :     "<< tr << "\n";
+  // std::cerr<<"the tr pointer for commit is :     "<< tr << "\n";
+  Debug("the tr pointer for commit is :    %s ",tr);
   proto::TryCommitReply* reply = new proto::TryCommitReply();
   reply->set_req_id(req_id);
   try {
@@ -328,14 +330,16 @@ std::pair<std::shared_ptr<tao::pq::transaction>, bool> Server::getPgTransaction(
 
       auto connection = connectionPool->connection();
       tr = connection->transaction();
-      std::cerr<<"Shir: new tr pointer is :     "<< tr <<"\n";
+      // std::cerr<<"Shir: new tr pointer is :     "<< tr <<"\n";
+      Debug("Shir: new tr pointer is :    %s ", tr);
       auto txn_status =std::make_tuple(connection, tr, false);
       // txnMap.insert(t, key);
       t->second=txn_status;
     } else {
       Debug("Key already exists");
       tr = get<1>(t->second);
-      std::cerr<<"Shir: for key:  "<< key.c_str() <<"  existing tr pointer is :     "<< tr <<"\n";
+      // std::cerr<<"Shir: for key:  "<< key.c_str() <<"  existing tr pointer is :     "<< tr <<"\n";
+      Debug("Shir: for key: %s, existing tr pointer is :  %s ", key.c_str(),tr);
       is_aborted=get<2>(t->second);
   }
     return std::make_pair(tr,is_aborted);
@@ -349,7 +353,7 @@ uint64_t Server::getThreadID(const std::string &key){
 
 // fields are < connection, transaction tr, bool was_aborted>
 void Server::markTxnTerminated(txnStatusMap::accessor &t,string from){
-  std::cerr<<"Shir: terminating txn from  "<< from.c_str() << "with tr pointer:    "<< get<1>(t->second) <<"\n";
+  // std::cerr<<"Shir: terminating txn from  "<< from.c_str() << "with tr pointer:    "<< get<1>(t->second) <<"\n";
 
   get<0>(t->second) = nullptr;
   get<1>(t->second) = nullptr;
@@ -425,8 +429,8 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   
   sql_statement +=");";
 
-  std::cerr << "Create Table: " << sql_statement << std::endl;
-
+  // std::cerr << "Create Table: " << sql_statement << std::endl;
+  Debug("Create Table: %s", sql_statement);
   this->exec_statement(sql_statement);
 
 
@@ -459,7 +463,7 @@ void Server::CreateIndex(const std::string &table_name, const std::vector<std::p
 void Server::LoadTableData(const std::string &table_name, const std::string &table_data_path, 
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
   Debug("Shir: Load Table data!");
-  std::cerr<<"Shir: Load Table data\n";
+  // std::cerr<<"Shir: Load Table data\n";
   std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
   std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
   t1.detach();
@@ -467,7 +471,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   Debug("Shir: Load Table rows!");
-  std::cerr<< "Shir: Load Table rows!\n";
+  // std::cerr<< "Shir: Load Table rows!\n";
   std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
   std::thread t1([this, sql_statement]() { this->exec_statement(sql_statement); });
   t1.detach();
@@ -498,7 +502,7 @@ std::string Server::GenerateLoadStatement(const std::string &table_name, const s
     load_statement.resize(load_statement.length()-2); //remove trailing ", "
     load_statement += ";";
     Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
-    std::cerr<< "Shir: Generate Load Statement for Tab!\n";
+    // std::cerr<< "Shir: Generate Load Statement for Tab!\n";
 
     return load_statement;
 }

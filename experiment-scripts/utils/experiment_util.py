@@ -266,13 +266,13 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             ## set-up dbs for pg-smr
             if config['replication_protocol'] == 'hotstuffpg':
                 print("Shir: setting up databases for postgres usage")
-                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r;'
-                # Creating a single db per machine
-                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1;'
-                cmd = cmd7 + cmd8 +cmd
+                # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r;'
+                # # Creating a single db per machine
+                # cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1;'
+                # cmd = cmd7 + cmd8 + cmd
 
-                # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -c;'
-                # cmd = cmd7  +cmd
+                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -c;'
+                cmd = cmd7  +cmd
 
 
 

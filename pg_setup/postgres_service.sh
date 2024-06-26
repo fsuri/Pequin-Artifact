@@ -181,7 +181,14 @@ else
     # Start the PostgreSQL cluster
     sudo pg_ctlcluster $PGV $CLUSTERID start
 
-    su - $USER -c "echo \"CREATE USER pequin_user WITH PASSWORD '123'\" | psql"
+    su - $USER -c "echo \"CREATE USER pequin_user WITH PASSWORD '123';\" | psql"
+
+
+    su - $USER -c "echo \"SHOW max_connections;\" | psql"
+    su - $USER -c "echo \"ALTER SYSTEM SET max_connections = 250;\" | psql"
+    su - $USER -c "echo \"SELECT pg_reload_conf();\" | psql"
+    sudo systemctl restart postgresql
+    su - $USER -c "echo \"SHOW max_connections;\" | psql"
 
     # Setting the databases
     for i in $(seq 1 $db_num);

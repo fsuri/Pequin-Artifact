@@ -186,14 +186,14 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
       }
     } else{
       Debug("Shir: 101010"); // not deterministic
-      std::cerr <<"Shir: (4) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
+      // std::cerr <<"Shir: (4) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
 
-      std::cerr <<"Shir: will it crash?: "<<pendingSQL_RPC->numReceivedReplies<<" \n";
-      std::cerr <<"Shir: leader reply is :   "<<pendingSQL_RPC->leaderReply<<" \n";
-      std::cerr <<"Shir: has the leader replied :   "<<pendingSQL_RPC->hasLeaderReply<<" \n";
+      // std::cerr <<"Shir: will it crash?: "<<pendingSQL_RPC->numReceivedReplies<<" \n";
+      // std::cerr <<"Shir: leader reply is :   "<<pendingSQL_RPC->leaderReply<<" \n";
+      // std::cerr <<"Shir: has the leader replied :   "<<pendingSQL_RPC->hasLeaderReply<<" \n";
       
       if(pendingSQL_RPC->numReceivedReplies >= (uint64_t) config.f + 1 && pendingSQL_RPC->hasLeaderReply) {
-        std::cerr <<"Shir: (5) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies. which is why i'm here \n";
+        // std::cerr <<"Shir: (5) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies. which is why i'm here \n";
         SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC->leaderReply, reqId, pendingSQL_RPC->status);
       }
 
@@ -349,7 +349,7 @@ void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uin
   transport->SendMessageToGroup(this, group_idx, request);
 
   Debug("Shir: trying to send the following message:");
-  std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<try_commit.GetTypeName() <<"\n";
+  // std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<try_commit.GetTypeName() <<"\n";
 
   PendingTryCommit ptc;
   ptc.tccb = tccb;
