@@ -84,8 +84,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   stats.Increment("total_equiv_received_adopt", 0);
 
-  fprintf(stderr, "Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
-  fprintf(stderr, "Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
+  Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
+  Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);
   transport->Register(this, config, groupIdx, idx);
   _Latency_Init(&committedReadInsertLat, "committed_read_insert_lat");
@@ -153,7 +153,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Compute write_monotonicity_grac 
   write_monotonicity_grace = timeServer.MStoTS(params.query_params.monotonicityGrace);
-  std::cerr << "write_monotonicity_grace: " << write_monotonicity_grace << std::endl;
+  Notice("write_monotonicity_grace: %d", write_monotonicity_grace);
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
   UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
 

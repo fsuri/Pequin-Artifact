@@ -43,34 +43,34 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
   // if hardware_concurrency is wrong try this:
   cpu_set_t cpuset;
   sched_getaffinity(0, sizeof(cpuset), &cpuset);
-  fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
-  fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
+  Notice("cpu_count  %d \n", CPU_COUNT(&cpuset));
+  Notice("get_nprocs  %d \n", get_nprocs());
 
   // could pre-allocate some Events and EventInfos for a Hotstart
   if (server) {
-    fprintf(stderr, "starting server threadpool\n");
-    fprintf(stderr, "process_id: %d, total_processes: %d \n", process_id, total_processes);
+    Notice("starting server threadpool\n");
+    Notice("process_id: %d, total_processes: %d \n", process_id, total_processes);
     // TODO: add config param for hyperthreading
     // bool hyperthreading = true;
 
     //int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
     int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
 
-    fprintf(stderr, "Total Num_cpus on server: %d \n", num_cpus);
+    Notice("Total Num_cpus on server: %d \n", num_cpus);
 
     bool put_all_threads_on_same_core = false;
 
     if (optimize_for_dev_machine){
       num_cpus = 16;
-      fprintf(stderr, "(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
+      Notice("(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
     } 
     if (num_cpus > 8 && !optimize_for_dev_machine) {
       num_cpus = 8;
-      fprintf(stderr, "Total Num_cpus on server downregulated to: %d \n", num_cpus);
+      Notice("Total Num_cpus on server downregulated to: %d \n", num_cpus);
     }
 
     num_cpus /= total_processes;
-    fprintf(stderr, "Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
+    Notice("Num_cpus used for replica #%d: %d \n", process_id, num_cpus);
     int offset = process_id * num_cpus; // Offset that determines where first
                                         // core of the server begins.
     uint32_t num_threads = (uint32_t)std::max(1, num_cpus);
@@ -82,7 +82,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
 
     uint32_t start = 1 - put_all_threads_on_same_core; // First core
     uint32_t end = num_threads;                        // Last core
-    fprintf(stderr, "Threadpool threads: start %d, end %d \n", start, end);
+    Notice("Threadpool threads: start %d, end %d \n", start, end);
     if (mode == 0) { // Indicus
       // Use defaults. First core is messagine (inactive in threadpool), second
       // is Main Logic Thread, remainder are workers (crypto/reads/asynchronous
@@ -107,7 +107,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       load_running = true;
     }
 
-    fprintf(stderr, "Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
+    Notice("Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start - use_load_bonus; i < end; i++) {
       UW_ASSERT(i >= 0);
       std::thread *t;

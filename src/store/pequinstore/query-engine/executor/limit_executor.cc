@@ -54,10 +54,15 @@ bool LimitExecutor::DExecute() {
 
   LOG_TRACE("Limit executor ");
 
+  Debug("Limit: %d. Offset: %d", limit, offset);
+
   while (num_returned_ < limit && children_[0]->Execute()) {
     std::unique_ptr<LogicalTile> tile(children_[0]->GetOutput());
 
     for (oid_t tuple_id : *tile) {
+
+      Debug("Next Tuple: %d", tuple_id);
+
       // "below" tuples
       if (num_skipped_ < offset) {
         tile->RemoveVisibility(tuple_id);
@@ -65,6 +70,7 @@ bool LimitExecutor::DExecute() {
       }
       // good tuples
       else if (num_returned_ < limit) {
+        Debug("Return tuple: %d", tuple_id);
         num_returned_++;
       }
       // "above" tuples

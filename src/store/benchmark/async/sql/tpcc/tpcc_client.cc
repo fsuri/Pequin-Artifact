@@ -61,7 +61,7 @@ TPCCSQLClient::~TPCCSQLClient() {
 
 SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   uint32_t wid, did;
-  std::mt19937 gen = GetRand();
+  std::mt19937 &gen = GetRand();
   if (delivery && deliveryDId < 10) {
     deliveryDId++;
     wid = deliveryWId;
@@ -91,13 +91,13 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   }
   if (ttype < (freq = new_order_ratio)) {
     lastOp = "new_order";
-    return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, GetRand());
+    return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, gen);
   } else if (ttype < (freq += payment_ratio)) {
     lastOp = "payment";
-    return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, GetRand());
+    return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, gen);
   } else if (ttype < (freq += order_status_ratio)) {
     lastOp = "order_status";
-    return new SQLOrderStatus(GetTimeout(), wid, C_c_last, C_c_id, GetRand());
+    return new SQLOrderStatus(GetTimeout(), wid, C_c_last, C_c_id, gen);
   } else if (ttype < (freq += stock_level_ratio)) {
     if (static_w_id) {
       did = stockLevelDId;
@@ -105,14 +105,14 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
       did = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
     }
     lastOp = "stock_level";
-    return new SQLStockLevel(GetTimeout(), wid, did, GetRand());
+    return new SQLStockLevel(GetTimeout(), wid, did, gen);
   } else {
     deliveryDId = 1;
     deliveryWId = wid;
     did = deliveryDId;
     delivery = true;
     lastOp = "delivery";
-    return new SQLDelivery(GetTimeout(), wid, did, GetRand());
+    return new SQLDelivery(GetTimeout(), wid, did, gen);
   }
 }
 

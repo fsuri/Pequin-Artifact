@@ -491,7 +491,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         //if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){ //this is wrong!.
         if(timeServer.TStoMS(txn_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
-          Panic("non-monotonic write should never be admitted"); 
+          Warning("non-monotonic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.
           continue;

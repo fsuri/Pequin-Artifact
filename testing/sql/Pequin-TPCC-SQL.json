@@ -18,15 +18,17 @@
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-   "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true":false,
+   "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
+   "server_load_time": 16,
    "_server_load_time": 22,
-   "server_load_time": 28,
+   "_server_load_time": 28,
    "_server_load_time": 46,
+   "_server_load_time": 95,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 20,
+	  "tpcc_num_warehouses": 10,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -109,7 +111,7 @@
 	  
 	  
 	 "_QUERY_ARGS_": 0,
-	
+
 		  "query_sync_quorum": "query-majority-honest",
 		  "query_messages": "query-quorum",
 		  "query_merge_threshold": "query-one-honest",

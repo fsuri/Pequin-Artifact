@@ -170,16 +170,14 @@ void BWTREE_INDEX_TYPE::Scan(
     // If it is a full index scan, then just do the scan
     // until we have reached the end of the index by the same
     // we take the snapshot of the last leaf node
-    for (auto scan_itr = container.Begin(); (scan_itr.IsEnd() == false);
-         scan_itr++) {
+    for (auto scan_itr = container.Begin(); (scan_itr.IsEnd() == false); scan_itr++) {
       result.push_back(scan_itr->second);
     }  // for it from begin() to end()
   } else {
     const storage::Tuple *low_key_p = csp_p->GetLowKey();
     const storage::Tuple *high_key_p = csp_p->GetHighKey();
 
-    LOG_TRACE("Partial scan low key: %s\n high key: %s",
-              low_key_p->GetInfo().c_str(), high_key_p->GetInfo().c_str());
+    LOG_TRACE("Partial scan low key: %s\n high key: %s", low_key_p->GetInfo().c_str(), high_key_p->GetInfo().c_str());
 
     // Construct low key and high key in KeyType form, rather than
     // the standard in-memory tuple
@@ -188,14 +186,9 @@ void BWTREE_INDEX_TYPE::Scan(
     index_low_key.SetFromKey(low_key_p);
     index_high_key.SetFromKey(high_key_p);
 
-    // We use bwtree Begin() to first reach the lower bound
-    // of the search key
-    // Also we keep scanning until we have reached the end of the index
-    // or we have seen a key higher than the high key
-    for (auto scan_itr = container.Begin(index_low_key);
-         (scan_itr.IsEnd() == false) &&
-             (container.KeyCmpLessEqual(scan_itr->first, index_high_key));
-         scan_itr++) {
+    // We use bwtree Begin() to first reach the lower bound of the search key
+    // Also we keep scanning until we have reached the end of the index or we have seen a key higher than the high key
+    for (auto scan_itr = container.Begin(index_low_key); (scan_itr.IsEnd() == false) && (container.KeyCmpLessEqual(scan_itr->first, index_high_key)); scan_itr++) {
       result.push_back(scan_itr->second);
     }
   }  // if is full scan

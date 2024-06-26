@@ -58,6 +58,8 @@ bool OrderByExecutor::DInit() {
 bool OrderByExecutor::DExecute() {
   LOG_TRACE("Order By executor ");
 
+  Debug("OrderByExecutor");
+
   if (!sort_done_) DoSort();
 
   if (!(num_tuples_returned_ < sort_buffer_.size())) {
@@ -72,22 +74,18 @@ bool OrderByExecutor::DExecute() {
   // NOTE: the schema of these tiles might not match the input tiles when some
   // of the order by columns are not be part of the output schema
 
-  size_t tile_size = std::min(size_t(DEFAULT_TUPLES_PER_TILEGROUP),
-                              sort_buffer_.size() - num_tuples_returned_);
+  size_t tile_size = std::min(size_t(DEFAULT_TUPLES_PER_TILEGROUP), sort_buffer_.size() - num_tuples_returned_);
 
   std::shared_ptr<storage::Tile> ptile(storage::TileFactory::GetTile(
       BackendType::MM, INVALID_OID, INVALID_OID, INVALID_OID, INVALID_OID,
       nullptr, *output_schema_, nullptr, tile_size));
 
   for (size_t id = 0; id < tile_size; id++) {
-    oid_t source_tile_id =
-        sort_buffer_[num_tuples_returned_ + id].item_pointer.block;
-    oid_t source_tuple_id =
-        sort_buffer_[num_tuples_returned_ + id].item_pointer.offset;
+    oid_t source_tile_id = sort_buffer_[num_tuples_returned_ + id].item_pointer.block;
+    oid_t source_tuple_id = sort_buffer_[num_tuples_returned_ + id].item_pointer.offset;
     // Insert a physical tuple into physical tile
     for (oid_t i = 0; i < output_schema_->GetColumnCount(); i++) {
-      type::Value val =
-          (input_tiles_[source_tile_id]->GetValue(source_tuple_id, output_column_ids_[i]));
+      type::Value val = (input_tiles_[source_tile_id]->GetValue(source_tuple_id, output_column_ids_[i]));
       ptile.get()->SetValue(val, id, i);
     }
   }
@@ -112,6 +110,8 @@ bool OrderByExecutor::DoSort() {
   PELOTON_ASSERT(!sort_done_);
   PELOTON_ASSERT(executor_context_ != nullptr);
 
+  Debug("DoSort");
+
   // Extract all data from child
   while (children_[0]->Execute()) {
     input_tiles_.emplace_back(children_[0]->GetOutput());
@@ -119,14 +119,20 @@ bool OrderByExecutor::DoSort() {
     // increase the counter
     num_tuples_get_ += input_tiles_.back()->GetTupleCount();
 
-    // Optimization for ordered output
-    if (limit_) {
-      // We already get enough tuples, break while
-      if (num_tuples_get_ >= (limit_offset_ + limit_number_)) {
-        LOG_TRACE("num_tuples_get_ (%lu) are enough", num_tuples_get_);
-        break;
-      }
-    }
+    Debug("Num tuples: %d", num_tuples_get_);
+
+    Debug("limit_: %d. limit_number: %d. limit_offset: %d", limit_, limit_offset_, limit_number_);
+
+
+    // Optimization for ordered output  //NOTE: FS: THIS ASSUMPTION DOES NOT HOLD. FIXME: WHY?? Seems like Index Scan can return rows in random order?
+    // if (limit_) {
+    //   // We already get enough tuples, break while
+    //   if (num_tuples_get_ >= (limit_offset_ + limit_number_)) {
+    //     Notice("Enough tuples!");
+    //     LOG_TRACE("num_tuples_get_ (%lu) are enough", num_tuples_get_);
+    //     break;
+    //   }
+    // }
   }
 
   /** Number of valid tuples to be sorted. */
@@ -163,16 +169,13 @@ bool OrderByExecutor::DoSort() {
   for (oid_t tile_id = 0; tile_id < input_tiles_.size(); tile_id++) {
     for (oid_t tuple_id : *input_tiles_[tile_id]) {
       // Extract the sort key tuple
-      std::unique_ptr<storage::Tuple> tuple(
-          new storage::Tuple(sort_key_tuple_schema_.get(), true));
+      std::unique_ptr<storage::Tuple> tuple(new storage::Tuple(sort_key_tuple_schema_.get(), true));
       for (oid_t id = 0; id < node.GetSortKeys().size(); id++) {
-        type::Value val =
-            (input_tiles_[tile_id]->GetValue(tuple_id, node.GetSortKeys()[id]));
+        type::Value val = (input_tiles_[tile_id]->GetValue(tuple_id, node.GetSortKeys()[id]));
         tuple->SetValue(id, val, executor_pool);
       }
       // Inert the sort key tuple into sort buffer
-      sort_buffer_.emplace_back(sort_buffer_entry_t(
-          ItemPointer(tile_id, tuple_id), std::move(tuple)));
+      sort_buffer_.emplace_back(sort_buffer_entry_t(ItemPointer(tile_id, tuple_id), std::move(tuple)));
     }
   }
 

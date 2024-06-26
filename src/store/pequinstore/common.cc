@@ -2110,7 +2110,7 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength) {
 //FIXME: This Function is not taking into account the Timestamps. TODO: Add the timestamp checks (like in concurrencycontrol.cc)
 bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) { //a is the conflict proof, b the current txn
   for (const auto &ra : a.read_set()) {
-    std::cerr << "a key: " << ra.key() << std::endl;
+   //Notice("a key: %s ", ra.key().c_str());
     for (const auto &wb : b.write_set()) {
       if (ra.key() == wb.key()) {
         return true;
@@ -2118,7 +2118,7 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
     }
   }
   for (const auto &rb : b.read_set()) {
-    std::cerr << "b key: " << rb.key() << std::endl;
+   //Notice("ab key: %s ", rb.key().c_str());
     for (const auto &wa : a.write_set()) {
       if (rb.key() == wa.key()) {
         return true;

@@ -316,7 +316,9 @@ oid_t TileGroup::InsertTupleFromCheckpoint(oid_t tuple_slot_id,
 }
 
 type::Value TileGroup::GetValue(oid_t tuple_id, oid_t column_id) {
-  PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
+  if(tuple_id >= GetNextTupleSlot()) throw std::runtime_error("GetValue violation");
+  PELOTON_ASSERT(tuple_id < GetNextTupleSlot()); //check that we are reading the latest?
+
   oid_t tile_column_id, tile_offset;
   tile_group_layout_->LocateTileAndColumn(column_id, tile_offset, tile_column_id);
   return GetTile(tile_offset)->GetValue(tuple_id, tile_column_id);

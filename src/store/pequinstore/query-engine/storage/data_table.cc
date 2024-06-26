@@ -350,10 +350,16 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     is_duplicate = false;
     ItemPointer location = GetEmptyTupleSlot(tuple);
     if (location.block == INVALID_OID) {
+      Panic("invalid location?");
       LOG_TRACE("Failed to get tuple slot.");
       Debug("Invalid write to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
       return INVALID_ITEMPOINTER;
     }
+
+    // auto tile_group = this->GetTileGroupById(location.block);
+    // auto tile_group_header = tile_group->GetHeader();
+    // auto &latch = tile_group_header->GetSpinLatch(0); //take a lock on this tile group?
+    // latch.Lock();
 
     // ItemPointer *old_location;
     auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
@@ -365,6 +371,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       // return INVALID_ITEMPOINTER;
     }
     //Debug("Wrote to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
+    //latch.Unlock();
     return location; //*old_location;
 
   }
@@ -372,6 +379,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
   else {
     auto tile_group = this->GetTileGroupById(check.block);
     auto tile_group_header = tile_group->GetHeader();
+
+    // auto &latch = tile_group_header->GetSpinLatch(0); //take a lock on this tile group?
+    // latch.Lock();
 
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
     auto curr_pointer = check;
@@ -447,16 +457,21 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // NOTE: Check if we can upgrade a prepared tuple to committed
 
         // std::string encoded_key = target_table_->GetName();
-        const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
-        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
-          auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
-          auto val2 = tuple->GetValue(col_idx);
 
-          if (val1.ToString() != val2.ToString()) {
-            // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
-            same_columns = false;
-          }
-        }
+        //FIXME: Seems unecessary to check "same_columns"
+        // const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
+        // for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+
+        //   try{
+        //   auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx, false);
+        //   auto val2 = tuple->GetValue(col_idx);
+
+        //   if (val1.ToString() != val2.ToString()) {
+        //     // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
+        //     same_columns = false;
+        //   }
+        //   } catch(...){Panic("Data table fail (upgrade)");}
+        // }
 
         // For snapshotting upgrade from materialize to commit
         if (curr_tile_group_header->GetMaterialize(curr_pointer.offset) && !transaction->GetForceMaterialize()) {
@@ -513,6 +528,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
       ItemPointer location = GetEmptyTupleSlot(tuple);
       if (location.block == INVALID_OID) {
+        Panic("Invalid location");
         LOG_TRACE("Failed to get tuple slot.");
         return INVALID_ITEMPOINTER;
       }
@@ -543,8 +559,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         exists = false;
         // return INVALID_ITEMPOINTER;
       }
+      //latch.Unlock();
       return location;
     }
+
+    //latch.Unlock();
   }
 
   return ItemPointer(0, 0);

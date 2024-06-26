@@ -138,7 +138,7 @@ void GenerateWarehouseTable(uint32_t num_warehouses, TableWriter &writer) {
 }
 
 void GenerateStockTableForWarehouse(uint32_t w_id, TableWriter &writer) {
-  std::mt19937 gen;
+  std::mt19937 gen(w_id);
   std::string table_name = STOCK_TABLE;
 
   for (uint32_t s_i_id = 1; s_i_id <= 100000; ++s_i_id) {
@@ -193,7 +193,7 @@ void GenerateStockTable(uint32_t num_warehouses, TableWriter &writer) {
 }
 
 void GenerateDistrictTableForWarehouse(uint32_t w_id, TableWriter &writer) {
-  std::mt19937 gen;
+  std::mt19937 gen(w_id);
   std::string table_name = DISTRICT_TABLE;
   
   for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
@@ -237,7 +237,7 @@ void GenerateDistrictTable(uint32_t num_warehouses, TableWriter &writer) {
 
 void GenerateCustomerTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     uint32_t time, uint32_t c_last, TableWriter &writer) {
-  std::mt19937 gen;
+  std::mt19937 gen(w_id);
   std::string table_name = CUSTOMER_TABLE;
 
   for (uint32_t c_id = 1; c_id <= 3000; ++c_id) {
@@ -284,7 +284,7 @@ void GenerateCustomerTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
 
 void GenerateCustomerTable(uint32_t num_warehouses, uint32_t c_load_c_last,
     uint32_t time, TableWriter &writer) {
-  std::mt19937 gen;
+  //std::mt19937 gen;
   std::string table_name = CUSTOMER_TABLE;
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
 
@@ -365,7 +365,7 @@ void GenerateHistoryTable(uint32_t num_warehouses,
 
 void GenerateOrderTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     uint32_t c_load_ol_i_id, TableWriter &writer) {
-  std::mt19937 gen;
+  std::mt19937 gen(w_id);
   std::vector<uint32_t> c_ids(3000);
   std::iota(c_ids.begin(), c_ids.end(), 1);
   std::shuffle(c_ids.begin(), c_ids.end(), gen);
@@ -462,7 +462,7 @@ void GenerateOrderTable(uint32_t num_warehouses, uint32_t c_load_ol_i_id,
 
 void GenerateNewOrderTableForWarehouseDistrict(uint32_t w_id, uint32_t d_id,
     TableWriter &writer) {
-  std::mt19937 gen;
+  std::mt19937 gen(w_id);
   std::string table_name = NEW_ORDER_TABLE;
   std::vector<std::string> values;
 

@@ -220,7 +220,8 @@ public:
     size_t k_prepared_versions = 1,
     const ::google::protobuf::Map<std::string, pequinstore::proto::ReplicaList> *ss_txns = nullptr,
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    size_t thread_id = 0);
+    size_t thread_id = 0,
+    bool is_limit = false);
 
   // Helper to handle txn-specifics for the plan-tree of a statement.
   executor::ExecutionResult ExecuteReadHelper(

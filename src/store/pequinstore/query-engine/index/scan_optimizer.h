@@ -385,8 +385,7 @@ class ConjunctionScanPredicate {
 
     // This function will modify value_index_list, but value_index_list
     // should have capacity 0 to avoid further problems
-    is_point_query_ = IndexUtil::FindValueIndex(metadata_p, tuple_column_id_list,
-                                     expr_list, value_index_list_);
+    is_point_query_ = IndexUtil::FindValueIndex(metadata_p, tuple_column_id_list, expr_list, value_index_list_);
 
     // value_index_list should be of the same length as the index key
     // schema, since it maps index key column to indices inside value_list
@@ -402,8 +401,7 @@ class ConjunctionScanPredicate {
 
       // We use the type of the current index key column to get the
       // +Inf, -Inf and/or casted type for Value object
-      type::TypeId index_key_column_type =
-          metadata_p->GetKeySchema()->GetType(i);
+      type::TypeId index_key_column_type =  metadata_p->GetKeySchema()->GetType(i);
 
       // If the lower bound of this column is not specified by the predicate
       // then we fill it with the minimum

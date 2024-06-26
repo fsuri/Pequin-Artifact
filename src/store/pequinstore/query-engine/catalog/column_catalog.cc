@@ -26,31 +26,18 @@ namespace catalog {
 
 ColumnCatalogEntry::ColumnCatalogEntry(executor::LogicalTile *tile,
                                          int tupleId)
-    : table_oid_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::TABLE_OID)
-                    .GetAs<oid_t>()),
-      column_name_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_NAME)
-                      .ToString()),
-      column_id_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_ID)
-                    .GetAs<oid_t>()),
-      column_offset_(
-          tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_OFFSET)
-              .GetAs<oid_t>()),
-      column_type_(StringToTypeId(
-          tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_TYPE)
-              .ToString())),
-      column_length_(
-          tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_LENGTH)
-              .GetAs<uint32_t>()),
-      is_inlined_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::IS_INLINED)
-                     .GetAs<bool>()),
-      is_not_null_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::IS_NOT_NULL)
-                      .GetAs<bool>()),
-      has_default_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::HAS_DEFAULT)
-                      .GetAs<bool>()) {
+    : table_oid_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::TABLE_OID).GetAs<oid_t>()),
+      column_name_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_NAME).ToString()),
+      column_id_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_ID).GetAs<oid_t>()),
+      column_offset_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_OFFSET).GetAs<oid_t>()),
+      column_type_(StringToTypeId(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_TYPE).ToString())),
+      column_length_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::COLUMN_LENGTH).GetAs<uint32_t>()),
+      is_inlined_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::IS_INLINED).GetAs<bool>()),
+      is_not_null_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::IS_NOT_NULL).GetAs<bool>()),
+      has_default_(tile->GetValue(tupleId, ColumnCatalog::ColumnId::HAS_DEFAULT).GetAs<bool>()) {
   // deserialize default value if the column has default constraint
   if (has_default_) {
-    auto dv_val =
-        tile->GetValue(tupleId, ColumnCatalog::ColumnId::DEFAULT_VALUE_BIN);
+    auto dv_val = tile->GetValue(tupleId, ColumnCatalog::ColumnId::DEFAULT_VALUE_BIN);
     CopySerializeInput input_buffer(dv_val.GetData(), dv_val.GetLength());
     default_value_ = type::Value::DeserializeFrom(input_buffer, column_type_);
   }

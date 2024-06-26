@@ -818,27 +818,27 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(TransactionCon
       // log_manager.LogDelete(ItemPointer(tile_group_id, tuple_slot));
 
     } else if (tuple_entry.second == RWType::INSERT) {
-      // std::cerr << "Commit txn insert" << std::endl;
-      // std::cerr << "tuple slot is " << tuple_slot << std::endl;
-      PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());
-      // std::cerr << "tuple 1 " << tuple_slot << std::endl;
+      // // std::cerr << "Commit txn insert" << std::endl;
+      // // std::cerr << "tuple slot is " << tuple_slot << std::endl;
+      // PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());
+      // // std::cerr << "tuple 1 " << tuple_slot << std::endl;
 
-      // set the begin commit id to persist insert
-      tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
-      // std::cerr << "tuple 2 " << tuple_slot << std::endl;
+      // // set the begin commit id to persist insert
+      // tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
+      // // std::cerr << "tuple 2 " << tuple_slot << std::endl;
 
-      tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
-      // std::cerr << "tuple 3 " << tuple_slot << std::endl;
+      // tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+      // // std::cerr << "tuple 3 " << tuple_slot << std::endl;
 
-      // we should set the version before releasing the lock.
-      COMPILER_MEMORY_FENCE;
+      // // we should set the version before releasing the lock.
+      // COMPILER_MEMORY_FENCE;
 
-      tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
-      // std::cerr << "tuple 4 " << tuple_slot << std::endl;
+      // tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+      // // std::cerr << "tuple 4 " << tuple_slot << std::endl;
 
-      // nothing to be added to gc set.
+      // // nothing to be added to gc set.
 
-      // log_manager.LogInsert(ItemPointer(tile_group_id, tuple_slot));
+      // // log_manager.LogInsert(ItemPointer(tile_group_id, tuple_slot));
 
     } else if (tuple_entry.second == RWType::INS_DEL) {
       PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());

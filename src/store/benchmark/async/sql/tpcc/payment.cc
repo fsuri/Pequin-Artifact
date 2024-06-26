@@ -189,6 +189,10 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   client.Wait(results);
   UW_ASSERT(results[0]->has_rows_affected());
   UW_ASSERT(results[1]->has_rows_affected());
+  if(!results[2]->has_rows_affected()){
+    Panic("Should not happen. C_id: %s. By last name? %d", c_row.get_id(), c_by_last_name); //Note: If it was by last name, then the Update statement re-performs the read.
+                                                                                            //Customers are never deleted, so this should not be possible 
+  }
   UW_ASSERT(results[2]->has_rows_affected());
   UW_ASSERT(results[3]->has_rows_affected());
   

@@ -21,6 +21,8 @@
 #include "../storage/data_table.h"
 #include "../type/ephemeral_pool.h"
 
+#include "lib/message.h"
+
 namespace peloton {
 namespace storage {
 
@@ -95,6 +97,8 @@ void ZoneMapManager::CreateOrUpdateZoneMapForTileGroup(
 
   for (oid_t col_itr = 0; col_itr < num_columns; col_itr++) {
     // Set temp min and temp max as the first value.
+
+    try{
     type::Value min = tile_group->GetValue(0, col_itr);
     type::Value max = tile_group->GetValue(0, col_itr);
     // Iterate over all tuples in this column
@@ -116,6 +120,10 @@ void ZoneMapManager::CreateOrUpdateZoneMapForTileGroup(
     CreateOrUpdateZoneMapInCatalog(database_id, table_id, tile_group_idx,
                                    col_itr, converted_min, converted_max,
                                    converted_type, txn);
+
+     }catch(...){
+      Panic("Zone error.");
+    }
   }
 }
 
