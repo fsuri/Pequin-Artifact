@@ -331,6 +331,12 @@ void GenerateHistoryTable(uint32_t num_warehouses,
   std::string table_name = HISTORY_TABLE;
   std::vector<std::pair<std::string, std::string>> column_names_and_types;
 
+  
+  //The row_id column is not part of the original TPCC spec. However, a lack of primary key can create hotspots issues in DB's that use an auto-increment for the pkey.
+  //I've added it to provide the benefit of the doubt to CRDB: https://github.com/cockroachdb/loadgen/pull/155/commits/96c2af2f2ad86e4b7c9c4f38fa4fbf97468744de
+  // https://github.com/cockroachdb/cockroach/blob/master/pkg/workload/tpcc/ddls.go#L90
+  column_names_and_types.push_back(std::make_pair("row_id", "BIGINT")); 
+
   column_names_and_types.push_back(std::make_pair("h_c_id", "INT"));
   column_names_and_types.push_back(std::make_pair("h_c_d_id", "INT"));
   column_names_and_types.push_back(std::make_pair("h_c_w_id", "INT"));
@@ -340,14 +346,20 @@ void GenerateHistoryTable(uint32_t num_warehouses,
   column_names_and_types.push_back(std::make_pair("h_amount", "INT"));
   column_names_and_types.push_back(std::make_pair("h_data", "TEXT"));
 
-  const std::vector<uint32_t> primary_key_col_idx {};
-  //const std::vector<uint32_t> primary_key_col_idx {0, 1, 2, 5, 6};  //Technically History has no primary key. However, we just give it a unique one. => this makes the sharding partitioner function easier.
+  //const std::vector<uint32_t> primary_key_col_idx {};
+  //const std::vector<uint32_t> primary_key_col_idx {0, 5};
+  const std::vector<uint32_t> primary_key_col_idx {0, 1, 2, 3};  //Technically History has no primary key. However, we just give it a "sufficiently" unique one. 
+                                                              //We include w_id simply to make the sharding partitioner function easier.
   writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
 
   for (uint32_t w_id = 1; w_id <= num_warehouses; ++w_id) {
     for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
       for (uint32_t c_id = 1; c_id <= 3000; ++c_id) {
+        //For each customer, create one initial History row.
         std::vector<std::string> values;
+
+        //uint32_t unique_row_id = d_id * c_id;
+        values.push_back(std::to_string(0)); //unique row id
         values.push_back(std::to_string(c_id));
         values.push_back(std::to_string(d_id));
         values.push_back(std::to_string(w_id));

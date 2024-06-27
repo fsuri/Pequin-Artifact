@@ -290,8 +290,22 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
       //Note: History has no primary key so the primary key is always empty.
    
       if(is_key){  //i.e. server checks ownership.
+        //For load balancing purposes it is better to store at the customers home warehouse.
+        uint32_t w_id;
+        size_t w_pos = input.find(unique_delimiter);
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the SECOND position.
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the THIRD position.
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the FOURTH position.
+        if(w_pos == std::string::npos) Panic("Key mode: Cannot find w_id. input: %s", input.c_str());
+        size_t w_start = w_pos + unique_delimiter.size();
+        w_id = std::stoi(input.substr(w_start));
+        if(w_id > numWarehouses) Panic("partitioner bug. w_id = %d. numWarehouses = %d. input: %s", w_id, numWarehouses, input.c_str());
+
+        return (w_id-1) % nshards; 
+
          //Technically nobody needs to be responsible for writing History for CC purposes. Since it has no primary key, we enforce no uniqueness.
         return 0; //For CC purposes, only store at shard 0 (TODO: it's even fine if nobody stores, since there are no conflicts on History)
+
       }
       else{
         Panic("TPCC should never be reading from History Table");
@@ -390,9 +404,8 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
    
           //TODO: Either include w_id as part of history primary key. Or allow partitioner function to be called directly on RowUpdate (col_values) and consider Owned only if this shard has that w_id.
     {
-       //w_id d_id are fourth and fifth entries of the row
       uint32_t w_id = std::stoi(col_values[3]);
-      //uint32_t d_id = std::stoi(col_values[4]);
+      //uint32_t d_id = std::stoi(col_values[2]);
        
       //return (((w_id - 1) * 10) + (d_id - 1)) % nshards;
        return (w_id-1) % nshards; //TODO: Remove d_id computation.

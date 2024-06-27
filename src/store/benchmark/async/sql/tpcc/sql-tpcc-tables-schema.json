@@ -180,6 +180,10 @@
   "history": {
     "column_names_and_types": [
       [
+        "row_id",
+        "BIGINT"
+      ],
+      [
         "h_c_id",
         "INT"
       ],
@@ -212,7 +216,12 @@
         "TEXT"
       ]
     ],
-    "primary_key_col_idx": [],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2,
+      3
+    ],
     "row_data_path": "sql-tpcc-data/history.csv",
     "table_name": "history"
   },
