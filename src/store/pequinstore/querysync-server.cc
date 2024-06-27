@@ -216,6 +216,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
+        Notice("Retrying Query %s. Retry version: %d. Last version: %d",query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        if(query->retry_version()>1) Panic("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
          //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.

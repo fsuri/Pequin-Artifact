@@ -1824,7 +1824,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
   const std::string *txnDigest;
   std::string computedTxnDigest;
   if (!msg.has_txn() && !msg.has_txn_digest()) {
-    Debug("WRITEBACK message contains neither txn nor txn_digest.");
+    Panic("WRITEBACK message contains neither txn nor txn_digest.");
     return WritebackCallback(&msg, txnDigest, txn, (void *)false);
   }
 

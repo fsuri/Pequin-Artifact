@@ -146,8 +146,8 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   client.Write(statement, timeout, true, true); //async, blind_write
 
   
-  //statement = fmt::format("INSERT INTO {} (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
-          "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
+  // statement = fmt::format("INSERT INTO {} (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
+  //         "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   statement = fmt::format("INSERT INTO {} (o_w_id, o_d_id, o_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, w_id, d_id, o_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   client.Write(statement, timeout, true, true); //async, blind_write

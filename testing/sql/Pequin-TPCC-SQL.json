@@ -21,14 +21,15 @@
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "server_load_time": 16,
    "_server_load_time": 22,
+   "_server_load_time": 24,
    "_server_load_time": 28,
    "_server_load_time": 46,
-   "_server_load_time": 95,
-  
+   "_server_load_time": 96,
+ 
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 10,
+	  "tpcc_num_warehouses": 20,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -143,8 +144,10 @@
   "experiment_name": "pequin",
   "codebase_name": "indicus",
 
+  "_client total is the upper bound on total client processes": 0,
+  "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [50]
+    [70]
   ],
   "client_processes_per_client_node": [
     [8]

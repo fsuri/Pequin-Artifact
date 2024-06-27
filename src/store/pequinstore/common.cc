@@ -168,6 +168,13 @@ void asyncValidateCommittedConflict(const proto::CommittedProof &proof,
           BytesToHex(*committedTxnDigest, 16).c_str(),
           txn->client_id(), txn->client_seq_num(),
           BytesToHex(*txnDigest, 16).c_str());
+
+        Panic("Committed txn [%lu:%lu][%s] does not conflict with this txn [%lu:%lu][%s].",
+          proof.txn().client_id(), proof.txn().client_seq_num(),
+          BytesToHex(*committedTxnDigest, 16).c_str(),
+          txn->client_id(), txn->client_seq_num(),
+          BytesToHex(*txnDigest, 16).c_str());
+
         mcb((void*) false);
         return;
     }
@@ -326,8 +333,9 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
   if(verifyObj->terminate){
       if(verifyObj->deletable == 0){
-        if(verifyObj->callback) verifyObj->mcb((void*) false);
         Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
+        if(verifyObj->callback) verifyObj->mcb((void*) false);
         //verifyObj->deleteMessages();
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -340,6 +348,7 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
         // verifyObj = NULL;
       if(verifyObj->deletable == 0){
          Debug("Return to CB UNSUCCESSFULLY");
+         Panic("fail validation");
          verifyObj->mcb((void*) false);
          //verifyObj->deleteMessages();
          if(LocalDispatch) lockScope.unlock();
@@ -356,9 +365,10 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
   }
   else{
     if(verifyObj->deletable == 0){
+      Debug("Return to CB UNSUCCESSFULLY");
+      Panic("fail validation");
       verifyObj->mcb((void*) false);
       //verifyObj->deleteMessages();
-       Debug("Return to CB UNSUCCESSFULLY");
        if(LocalDispatch) lockScope.unlock();
       delete verifyObj;
     }
@@ -371,8 +381,10 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
     if(!(verifyObj->groupsVerified == verifyObj->groupTotals)){
           Debug("Phase1Replies for involved_group %d not complete.", (int)groupId);
           if(verifyObj->deletable == 0){
-            verifyObj->mcb((void*) false);
             Debug("Return to CB UNSUCCESSFULLY");
+            Panic("fail validation");
+            verifyObj->mcb((void*) false);
+            
             //verifyObj->deleteMessages();
             if(LocalDispatch) lockScope.unlock();
             delete verifyObj;
@@ -862,6 +874,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
   if(verifyObj->terminate){
     if(verifyObj->deletable == 0){
+      Debug("Return to CB UNSUCCESSFULLY");
+      Panic("fail validation");
       if(verifyObj->callback) verifyObj->mcb((void*) false);
       if(LocalDispatch) lockScope.unlock();
       delete verifyObj;
@@ -872,6 +886,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
       verifyObj->terminate = true;
 
       if(verifyObj->deletable == 0){
+        Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
         verifyObj->mcb((void*) false);
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -908,6 +924,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
   else{
       Debug("Phase2Replies for logging group %d insufficient to complete.", (int)groupId);
       if(verifyObj->deletable == 0){
+        Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
         verifyObj->mcb((void*) false);
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -2150,6 +2168,10 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
   //     }
   //   }
   // }
+
+
+
+  Panic("TransactionConflict not detectable.");
   return false;
 }
 

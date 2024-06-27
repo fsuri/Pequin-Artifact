@@ -55,6 +55,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
         client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
+        num_client_hosts = min(config['client_total'], len(config['server_names']) * config['client_nodes_per_server'] * config['client_processes_per_client_node'])
 
         client_id = i * config['client_nodes_per_server'] * config['client_processes_per_client_node'] + j * config['client_processes_per_client_node'] + k
         client_command = ' '.join([str(x) for x in [
@@ -70,7 +71,7 @@ class IndicusCodebase(ExperimentCodebase):
             '--protocol_mode', config['client_protocol_mode'],
             '--stats_file', stats_file,
             '--num_client_threads', client_threads,
-            '--num_client_hosts', config['client_total']]])
+            '--num_client_hosts', num_client_hosts]])
 
         if config['server_emulate_wan']:
             client_command += ' --ping_replicas=true'
@@ -369,6 +370,7 @@ class IndicusCodebase(ExperimentCodebase):
         xx = len(config['server_names']) // n
 
         client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
+        num_client_hosts = min(config['client_total'], len(config['server_names']) * config['client_nodes_per_server'] * config['client_processes_per_client_node'])
 
         replica_command = ' '.join([str(x) for x in [
             path_to_server_bin,
@@ -379,7 +381,7 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_groups', config['num_groups'],
             '--stats_file', stats_file,
             '--group_idx', group,
-            '--num_client_hosts', config['client_total'],
+            '--num_client_hosts', num_client_hosts,
             '--num_client_threads', client_threads
             ]])
         

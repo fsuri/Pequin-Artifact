@@ -472,7 +472,8 @@ void ThreadPool::add_n_indexed(int num_threads) {
     uint32_t cpu_placement = worker_id % num_cpus;
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    CPU_SET(i, &cpuset);
+    auto target_core = i % num_cpus;
+    CPU_SET(target_core, &cpuset);
     int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
     if (rc != 0) {
       Panic("Error calling pthread_setaffinity_np: %d", rc);
