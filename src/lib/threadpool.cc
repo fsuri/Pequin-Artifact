@@ -37,6 +37,8 @@ ThreadPool::ThreadPool() {}
 
 static bool use_load_bonus = true; //TODO: Make this an input param
 
+static bool optimize_for_wisc_machine = true;
+
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode, bool optimize_for_dev_machine) {              
   // printf("starting threadpool \n");
@@ -60,8 +62,10 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
 
     bool put_all_threads_on_same_core = false;
 
+    if(optimize_for_wisc_machine) optimize_for_dev_machine = true;
+
     if (optimize_for_dev_machine){
-      num_cpus = 16;
+      num_cpus = 10; //16
       Notice("(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
     } 
     if (num_cpus > 8 && !optimize_for_dev_machine) {
@@ -112,13 +116,15 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       UW_ASSERT(i >= 0);
       std::thread *t;
 
-      // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
-      // only CPU i as set.
+      if (i + offset > 7 && !optimize_for_dev_machine) return; // XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores
+      
+      // Create a cpu_set_t object representing a set of CPUs. Clear it and mark only CPU i as set.
+      auto target_core = i + offset;
+      //if(target_core >= 4) target_core += 6;
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      CPU_SET(i + offset, &cpuset);
-      if (i + offset > 7 && !optimize_for_dev_machine)
-        return; // XXX This is a hack to support the non-crypto experiment that does not actually use multiple cores
+      CPU_SET(target_core, &cpuset);
+    
 
       // Mainthread   -- this is ONE thread on which any workload that must be sequential should be run.
       if (i == start) { // if run with >=3 cores then start == 1; If cores < 3,
@@ -237,8 +243,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(i, &cpuset);
-      int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t),
-                                      &cpuset);
+      int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
 
       if (rc != 0) {
         Panic("Error calling pthread_setaffinity_np: %d", rc);
@@ -426,18 +431,19 @@ void ThreadPool::detach_indexed(uint64_t id, std::function<void *()> f) {
 
 
 void ThreadPool::add_n_indexed(int num_threads) {
+  Notice("Create Indexed ThreadPool with %d workers", num_threads);
   
   cpu_set_t cpuset;
   sched_getaffinity(0, sizeof(cpuset), &cpuset);
-  fprintf(stderr, "cpu_count  %d \n", CPU_COUNT(&cpuset));
-  fprintf(stderr, "get_nprocs  %d \n", get_nprocs());
+  Notice("cpu_count  %d \n", CPU_COUNT(&cpuset));
+  Notice("get_nprocs  %d \n", get_nprocs());
 
-  fprintf(stderr, "Add %d new threads to indexed threadpool\n", num_threads);
+  Notice("Add %d new threads to indexed threadpool\n", num_threads);
   int num_cpus = std::thread::hardware_concurrency(); ///(2-hyperthreading);
-  fprintf(stderr, "Num_cpus: %d \n", num_cpus);
+  Notice("Num_cpus: %d \n", num_cpus);
   if (num_cpus > 8) {
     num_cpus = 8;
-    fprintf(stderr, "Total Num_cpus on client downregulated to: %d \n", num_cpus);
+    Notice("Total Num_cpus on client downregulated to: %d \n", num_cpus);
   }
  
   running = true;

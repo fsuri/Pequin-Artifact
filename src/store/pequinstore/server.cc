@@ -1298,6 +1298,8 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   }
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  //Notice("Txn:[%d:%d] has digest: %s", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str());
+
   Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
@@ -2276,6 +2278,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
 
   CleanQueries(txn_ref); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
+
 }
 
 //Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.

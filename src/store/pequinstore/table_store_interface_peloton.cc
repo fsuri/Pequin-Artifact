@@ -1126,7 +1126,6 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   // for (auto &purge_statement : purge_statements) {
   //  prepareStatement
   auto statement = ParseAndPrepare(purge_statement, tcop);
-  std::cerr << purge_statement << std::endl;
 
   std::vector<peloton::type::Value> param_values; // param_values.clear();
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);

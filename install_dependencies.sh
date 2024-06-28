@@ -13,7 +13,7 @@ sudo apt-get upgrade
 
 sudo apt install python3-pip
 sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant 
+sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant parallel
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"

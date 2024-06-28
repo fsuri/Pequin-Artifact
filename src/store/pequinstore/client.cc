@@ -1411,7 +1411,7 @@ void Client::Phase2TimeoutCallback(int group, uint64_t txnId, int status) {
   }
 
   Warning("PHASE2[%lu:%lu] group %d timed out.", client_id, txnId, group);
-  Panic("P2 timing out for txnId: %lu; honest client: %s. This should not happen for honest clients -- most likely servers crashed", txnId, failureActive ? "False" : "True");
+  //Panic("P2 timing out for txnId: %lu; honest client: %s. This should not happen for honest clients -- most likely servers crashed", txnId, failureActive ? "False" : "True");
   //Note: This should never happen - it suggests that servers crashed during P2 handling.
 
   Phase2(req);

@@ -112,7 +112,7 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     
     //NOTE: only comparing on the real time component currently.
     if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
-      Warning("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
+      Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
           params.query_params.monotonicityGrace,  //grace

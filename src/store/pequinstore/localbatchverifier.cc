@@ -94,19 +94,13 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
 
   int core = sched_getcpu();
   Debug("VERIFYING ON THIS cpu: %d",  core);
-  // Debug("(CPU:%d) P1 LIVE-VERIFICATION for Sig:[%s] with Msg:[%s].", sched_getcpu(),
-  //     BytesToHex(signature, 1024).c_str(),
-  //     BytesToHex(message, 1024).c_str());
+  // Debug("(CPU:%d) P1 LIVE-VERIFICATION for Sig:[%s] with Msg:[%s].", sched_getcpu(), BytesToHex(signature, 1024).c_str(), BytesToHex(message, 1024).c_str());
   std::string hashStr;
   std::string rootSig;
   
   //Latency_Start(&hashLats[core]);
-  if (!BatchedSigs::computeBatchedSignatureHash(&signature, &message, publicKey,
-      hashStr, rootSig, merkleBranchFactor)) {
-    Debug("(CPU:%d) Signature batch hash computation failed: Sig:[%s] with Msg:[%s].",
-        sched_getcpu(),
-        BytesToHex(signature, 1024).c_str(),
-        BytesToHex(message, 1024).c_str());
+  if (!BatchedSigs::computeBatchedSignatureHash(&signature, &message, publicKey, hashStr, rootSig, merkleBranchFactor)) {
+    Panic("(CPU:%d) Signature batch hash computation failed: Sig:[%s] with Msg:[%s].", sched_getcpu(), BytesToHex(signature, 1024).c_str(), BytesToHex(message, 1024).c_str());
     return false;
   }
   //Latency_End(&hashLats[core]);
@@ -121,15 +115,13 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
     bool valid = crypto::Verify(publicKey, &hashStr[0], hashStr.length(), &rootSig[0]);
     //Latency_End(&cryptoLats[core]);
     if (valid) {
-      Debug("(CPU:%d) Adding rootSig:[%s] and hashStr:[%s].",
-          sched_getcpu(),
-          BytesToHex(rootSig, 1024).c_str(),
-          BytesToHex(hashStr, 1024).c_str());
+      Debug("(CPU:%d) Adding rootSig:[%s] and hashStr:[%s].", sched_getcpu(), BytesToHex(rootSig, 1024).c_str(), BytesToHex(hashStr, 1024).c_str());
       std::unique_lock<std::mutex> lock(cacheMutex);
       cache[rootSig] = hashStr;
       return true;
     } else {
-      Debug("Verification with public key failed.");
+      Panic("(CPU:%d) Public Key verification failed: Sig:[%s] with Msg:[%s]. rootSig:[%s] with rootHash:[%s].", sched_getcpu(), 
+              BytesToHex(signature, 1024).c_str(), BytesToHex(message, 1024).c_str(), BytesToHex(rootSig, 1024).c_str(), BytesToHex(hashStr, 1024).c_str());
       return false;
     }
   } else {
@@ -137,12 +129,12 @@ bool LocalBatchVerifier::Verify(crypto::PubKey *publicKey, const std::string &me
       stats.Increment("verify_cache_hit");
       return true;
     } else {
-      Debug("(CPU:%d) Verification via cach has failed: rootSig:[%s] and computedHash:[%s] failed, storedHash:[%s]",
+      Panic("(CPU:%d) Verification via cache has failed. Sig:[%s] with Msg:[%s]. rootSig:[%s] and computedHash:[%s] failed, storedHash:[%s]",
           sched_getcpu(),
+          BytesToHex(signature, 1024).c_str(), BytesToHex(message, 1024).c_str(), 
           BytesToHex(rootSig, 1024).c_str(),
           BytesToHex(hashStr, 1024).c_str(),
           BytesToHex(itr->second, 100).c_str());
-
       return false;
     }
   }

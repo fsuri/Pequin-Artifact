@@ -605,6 +605,12 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     writebackMessages.insert(std::make_pair(txnDigest, std::move(abort_wb)));
     //writebackMessages[txnDigest] = std::move(abort_wb); // Use insert instead: returns false. if exists..
     Abort(txnDigest, &txn); //Note: This might call Clean from a different Thread than Mainthread: might remove ongoing. However, we never delete Tx currently, so parallel access to Txn should be safe.
+
+    if(params.query_params.cacheReadSet){ 
+      //If caching Read Set then disable ABORT with conflict. This is because Txn does not contain read set necessary for Conflict checks.
+      conflict = nullptr;
+      result = proto::ConcurrencyControl::ABSTAIN;
+    }
   }
     
 

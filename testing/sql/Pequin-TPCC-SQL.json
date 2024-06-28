@@ -19,8 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 16,
-   "_server_load_time": 22,
+   "_server_load_time": 16,
+   "server_load_time": 22,
    "_server_load_time": 24,
    "_server_load_time": 28,
    "_server_load_time": 46,
@@ -29,7 +29,7 @@
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 20,
+	  "tpcc_num_warehouses": 10,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -172,10 +172,16 @@
   "client_ramp_up": 5,
   
   "default_remote_shell": "bash",
-  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  
+  "_server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "_client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  
   "project_name": "pequin-pg0",
+  
   "fault_tolerance": 1,
+  
   "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",

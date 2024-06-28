@@ -1219,6 +1219,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  Notice("num hosts=%d; num_threads=%d", FLAGS_num_client_hosts, FLAGS_num_client_threads);
+  
   for (size_t i = 0; i < FLAGS_num_client_threads; i++) {
     Client *client = nullptr;
     AsyncClient *asyncClient = nullptr;
@@ -1229,7 +1231,7 @@ int main(int argc, char **argv) {
     //uint64_t clientId = (FLAGS_client_id << 2) | i;
     //uint64_t clientId = FLAGS_client_id | i;
     uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
-    std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
+  
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
