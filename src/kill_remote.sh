@@ -25,12 +25,12 @@ declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0"
 for host in "${arr_servers[@]}"
 do
    echo "stopping server binaries on $host"
-   ssh fs435@$host.pequin.pequin-pg0.wisc.cloudlab.us "sudo killall server" #; sudo /usr/local/etc/enable_HT.sh"
+   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo killall server" #; sudo /usr/local/etc/enable_HT.sh"
 done
 
 for host in "${arr_clients[@]}"
 do
    echo "stopping benchmark binaries on $host"
-   ssh fs435@$host.pequin.pequin-pg0.wisc.cloudlab.us "sudo killall benchmark"
+   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo killall benchmark"
 done
 

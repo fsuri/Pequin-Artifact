@@ -441,8 +441,15 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote, const std::s
     ManageDispatchAbort(remote, data);
   } else if (type == ping.GetTypeName()) {
     ping.ParseFromString(data);
-    Panic("Ping is called");
-    HandlePingMessage(this, remote, ping); //TODO: FIXME: If we want to keep it: Must dispatch.
+    HandlePingMessage(this, remote, ping); 
+
+    // PingMessage p;
+    // p.ParseFromString(data);
+    // transport->DispatchTP_main([this, p, &remote](){
+    //   this->HandlePingMessage(this, remote, ping);
+    //   return (void*) true;
+    // });
+
 
     // Fallback Messages
   } else if (type == phase1FB.GetTypeName()) {

@@ -19,8 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "_server_load_time": 16,
-   "server_load_time": 22,
+   "server_load_time": 16,
+   "_server_load_time": 22,
    "_server_load_time": 24,
    "_server_load_time": 28,
    "_server_load_time": 46,
@@ -173,10 +173,10 @@
   
   "default_remote_shell": "bash",
   
-  "_server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "_client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
   
   "project_name": "pequin-pg0",
   
@@ -291,6 +291,8 @@
     }
   },
   "server_emulate_wan": false,
+  
+  
   "plots": [
     {
       "name": "lat-tput",

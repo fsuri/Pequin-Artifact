@@ -32,7 +32,7 @@
 
 PingInitiator::PingInitiator(PingTransport *pingTransport, Transport *transport,
     size_t numReplicas) : pingTransport(pingTransport),
-    transport(transport), numReplicas(numReplicas), alpha(0.75), length(5000) {
+    transport(transport), numReplicas(numReplicas), alpha(0.75), length(2000) { //length = how long we send pings to estimate (ms)
 }
 
 PingInitiator::~PingInitiator() {

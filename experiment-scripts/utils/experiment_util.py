@@ -255,10 +255,9 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #config['replication_protocol_settings']['hyper_threading']
             if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                 print("Disabling HT and Turbo; sourcing TBB")
-                #cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
-                #cmd1 = 'sudo echo on | sudo tee /sys/devices/system/cpu/smt/control'
+                cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
                 #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
-                cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
+                #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                 run_remote_command_async(cmd1, config['emulab_user'], server_host)
                 cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)

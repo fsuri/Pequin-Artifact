@@ -37,7 +37,7 @@ ThreadPool::ThreadPool() {}
 
 static bool use_load_bonus = true; //TODO: Make this an input param
 
-static bool optimize_for_wisc_machine = true;
+static bool optimize_for_wisc_machine = false;
 
 void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
                        bool server, int mode, bool optimize_for_dev_machine) {              
@@ -65,7 +65,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     if(optimize_for_wisc_machine) optimize_for_dev_machine = true;
 
     if (optimize_for_dev_machine){
-      num_cpus = 10; //16
+      if(optimize_for_wisc_machine) num_cpus = 10;
+      else num_cpus = 16;
       Notice("(Using Dev Machine: Total Num_cpus on server downregulated to: %d \n", num_cpus);
     } 
     if (num_cpus > 8 && !optimize_for_dev_machine) {
