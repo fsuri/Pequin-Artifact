@@ -239,6 +239,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
 
     // now we have already obtained a new tuple slot.
     if (tuple_slot != INVALID_OID) {
+      //std::cerr << "Breaking out of get empty tuple slot loop" << std::endl;
       tile_group_id = tile_group->GetTileGroupId();
       break;
     }
@@ -247,6 +248,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
   // if this is the last tuple slot we can get
   // then create a new tile group
   if (tuple_slot == tile_group->GetAllocatedTupleCount() - 1) {
+    //std::cerr << "Creating new tile group" << std::endl;
     AddDefaultTileGroup(active_tile_group_id);
   }
 
@@ -445,10 +447,16 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         bool same_columns = true;
         bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
         // NOTE: Check if we can upgrade a prepared tuple to committed
+    
+        for (int i = 0; i < active_tilegroup_count_; i++) {
+          std::cerr << "tile group name: " << table_name << " and id is " << active_tile_groups_[i]->GetTileGroupId() << ". next tuple slot is " << active_tile_groups_[i]->GetNextTupleSlot() << std::endl;
+        }
+
 
         // std::string encoded_key = target_table_->GetName();
         const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
         for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+
           auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
           auto val2 = tuple->GetValue(col_idx);
 

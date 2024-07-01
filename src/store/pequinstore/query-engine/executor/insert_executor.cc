@@ -231,7 +231,7 @@ bool InsertExecutor::DExecute() {
       // std::cerr << "Insert executor before insertion in else if statement" << std::endl;
       bool result = true;
       bool is_duplicate = false;
-
+ 
       /*ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
       ItemPointer old_location = ItemPointer(0, 0);
@@ -243,12 +243,12 @@ bool InsertExecutor::DExecute() {
       }
 
       // Txn should never fail since CC is done at Basil level
-      // if (location.block == INVALID_OID) {
+      if (location.block == INVALID_OID) {
       //  LOG_TRACE("Failed to Insert. Set txn failure.");
-      //  transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
-      //  return false;
-      //}
-      //
+        //transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
+        Panic("Insert failed in insert executor");
+        return false;
+      }
 
       bool is_purge = current_txn->GetUndoDelete();
 

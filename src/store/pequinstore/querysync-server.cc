@@ -1067,14 +1067,14 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     p1MetaDataMap::const_accessor c;
     if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
          Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-        if(c->second.hasP1){
-            Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
+        /*if(c->second.hasP1){
+            //Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
             if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
             // if(c->second.result == proto::ConcurrencyControl::ABORT){
             //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
             // //FailWaitingQueries(txn_id);
             // }
-        }
+        }*/
         return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
     } 
     c.release();

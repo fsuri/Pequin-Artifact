@@ -409,7 +409,7 @@ void TimestampOrderingTransactionManager::PerformInsert(
   tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
 
   // Add the new tuple into the insert set
-  current_txn->RecordInsert(location);
+  //current_txn->RecordInsert(location);
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
 }
 
