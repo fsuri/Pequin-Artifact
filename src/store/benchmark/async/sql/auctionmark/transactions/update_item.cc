@@ -70,6 +70,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
 
   std::string updateItem = fmt::format("UPDATE {} SET i_description = '{}', i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, description, current_time, item_id, seller_id);
   client.Write(updateItem, queryResult, timeout);
+
   if(!queryResult->has_rows_affected()){
     Debug("Unable to update closed auction");
     client.Abort(timeout);
@@ -79,7 +80,8 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
   //DELETE ITEM_ATTRIBUTE
   bool deleted_first_attribute = false;
   if(delete_attribute){
-    std::string ia_id = GetUniqueElementId(item_id, 0);
+    std::string ia_id;
+    ia_id = GetUniqueElementId(item_id, 0);
     std::string deleteItemAttribute = fmt::format("DELETE FROM {} WHERE ia_id = '{}' AND ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, ia_id, item_id, seller_id);
     client.Write(deleteItemAttribute, queryResult, timeout);
     if(queryResult->rows_affected() == 1) deleted_first_attribute = true;
@@ -99,7 +101,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
       if(deleted_first_attribute) ia_id = GetUniqueElementId(item_id, 1);
       else ia_id = GetUniqueElementId(item_id, 0);
     }
-    else{
+    else {
       deserialize(ia_id, queryResult);
       //Note: Pequinstore does not yet implement read your own write semantics. (Note that in an ideal implementation, the Select staement should see the preceeding Delete)
       //      To hack around this, we just enforce here that item attribute IDs always increase. I.e. if we had ia_id=0, but deleted it, then the new row will still be ia_id=1 

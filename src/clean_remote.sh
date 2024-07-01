@@ -25,12 +25,12 @@ declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0"
 for host in "${arr_servers[@]}"
 do
    echo "emptying experiments folder of $host"
-   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
+   ssh liam0215@$host.liamcrdb.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
 done
 
 for host in "${arr_clients[@]}"
 do
    echo "emptying experiments folder of $host"
-   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
+   ssh liam0215@$host.liamcrdb.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
 done
 

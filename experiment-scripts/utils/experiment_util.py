@@ -53,38 +53,67 @@ def collect_exp_data(config, remote_exp_directory, local_directory_base, executo
     return download_futures
 
 def kill_servers(config, executor, kill_args=' -9'):
+    """kills all servers in config using kill_args
+
+    Parameters
+    ----------
+    config : dic
+        config file
+    executor : ThreadPoolExecutor
+    kill_args : str, optional
+        The kill signal for kill command
+        The default is -9 
+    """
+
     futures = []
+
+    # Define n as the minimun number of replicas that is satisfies the fault tolerance
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
+
+    # Build a server idx -> kill script map
     x = len(config['server_names']) // n
     kill_commands = {}
     for group in range(config['num_groups']):
-        process_idx = group // x
+        if x > 0:
+            process_idx = group // x
+        else:
+            process_idx = 0
         for i in range(n):
             server_idx = (i * x + group) % len(config['server_names'])
             if is_exp_remote(config):
                 if not server_idx in kill_commands:
+                    # add kill command by its process name
+                    # e.g. ../bin/server
                     kill_commands[server_idx] = kill_remote_process_by_name_cmd(
                         os.path.join(config['base_remote_bin_directory_nfs'],
                             config['bin_directory_name'],
                             config['server_bin_name']), kill_args)
+                # add kill command by its port name
+                # e.g. xxx:7087
                 kill_commands[server_idx] += '; %s' % kill_remote_process_by_port_cmd(
                     config['server_port'] + process_idx, kill_args)
             else:
                 if not server_idx in kill_commands:
+                    # add kill command by its process name
+                    # e.g. ../bin/server
                     kill_commands[server_idx] = kill_remote_process_by_name_cmd(
                         os.path.join(config['src_directory'],
                             config['bin_directory_name'],
                             config['server_bin_name']), kill_args)
+                # add kill command by its port name
+                # e.g. xxx:7087
                 kill_commands[server_idx] += '; %s' % kill_remote_process_by_port_cmd(
                     config['server_port'] + process_idx, kill_args)
+    
     for idx, cmd in kill_commands.items():
         if is_exp_remote(config):
             server_host = get_server_host(config, idx)
+            # Run kill script in remote server
             futures.append(executor.submit(run_remote_command_sync, cmd,
                 config['emulab_user'], server_host))
         else:
@@ -229,10 +258,17 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
+    
+    if config['replication_protocol'] == 'pg':
+        n = 1
+        
     x = len(config['server_names']) // n
     start_commands = {}
     for group in range(config['num_groups']):
-        process_idx = group // x
+        if x > 0:
+            process_idx = group // x
+        else:
+            process_idx = 0
         for i in range(n):
             server_idx = (i * x + group) % len(config['server_names'])
             if is_exp_local(config):
@@ -263,6 +299,24 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)
                 #perm = 'sudo chmod +x ~/indicus/bin/server'
                 #run_remote_command_async(perm, config['emulab_user'], server_host)
+            
+            ## set-up dbs for pg-smr
+            if config['replication_protocol'] == 'pg':
+                #print("66666666666666666666666666666666666666666666666666666666")
+                print("setting up databases for postgres usage")
+                # Dropping old pg cluster (if exists)
+                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
+                run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                # Creating a single db per machine
+                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
+                run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
+                run_remote_command_sync(cmd11, config['emulab_user'], server_host)
+                cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
+                run_remote_command_sync(cmd12, config['emulab_user'], server_host)
+                print("Waiting for the setup")
+
+                #time.sleep(config['server_load_time'])
 
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
@@ -273,6 +327,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
             cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
+            print('Server cmd is ' + cmd)
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -540,6 +595,7 @@ def run_experiment(config_file, client_config_idx, executor):
 
             client_threads = start_clients(config, local_exp_directory,
                     remote_exp_directory, i)
+            #print("started clients python script testing")
             wait_for_clients_to_terminate(config, client_threads)
             kill_clients(config, executor)
             time.sleep(1)
@@ -554,6 +610,22 @@ def run_experiment(config_file, client_config_idx, executor):
                 executor)
 
 def run_multiple_experiments(config_file, executor):
+    """ Runs experiments specified in configuration file
+
+    Parameters
+    ----------
+    config_file : str
+        config file name
+    executor : ThreadPoolExecutor
+
+    Returns
+    ----------
+    exp_dir: exp_dir
+        experiemnt output directory
+    out: list
+        list of output directory and sub directory
+
+    """
     start = time.time()
     exp_dir = None
     out_dirs = None
@@ -580,8 +652,8 @@ def run_multiple_experiments(config_file, executor):
 
         config_name = os.path.splitext(os.path.basename(config_file))[0]
 
-        exp_futs = []
-        exp_futs_idxs = []
+        exp_futs = [] # future experiments
+        exp_futs_idxs = [] # future experiment indices
         config_files = []
         indep_vars_list = []
 
