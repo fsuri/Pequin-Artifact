@@ -2276,7 +2276,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CleanQueries(txn_ref); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
+  CleanQueries(txn_ref);
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
 
 }
