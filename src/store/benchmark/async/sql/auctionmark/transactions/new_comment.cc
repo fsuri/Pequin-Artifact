@@ -61,15 +61,10 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   //getItemComments
   statement = fmt::format("SELECT i_num_comments FROM {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Query(statement, queryResult, timeout);
-  try {
-    deserialize(ic_id, queryResult);
-  } catch (std::exception &e) {
-    // TODO:
-    // Panic("TODO: New Comment should have valid item params");
-    std::cerr << "TODO: New comment should have valid item params" << std::endl;
-    client.Abort(timeout);
-    return ABORTED_USER;
+  if(queryResult->empty()){
+    Panic("item does not exist?");
   }
+  deserialize(ic_id, queryResult);
   ++ic_id;
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});

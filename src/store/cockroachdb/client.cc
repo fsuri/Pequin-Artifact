@@ -42,8 +42,7 @@ std::string ReplaceAll(std::string str, const std::string &from,
 
 // TODO replace TrueTime with others
 Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
-               int nGroups, Transport *transport, uint64_t default_timeout,
-               TrueTime timeServer)
+               int nGroups, Transport *transport, TrueTime timeServer)
     : config(config),
       client_id(id),
       nshards(nShards),

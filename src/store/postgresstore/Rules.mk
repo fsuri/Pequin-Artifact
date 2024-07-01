@@ -1,9 +1,7 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), client.cc server.cc app.cc)
+SRCS += $(addprefix $(d), client.cc server.cc)
 
-LIB-postgres-client := $(LIB-store-frontend) $(LIB-store-common) $(o)client.o $(o)server.o $(o)app.o
+LIB-postgres-client := $(LIB-store-frontend) $(LIB-store-common) $(o)client.o 
 
-LIB-postgresstore := $(o)server.o $(o)client.o \
-	$(LIB-configuration) $(LIB-store-common) \
-	$(LIB-transport)
+LIB-postgresstore := $(o)server.o $(LIB-configuration) $(LIB-store-common) $(LIB-transport)

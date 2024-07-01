@@ -41,8 +41,7 @@ namespace cockroachdb {
 class Client : public ::Client {
  public:
   Client(const transport::Configuration &config, uint64_t id, int nShards,
-         int nGroups, Transport *transport, uint64_t default_timeout,
-         TrueTime timeserver = TrueTime(0, 0));
+         int nGroups, Transport *transport, TrueTime timeserver = TrueTime(0, 0));
   ~Client();
 
   // Begin a transaction.

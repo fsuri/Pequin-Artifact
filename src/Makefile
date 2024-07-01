@@ -200,14 +200,14 @@ include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
 include store/augustusstore/Rules.mk
-include store/cockroachdb/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk
 include store/bftsmartstore_stable/Rules.mk
+
 include store/postgresstore/Rules.mk
+include store/cockroachdb/Rules.mk
 
 include store/pequinstore/query-engine/Rules.mk
-
 include store/pequinstore/Rules.mk
 
 include store/Rules.mk

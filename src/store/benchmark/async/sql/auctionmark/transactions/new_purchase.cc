@@ -77,13 +77,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   std::string getItemMaxBid = fmt::format("SELECT imb_ib_id FROM {} WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, item_id, seller_id);
   client.Query(getItemMaxBid, queryResult, timeout);
-  if (queryResult->empty()) {
-    // TODO:
-    // Panic("TODO: Take care of item max bid not existing");
-    std::cerr << "TODO: Take care of item max bid not existing in New Purchase" << std::endl;
-    client.Abort(timeout);
-    return ABORTED_USER;
-  }
+  
   int max_bid;
   deserialize(max_bid, queryResult);
 
@@ -193,7 +187,6 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   std::string updateSellerBalance = fmt::format(updateUserBalance, iir.i_current_price, seller_id);
   client.Write(updateSellerBalance, timeout, true);
 
-  client.asyncWait();
 
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
@@ -208,8 +201,11 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     std::string insertUserItem = fmt::format("INSERT INTO {} (ui_u_id, ui_i_id, ui_i_u_id, ui_ip_id, ui_ip_ib_id, ui_ip_ib_i_id, ui_ip_ib_u_id, ui_created) "
                                              "VALUES ('{}', '{}', '{}', {}, {}, '{}', '{}', {})", TABLE_USERACCT_ITEM,
                                              iir.ib_buyer_id, item_id, seller_id, ip_id, iir.ib_id, item_id, seller_id, current_time);
-    client.Write(insertUserItem, queryResult, timeout);
+    client.Write(insertUserItem, timeout, true, true); //async, blind-write: If Update fails, it already contains a read set.
   }
+
+  client.asyncWait();
+
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);

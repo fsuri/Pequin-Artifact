@@ -79,10 +79,9 @@ def kill_servers(config, executor, kill_args=' -9'):
     x = len(config['server_names']) // n
     kill_commands = {}
     for group in range(config['num_groups']):
-        if x > 0:
-            process_idx = group // x
-        else:
-            process_idx = 0
+        
+        process_idx = group // x
+        
         for i in range(n):
             server_idx = (i * x + group) % len(config['server_names'])
             if is_exp_remote(config):
@@ -265,10 +264,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     x = len(config['server_names']) // n
     start_commands = {}
     for group in range(config['num_groups']):
-        if x > 0:
-            process_idx = group // x
-        else:
-            process_idx = 0
+        process_idx = group // x
         for i in range(n):
             server_idx = (i * x + group) % len(config['server_names'])
             if is_exp_local(config):
@@ -327,7 +323,6 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
             cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
-            print('Server cmd is ' + cmd)
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -595,7 +590,7 @@ def run_experiment(config_file, client_config_idx, executor):
 
             client_threads = start_clients(config, local_exp_directory,
                     remote_exp_directory, i)
-            #print("started clients python script testing")
+            
             wait_for_clients_to_terminate(config, client_threads)
             kill_clients(config, executor)
             time.sleep(1)

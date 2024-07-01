@@ -34,6 +34,12 @@
 #include <valgrind/callgrind.h>
 #include <filesystem>
 
+#include <gflags/gflags.h>
+
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 #include "lib/keymanager.h"
 #include "lib/transport.h"
 #include "lib/tcptransport.h"
@@ -67,11 +73,6 @@
 // CockroachDb
 #include "store/cockroachdb/server.h"
 
-#include <gflags/gflags.h>
-
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include "store/bftsmartstore_augustus/replica.h"
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
@@ -159,12 +160,12 @@ const protocol_t protos[] {
   PROTO_STRONG,
   PROTO_PEQUIN,
   PROTO_INDICUS,
-      PROTO_PBFT,
-      PROTO_HOTSTUFF,
-      PROTO_AUGUSTUS,
-      PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART,
-      PROTO_PG
+  PROTO_PBFT,
+  PROTO_HOTSTUFF,
+  PROTO_AUGUSTUS,
+  PROTO_BFTSMART,
+  PROTO_AUGUSTUS_SMART,
+  PROTO_PG
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -943,11 +944,7 @@ int main(int argc, char **argv) {
 	}
 
   case PROTO_PG: {
-    bool FLAGS_local_config = false;
-    server = new postgresstore::Server(config, &keyManager,
-                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
-                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+    server = new postgresstore::Server();
     break;
   }
 
@@ -1170,11 +1167,11 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
 
-  std::unique_lock lk(m);
-  bool stop = false;
-  //while(!stop){
-     cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
-  //}
+  // std::unique_lock lk(m);
+  // bool stop = false;
+  // //while(!stop){
+  //    cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
+  // //}
  
   Notice("Main done");
   return 0;

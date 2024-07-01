@@ -465,25 +465,6 @@ Then, create a directory to store the external libraries. Copy the libararies to
 
 For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
 
-#### Installing on Ubuntu 22.04 or later
-Add these to the end of your `/etc/apt/sources.list`:
-- `deb     http://archive.ubuntu.com/ubuntu/ focal main`
-- `deb-src http://archive.ubuntu.com/ubuntu/ focal main`
-
-Run:
-- `sudo apt update`
-- `sudo apt install cpp=4:9.3.0-1ubuntu2`
-- `sudo apt install gcc=4:9.3.0-1ubuntu2`
-- `sudo apt install g++=4:9.3.0-1ubuntu2`
-
-Download `libfmt-dev` version 4:9.3.0-1ubuntu2 at:
-http://mirrors.kernel.org/ubuntu/pool/main/g/gcc-defaults/g++_9.3.0-1ubuntu2_amd64.deb
-
-Run from folder where downloaded:
-
-- `sudo apt install libfmt-dev_6.1.2+ds-2_amd64.deb`
-
-
 ### Building binaries:
 > :warning: Make sure to have configured all environment variables: source the TBB `/opt/intel/oneapi/setvars.sh` and the helper script `helper-scripts/set_env.sh` to make sure TBB, java, and jemalloc environment variables are set.
 

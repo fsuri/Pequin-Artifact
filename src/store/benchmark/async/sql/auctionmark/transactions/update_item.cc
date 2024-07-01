@@ -80,8 +80,7 @@ transaction_status_t UpdateItem::Execute(SyncClient &client) {
   //DELETE ITEM_ATTRIBUTE
   bool deleted_first_attribute = false;
   if(delete_attribute){
-    std::string ia_id;
-    ia_id = GetUniqueElementId(item_id, 0);
+    std::string ia_id = GetUniqueElementId(item_id, 0);
     std::string deleteItemAttribute = fmt::format("DELETE FROM {} WHERE ia_id = '{}' AND ia_i_id = '{}' AND ia_u_id = '{}'", TABLE_ITEM_ATTR, ia_id, item_id, seller_id);
     client.Write(deleteItemAttribute, queryResult, timeout);
     if(queryResult->rows_affected() == 1) deleted_first_attribute = true;
