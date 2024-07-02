@@ -1054,6 +1054,7 @@ int main(int argc, char **argv) {
       tables_to_load = json::parse(generated_tables);
     }
     catch (const std::exception &e) {
+      std::cerr<< e.what() << std::endl;
       Panic("Failed to load Table JSON Schema");
     }
        

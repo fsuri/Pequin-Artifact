@@ -343,7 +343,7 @@ void Replica::executeSlots() {
 
           auto cb= [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
             // std::cerr << "Shir print:    " << "executing cb after executing sql_rpc" << std::endl;
-
+            std::unique_lock lock(batchMutex);
             for (const auto& reply : replies) {
               // std::cerr << "Shir print:    " << "count replies" << std::endl;
 
@@ -356,12 +356,22 @@ void Replica::executeSlots() {
                 EpendingBatchedDigs.push_back(digest);
                 if (EpendingBatchedMessages.size() >= EbatchSize) {
                   Debug("EBatch is full, sending");
-
+                  if (EbatchTimerRunning) {
+                    transport->CancelTimer(EbatchTimerId);
+                    EbatchTimerRunning = false;
+                  }
                   sendEbatch();
                 } else if (!EbatchTimerRunning) {
                   EbatchTimerRunning = true;
                   Debug("Starting ebatch timer");
-
+                  EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+                    std::unique_lock lock(batchMutex);
+                    Debug("EBatch timer expired, sending");
+                    this->EbatchTimerRunning = false;
+                    if(this->EpendingBatchedMessages.size()==0) return;
+                    //std::cerr << "calling Timer Ebatch" << std::endl;
+                    this->sendEbatch();
+                  });
                 }
               } else {
                 Debug("Invalid execution for the following:       %s", digest.c_str());
@@ -388,10 +398,21 @@ void Replica::executeSlots() {
               EpendingBatchedDigs.push_back(digest);
               if (EpendingBatchedMessages.size() >= EbatchSize) {
                 Debug("EBatch is full, sending");
+                
+              // HotStuff: disable timer for HotStuff due to concurrency bugs
+              // if (EbatchTimerRunning) {
+              //   transport->CancelTimer(EbatchTimerId);
+              //   EbatchTimerRunning = false;
+              // }
                 sendEbatch();
               } else if (!EbatchTimerRunning) {
                 EbatchTimerRunning = true;
                 Debug("Starting ebatch timer");
+              // EbatchTimerId = transport->Timer(EbatchTimeoutMS, [this]() {
+              //   Debug("EBatch timer expired, sending");
+              //   this->EbatchTimerRunning = false;
+              //   this->sendEbatch();
+              // });
               }
             } else {
               Debug("Invalid execution");

@@ -76,6 +76,27 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 Server::~Server() {}
 
 
+
+// void Server::Shir(){
+//   auto f = [this](){
+//     for (int i=0; i<=100000000; i++)
+//     {
+//       auto connection = connectionPool->connection();
+//       auto tr = connection->transaction();
+//       tr->execute("SELECT * FROM t0;");      
+//     }
+//     return (void*) true;
+//   };
+
+
+//   for (int i=0; i<=number_of_threads; i++)
+//   {
+//     // create a loop of querys and dispatch to the thread i
+//     tp->DispatchIndexedTP_noCB(i,f);
+//   }
+// }
+
+
 ::google::protobuf::Message* Server::returnMessage(::google::protobuf::Message* msg) {
   // Send decision to client
   if (false) { //signMessages
@@ -178,10 +199,12 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     std::vector<::google::protobuf::Message*> results;
     txnStatusMap::accessor t;
     auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
+    // auto [tr, is_aborted] = std::make_pair(nullptr,true);
     if (tr){
       // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. 
       if (type == sql_rpc_template.GetTypeName()) {
-        // std::cerr<<sql_rpc.query()<<"\n";
+        // std::cerr<<sql_rpc.query()<<"\n";  
+        // results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),"SELECT * FROM t0;"));
         results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
       } else if (type == try_commit_template.GetTypeName()) {
         results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
@@ -212,6 +235,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
       }
     }
 
+    // puts it back on main
     tp->Timer(0, std::bind(ecb,results));
   
     return (void*) true;
@@ -397,11 +421,11 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
   // //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
 
-  Debug("Shir: Creating table!");
+  Debug("Shir: Creating table! %s",table_name.c_str());
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
   UW_ASSERT(!column_data_types.empty());
-  UW_ASSERT(!primary_key_col_idx.empty());
+  // UW_ASSERT(!primary_key_col_idx.empty());
 
   std::string sql_statement("CREATE TABLE");
   sql_statement += " " + table_name;
@@ -430,7 +454,7 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   sql_statement +=");";
 
   // std::cerr << "Create Table: " << sql_statement << std::endl;
-  Debug("Create Table: %s", sql_statement);
+  Debug("Create Table: %s", sql_statement.c_str());
   this->exec_statement(sql_statement);
 
 
@@ -464,7 +488,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
   Debug("Shir: Load Table data!");
   // std::cerr<<"Shir: Load Table data\n";
-  std::string copy_table_statement = fmt::format("COPY {0} FROM {1} DELIMITER ',' CSV HEADER", table_name, table_data_path);
+  std::string copy_table_statement = fmt::format("COPY {0} FROM '{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
   std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
   t1.detach();
 }
@@ -475,6 +499,7 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
   std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
   std::thread t1([this, sql_statement]() { this->exec_statement(sql_statement); });
   t1.detach();
+  // Shir();
 }
 
 //!!"Deprecated" (Unused)

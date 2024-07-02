@@ -122,6 +122,7 @@ private:
   sql::QueryResultProtoBuilder* createResult(const tao::pq::result &sql_res);
 
   void markTxnTerminated(txnStatusMap::accessor &t, string s);
+  // void Shir();
 
   std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
 

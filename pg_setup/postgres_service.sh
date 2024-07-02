@@ -26,6 +26,7 @@ setting_db() {
     su - $USER -c "echo \"SELECT 'CREATE DATABASE $dbname' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$dbname')\gexec\" | psql"
     su - $USER -c "echo \"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO pequin_user\" | psql -d $dbname"
     su - $USER -c "echo \"alter default privileges in schema public grant all on tables to pequin_user; alter default privileges in schema public grant all on sequences to pequin_user;\" | psql -d $dbname"
+    su - $USER -c "echo \"GRANT pg_read_server_files TO pequin_user;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET DEFAULT_TRANSACTION_ISOLATION TO SERIALIZABLE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d $dbname"
@@ -185,10 +186,16 @@ else
 
 
     su - $USER -c "echo \"SHOW max_connections;\" | psql"
+    su - $USER -c "echo \"SHOW max_worker_processes;\" | psql"
+    su - $USER -c "echo \"SHOW max_parallel_workers;\" | psql"
     su - $USER -c "echo \"ALTER SYSTEM SET max_connections = 250;\" | psql"
+    # su - $USER -c "echo \"ALTER SYSTEM SET max_worker_processes = 16;\" | psql"
+    # su - $USER -c "echo \"ALTER SYSTEM SET max_parallel_workers = 16;\" | psql"
     su - $USER -c "echo \"SELECT pg_reload_conf();\" | psql"
     sudo systemctl restart postgresql
     su - $USER -c "echo \"SHOW max_connections;\" | psql"
+    # su - $USER -c "echo \"SHOW max_worker_processes;\" | psql"
+    # su - $USER -c "echo \"SHOW max_parallel_workers;\" | psql"
 
     # Setting the databases
     for i in $(seq 1 $db_num);
