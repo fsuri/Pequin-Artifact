@@ -649,17 +649,23 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     Debug("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
+    tile_group_header->GetSpinLatch(tuple_location.offset).Lock();
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
 
     if (head == nullptr) {
-      // std::cerr << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
+      std::cerr << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
+      Warning("head of linked list is null");
+      return;
     }
 
-    auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
+    auto head_tile_group = storage_manager->GetTileGroup(head->block);
+    auto head_tile_group_header = head_tile_group.get()->GetHeader();
 
     auto tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
     tuple_location = *head;
     tile_group_header = head_tile_group_header;
+
+    tile_group_header->GetSpinLatch(tuple_location.offset).Unlock();
     // auto curr_tuple_id = location.offset;
 
     //std::cerr << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;

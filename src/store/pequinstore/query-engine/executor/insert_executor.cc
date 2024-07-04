@@ -218,7 +218,7 @@ bool InsertExecutor::DExecute() {
       // std::cerr << "Insert executor before insertion in else if statement" << std::endl;
       bool result = true;
       bool is_duplicate = false;
-
+ 
       /*ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
       ItemPointer old_location = ItemPointer(0, 0);
@@ -231,12 +231,11 @@ bool InsertExecutor::DExecute() {
 
       // Txn should never fail since CC is done at Basil level
       if (location.block == INVALID_OID) {
-        Panic("fail to insert");
-       LOG_TRACE("Failed to Insert. Set txn failure.");
-       transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
-       return false;
+      //  LOG_TRACE("Failed to Insert. Set txn failure.");
+        //transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
+        Panic("Insert failed in insert executor");
+        return false;
       }
-      //
 
       bool is_purge = current_txn->GetUndoDelete();
 
@@ -263,7 +262,7 @@ bool InsertExecutor::DExecute() {
     done_ = true;
     return true;
   }
-  return true;
+  //return true;
 }
 
 bool InsertExecutor::InsertFirstVersion(concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, ItemPointer &location, ItemPointer *index_entry_ptr){
@@ -409,7 +408,9 @@ bool InsertExecutor::InsertNewVersion(const planner::ProjectInfo *project_info, 
       // finally install new version into the table
       //target_table->InstallVersion(&new_tuple_one, &(project_info->GetTargetList()), current_txn, indirection);
       
+      new_tile_group->GetHeader()->GetSpinLatch(new_location.offset).Lock();
       new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
+      new_tile_group->GetHeader()->GetSpinLatch(new_location.offset).Unlock();
 
       Timestamp time = current_txn->GetBasilTimestamp();
       new_tile_group->GetHeader()->SetBasilTimestamp(new_location.offset, time);
@@ -433,7 +434,10 @@ bool InsertExecutor::InsertNewVersion(const planner::ProjectInfo *project_info, 
       }*/
 
       transaction_manager.PerformUpdate(current_txn, old_location, new_location);
+      
+      new_tile_group->GetHeader()->GetSpinLatch(new_location.offset).Lock();
       new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
+      new_tile_group->GetHeader()->GetSpinLatch(new_location.offset).Unlock();
 
       //TODO: Obsolete to set here? Will be done in PerformUpdate?
       new_tile_group->GetHeader()->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());

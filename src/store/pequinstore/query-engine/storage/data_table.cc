@@ -239,6 +239,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
 
     // now we have already obtained a new tuple slot.
     if (tuple_slot != INVALID_OID) {
+      //std::cerr << "Breaking out of get empty tuple slot loop" << std::endl;
       tile_group_id = tile_group->GetTileGroupId();
       break;
     }
@@ -247,6 +248,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
   // if this is the last tuple slot we can get
   // then create a new tile group
   if (tuple_slot == tile_group->GetAllocatedTupleCount() - 1) {
+    //std::cerr << "Creating new tile group" << std::endl;
     AddDefaultTileGroup(active_tile_group_id);
   }
 
@@ -420,18 +422,31 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
+        // NEW: For purge set the tile group header locks
+
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
            Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          
+          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          
           //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
+          
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
+
+          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
            Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          
           next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
           COMPILER_MEMORY_FENCE;
@@ -442,11 +457,17 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
 
+          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
            Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
+
+          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
       }
       //Writing again. 
@@ -455,23 +476,24 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         bool same_columns = true;
         bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
         // NOTE: Check if we can upgrade a prepared tuple to committed
+    
+        /*for (int i = 0; i < active_tilegroup_count_; i++) {
+          std::cerr << "tile group name: " << table_name << " and id is " << active_tile_groups_[i]->GetTileGroupId() << ". next tuple slot is " << active_tile_groups_[i]->GetNextTupleSlot() << std::endl;
+        }*/
+
 
         // std::string encoded_key = target_table_->GetName();
+        const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
+        for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
 
-        //FIXME: Seems unecessary to check "same_columns"
-        // const auto *schema = curr_tile_group->GetAbstractTable()->GetSchema();
-        // for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+          auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
+          auto val2 = tuple->GetValue(col_idx);
 
-        //   try{
-        //   auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx, false);
-        //   auto val2 = tuple->GetValue(col_idx);
-
-        //   if (val1.ToString() != val2.ToString()) {
-        //     // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
-        //     same_columns = false;
-        //   }
-        //   } catch(...){Panic("Data table fail (upgrade)");}
-        // }
+          if (val1.ToString() != val2.ToString()) {
+            // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
+            same_columns = false;
+          }
+        }
 
         // For snapshotting upgrade from materialize to commit
         if (curr_tile_group_header->GetMaterialize(curr_pointer.offset) && !transaction->GetForceMaterialize()) {
