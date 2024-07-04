@@ -99,26 +99,40 @@ static bool lazy_check = true; //TURN TO FALSE TO ENABLE RECHECK FOR MORE PRECIS
       //This is much easier to enforce if TableWrites only include deltas for the updated cols.
 
 
+static uint64_t second_grace = 20; //ms //TODO: parameterize
+static tbb::concurrent_unordered_set<std::string> non_monotonic_writes; //txn_digest of non-monotonic writes.
+
 //Enforce that we can ony issue monotonic writes
-////TODO: Alternatively: Could enforce that we can't see any writes older than the newest table version observed in a prepared/committed pred. 
-          //To check this would need a third map storing the high read TableVersion.
 bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const proto::Transaction &txn) {
   for(auto &[table_name, _]: txn.table_writes()){
-     //Get Last version on this table                      
-    TableWriteMap::const_accessor tw;
-    if(!tableWrites.find(tw, table_name)) continue;
-    if(tw->second.rbegin() == tw->second.rend()) continue;
-    const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
+
+    // Alternatively: Could enforce that we can't see any writes older than the newest table version observed in a prepared/committed pred. => This is enough to ensure safety
+          //Safety argument: If a read TX has committed and read table Version v, then no new conflicting write below v-grace can commit. 
+                                                          //Those below are rejected here, and those above 
+          //Wrong: this is not safe. We must reject new writes below the latest write threshold to ensure that the Pred prepare check "sees" all new Tx.
+          //FIX?: Could try to set this at read time (i.e. find TableVersion) (problem: not everyone reads... -> not enough for safe quorums)
+    HighTblVmap::const_accessor ht;
+    if(!highTableVersions.find(ht, table_name)) continue;
+    const Timestamp &highTS = ht->second;
+
+    //Get Last version on this table                      
+    // TableWriteMap::const_accessor tw;
+    // if(!tableWrites.find(tw, table_name)) continue;
+    // if(tw->second.rbegin() == tw->second.rend()) continue;
+    // const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
     
     //NOTE: only comparing on the real time component currently.
-    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + second_grace <= timeServer.TStoMS(highTS.getTimestamp())) {
       Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
           params.query_params.monotonicityGrace,  //grace
           txn.timestamp().timestamp(), timeServer.TStoMS(txn.timestamp().timestamp()),  highTS.getTimestamp(), timeServer.TStoMS(highTS.getTimestamp()));
 
-      return false;
+      return false; //If beyond both grace periods: reject
+    } 
+    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+     non_monotonic_writes.insert(txn_digest); //If beyond first grace, consider it non-monotonic. 
     } 
   }
   return true;
@@ -274,13 +288,20 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
         //if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;   //this math is wrong!
-    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
+    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace + second_grace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
     if(!write_txn) Panic("Deleted Txn with TS [%lu:%lu]", itr->first.getTimestamp(), itr->first.getID());
     UW_ASSERT(write_txn); 
     UW_ASSERT(write_txn->has_txndigest());
+
+
+    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
+      if(!non_monotonic_writes.count(write_txn->txndigest())) continue;
+      //if past first grace: only check against non-monotonic (down to second grace)
+    }; //bound iterations until read table version
+
 
     const TableWrite &txn_table_write = write_txn->table_writes().at(pred.table_name());
     //Go to this Txns TableWrite for this table
@@ -490,12 +511,12 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
 
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         //if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){ //this is wrong!.
-        if(timeServer.TStoMS(txn_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
-          Warning("non-monotonic write should never be admitted"); 
-          //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
-          //-- but as a whole, a quorum of replicas should be rejecting this tx.
-          continue;
-        } 
+        // if(timeServer.TStoMS(txn_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
+        //   Warning("non-monotonic write should never be admitted"); 
+        //   //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
+        //   //-- but as a whole, a quorum of replicas should be rejecting this tx.
+        //   continue;
+        // } 
 
         //For each pred, insantiate all, and evaluate.
         // for(auto &instance: pred.instantiations()){
@@ -603,6 +624,12 @@ void Server::RecordReadPredicatesAndWrites(const proto::Transaction &txn, const 
       // }
     tp.release();
     Debug("Insert ReadPred for table: %s. Read TS [%lu:%lu]", pred.table_name().c_str(), ts.getTimestamp(), ts.getID());
+
+    // HighTblVmap::accessor ht;
+    // highTableVersions.insert(ht, pred.table_name());
+    // ht->second = std::max(ht->second, Timestamp(pred.table_version()));
+    // ht.release();
+
   }
   //if(predSet->size()>1) Panic("stop test");
   

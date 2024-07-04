@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["pequin"],
   "client_protocol_mode": ["pequin"],
-  "num_shards": [2],
-  "num_groups": [2],
+  "num_shards": [1],
+  "num_groups": [1],
   
   "benchmark_type": "sql_bench",  
   
@@ -19,7 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 16,
+   "server_load_time": 24,
+   "_server_load_time": 16,
    "_server_load_time": 22,
    "_server_load_time": 24,
    "_server_load_time": 28,
@@ -132,7 +133,7 @@
 		  "query_compress_optimistic_txid": false,
 		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 30,
+		  "monotonicity_grace": 5,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,
@@ -147,7 +148,7 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [70]
+    [30]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -182,14 +183,14 @@
   
   "fault_tolerance": 1,
   
-  "_server_names": [
+  "server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
 	
   ],
 
-  "_server_regions": [
+  "server_regions": [
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
@@ -197,7 +198,7 @@
     }
   ],
   
-   "server_names": [
+   "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
@@ -205,7 +206,7 @@
 	
   ],
   
-   "server_regions": [
+   "_server_regions": [
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],

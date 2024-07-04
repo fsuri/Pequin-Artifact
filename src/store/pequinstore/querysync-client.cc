@@ -192,6 +192,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 //   Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
   bool use_eager_exec = !pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec);
   queryReq.set_eager_exec(use_eager_exec);
+  pendingQuery->eager_mode = use_eager_exec;
   pendingQuery->snapshot_mode = !use_eager_exec;
 
   Debug("Sending TX eagerly? %s", queryReq.eager_exec()? "yes" : "no");
@@ -321,6 +322,12 @@ void ShardClient::HandleQuerySyncReply(proto::SyncReply &SyncReply){
 
 void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *local_ss){ //SyncReply.signed_local_ss().process_id()
 
+    if(pendingQuery->snapshot_mgr.IsMergeComplete()){
+        //skip processing, but check if eager done.
+        CheckSyncStart(pendingQuery);
+        return;
+    }
+
     Debug("[group %i] Process QuerySyncReply for request %lu from replica %d.", group, SyncReply.req_id(), local_ss->replica_id());
 
     //3) check for duplicates -- (ideally check before verifying sig)
@@ -339,8 +346,10 @@ void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *
         //Add all tx in list to filtered Datastructure --> everytime a tx reaches the MergeThreshold directly add it to the ProtoReply
         //If necessary, decode tx list
       
-    bool mergeComplete = pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss); //TODO: Need to make local_ss non-const.
-
+    //bool mergeComplete = pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss); //TODO: Need to make local_ss non-const.
+    // if(mergeComplete) UW_ASSERT(pendingQuery->snapshot_mgr.IsMergeComplete());
+    // UW_ASSERT(mergeComplete == pendingQuery->snapshot_mgr.IsMergeComplete());
+    pendingQuery->snapshot_mgr.ProcessReplicaLocalSnapshot(local_ss);
 
     //TEST:
     // for(auto &[ts, replica_list] : pendingQuery->merged_ss.merged_ts()){
@@ -352,16 +361,31 @@ void ShardClient::ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *
 
     //
 
+    //TODO: only ProcessSnapshot if merge not already complete.
+    //TODO: only SyncReplicas if eager has been forsaken.
+
     // 6) Once #QueryQuorum replies received, send SyncMessages
-    if(mergeComplete){
-        Debug("Merge complete, Syncing for query [%lu : %lu]:", pendingQuery->query_seq_num, pendingQuery->retry_version);
+    CheckSyncStart(pendingQuery);
+    // //if(mergeComplete){
+    // if(pendingQuery->snapshot_mgr.IsMergeComplete()){
+    //     Debug("Merge complete, Syncing for query [%lu : %lu]:", pendingQuery->query_seq_num, pendingQuery->retry_version);
+    //     SyncReplicas(pendingQuery);
+    // } 
+}
+
+//Check if Sync is ready to proceed (i.e. we have a merged snapshot, and we are no longer in eager mode)
+void ShardClient::CheckSyncStart(PendingQuery *pendingQuery){
+    if(pendingQuery->snapshot_mgr.IsMergeComplete() && pendingQuery->snapshot_mode){
+        Debug("Merge is complete. Starting Sync for query [%lu : %lu]:", pendingQuery->query_seq_num, pendingQuery->retry_version);
         SyncReplicas(pendingQuery);
-    } 
+    }
+
 }
 
 
 void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //0)
+    syncMsg.Clear();
    
     if(params.query_params.eagerPlusSnapshot){
         //reset result meta data if we do snapshot on eagerPlusSnapshot path. I.e. as if we were retrying, but in the same version
@@ -370,7 +394,8 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
         pendingQuery->result_freq.clear();
         pendingQuery->numFails = 0;   //Note Probably don't need to set this for eager exec; FailQuery will only be sent as a response to a snapshot that is invalid.
 
-        pendingQuery->snapshot_mode = true; //Upgrade to snapshot mode 
+        pendingQuery->eager_mode = false;
+        pendingQuery->snapshot_mode = true; //Upgrade to snapshot mode (if not already)
     }
     
     
@@ -395,7 +420,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
       SignMessage(&pendingQuery->merged_ss, keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), client_id, syncMsg.mutable_signed_merged_ss());
     }
     else{
-        *syncMsg.mutable_merged_ss() = std::move(pendingQuery->merged_ss);
+        *syncMsg.mutable_merged_ss() = pendingQuery->merged_ss;
     }
 
 
@@ -466,6 +491,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     } else {
         replica_result = queryResult.mutable_result();
         
+    }
+
+    if(!pendingQuery->eager_mode && replica_result->has_local_ss()){
+        Debug("[group %i] Received Eager QueryResult Reply for req-id [%lu] but no longer in Eager Mode. Ignore outdated eager reply from replica %lu.", group, queryResult.req_id(), replica_result->replica_id());
+        return;
     }
 
     Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
@@ -559,7 +589,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.
 
         //In eager mode, account for the fact that table versions might differ (even though the result & read set are the same) because it is too coarse => select the min for safety
-        if(!pendingQuery->snapshot_mode){
+        if(pendingQuery->eager_mode){
             int idx = 0;
             for(auto &pred: *replica_result->mutable_query_read_set()->mutable_read_predicates()){
                 //TODO: For efficiency, also enforce that pred.table_version() must be > bound. 
@@ -614,13 +644,24 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
         //if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same."); //Switched the order
 
+        Debug("Check for dependencies");
 
+        //TEST: PRINT 
+        // Warning("REMOVE THIS MERGED_SS PRINTS");
+        // for(const auto &[ts, _]: pendingQuery->merged_ss.merged_ts()){
+        //     Debug("Merged_ss contains ts: %lu", ts);
+        // }
+        //  for(const auto &[tx, _]: pendingQuery->merged_ss.merged_txns()){
+        //     Debug("Merged_ss contains tx: %s", BytesToHex(tx, 16).c_str());
+        // }
+    
         //Record the dependencies.
         //if using eager exec: TODO:/FIXME: not yet implemented
             //3 options: 1) only allow running with caching; 2) accept only f+1 deps (may be unreasonable); 3) run with eager+snapshot, and check on demand whether it is in f+1 snapshot msg 
+            //Currently using option 3!
 
         //If using Snapshot: Accept a single replicas dependency vote if the txn is in the merged snapshot (and thus f+1 replicas HAVE the tx)
-        for(auto dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
+        for(auto &dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
             Debug("TESTING: Received Dep: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
             if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
                 auto itr = pendingQuery->merged_ss.merged_ts().find(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()));
@@ -638,6 +679,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                 } 
             }            
         }
+
          //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
         if(matching_res == params.query_params.resultQuorum){
             proto::ReadSet *query_read_set = replica_result->mutable_query_read_set();
@@ -648,12 +690,12 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                 add_dep->set_involved_group(group);
                 add_dep->set_allocated_write(write);
             }
-        }    
+        }  
     }
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
-    bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && !pendingQuery->snapshot_mode;
+    bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && pendingQuery->eager_mode;
     if(TEST_SYNC_PATH) Debug("Forcing Sync path even though Eager might have matched.");
    
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);
@@ -674,13 +716,16 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     // if not optimistic id: wait for up to result Quorum many messages (f+1). With optimistic id, wait for f additional.
 
     //if using eager exec + sync, then don't return query failure upon inconsistent replies => continue with sync protocol (pretend never did eager exec)
-    bool do_sync_upon_failure = !pendingQuery->snapshot_mode && params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
+    bool do_sync_upon_failure = pendingQuery->eager_mode && params.query_params.eagerPlusSnapshot && pendingQuery->retry_version == 0 && replica_result->has_local_ss();
                             //  don't do it again if already in snapshot mode, only do it if parameterized to use eager+snapshot path. retry_version == 0 is obsolete when using snapshot_mode
     //Note: Do not count the SyncRead as a new retry version simply don't upcall; wipe result data structure; "pretend like we never got result, just sync
 
     //if eagerExec is on, but we are running in EagerPlusSnapshot mode, then consider bonus. 
-    bool no_bonus = (params.query_params.eagerExec && !pendingQuery->snapshot_mode) || (params.query_params.optimisticTxID && pendingQuery->retry_version > 0);
+    Debug("eagerExec: %d. eager mode: %d, optimistic Id %d, retry version: %d ", params.query_params.eagerExec, pendingQuery->eager_mode, params.query_params.optimisticTxID, pendingQuery->retry_version);
+    bool no_bonus = (params.query_params.eagerExec && pendingQuery->eager_mode) || (params.query_params.optimisticTxID && pendingQuery->retry_version > 0); 
+    //Note: In eager exec mode we don't need bonus. Likewise, if retry_version > 0 we no longer use optimisticId => thus no bonus necessary
     //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
+    Debug("no bonus? %d ", no_bonus);
     uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
 
     Debug("Designated replies: %d. ExpectedResults: %d", pendingQuery->num_designated_replies, expectedResults);
@@ -694,30 +739,38 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     } 
     
     UW_ASSERT(maxWait > 0);
+
     //Note that expectedResults <= num_designated_replies, since params.resultQuorum <= params.syncMessages, and +f optimisticID is applied to both.
-    
+
     //Waited for max number of result replies that can be expected. //TODO: Can be "smarter" about this. E.g. if waiting for at most f+1 replies, as soon as first non-matching arrives return...
-    if(pendingQuery->resultsVerified.size() == maxWait && !do_sync_upon_failure){
-        //Panic("Testing");
-        Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
-       //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
-       pendingQuery->rcb(REPLY_FAIL, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
-        //Remove/Delete pendingQuery happens in upcall
-       return;
+    
+    if(!do_sync_upon_failure){
+        if(pendingQuery->resultsVerified.size() == maxWait){
+            //Panic("Testing");
+            Debug("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
+            //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
+            pendingQuery->rcb(REPLY_FAIL, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
+                //Remove/Delete pendingQuery happens in upcall
+            return;
+        }
     }
-   
-    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu. So far: %d. maxWait %d \n", group, queryResult.req_id(), pendingQuery->resultsVerified.size(), maxWait);
-   
 
-    //6) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
-
-
-    //7) If doing EagerExecution + Snapshot at the same time => also process snapshot in case eager exec fails.
+    else{ //do sync after failure.
+         //7) If doing EagerExecution + Snapshot at the same time => also process snapshot in case eager exec fails.
         //if Exec&Snapshot flag is on, then as part of HandleQueryResult also call ProcessSync
-    if(do_sync_upon_failure){
+   
          //If EagerPlusSnapshot: adjust Quorums or flags such that SyncReplicas only triggers if ExecFails.
         // Eager exec should send to at least queryMessages many (and designate for replies)
         // SyncReplicas() should not trigger early: => Probably no changes necessary? Result quorum is smaller than sync quorum? (f+1 out of 2f+1  VS 2f+1 out of 3f+1)
+
+        //If we did not have success using the Eager_mode then switch to sync mode. This allows SyncReplicas to start. 
+        //Once SyncReplicas starts => turn off eager_mode = do not process any more outdated eager replies
+        if(!pendingQuery->snapshot_mode && pendingQuery->resultsVerified.size() == maxWait){
+            stats->Increment("FailEager", 1);
+            pendingQuery->snapshot_mode = true;
+            //Note: If syncQuorum < resultQuorum then merged_ss will be ready before we end the eager path; 
+            //      if syncQuorum >= syncQuorum, then sync will start as soon as it is ready. (we stay in eager mode so we keep processing messages)
+        }
 
         Debug("[group %i] Try to sync for Req %lu.\n", group, queryResult.req_id());
         if (params.validateProofs && params.signedMessages) {
@@ -728,6 +781,10 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         }            
         ProcessSync(pendingQuery, replica_result->mutable_local_ss());
     }
+
+    Debug("[group %i] Waiting for additional QueryResult Replies for Req %lu. So far: %d. maxWait %d \n", group, queryResult.req_id(), pendingQuery->resultsVerified.size(), maxWait);
+   
+    //8) remove pendingQuery object --> happens in upcall to client (calls ClearQuery)
 }
 
 void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){

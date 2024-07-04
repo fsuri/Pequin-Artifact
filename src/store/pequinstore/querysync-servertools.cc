@@ -233,7 +233,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     query_md->executed_query = true;
 
     Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false, true)); //eager = true
     
@@ -454,13 +454,15 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
 }
 
 void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const uint64_t &ts_id) {
-  
+
     Debug("Request missing TS[%lu]", ts_id);
     uint64_t count = 0;
     for(auto const &replica_id: replica_list.replicas()){ 
         Debug("    Request missing TS[%lu] from replica %d", ts_id, replica_id);
-        if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
-        
+        if(count > config.f +1){
+            Panic("Replica requesting missing from more than f+1");
+            return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+        } 
         
         uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
         if(replica_idx != idx){
@@ -470,6 +472,7 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
         }
         else if(!TEST_MATERIALIZE_TS) {
             Panic("Should not be trying to request missing from a TX whose snapshot claims Replica was part. This is a byz behavior that should not trigger in tests.");
+            //Unless we maybe aborted in the meantime?
         }
         count++;
     }

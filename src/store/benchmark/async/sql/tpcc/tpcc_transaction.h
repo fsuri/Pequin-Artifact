@@ -73,8 +73,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           DistrictRow& d)
 {
-  uint32_t id;
+
   uint32_t w_id;
+  uint32_t id; //district
   std::string name;
   std::string street_1;
   std::string street_2;
@@ -84,8 +85,8 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   int32_t tax;
   int32_t ytd;
   uint32_t next_o_id;
-  row->get(0, &id);
-  row->get(1, &w_id);
+  row->get(0, &w_id);
+  row->get(1, &id);
   row->get(2, &name);
   row->get(3, &street_1);
   row->get(4, &street_2);
@@ -111,17 +112,18 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           OrderRow& o)
 {
-  uint32_t id;
-  uint32_t d_id;
+ 
   uint32_t w_id;
+  uint32_t d_id;
+  uint32_t id;
   uint32_t c_id;
   uint32_t entry_d;
   uint32_t carrier_id;
   uint32_t ol_cnt;
   bool all_local;
-  row->get(0, &id);
+  row->get(0, &w_id);
   row->get(1, &d_id);
-  row->get(2, &w_id);
+  row->get(2, &id);
   row->get(3, &c_id);
   row->get(4, &entry_d);
   row->get(5, &carrier_id);
@@ -140,9 +142,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           OrderLineRow& o)
 {
-  uint32_t  o_id;
-  uint32_t  d_id;
   uint32_t  w_id;
+  uint32_t  d_id;
+  uint32_t  o_id;
   uint32_t  number;
   uint32_t  i_id;
   uint32_t  supply_w_id;
@@ -150,9 +152,9 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   uint32_t  quantity;
   int32_t amount;
   std::string dist_info;
-  row->get(0, &o_id);
+  row->get(0, &w_id);
   row->get(1, &d_id);
-  row->get(2, &w_id);
+  row->get(2, &o_id);
   row->get(3, &number);
   row->get(4, &i_id);
   row->get(5, &supply_w_id);
@@ -328,12 +330,13 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
 inline void load_row(std::unique_ptr<query_result::Row> row,
           NewOrderRow& new_o)
 {
-  uint32_t id;
-  uint32_t d_id;
+ 
   uint32_t w_id;
-  row->get(0, &id);
+  uint32_t d_id;
+  uint32_t id;
+  row->get(0, &w_id);
   row->get(1, &d_id);
-  row->get(2, &w_id);
+  row->get(2, &id);
   new_o.set_o_id(id);
   new_o.set_d_id(d_id);
   new_o.set_w_id(w_id);

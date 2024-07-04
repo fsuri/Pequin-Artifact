@@ -1098,6 +1098,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TableWriteMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
   TableWriteMap tableWrites;
+
+  typedef tbb::concurrent_hash_map<std::string, Timestamp> HighTblVmap;
+  HighTblVmap highTableVersions;
   /* END MAPS FOR SEMANTIC CC*/
 
   //XXX key locks for atomicity of OCC check

@@ -144,6 +144,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
+  Notice("Create Genesis Txn with digest: %d", BytesToHex(genesis_txn_dig, 16).c_str());
   *proof->mutable_txn()->mutable_txndigest() = genesis_txn_dig;
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
@@ -439,6 +440,7 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote, const std::s
 
   } else if (type == abort.GetTypeName()) {
     ManageDispatchAbort(remote, data);
+
   } else if (type == ping.GetTypeName()) {
     ping.ParseFromString(data);
     HandlePingMessage(this, remote, ping); 
@@ -573,6 +575,11 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   tableWrites.insert(tw, table_name);
   tw->second.clear();
   tw.release();
+
+  HighTblVmap::accessor ht;
+  highTableVersions.insert(ht, table_name); 
+  ht->second = Timestamp(0, 0);
+  ht.release();
 }
 
 void Server::CreateIndex(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::string &index_name, const std::vector<uint32_t> &index_col_idx){
@@ -2062,7 +2069,7 @@ void Server::HandleAbort(const TransportAddress &remote,
 
 void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet) {
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
-
+  
   Timestamp ts = Timestamp(txn.timestamp());
 
   //const ReadSet &readSet = txn.read_set();

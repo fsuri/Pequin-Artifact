@@ -168,11 +168,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
 
 
   uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
-  statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, 1, 4, 3, 4, 3, 10, 1000, "ABCDEFGHIJKLM");
-
-  // statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
-  //           "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+   statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, queryResult, timeout, true); //blind write
   
   if(!queryResult->has_rows_affected()){Panic("History row not unique");}

@@ -1434,6 +1434,28 @@ int main(int argc, char **argv) {
         }
     }
 
+    //TODO: Parameterize better
+    //If SemanticCC enabled need at least these Quorum sizes.
+    if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+      if(FLAGS_pequin_query_eager_exec){
+        queryMessages = std::max((int)queryMessages, 4 * config->f + 1);
+        syncQuorumSize = std::max((int)syncQuorumSize, 3 * config->f + 1); 
+        //Note: syncQuorum size does not necessarily need to increase, but might as well for better freshness since we already have larger queryMessages
+      }
+      syncMessages = std::max((int)syncMessages, 4 * config->f + 1);
+      resultQuorum = 3 * config->f + 1;
+    }
+
+    Notice("Quorum sizes:");
+    Notice("queryMessages: %d", queryMessages);
+    Notice("syncQuorum: %d", syncQuorumSize);
+    Notice("mergeThreshold: %d", mergeThreshold);
+
+    Notice("syncMessages: %d", syncMessages);
+    Notice("resultQuorum: %d", resultQuorum);
+    Notice("optimistic Id: %d",  FLAGS_pequin_query_optimistic_txid);
+
+
 //Declare Protocol Clients
 
     switch (mode) {

@@ -729,11 +729,12 @@ void Server::SendQueryReply(QueryMetaData *query_md){
     //4) Create Result reply --  // only send if chosen for reply
     if(!query_md->designated_for_reply) return;
 
-    result->set_query_seq_num(query_md->query_seq_num); //FIXME: put this directly when instantiating.
-    result->set_client_id(query_md->client_id); //FIXME: set this directly when instantiating.
+    //FIXME: set these directly when instantiating.
+    result->set_query_seq_num(query_md->query_seq_num); 
+    result->set_client_id(query_md->client_id); 
     result->set_replica_id(id);
     
-    queryResultReply->set_req_id(query_md->req_id);
+    queryResultReply->set_req_id(query_md->req_id); //this implicitly captures retry-version
 
     //5) (Sign and) send reply 
 
@@ -934,8 +935,10 @@ void Server::CheckLocalAvailability(const std::string &txn_id, proto::TxnInfo &t
             //proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
             txn_info.set_abort(true);
             *txn_info.mutable_abort_proof() = writebackMessages[txn_id];
+            return;
         }
-        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
+        //Corner case: If replica voted prepare, but is now abort, what should happen? Should query ReportFail? 
+        //Or should query just go through without this tx ==> The latter. After all, it is correct to ignore.
 
         //3) if Prepared //TODO: check for prepared first, to avoid sending unecessary certs?
 
@@ -1062,25 +1065,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         return;
     }
 
-     ///Note (FIXME:?): A Replica that has a prepare but receives an abort proof might want to remove the tx from the snapshot. TODO: For this reason, may want to move prepare check after abort proof check.
 
-    //If not committed/aborted ==> Check if locally present.
-    //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
-    p1MetaDataMap::const_accessor c;
-    if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
-         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-        if(c->second.hasP1){
-            // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
-            // if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
-            // // if(c->second.result == proto::ConcurrencyControl::ABORT){
-            // //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
-            // // //FailWaitingQueries(txn_id);
-            // // }
-        }
-        return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
-    } 
-    c.release();
-    
     //Check if other replica had aborted (If so, exclude this tx from snapshot; Alternatively could fail sync eagerly, but that seems unecessary)
     if(txn_info.abort()){ 
         Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
@@ -1108,6 +1093,31 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         //UpdateWaitingQueries(txn_id); //Don't need to wait on this txn. 
         return;
     }
+
+      ///Note (FIXME:?): A Replica that has a prepare but receives an abort proof might want to remove the tx from the snapshot. TODO: For this reason, may want to move prepare check after abort proof check.
+
+    //If not committed/aborted ==> Check if locally present.
+    //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
+    p1MetaDataMap::const_accessor c;
+    if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
+        c.release();
+         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        if(txn_info.has_p1()){
+             RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
+             return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+        }
+        // if(c->second.hasP1){
+        //     // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it?");
+        //     //if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
+        //     // // if(c->second.result == proto::ConcurrencyControl::ABORT){
+        //     // //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
+        //     // // //FailWaitingQueries(txn_id);
+        //     // // }
+        // }
+        // return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+    } 
+    //c.release();
+    
 
     //Check if other replica supplied commit
     if(txn_info.has_commit_proof()){   

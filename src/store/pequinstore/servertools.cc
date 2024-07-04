@@ -568,6 +568,11 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
       //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
       if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
+
+      HighTblVmap::accessor ht;
+      highTableVersions.insert(ht, table_name);
+      ht->second = std::max(ht->second, Timestamp(mostRecentPrepared->timestamp()));
+      ht.release();
     }
     else{ //Read committed
       TimestampMessage tsm;
@@ -577,6 +582,11 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
       //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
       if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
+
+      HighTblVmap::accessor ht;
+      highTableVersions.insert(ht, table_name);
+      ht->second = std::max(ht->second, Timestamp(tsm));
+      ht.release();
     }
   }
 
