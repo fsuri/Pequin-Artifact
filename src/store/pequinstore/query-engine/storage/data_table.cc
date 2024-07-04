@@ -352,10 +352,16 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     is_duplicate = false;
     ItemPointer location = GetEmptyTupleSlot(tuple);
     if (location.block == INVALID_OID) {
+      Panic("invalid location?");
       LOG_TRACE("Failed to get tuple slot.");
       Debug("Invalid write to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
       return INVALID_ITEMPOINTER;
     }
+
+    // auto tile_group = this->GetTileGroupById(location.block);
+    // auto tile_group_header = tile_group->GetHeader();
+    // auto &latch = tile_group_header->GetSpinLatch(0); //take a lock on this tile group?
+    // latch.Lock();
 
     // ItemPointer *old_location;
     auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
@@ -367,6 +373,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       // return INVALID_ITEMPOINTER;
     }
     //Debug("Wrote to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
+    //latch.Unlock();
     return location; //*old_location;
 
   }
@@ -374,6 +381,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
   else {
     auto tile_group = this->GetTileGroupById(check.block);
     auto tile_group_header = tile_group->GetHeader();
+
+    // auto &latch = tile_group_header->GetSpinLatch(0); //take a lock on this tile group?
+    // latch.Lock();
 
     auto ts = tile_group_header->GetBasilTimestamp(check.offset);
     auto curr_pointer = check;
@@ -412,18 +422,31 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
 
+        // NEW: For purge set the tile group header locks
+
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
            Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          
+          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          
           //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
+          
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
+
+          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
            Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
+          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          
           next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
           COMPILER_MEMORY_FENCE;
@@ -434,11 +457,17 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
 
+          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
            Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
+          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
+
+          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
       }
       //Writing again. 
@@ -448,9 +477,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
         // NOTE: Check if we can upgrade a prepared tuple to committed
     
-        for (int i = 0; i < active_tilegroup_count_; i++) {
+        /*for (int i = 0; i < active_tilegroup_count_; i++) {
           std::cerr << "tile group name: " << table_name << " and id is " << active_tile_groups_[i]->GetTileGroupId() << ". next tuple slot is " << active_tile_groups_[i]->GetNextTupleSlot() << std::endl;
-        }
+        }*/
 
 
         // std::string encoded_key = target_table_->GetName();
@@ -521,6 +550,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
       ItemPointer location = GetEmptyTupleSlot(tuple);
       if (location.block == INVALID_OID) {
+        Panic("Invalid location");
         LOG_TRACE("Failed to get tuple slot.");
         return INVALID_ITEMPOINTER;
       }
@@ -551,8 +581,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         exists = false;
         // return INVALID_ITEMPOINTER;
       }
+      //latch.Unlock();
       return location;
     }
+
+    //latch.Unlock();
   }
 
   return ItemPointer(0, 0);

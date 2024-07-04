@@ -238,6 +238,9 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
 
   //UW_ASSERT(result.size());
 
+  // bool is_limit = statement->GetQueryString().find(limit_hook) != std::string::npos;
+  // if(is_limit) Notice("Transforming Limit statement: %s", statement->GetQueryString().c_str());
+
   sql::QueryResultProtoBuilder queryResultBuilder;
   // Add columns
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
@@ -249,12 +252,14 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
   for (unsigned int i = 0; i < rows; i++) {
     //std::cerr << "Row[" << i << "]" << std::endl;
     Debug("Row[%d]", i);
+    //if(is_limit) Notice("Row[%d]", i);
 
     RowProto *row = queryResultBuilder.new_row();
     for (unsigned int j = 0; j < tuple_descriptor.size(); j++) {
       // Use interface addtorow, and pass in field to that row
       //std::string r = result[i * tuple_descriptor.size() + j];
        Debug("   Col: %s. Value: %s", std::get<0>(tuple_descriptor[j]).c_str(), result[i * tuple_descriptor.size() + j].c_str());
+      //if(is_limit) Notice("   Col: %s. Value: %s", std::get<0>(tuple_descriptor[j]).c_str(), result[i * tuple_descriptor.size() + j].c_str());
       queryResultBuilder.AddToRow(row, result[i * tuple_descriptor.size() + j]);
       //std::cerr << "  Col: " << (std::get<0>(tuple_descriptor[j]))<< ". Value: " << (result[i * tuple_descriptor.size() + j]) << std::endl;
     }
@@ -1121,7 +1126,6 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   // for (auto &purge_statement : purge_statements) {
   //  prepareStatement
   auto statement = ParseAndPrepare(purge_statement, tcop);
-  std::cerr << purge_statement << std::endl;
 
   std::vector<peloton::type::Value> param_values; // param_values.clear();
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
@@ -1229,6 +1233,20 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
   // Transform PelotonResult into ProtoResult
   std::string &&res(TransformResult(status, statement, result));
+
+  // bool is_limit = statement->GetQueryString().find(limit_hook) != std::string::npos;// || statement->GetQueryString().find(order_hook) != std::string::npos;
+  // if(is_limit && readSetMgr.read_set->read_set_size() > 1){
+  //   Notice("Active read set for limit statement: %s. size: %d", statement->GetQueryString().c_str(), readSetMgr.read_set->read_set_size());
+  //   for(auto &read: readSetMgr.read_set->read_set()){
+  //     Notice("read key: %s. readtime: [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+  //   }
+  //    for(auto &dep: readSetMgr.read_set->deps()){
+  //     Notice("read dep: %s. ", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+  //   }
+  //    for(auto &pred: readSetMgr.read_set->read_predicates()){
+  //     Notice("read pred: %s. ", pred.pred_instances()[0].c_str());
+  //   }
+  // } 
 
   Debug("End readLat and snapshotLat on core: %d", core);
   Latency_End(&readLats[core]);

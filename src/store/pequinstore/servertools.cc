@@ -1550,8 +1550,8 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
               return;
           }
           else if (params.signedMessages) {
-
-             Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and"
+            
+             Panic("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and"
                  " has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(),
                  msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
              return WritebackCallback(&msg, txnDigest, txn, (void*) false);;

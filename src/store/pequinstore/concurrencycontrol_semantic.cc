@@ -112,7 +112,7 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     
     //NOTE: only comparing on the real time component currently.
     if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
-      Warning("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
+      Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
           params.query_params.monotonicityGrace,  //grace
@@ -491,7 +491,7 @@ proto::ConcurrencyControl::Result Server::CheckTableWrites(const proto::Transact
         //only check if this write is still relevant to the Reader. Note: This case should never happen, such writes should not be able to be admitted
         //if(txn_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()){ //this is wrong!.
         if(timeServer.TStoMS(txn_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
-          Panic("non-monotonic write should never be admitted"); 
+          Warning("non-monotonic write should never be admitted"); 
           //NOTE: Not quite true locally. This replica might not have seen a TableVersion high enough to cause this TX to be rejected; meanwhile, the read might have read the TableVersion elsewhere
           //-- but as a whole, a quorum of replicas should be rejecting this tx.
           continue;

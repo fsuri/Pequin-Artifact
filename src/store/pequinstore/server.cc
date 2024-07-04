@@ -84,8 +84,8 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   stats.Increment("total_equiv_received_adopt", 0);
 
-  fprintf(stderr, "Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
-  fprintf(stderr, "Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
+  Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
+  Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);
   transport->Register(this, config, groupIdx, idx);
   _Latency_Init(&committedReadInsertLat, "committed_read_insert_lat");
@@ -153,7 +153,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Compute write_monotonicity_grac 
   write_monotonicity_grace = timeServer.MStoTS(params.query_params.monotonicityGrace);
-  std::cerr << "write_monotonicity_grace: " << write_monotonicity_grace << std::endl;
+  Notice("write_monotonicity_grace: %d", write_monotonicity_grace);
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
   UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
 
@@ -1298,6 +1298,8 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   }
   
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
+  //Notice("Txn:[%d:%d] has digest: %s", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str());
+
   Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
@@ -1824,7 +1826,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
   const std::string *txnDigest;
   std::string computedTxnDigest;
   if (!msg.has_txn() && !msg.has_txn_digest()) {
-    Debug("WRITEBACK message contains neither txn nor txn_digest.");
+    Panic("WRITEBACK message contains neither txn nor txn_digest.");
     return WritebackCallback(&msg, txnDigest, txn, (void *)false);
   }
 
@@ -2274,8 +2276,9 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CheckDependents(txnDigest);
   CleanDependencies(txnDigest);
 
-  CleanQueries(txn_ref); //Note: Changing txn is not threadsafe per se, but should not cause any issues..
+  CleanQueries(txn_ref);
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
+
 }
 
 //Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.

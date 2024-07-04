@@ -65,8 +65,9 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
 
   Notice("Pequinstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
-  Debug("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
-  std::cerr<< "P1 Decision Timeout: " <<phase1DecisionTimeout<< std::endl;
+  Notice("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
+  Notice("P1 Decision Timeout: %d", phase1DecisionTimeout);
+
   if(params.injectFailure.enabled) stats.Increment("total_byz_clients", 1);
 
   if (params.signatureBatchSize == 1) {
@@ -254,8 +255,7 @@ void Client::Put(const std::string &key, const std::string &value,
   transport->Timer(0, [this, key, value, pcb, ptcb, timeout]() {
 
     //std::cerr << "value size: " << value.size() << "; key " << BytesToHex(key,16).c_str() << std::endl;
-    Debug("PUT[%lu:%lu] for key %s", client_id, client_seq_num, BytesToHex(key,
-          16).c_str());
+    Debug("PUT[%lu:%lu] for key %s", client_id, client_seq_num, BytesToHex(key, 16).c_str());
 
     // Contact the appropriate shard to set the value.
     std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
@@ -340,7 +340,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       if (!IsParticipant(point_target_group)) {
         txn.add_involved_groups(point_target_group);
         bclient[point_target_group]->Begin(client_seq_num);
-      }            
+      }  
 
       write_continuation(REPLY_OK, write_result);
     }
@@ -488,7 +488,7 @@ void Client::Query(const std::string &query, query_callback qcb,
         bclient[i]->Begin(client_seq_num);
       }
     }
-  
+    
     //Could send table_name always? Then we know how to lookup table_version (NOTE: Won't work for joins etc though..)
 
        
@@ -2038,13 +2038,13 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
   // 1) check that txnDigest matches txn content
   if (msg.has_txn_digest()){
     if(*txnDigest != msg.txn_digest()){
-      std::cerr << "txnDigs don't match" << std::endl;
+      Panic("txnDigs don't match");
       return false;
     } 
   }
   else if(msg.has_txn()){
     if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)){
-      std::cerr << "txnDig doesnt match Transaction" << std::endl;
+      Panic("txnDig doesnt match Transaction");
       return false;
     } 
   }
@@ -2059,8 +2059,7 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
         proto::ConcurrencyControl::Result myResult;
 
         if (!ValidateP1Replies(msg.decision(), true, txn, txnDigest, msg.p1_sigs(), keyManager, config, -1, myResult, verifier)) {
-              Debug("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
-              std::cerr << "Wb failed P1 fast validation" << std::endl;
+              Panic("WRITEBACK[%s] Failed to validate P1 replies for fast decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
               return false;
         }   
     }
@@ -2069,8 +2068,7 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
         proto::CommitDecision myDecision;
   
         if (!ValidateP2Replies(msg.decision(), msg.p2_view(), txn, txnDigest, msg.p2_sigs(), keyManager, config, -1, myDecision, verifier)) {
-                Debug("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
-                std::cerr << "Wb failed P2 slow validation" << std::endl;
+                Panic("WRITEBACK[%s] Failed to validate P2 replies for decision %s.", BytesToHex(*txnDigest, 16).c_str(), (msg.decision() == proto::CommitDecision::COMMIT) ? "commit" : "abort");
                 return false;
         }
     } 
@@ -2078,14 +2076,12 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
       std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
 
       if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
-            Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
-            std::cerr << "Wb failed conflict validation" << endl;
+            Panic("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
             return false;
       }
     } 
     else if (params.signedMessages) {
-      Debug("WRITEBACK[%s] decision %d, has_p1_sigs %d, has_p2_sigs %d, and has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(), msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
-      Panic("Wb without proof.");
+      Panic("WRITEBACK[%s] decision %d without proof, has_p1_sigs %d, has_p2_sigs %d, and has_conflict %d.", BytesToHex(*txnDigest, 16).c_str(), msg.decision(), msg.has_p1_sigs(), msg.has_p2_sigs(), msg.has_conflict());
       return false;
     }
   }  

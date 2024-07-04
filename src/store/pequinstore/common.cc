@@ -113,7 +113,8 @@ void SignMessages(const std::vector<::google::protobuf::Message*>& msgs,
   BatchedSigs::generateBatchedSignatures(messageStrs, privateKey, sigs, merkleBranchFactor);
   for (unsigned int i = 0; i < msgs.size(); i++) {
     *signedMessages[i]->mutable_signature() = sigs[i];
-  }
+    //Notice("Sig: %s. Msg: %s. Replica Id: %d", BytesToHex(signedMessages[i]->signature(), 1024).c_str(), BytesToHex(signedMessages[i]->data(), 1024).c_str(), processId);
+   }
 }
 
 void SignMessages(const std::vector<Triplet>& batch,
@@ -131,6 +132,7 @@ void SignMessages(const std::vector<Triplet>& batch,
   BatchedSigs::generateBatchedSignatures(messageStrs, privateKey, sigs, merkleBranchFactor);
   for (unsigned int i = 0; i < batch.size(); i++) {
     *batch[i].sig_msg->mutable_signature() = sigs[i];
+     //Notice("Sig: %s. Msg: %s.", BytesToHex(batch[i].sig_msg->signature(), 1024).c_str(), BytesToHex(batch[i].sig_msg->data(), 1024).c_str(), processId);
   }
 }
 
@@ -168,6 +170,13 @@ void asyncValidateCommittedConflict(const proto::CommittedProof &proof,
           BytesToHex(*committedTxnDigest, 16).c_str(),
           txn->client_id(), txn->client_seq_num(),
           BytesToHex(*txnDigest, 16).c_str());
+
+        Panic("Committed txn [%lu:%lu][%s] does not conflict with this txn [%lu:%lu][%s].",
+          proof.txn().client_id(), proof.txn().client_seq_num(),
+          BytesToHex(*committedTxnDigest, 16).c_str(),
+          txn->client_id(), txn->client_seq_num(),
+          BytesToHex(*txnDigest, 16).c_str());
+
         mcb((void*) false);
         return;
     }
@@ -229,6 +238,7 @@ bool ValidateCommittedConflict(const proto::CommittedProof &proof,
     const std::string *txnDigest, bool signedMessages, KeyManager *keyManager,
     const transport::Configuration *config, Verifier *verifier) {
 
+  
 
   if (!TransactionsConflict(proof.txn(), *txn)) {
     Panic("invalid conflict");
@@ -240,8 +250,7 @@ bool ValidateCommittedConflict(const proto::CommittedProof &proof,
     return false;
   }
 
-  if (signedMessages && !ValidateCommittedProof(proof, committedTxnDigest,
-        keyManager, config, verifier)) {
+  if (signedMessages && !ValidateCommittedProof(proof, committedTxnDigest, keyManager, config, verifier)) {
     return false;
   }
 
@@ -252,19 +261,19 @@ bool ValidateCommittedConflict(const proto::CommittedProof &proof,
 bool ValidateCommittedProof(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, KeyManager *keyManager,
     const transport::Configuration *config, Verifier *verifier) {
+
+  Debug("Proof txn id/seq [%d;%d]", proof.txn().client_id(), proof.txn().client_seq_num());
   if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {
-    // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
-    //    without needing to write all existing data with transactions
+    // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark without needing to write all existing data with transactions
     return true;
   }
 
   if (proof.has_p1_sigs()) {
-    return ValidateP1Replies(proto::COMMIT, true, &proof.txn(), committedTxnDigest,
-        proof.p1_sigs(), keyManager, config, -1, proto::ConcurrencyControl::ABORT,
-        verifier);
+    Debug("Validate Proof via P1 sigs");
+    return ValidateP1Replies(proto::COMMIT, true, &proof.txn(), committedTxnDigest, proof.p1_sigs(), keyManager, config, -1, proto::ConcurrencyControl::ABORT, verifier);
   } else if (proof.has_p2_sigs()) {
-    return ValidateP2Replies(proto::COMMIT, proof.p2_view(), &proof.txn(), committedTxnDigest,
-        proof.p2_sigs(), keyManager, config, -1, proto::ABORT, verifier);
+    Debug("Validate Proof via P2 sigs");
+    return ValidateP2Replies(proto::COMMIT, proof.p2_view(), &proof.txn(), committedTxnDigest, proof.p2_sigs(), keyManager, config, -1, proto::ABORT, verifier);
   } else {
     Debug("Proof has neither P1 nor P2 sigs.");
     return false;
@@ -300,8 +309,7 @@ bool ValidateP1Replies(proto::CommitDecision decision,
     int64_t myProcessId, proto::ConcurrencyControl::Result myResult, Verifier *verifier) {
   Latency_t dummyLat;
   //_Latency_Init(&dummyLat, "dummy_lat");
-  return ValidateP1Replies(decision, fast, txn, txnDigest, groupedSigs,
-      keyManager, config, myProcessId, myResult, dummyLat, verifier);
+  return ValidateP1Replies(decision, fast, txn, txnDigest, groupedSigs, keyManager, config, myProcessId, myResult, dummyLat, verifier);
 }
 
 
@@ -326,8 +334,9 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
   if(verifyObj->terminate){
       if(verifyObj->deletable == 0){
-        if(verifyObj->callback) verifyObj->mcb((void*) false);
         Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
+        if(verifyObj->callback) verifyObj->mcb((void*) false);
         //verifyObj->deleteMessages();
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -340,6 +349,7 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
         // verifyObj = NULL;
       if(verifyObj->deletable == 0){
          Debug("Return to CB UNSUCCESSFULLY");
+         Panic("fail validation");
          verifyObj->mcb((void*) false);
          //verifyObj->deleteMessages();
          if(LocalDispatch) lockScope.unlock();
@@ -356,9 +366,10 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
   }
   else{
     if(verifyObj->deletable == 0){
+      Debug("Return to CB UNSUCCESSFULLY");
+      Panic("fail validation");
       verifyObj->mcb((void*) false);
       //verifyObj->deleteMessages();
-       Debug("Return to CB UNSUCCESSFULLY");
        if(LocalDispatch) lockScope.unlock();
       delete verifyObj;
     }
@@ -371,8 +382,10 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
     if(!(verifyObj->groupsVerified == verifyObj->groupTotals)){
           Debug("Phase1Replies for involved_group %d not complete.", (int)groupId);
           if(verifyObj->deletable == 0){
-            verifyObj->mcb((void*) false);
             Debug("Return to CB UNSUCCESSFULLY");
+            Panic("fail validation");
+            verifyObj->mcb((void*) false);
+            
             //verifyObj->deleteMessages();
             if(LocalDispatch) lockScope.unlock();
             delete verifyObj;
@@ -760,8 +773,7 @@ bool ValidateP1Replies(proto::CommitDecision decision,
     for (const auto &sig : sigs.second.sigs()) {
 
       if (!IsReplicaInGroup(sig.process_id(), sigs.first, config)) {
-        Debug("Signature for group %lu from replica %lu who is not in group.",
-            sigs.first, sig.process_id());
+        Debug("Signature for group %lu from replica %lu who is not in group.", sigs.first, sig.process_id());
         return false;
       }
 
@@ -771,29 +783,23 @@ bool ValidateP1Replies(proto::CommitDecision decision,
         if (concurrencyControl.ccr() == myResult) {
           skip = true;
         } else {
-          Debug("Signature purportedly from replica %lu"
-              " (= my id %ld) doesn't match my response %u.",
-              sig.process_id(), myProcessId, concurrencyControl.ccr());
+          Debug("Signature purportedly from replica %lu (= my id %ld) doesn't match my response %u.", sig.process_id(), myProcessId, concurrencyControl.ccr());
           return false;
         }
       }
 
-      Debug("Verifying %lu byte signature from replica %lu in group %lu.",
-          sig.signature().size(), sig.process_id(), sigs.first);
+      Debug("Verifying %lu byte signature from replica %lu in group %lu.", sig.signature().size(), sig.process_id(), sigs.first);
       //Latency_Start(&lat);
-      if (!skip && !verifier->Verify(keyManager->GetPublicKey(sig.process_id()), ccMsg,
-              sig.signature())) {
+      if (!skip && !verifier->Verify(keyManager->GetPublicKey(sig.process_id()), ccMsg, sig.signature())) {
         //Latency_End(&lat);
-        Debug("Signature from replica %lu in group %lu is not valid.",
-            sig.process_id(), sigs.first);
+        Debug("Signature from replica %lu in group %lu is not valid.", sig.process_id(), sigs.first);
         return false;
       }
       //Latency_End(&lat);
       //
       auto insertItr = replicasVerified.insert(sig.process_id());
       if (!insertItr.second) {
-        Debug("Already verified sig from replica %lu in group %lu.",
-            sig.process_id(), sigs.first);
+        Debug("Already verified sig from replica %lu in group %lu.", sig.process_id(), sigs.first);
         return false;
       }
       verified++;
@@ -862,6 +868,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
 
   if(verifyObj->terminate){
     if(verifyObj->deletable == 0){
+      Debug("Return to CB UNSUCCESSFULLY");
+      Panic("fail validation");
       if(verifyObj->callback) verifyObj->mcb((void*) false);
       if(LocalDispatch) lockScope.unlock();
       delete verifyObj;
@@ -869,19 +877,23 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
     return;
   }
   if(!result){
+     Panic("P2 validation fails");
       verifyObj->terminate = true;
 
       if(verifyObj->deletable == 0){
+        Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
         verifyObj->mcb((void*) false);
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
       }
       return;
     }
-  verifyObj->groupCounts[groupId]++;
-  Debug("%d out of necessary %d Phase2Replies for logging group %d verified.",
-    verifyObj->groupCounts[groupId],verifyObj->quorumSize,(int)groupId);
 
+  verifyObj->groupCounts[groupId]++;
+  UW_ASSERT(verifyObj->groupCounts.size() == 1);   //Note: P2 only has one involved group, namely the logging group.
+
+  Debug("%d out of necessary %d Phase2Replies for logging group %d verified.", verifyObj->groupCounts[groupId],verifyObj->quorumSize,(int)groupId);
 
   if (verifyObj->groupCounts[groupId] == verifyObj->quorumSize) {
      Debug("Phase2Replies for logging group %d successfully verified.", (int)groupId);
@@ -908,6 +920,8 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
   else{
       Debug("Phase2Replies for logging group %d insufficient to complete.", (int)groupId);
       if(verifyObj->deletable == 0){
+        Debug("Return to CB UNSUCCESSFULLY");
+        Panic("fail validation");
         verifyObj->mcb((void*) false);
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -2107,10 +2121,11 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength) {
   return hex;
 }
 
-//FIXME: This Function is not taking into account the Timestamps. TODO: Add the timestamp checks (like in concurrencycontrol.cc)
+//FIXME: This Function is not taking into account the Timestamps. Should add timestamp based checks and semanticCC (like in concurrencycontrol.cc)
+//TODO: This function should be re-factored to pretty much to a full CC check between the two transactions. a is committed, b is checking for conflicts.
 bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) { //a is the conflict proof, b the current txn
   for (const auto &ra : a.read_set()) {
-    std::cerr << "a key: " << ra.key() << std::endl;
+   //Notice("a key: %s ", ra.key().c_str());
     for (const auto &wb : b.write_set()) {
       if (ra.key() == wb.key()) {
         return true;
@@ -2118,7 +2133,7 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
     }
   }
   for (const auto &rb : b.read_set()) {
-    std::cerr << "b key: " << rb.key() << std::endl;
+   //Notice("ab key: %s ", rb.key().c_str());
     for (const auto &wa : a.write_set()) {
       if (rb.key() == wa.key()) {
         return true;
@@ -2126,11 +2141,11 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
     }
   }
 
-  //TODO: FIXME: Add support for Conflict detection when using Cached Read Set
-                //Need to compare the full merged read sets (I.e. merged_rs_a vs write set b, and vice versa)
-                //TODO: Need so somehow authenticate merged read set correctness. Need to map it back to the hashes.
-                  //Note: CC check compares against locally stored prepared/committed read sets (which are the merged sets)
-  //Problem: For our own TX we don't have the read set either... 3 options
+  //TODO: FIXME: Add support for Conflict detection when using Cached Read Set. Currently CachedReadSet is incompatible with Abort votes.
+          //Need to compare the full merged read sets (I.e. merged_rs_a vs write set b, and vice versa)
+          //TODO: Need so somehow authenticate merged read set correctness. Need to map it back to the hashes.
+            //Note: CC check compares against locally stored prepared/committed read sets (which are the merged sets)
+      //Problem: For our own TX we don't have the read set either... 3 options
       //1: Wait for f+1 ABORT votes, not just singular one. 2: Conflict must include our MergedTX as well, 3: ZK proof that TX conflict.
       
   //JUST A HACK TO ACKNOWLEDGE THAT CONFLICT "MIGHT" BE VALID TODO: Make it proper
@@ -2150,6 +2165,28 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
   //     }
   //   }
   // }
+
+
+  Warning("No conflict detected between TX.");
+   for (const auto &ra : a.read_set()) {
+    Notice("a read key: %s ", ra.key().c_str());
+    for (const auto &wb : b.write_set()) {
+       Notice(" b write key: %s ", wb.key().c_str());
+      if (ra.key() == wb.key()) {
+        return true;
+      }
+    }
+  }
+  for (const auto &rb : b.read_set()) {
+    Notice("b read key: %s ", rb.key().c_str());
+    for (const auto &wa : a.write_set()) {
+      Notice(" a write key: %s ", wa.key().c_str());
+      if (rb.key() == wa.key()) {
+        return true;
+      }
+    }
+  }
+  Panic("TransactionConflict not detectable.");
   return false;
 }
 

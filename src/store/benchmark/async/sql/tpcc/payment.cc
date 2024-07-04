@@ -35,7 +35,7 @@ namespace tpcc_sql {
 
 SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
-    TPCCSQLTransaction(timeout), w_id(w_id) {
+    TPCCSQLTransaction(timeout), w_id(w_id), gen(gen) {
   d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
   d_w_id = w_id;
   int x = std::uniform_int_distribution<int>(1, 100)(gen);
@@ -182,14 +182,23 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   client.Write(statement, timeout);  
 
   // (5) Create History entry.
-  statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+  // statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
+  //           "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+   uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
+  statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, timeout, false, true); //sync, blind write
 
   client.Wait(results);
   UW_ASSERT(results[0]->has_rows_affected());
   UW_ASSERT(results[1]->has_rows_affected());
+  if(!results[2]->has_rows_affected()){
+    Panic("Should not happen. C_id: %s. By last name? %d", c_row.get_id(), c_by_last_name); //Note: If it was by last name, then the Update statement re-performs the read.
+                                                                                            //Customers are never deleted, so this should not be possible 
+  }
   UW_ASSERT(results[2]->has_rows_affected());
+
+  if(!results[3]->has_rows_affected()){Panic("History row not unique");}
   UW_ASSERT(results[3]->has_rows_affected());
   
 

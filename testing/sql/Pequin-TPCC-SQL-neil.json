@@ -21,7 +21,7 @@
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true":false,
    "_server_load_time": 22,
    "server_load_time": 28,
-   "_server_load_time": 46,
+   "_server_load_time": 128,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
@@ -138,11 +138,11 @@
       
     }
   ],
-  "experiment_name": "pequin",
+  "experiment_name": "giridhn-210987",
   "codebase_name": "indicus",
 
   "client_total": [
-    [50]
+    [70]
   ],
   "client_processes_per_client_node": [
     [8]

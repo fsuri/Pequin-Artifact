@@ -37,8 +37,8 @@
 
 DEFINE_uint64(message_size, 32, "size of data to verify.");
 DEFINE_uint64(batches, 1000, "number of iterations to measure.");
-DEFINE_uint64(batch_size, 128, "number of iterations to measure.");
-DEFINE_uint64(branch_factor, 128, "number of iterations to measure.");
+DEFINE_uint64(batch_size, 64, "number of requests in a batch.");
+DEFINE_uint64(branch_factor, 2, "nmerkle tree branch factor.");
 
 void GenerateRandomString(uint64_t size, std::mt19937 &rd, std::string *s) {
   s->clear();
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
   gflags::SetUsageMessage("merkle hash benchmark.");
 	gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  std::pair<crypto::PrivKey*, crypto::PubKey*> keypair = crypto::GenerateKeypair(crypto::SECP, false);
+  std::pair<crypto::PrivKey*, crypto::PubKey*> keypair = crypto::GenerateKeypair(crypto::DONNA, false);
   crypto::PrivKey* privKey = keypair.first;
   crypto::PubKey* pubKey = keypair.second;
 
@@ -77,20 +77,17 @@ int main(int argc, char *argv[]) {
     }
     std::vector<std::string> sigs;
     Latency_Start(&generateLat);
-    BatchedSigs::generateBatchedSignatures(constMessages, privKey, sigs,
-        FLAGS_branch_factor);
+    BatchedSigs::generateBatchedSignatures(constMessages, privKey, sigs, FLAGS_branch_factor);
     Latency_End(&generateLat);
     for (size_t j = 0; j < messages.size(); ++j) {
       std::string hashStr;
       std::string rootSig;
       Latency_Start(&computeLat);
-      UW_ASSERT(BatchedSigs::computeBatchedSignatureHash(&sigs[j], messages[j], pubKey,
-          hashStr, rootSig, FLAGS_branch_factor));
+      UW_ASSERT(BatchedSigs::computeBatchedSignatureHash(&sigs[j], messages[j], pubKey, hashStr, rootSig, FLAGS_branch_factor));
       Latency_End(&computeLat);
       if (j == 0) {
         Latency_Start(&verifyLat);
-        UW_ASSERT(crypto::Verify(pubKey, &hashStr[0], hashStr.length(),
-            &rootSig[0]));
+        UW_ASSERT(crypto::Verify(pubKey, &hashStr[0], hashStr.length(), &rootSig[0]));
         Latency_End(&verifyLat);
       }
     }

@@ -193,15 +193,15 @@ void BenchmarkClient::IncrementSent(int result) {
       struct timeval diff = timeval_sub(currTime, startTime);
       if (diff.tv_sec > expDuration - cooldownSec && !cooldownStarted) {
         Debug("Starting cooldown after %ld seconds.", diff.tv_sec);
-        Notice("Starting cooldown after %ld seconds.", diff.tv_sec);
+        //Notice("Starting cooldown after %ld seconds.", diff.tv_sec);
         Finish();
       } else if (diff.tv_sec > expDuration) {
         Debug("Finished cooldown after %ld seconds.", diff.tv_sec);
-        Notice("Finished cooldown after %ld seconds.", diff.tv_sec);
+        //Notice("Finished cooldown after %ld seconds.", diff.tv_sec);
         CooldownDone();
       } else {
         Debug("Not done after %ld seconds.", diff.tv_sec);
-        Notice("Not done after %ld seconds.", diff.tv_sec);
+        //Notice("Not done after %ld seconds.", diff.tv_sec);
       }
     } else if (n >= numRequests){
       CooldownDone();

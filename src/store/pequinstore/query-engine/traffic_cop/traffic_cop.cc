@@ -234,7 +234,8 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
     size_t k_prepared_versions,
     const pequinstore::snapshot *ss_txns,
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    size_t thread_id) {
+    size_t thread_id,
+    bool is_limit) {
 
   Debug("ExecuteReadHelper with mode: %d", mode);
 
@@ -256,6 +257,9 @@ executor::ExecutionResult TrafficCop::ExecuteReadHelper(
   }
 
   /////////////////////// SET PEQUIN TXN ARGS //////////////////////////////////////
+
+  //txn->is_limit = is_limit;
+
   txn->SetReadOnly(); //THIS IS A READ QUERY
 
   txn->SetSqlInterpreter(sql_interpreter);
@@ -1472,6 +1476,10 @@ ResultType TrafficCop::ExecuteReadStatement(
         statement->SetPlanTree(plan);
         statement->SetNeedsReplan(true);
       }
+
+
+      //bool is_limit = statement->GetQueryString().find("LIMIT") != std::string::npos;
+      
 
       ExecuteReadHelper(statement->GetPlanTree(), params, result, result_format, sql_interpreter, //table_reg,
                         basil_timestamp, find_table_version, read_prepared_pred, 

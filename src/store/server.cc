@@ -790,7 +790,7 @@ int main(int argc, char **argv) {
                                       query_params);
 
       Debug("Starting new server object");
-      std::cerr << "FILE PATH: " << FLAGS_data_file_path << std::endl;
+      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());;
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,

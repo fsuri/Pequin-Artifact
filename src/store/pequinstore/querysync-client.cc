@@ -519,15 +519,40 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
        std::string validated_result_hash = std::move(generateReadSetSingleHash(replica_result->query_read_set()));
         //TODO: Instead of hashing, could also use "compareReadSets" function from common.h to compare two maps/lists
         
-            // //TESTING:
-            Debug("TESTING Read set:");
-            for(auto &read: replica_result->query_read_set().read_set()){
-                Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
-            }
-           
-        //matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash].freq; //map should be default initialized to 0.
+
         Debug("Validated_read_set_hash: %s", BytesToHex(validated_result_hash, 16).c_str());
         Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
+
+        //TESTING:
+        // Notice("TESTING Read set:");
+        // for(auto &read: replica_result->query_read_set().read_set()){
+        //     Notice("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+        // }
+           
+        // //matching_res = ++pendingQuery->result_freq[replica_result->query_result()][validated_result_hash].freq; //map should be default initialized to 0.
+        // Notice("Validated_read_set_hash: %s", BytesToHex(validated_result_hash, 16).c_str());
+        // Notice("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
+
+        // //TESTING
+        //  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(replica_result->query_result());
+
+                 
+        // Notice("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+
+        // for(int i = 0; i < q_result->size(); ++i){
+        //     std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+        //     Notice("Checking row at index: %d", i);
+        //     // For col in col_updates update the columns specified by update_cols. Set value to update_values
+        //     for(int j=0; j<row->num_columns(); ++j){
+        //         const std::string &col = row->name(j);
+        //         std::unique_ptr<query_result::Field> field = (*row)[j];
+        //         const std::string &field_val = field->get();
+        //         Notice("  %s:  %s", col.c_str(), field_val.c_str());
+        //     }
+        // }
+                    
+        //         delete q_result;
+        // //
 
 
         Result_mgr &result_mgr = pendingQuery->result_freq[validated_result_hash][replica_result->query_result()]; //[validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
@@ -560,7 +585,32 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         }
        
     
-        if(pendingQuery->result_freq[validated_result_hash].size() > 1) Panic("Two different results with the same read hash...");
+        if(pendingQuery->result_freq[validated_result_hash].size() > 1){
+            Notice("Two different results with the same read hash.... Query: %s", pendingQuery->query.c_str());
+            for(auto &read: replica_result->query_read_set().read_set()){
+            Notice("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+            }
+            Notice("validated read hash: %s", BytesToHex(validated_result_hash, 16).c_str());
+            for(auto &[r, _]: pendingQuery->result_freq[validated_result_hash]){
+                Notice("result: %lu", std::hash<std::string>{}(r));
+                sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(r);
+
+                Notice("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
+                for(int i = 0; i < q_result->size(); ++i){
+                    std::unique_ptr<query_result::Row> row = (*q_result)[i]; 
+                    Notice("Checking row at index: %d", i);
+                    // For col in col_updates update the columns specified by update_cols. Set value to update_values
+                    for(int j=0; j<row->num_columns(); ++j){
+                        const std::string &col = row->name(j);
+                        std::unique_ptr<query_result::Field> field = (*row)[j];
+                        const std::string &field_val = field->get();
+                        Notice("  %s:  %s", col.c_str(), field_val.c_str());
+                    }
+                }
+                delete q_result;
+            }
+            Panic("Two different results with the same read hash...");
+        } 
 
         //if(pendingQuery->result_freq[replica_result->query_result()].size() > 1) Panic("When testing without optimistic id's all hashes should be the same."); //Switched the order
 
@@ -633,8 +683,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     //bool request_bonus = (!params.query_params.eagerExec && params.query_params.optimisticTxID && pendingQuery->retry_version == 0);
     uint64_t expectedResults = no_bonus ? params.query_params.resultQuorum : params.query_params.resultQuorum + config->f;
 
-    std::cerr << "Designated replies: " << pendingQuery->num_designated_replies << std::endl;
-    std::cerr << "ExpectedResults: " << expectedResults << std::endl;
+    Debug("Designated replies: %d. ExpectedResults: %d", pendingQuery->num_designated_replies, expectedResults);
     int maxWait = std::max(pendingQuery->num_designated_replies - config->f, expectedResults); //wait for at least expectedResults many, but can wait up to #syncMessages sent - f. (if that is larger). 
 
     //eager should only wait for |syncMessages|; eagerPlusSnapshot sent to |queryMessages| but only in order to be able to form sync Quorum if result fails.

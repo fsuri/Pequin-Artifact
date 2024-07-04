@@ -304,7 +304,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         is_waiting = false;
         started_sync = false;
         waiting_sync = false;
-        if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
+        if(merged_ss_msg != nullptr){
+          delete merged_ss_msg; //Delete obsolete sync snapshot
+          merged_ss_msg = nullptr;
+        }
       }
       void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
         has_query = true;
@@ -499,7 +502,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
-    void CleanQueries(proto::Transaction *txn, bool is_commit = true);
+    void CleanQueries(const proto::Transaction *txn, bool is_commit = true);
 
 
     //Materialization

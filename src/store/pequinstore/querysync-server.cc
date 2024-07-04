@@ -216,6 +216,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
+        Notice("Retrying Query %s. Retry version: %d. Last version: %d",query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        if(query->retry_version()>1) Warning("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
          //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.
@@ -1067,14 +1069,14 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     p1MetaDataMap::const_accessor c;
     if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
          Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-        /*if(c->second.hasP1){
-            //Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
-            if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
-            // if(c->second.result == proto::ConcurrencyControl::ABORT){
-            //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
-            // //FailWaitingQueries(txn_id);
-            // }
-        }*/
+        if(c->second.hasP1){
+            // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it");
+            // if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
+            // // if(c->second.result == proto::ConcurrencyControl::ABORT){
+            // //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
+            // // //FailWaitingQueries(txn_id);
+            // // }
+        }
         return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
     } 
     c.release();
@@ -1321,7 +1323,7 @@ void Server::FailQuery(QueryMetaData *query_md){
 //TODO: Clean Query as part of HandleAbort
 // -> handle abort should specify list of query_ids to just be deleted. (erase fully)
 
-void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
+void Server::CleanQueries(const proto::Transaction *txn, bool is_commit){
   //Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way old/late queries won't be accepted anymore.)
     
   if(!txn->has_last_query_seq()) return;
@@ -1334,7 +1336,7 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
   //clientQueryWatermark[txn->client_id()] = txn->last_query_seq(); //only update timestamp for commit if greater than last one... //To do this atomically need hashmap lock.
 
   //For every query in txn: 
-  for(proto::QueryResultMetaData &tx_query_md : *txn->mutable_query_set()){
+  for(const proto::QueryResultMetaData &tx_query_md : txn->query_set()){
     queryMetaDataMap::accessor q;
     bool hasQuery = queryMetaData.find(q, tx_query_md.query_id());
     if(hasQuery){
@@ -1342,33 +1344,39 @@ void Server::CleanQueries(proto::Transaction *txn, bool is_commit){
         QueryMetaData *local_query_md = q->second; //Local query_md
 
         //THIS IS JUST TEST/DEBUG CODE
-        // auto [_, first_deletion] = alreadyDeleted.insert(tx_query_md.query_id());
-        // if(!first_deletion) Panic("duplicate delete");
+        auto [_, first_deletion] = alreadyDeleted.insert(tx_query_md.query_id());
+        if(!first_deletion) Panic("duplicate delete");
 
-        //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
-        if(is_commit && params.query_params.cacheReadSet){
-            proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
-            //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
-            if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
-                proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
-                query_group_meta.set_allocated_query_read_set(read_set);
+    
+        // //Try to clear RTS TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
+        if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
+            ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts); 
+
+            if(is_commit){ //Move read set if caching. Note: Don't need to move read_set_hash -> tx already stores it. 
+                //FIXME: Moving the read set is unsafe because it changes the Tx digest. Possible fix: with caching ON we should not be changing digest
+                // auto itr = tx_query_md.group_meta().find(groupIdx);
+                // if(false && itr != tx_query_md.group_meta().end()){  //only do this if shard was involved in the query.
+                //     proto::QueryGroupMeta &query_group_meta = itr->second;
+                //     //Note: only move if read_set hash matches. It might not. But at least 2f+1 correct replicas do have it matching.
+                //     if(query_group_meta.read_set_hash() == local_query_md->queryResultReply->result().query_result_hash()){
+                //         proto::ReadSet *read_set = local_query_md->queryResultReply->mutable_result()->release_query_read_set();
+                //         query_group_meta.set_allocated_query_read_set(read_set);
+                //     }
+                // }
             }
-            //Try to clear RTS in case it was moved:  //TODO: For commit: Could optimize RTS GC to remove all RTS >= committed TS (see CommitToStore) 
-            ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
-        }
-        else if(params.query_params.cacheReadSet){ //Try to clear RTS in case it was cached 
-            ClearRTS(local_query_md->queryResultReply->result().query_read_set().read_set(), local_query_md->ts);
         }   
         else{  //Try to clear RTS in case tx had it all along: 
-            proto::QueryGroupMeta &query_group_meta = (*tx_query_md.mutable_group_meta())[groupIdx];
-            ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+            auto itr = tx_query_md.group_meta().find(groupIdx);
+            if(itr != tx_query_md.group_meta().end()){  //only do this if shard was involved in the query.
+                const proto::QueryGroupMeta &query_group_meta = itr->second;
+                ClearRTS(query_group_meta.query_read_set().read_set(), local_query_md->ts);
+            }
         }
-
+                                                                                            
         //erase current retry version from missing (Note: all previous ones must have been deleted via ClearMetaData)
         queryMissingTxns.erase(QueryRetryId(tx_query_md.query_id(), q->second->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
 
     
-
         if(local_query_md != nullptr) delete local_query_md;
         //local_query_md = nullptr;
         queryMetaData.erase(q); 

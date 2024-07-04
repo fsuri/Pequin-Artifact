@@ -1127,13 +1127,11 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     }
 
     if (!IsReplicaInGroup(reply.signed_cc().process_id(), group, config)) {
-      Debug("[group %d] Phase1Reply from replica %lu who is not in group.",
-          group, reply.signed_cc().process_id());
+      Debug("[group %d] Phase1Reply from replica %lu who is not in group.", group, reply.signed_cc().process_id());
       return;
     }
 
-    if (!verifier->Verify(keyManager->GetPublicKey(reply.signed_cc().process_id()),
-          reply.signed_cc().data(), reply.signed_cc().signature())) {
+    if (!verifier->Verify(keyManager->GetPublicKey(reply.signed_cc().process_id()), reply.signed_cc().data(), reply.signed_cc().signature())) {
       Debug("[group %i] Signature %s %s from replica %lu is not valid.", group,
             BytesToHex(reply.signed_cc().data(), 100).c_str(),
             BytesToHex(reply.signed_cc().signature(), 100).c_str(),
@@ -1153,10 +1151,10 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     cc = &reply.cc();
   }
 
-  Debug("[group %i][replica %lu] PHASE1R[%s] process ccr=%d", group, reply.signed_cc().process_id(), 
-                                              BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
+  Debug("[group %i][replica %lu] PHASE1R[%s] process valid ccr=%d", group, reply.signed_cc().process_id(), BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
+    if(!(failureActive && !FB_path)) Panic("fail P1 validation. failureActive: %d. FB_path: %d", failureActive, FB_path);
     return;
   }
 

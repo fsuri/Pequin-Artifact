@@ -26,6 +26,8 @@
 #include "internal_types.h"
 #include "../type/value.h"
 
+#include "lib/message.h"
+
 namespace peloton {
 
 /**
@@ -262,7 +264,10 @@ class ContainerTuple<storage::TileGroup> : public AbstractTuple {
     PELOTON_ASSERT(container_ != nullptr);
     auto col_id =
         (column_ids_ != nullptr ? column_ids_->at(column_id) : column_id);
+      
+    try{
     return container_->GetValue(tuple_id_, col_id);
+    } catch(...){Panic("container fail");}
   }
 
   void SetValue(oid_t column_id, const type::Value &value) override {
@@ -289,7 +294,9 @@ class ContainerTuple<storage::TileGroup> : public AbstractTuple {
       for (const auto col_idx : *column_ids_) {
         if (!first) os << ",";
         first = false;
+        try{
         os << container_->GetValue(tuple_id_, col_idx).GetInfo();
+        } catch(...){Panic("container fail2");}
       }
     } else {
       const auto *schema = container_->GetAbstractTable()->GetSchema();
@@ -297,7 +304,9 @@ class ContainerTuple<storage::TileGroup> : public AbstractTuple {
            col_idx++) {
         if (!first) os << ",";
         first = false;
+        try{
         os << container_->GetValue(tuple_id_, col_idx).GetInfo();
+        } catch(...){Panic("container fail");}
       }
     }
     os << ")";
