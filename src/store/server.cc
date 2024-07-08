@@ -382,6 +382,7 @@ DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
 DEFINE_bool(async_server, false, "Determine if using a replica that does async server calls");
+DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
 
 const std::string occ_type_args[] = {
 	"tapir",
@@ -909,7 +910,7 @@ int main(int argc, char **argv) {
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server);
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server, FLAGS_hs_dummy_to);
       std::cerr << "Shir: started!!! the replica \n";
 
       break;

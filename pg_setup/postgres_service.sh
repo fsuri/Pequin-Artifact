@@ -2,7 +2,7 @@
 
 
 export PATH=$PATH:/usr/lib/postgresql/12/bin
-SIZE=1024M
+SIZE=20G
 CLUSTERID=pgdata
 DATA=$(pwd)/tmp-$CLUSTERID
 # echo $DATA
@@ -145,6 +145,7 @@ if dpkg -l | grep postgresql -q ; then
 else
     display_banner "Postgres is not yet installed, installing it now..."
     sudo echo "ssl-cert:x:115" >> /etc/group
+    # apt update should go here?
     sudo apt install postgresql
     sudo sed -i '$ d' /etc/group
     sudo apt install postgresql-common

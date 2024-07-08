@@ -36,13 +36,13 @@ using namespace std;
 Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
                  uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, bool local_config, int numShards, Transport *transport,
-                 bool asyncServer)
+                 bool asyncServer, int dummyTO)
     : config(config),
       hotstuffpg_interface(groupIdx, idx, hotstuffpg_cpu, local_config),
       keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
     id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize),
       batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport),
-      asyncServer(asyncServer) {
+      asyncServer(asyncServer), dummyTO(dummyTO) {
   transport->Register(this, config, groupIdx, idx);
 
   // intial view
@@ -108,9 +108,10 @@ void Replica::bubbleCB(uint64_t currProposedCounter){
 
 
   // Debug("Starting bubble timer");
-  // std::cerr << "Shir print:    " << "Starting bubble timer" << std::endl;
+  // std::cerr << "Shir print:    " << "Starting bubble timer aftet "<<dummyTO << std::endl;
 
-  transport->Timer(100, [this,pc](){
+  // transport->Timer(100, [this,pc](){
+  transport->Timer(dummyTO, [this,pc](){
     this->bubbleCB(pc); 
   });
 }
@@ -252,7 +253,7 @@ void Replica::HandleRequest(const TransportAddress &remote,
     if (this->firstReceive){
       this->firstReceive=false;
       Debug("Starting dummies Timer");
-      transport->Timer(1000, [this, pc = proposedCounter](){
+      transport->Timer(0, [this, pc = proposedCounter](){
         this->bubbleCB(pc);
       });
     }

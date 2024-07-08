@@ -460,6 +460,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --pbft_esig_batch_timeout %d' % config['replication_protocol_settings']['ebatch_tout']
             if 'ebatch_size' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_esig_batch %d' % config['replication_protocol_settings']['ebatch_size']
+            if 'dummy_tout' in config['replication_protocol_settings']:
+                replica_command += ' --hs_dummy_to %d' % config['replication_protocol_settings']['dummy_tout']
             if 'use_coord' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_use_coordinator=%s' % str(config['replication_protocol_settings']['use_coord']).lower()
             #Added multithreading and batch verification

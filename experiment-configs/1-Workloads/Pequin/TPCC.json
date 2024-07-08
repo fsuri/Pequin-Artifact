@@ -59,95 +59,32 @@
      
       {
         "message_transport_type": "tcp",
-        
-        "_BASIL_ARGS_": 0,
-        
-            "watermark_time_delta": 30000,
-          
-            "sign_client_proposals": false,
-            "sign_messages": true,
-            "validate_proofs": true,
-            "hash_digest": true,
-            "verify_deps": false,
-            
-  
-            "merkle_branch_factor": 2, 
-           
-            "signature_type": 4,
-            "sig_batch": 4,
-                "_sig_batch_timeout": 5000,
-            "key_path": "/usr/local/etc/indicus-keys/donna",
-            "shared_mem_batch": false,
-            "shared_mem_verify": false,
-            "read_reply_batch": false,
-            "adjust_batch_size": false,
-            
-            "max_dep_depth": -1,
-                "_max_dep_depth": 1,
-                "_max_dep_depth": -2, 
-            "rts_mode": 0, 
-      
-            "p1_decision_timeout": 10,	
-            "read_dep": "one-honest",
-            "read_quorum": "one-honest",
-            "read_messages": "read-quorum",
-            
-            "multi_threading": true,
-            "batch_verification": false,
-            "mainThreadDispatching": true,
-            "dispatchMessageReceive": false,
-            "parallel_reads": true,     
-            "parallel_CCC": false,
-            "dispatchCallbacks": true,
-            "client_multi_threading": false,
-            "hyper_threading": false,
-            
-            "no_fallback": false,
-            "all_to_all_fb" : false,
-            "relayP1_timeout" : 100,
-            "replica_gossip": false,
-            
-            "inject_failure_proportion" : 0,
-            "inject_failure_ms": 0,
-            "inject_failure_freq": 100,
-            "_inject_failure_type" : "client-crash",
-        
-        
-       "_QUERY_ARGS_": 0,
-  
-            "query_sync_quorum": "query-majority-honest",
-            "query_messages": "query-quorum",
-            "query_merge_threshold": "query-one-honest",
-            "query_result_honest": true,
-            "sync_messages": "query-quorum",
-            
-            "snapshot_prepared_k": 1,
-            "query_eager_exec": true,
-            "query_point_eager_exec": false,
-            "eager_plus_snapshot": true,
-             
-            "query_read_prepared": true,
-            "query_cache_read_set": false,
-            "query_merge_active_at_client": true,
-            
-            "query_optimistic_txid": true,
-            "query_compress_optimistic_txid": false,
-            
-            "use_semantic_cc": true,
-            "monotonicity_grace": 30,
-            "use_active_read_set": true,
-            
-            "sign_client_queries": false,
-            "sign_replica_to_replica_sync": false,
-            "parallel_queries": true
-        
+        "watermark_time_delta": 30000,
+        "read_quorum": "one-honest",
+        "read_dep": "one-honest",
+        "hash_digest": true,
+        "validate_proofs": true,
+        "sign_messages": true,
+        "signature_type": 4,
+        "sig_batch": 2,
+        "sig_batch_timeout": 4,
+        "ebatch_size": 1,
+        "ebatch_tout": 4,
+        "dummy_tout":1,
+        "multi_threading": true,
+      "mainThreadDispatching": false,
+      "dispatchMessageReceive": false,
+        "batch_verification": false,
+        "order_commit": true,
+        "validate_abort": true,
+        "key_path": "/usr/local/etc/indicus-keys/donna"
       }
     ],
     "experiment_name": "pg-smr",
     "codebase_name": "indicus",
   
     "client_total": [
-      [1]
+      [10]
     ],
     "client_processes_per_client_node": [
       [8]
@@ -167,7 +104,7 @@
     "server_debug_stats": false,
     "client_debug_stats": false,
     
-    "client_experiment_length": 10,
+    "client_experiment_length": 20,
     "client_ramp_down": 5,
     "client_ramp_up": 5,
     

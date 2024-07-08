@@ -265,13 +265,14 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     reply->set_status(REPLY_OK);
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
   } catch(tao::pq::sql_error e) {
-    Debug("A exception caugth while using postgres.");
+    Debug("An exception caugth while using postgres.");
     // std::cerr << "Shir print:    " << "A exception caugth while using postgres." << std::endl;
 
  
     if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
       Debug("A concurrency exception caugth while using postgres.");
       // std::cerr << "Shir print:    " << "A concurrency exception caugth while using postgres." << std::endl;
+      std::cerr<< e.sqlstate << std::endl;
 
       markTxnTerminated(t,"sql_rpc, concurrency problem");
       t.release();
@@ -407,10 +408,10 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
       
     // }
     for( const auto& row : sql_res ) {
-      res_builder->add_empty_row();
+      RowProto *new_row = res_builder->new_row();
       for( const auto& field : row ) {
         std::string field_str = field.as<std::string>();
-        res_builder->add_field_to_last_row_serialize(field_str);
+        res_builder->AddToRow(new_row,field_str);
         std::cout << field_str << std::endl;
       }
     }

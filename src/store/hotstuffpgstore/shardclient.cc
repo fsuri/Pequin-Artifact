@@ -206,7 +206,7 @@ void ShardClient::SQL_RPCReplyHelper(PendingSQL_RPC* pendingSQL_RPC, const std::
   if(pendingSQL_RPC->timeout != nullptr) {
     pendingSQL_RPC->timeout->Stop();
   }
-  Debug("Shir: For redId %d, with status %d and result: %s",reqId,status,sql_rpcReply.c_str());
+  // Debug("Shir: For redId %d, with status %d and result: %s",reqId,status,sql_rpcReply.c_str());
 
   sql_rpc_callback srcb = pendingSQL_RPC->srcb;
   pendingSQL_RPCs.erase(reqId);
