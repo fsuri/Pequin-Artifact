@@ -328,7 +328,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 
 ::google::protobuf::Message* Server::HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) {
   tr->rollback();
-  markTxnTerminated(t,"");
+  markTxnTerminated(t,"abort");
   return nullptr;
 }
 
@@ -379,7 +379,7 @@ uint64_t Server::getThreadID(const std::string &key){
 // fields are < connection, transaction tr, bool was_aborted>
 void Server::markTxnTerminated(txnStatusMap::accessor &t,string from){
   // std::cerr<<"Shir: terminating txn from  "<< from.c_str() << "with tr pointer:    "<< get<1>(t->second) <<"\n";
-
+  Debug("Shir: terminating txn from %s with tr pointer %s",from.c_str(),get<1>(t->second));
   get<0>(t->second) = nullptr;
   get<1>(t->second) = nullptr;
   get<2>(t->second) = true;

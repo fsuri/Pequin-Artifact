@@ -151,6 +151,9 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
         query_res = new sql::QueryResultProtoWrapper(sql_res);
       } else {
         Debug("Shir: executing SQL_rpc callback after aborting");
+        bclient[0]->Abort(TransactionDigest(currentTxn),client_id,client_seq_num);
+        // bclient[0]->Abort(TransactionDigest(currentTxn),client_id,client_seq_num);
+
         query_res = new sql::QueryResultProtoWrapper();
       }
 

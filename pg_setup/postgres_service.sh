@@ -144,11 +144,18 @@ if dpkg -l | grep postgresql -q ; then
     echo "Postgres is installed already..."
 else
     display_banner "Postgres is not yet installed, installing it now..."
-    sudo echo "ssl-cert:x:115" >> /etc/group
+    sudo bash -c 'echo "ssl-cert:x:115" >> /etc/group'
     # apt update should go here?
     sudo apt install postgresql
     sudo sed -i '$ d' /etc/group
     sudo apt install postgresql-common
+
+    # Creating postgres user to use the postgres service
+    sudo useradd -m $USER || true
+    sudo passwd -d $USER
+
+    gid=$(cat /etc/group | grep postgres | cut -d: -f3)
+    sudo usermod -g $gid $USER
 
     # Removing the main cluster, if it wascreated during the installation (it prevents from connecting to our designated one later)
     sudo pg_dropcluster --stop $PGV main
@@ -158,10 +165,6 @@ fi
 
 
 display_banner "Initializing Postgres Cluster" 
-
-# Creating postgres user to use the postgres service
-sudo useradd -m $USER || true
-sudo passwd -d $USER
 
 
 # Verifying that no clusters exist at this point

@@ -138,15 +138,16 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
     // Debug("Shir: the current reply status is %lu",reply.status());
 
  
-    bool status_changed_to_ok=false;
-    if(reply.status() == REPLY_OK && pendingSQL_RPC->status == REPLY_FAIL) {
-      status_changed_to_ok=true;
-    }
+    // // Will change previously failed rpc status only if leader response is OK
+    // bool status_changed_to_ok=false;
+    // if(reply.status() == REPLY_OK && pendingSQL_RPC->status == REPLY_FAIL) {
+    //   status_changed_to_ok=true;
+    // }
 
-    // Updating a previously failed sql_rpc-- only for deterministic mode
-    if(!async_server && status_changed_to_ok) {
-        pendingSQL_RPC->status = REPLY_OK;
-    }
+    // // Updating a previously failed sql_rpc-- only for deterministic mode
+    // if(!async_server && status_changed_to_ok) {
+    //     pendingSQL_RPC->status = REPLY_OK;
+    // }
 
     if(signMessages) {
       uint64_t replica_id = signedMsg.replica_id();
@@ -159,10 +160,11 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const pro
       if(async_server && replica_id == 0) {
         Debug("Updating leader reply.");
         pendingSQL_RPC->hasLeaderReply=true;
+        pendingSQL_RPC->status=reply.status();
         pendingSQL_RPC->leaderReply = reply.sql_res(); // this might be empty if status is failed
-        if (status_changed_to_ok){
-          pendingSQL_RPC->status = REPLY_OK;
-        }
+        // if (status_changed_to_ok){
+        //   pendingSQL_RPC->status = REPLY_OK;
+        // }
       }
             // std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
     } 
@@ -308,7 +310,7 @@ void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t
   PendingSQL_RPC psr;
   psr.srcb = srcb;
   psr.status = REPLY_FAIL;
-    psr.numReceivedReplies = 0;
+  psr.numReceivedReplies = 0;
   psr.leaderReply = "";
   psr.hasLeaderReply=false;
   psr.timeout = new Timeout(transport, timeout, [this, reqId, srtcb]() {
@@ -374,7 +376,9 @@ void ShardClient::Abort(const std::string& txn_digest,  uint64_t client_id, int 
   user_abort.set_txn_seq_num(client_seq_num);
 
   proto::Request request;
-  request.set_digest(txn_digest);
+  
+  request.set_digest(crypto::Hash(user_abort.SerializeAsString()));
+  // request.set_digest(txn_digest);
   request.mutable_packed_msg()->set_msg(user_abort.SerializeAsString());
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
