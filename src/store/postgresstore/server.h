@@ -52,7 +52,7 @@ typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_ca
 
 class Server : public ::Server {
 public:
-  Server();
+  Server(Transport* tp);
   ~Server();
 
   void Load(const std::string &key, const std::string &value,
@@ -81,10 +81,9 @@ public:
 private:
   std::shared_ptr<tao::pq::connection_pool> connectionPool;
 
-  Stats stats;
+  Transport * tp;
 
-  Transport* tp;
-  
+  Stats stats;
 
   void exec_statement(const std::string &sql_statement);
 

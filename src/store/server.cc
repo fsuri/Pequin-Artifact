@@ -673,12 +673,19 @@ int main(int argc, char **argv) {
    
 
   //////////
-
+  
   uint64_t replica_total = FLAGS_num_shards * config.n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
+  Notice("config n: %d. num_shards: %d. replica_total: %d",config.n, FLAGS_num_shards, replica_total);
+  
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
-  keyManager.PreLoadPubKeys(true);
+ 
+  bool key_free_protocol = (proto == PROTO_TAPIR) || (proto == PROTO_PG); //Note: indicus_codebase.py does not set the key path for PG
+  if(!key_free_protocol){ //temp hack
+    keyManager.PreLoadPubKeys(true);
+  }
+
+  Notice("Configuring protocol parameters");
 
 //Additional protocol configurations
   uint64_t readDepSize = 0;
@@ -691,6 +698,7 @@ int main(int argc, char **argv) {
       case PROTO_TAPIR:
       case PROTO_WEAK:
       case PROTO_STRONG:
+      case PROTO_PG:
         break;
       case PROTO_PEQUIN:
       case PROTO_INDICUS:
@@ -708,8 +716,6 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
-      case PROTO_PG:
-        break;
       case PROTO_HOTSTUFF:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
@@ -730,6 +736,7 @@ int main(int argc, char **argv) {
   }
 
 // Declare Protocol Servers
+  Notice("Start protocol server");
 
   switch (proto) {
   case PROTO_TAPIR: {
@@ -944,7 +951,7 @@ int main(int argc, char **argv) {
 	}
 
   case PROTO_PG: {
-    server = new postgresstore::Server();
+    server = new postgresstore::Server(tport);
     break;
   }
 
@@ -1167,11 +1174,11 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
 
-  // std::unique_lock lk(m);
-  // bool stop = false;
-  // //while(!stop){
-  //    cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
-  // //}
+  std::unique_lock lk(m);
+  bool stop = false;
+  while(!stop){
+     cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
+  }
  
   Notice("Main done");
   return 0;
@@ -1199,6 +1206,6 @@ void Cleanup(int signal) {
     tport = nullptr;
   }
   Notice("Exiting.");
-  //cv.notify_one();
+  cv.notify_one();
   exit(0);
 }

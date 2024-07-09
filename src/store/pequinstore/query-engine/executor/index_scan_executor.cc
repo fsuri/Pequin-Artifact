@@ -1234,6 +1234,8 @@ void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_
    //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
 
+  UW_ASSERT(!tile_group_header->GetMaterialize(tuple_location.offset)); // not force mat
+
   Debug("Manage Snapshot. Add TS [%lu:%lu]", write_timestamp.getTimestamp(), write_timestamp.getID());
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
   UW_ASSERT(txn_digest);

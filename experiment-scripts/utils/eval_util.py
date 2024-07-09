@@ -147,6 +147,10 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
+
+    if config['replication_protocol'] == 'pg':
+        n = 1
+
     xx = len(config['server_names']) // n
     process_per_server = int(math.ceil(config['num_groups'] / xx))
     for i in range(num_regions):

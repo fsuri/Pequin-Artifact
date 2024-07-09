@@ -404,6 +404,26 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     pendingQuery->merged_ss.set_query_seq_num(pendingQuery->query_seq_num);
     pendingQuery->merged_ss.set_client_id(client_id);
     pendingQuery->merged_ss.set_retry_version(pendingQuery->retry_version);
+
+
+    //TESTING:
+
+     Notice("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
+         //TEST:
+    // for(auto &[ts, replica_list] : pendingQuery->merged_ss.merged_ts()){
+    //     Notice("MergedSS contains TS_id: %lu", ts);
+    //     for(auto &replica: replica_list.replicas()){
+    //          Notice("   Replica list has replica: %d", replica);
+    //     }
+    // }
+    // for(auto &[tx, replica_list] : pendingQuery->merged_ss.merged_txns()){
+    //     Notice("MergedSS contains TX_id: %s", BytesToHex(tx, 16).c_str());
+    //     for(auto &replica: replica_list.replicas()){
+    //          Notice("   Replica list has replica: %d", replica);
+    //     }
+    // }
+
+    //
  
     //proto::SyncClientProposal syncMsg;
 

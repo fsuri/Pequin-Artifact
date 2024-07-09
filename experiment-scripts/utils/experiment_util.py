@@ -75,6 +75,9 @@ def kill_servers(config, executor, kill_args=' -9'):
     else:
         n = 2 * config['fault_tolerance'] + 1
 
+    if config['replication_protocol'] == 'pg':
+        n = 1
+
     # Build a server idx -> kill script map
     x = len(config['server_names']) // n
     kill_commands = {}

@@ -187,6 +187,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
    uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
   statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+  //Notice("History insert: %s", statement.c_str());
   client.Write(statement, timeout, false, true); //sync, blind write
 
   client.Wait(results);
@@ -198,8 +199,9 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   }
   UW_ASSERT(results[2]->has_rows_affected());
 
-  if(!results[3]->has_rows_affected()){Panic("History row not unique");}
-  UW_ASSERT(results[3]->has_rows_affected());
+  //Writes to history are blind, it technically doesn't matter if they are duplicate. But should ideally make it unique (or no primary key at all)
+  if(!results[3]->has_rows_affected()){Warning("History row not unique. Might want to investigate");} 
+  //UW_ASSERT(results[3]->has_rows_affected());
   
 
   Debug("COMMIT");

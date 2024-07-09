@@ -645,6 +645,9 @@ class IndicusCodebase(ExperimentCodebase):
                 n = 3 * config['fault_tolerance'] + 1
             else:
                 n = 2 * config['fault_tolerance'] + 1
+            if config['replication_protocol'] == 'pg':
+                n = 1
+                
             x = len(config['server_names']) // n
             for group in range(config['num_groups']):
                 process_idx = group // x

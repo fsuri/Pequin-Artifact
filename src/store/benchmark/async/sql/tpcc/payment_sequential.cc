@@ -172,7 +172,8 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, queryResult, timeout, true); //blind write
   
-  if(!queryResult->has_rows_affected()){Panic("History row not unique");}
+  //Writes to history are blind, it technically doesn't matter if they are duplicate. But should ideally make it unique (or no primary key at all)
+  if(!queryResult->has_rows_affected()){Warning("History row not unique. Might want to investigate");} 
   UW_ASSERT(queryResult->has_rows_affected());
 
   Debug("COMMIT");

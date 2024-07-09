@@ -65,6 +65,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
    //Issue a Point Read and Point Update to EarliestNewOrder table. (this avoids needing to find Min and then delete it)
   if(use_earliest_new_order_table){
     statement = fmt::format("SELECT * FROM {} WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
+    Debug("OP: %s", statement.c_str());
     client.Query(statement, queryResult, timeout);
 
     if (queryResult->empty()) {
@@ -75,6 +76,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
     deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
 
     statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
+    Debug("OP: %s", statement.c_str());
     client.Write(statement, timeout);
   }
   else{
@@ -98,12 +100,13 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);
   statement = fmt::format("SELECT * FROM {} WHERE o_id = {} AND o_d_id = {} AND o_w_id = {};", ORDER_TABLE, no_o_id, d_id, w_id); //Turn into * to cache for the following point Update
-  
+  Debug("OP: %s", statement.c_str());
   client.Query(statement, queryResult, timeout);
 
   if (queryResult->empty()) {
     // already delivered all orders for this warehouse
-    client.Wait(results); //wait for the potentially async delete.
+    Debug("Already delivered all orders for this warehouse district");
+    client.Wait(results); //wait for the async write.
     return client.Commit(timeout);
   }
   // int c_id;
@@ -115,6 +118,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
  
   statement = fmt::format("UPDATE {} SET o_carrier_id = {} WHERE o_id = {} AND o_d_id = {} AND o_w_id = {};", ORDER_TABLE, o_carrier_id, no_o_id, d_id, w_id);
+  Debug("OP: %s", statement.c_str());
   client.Write(statement, timeout); //This can be async.
   Debug("  Carrier ID: %u", o_carrier_id);
 
@@ -122,10 +126,12 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
   statement = fmt::format("UPDATE {} SET ol_delivery_d = {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
+  Debug("OP: %s", statement.c_str());
   client.Write(statement, timeout); //This can be async.
 
       //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
   statement = fmt::format("SELECT SUM(ol_amount) FROM {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);
+  Debug("OP: %s", statement.c_str());
   client.Query(statement, queryResult, timeout);
   int total_amount;
   deserialize(total_amount, queryResult);
@@ -135,6 +141,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   Debug("Customer: %u", c_id);
   statement = fmt::format("UPDATE {} SET c_balance = c_balance + {}, c_delivery_cnt = c_delivery_cnt + 1 WHERE c_id = {} AND c_d_id = {} AND c_w_id = {};", 
                           CUSTOMER_TABLE, total_amount, c_id, d_id, w_id);
+  Debug("OP: %s", statement.c_str());
   client.Write(statement, queryResult, timeout);
 
   client.Wait(results);
