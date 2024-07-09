@@ -21,6 +21,8 @@
 #include "../../storage/database.h"
 #include "../../type/ephemeral_pool.h"
 
+#include <shared_mutex>
+
 namespace peloton {
 namespace optimizer {
 
@@ -221,6 +223,9 @@ std::shared_ptr<ColumnStats> StatsStorage::ConvertVectorToColumnStats(
   return column_stats;
 }
 
+
+static std::map<oid_t, std::shared_ptr<TableStats>> table_stat_cache;
+static std::shared_mutex cache_m;
 /**
  * GetTableStats - This function queries the column_stats_catalog for the table
  *stats.
@@ -229,6 +234,18 @@ std::shared_ptr<ColumnStats> StatsStorage::ConvertVectorToColumnStats(
  */
 std::shared_ptr<TableStats> StatsStorage::GetTableStats(
     oid_t database_id, oid_t table_id, concurrency::TransactionContext *txn) {
+      // Notice("Using StatsStorage GetTableStats");
+
+  {
+    std::shared_lock lock(cache_m);
+    auto itr = table_stat_cache.find(table_id);
+    if(itr != table_stat_cache.end()){
+      //Notice("Use StatStorage Cache for id: %d", table_id);
+      return itr->second;
+    }
+  }
+  
+
   auto column_stats_catalog = catalog::ColumnStatsCatalog::GetInstance(nullptr);
   std::map<oid_t, std::unique_ptr<std::vector<type::Value>>> column_stats_map;
   column_stats_catalog->GetTableStats(txn,
@@ -241,6 +258,14 @@ std::shared_ptr<TableStats> StatsStorage::GetTableStats(
     column_stats_ptrs.push_back(ConvertVectorToColumnStats(
         database_id, table_id, it->first, it->second));
   }
+
+  {
+    std::unique_lock lock(cache_m);
+    table_stat_cache[table_id] = std::shared_ptr<TableStats>(new TableStats(column_stats_ptrs));
+    //Notice("Add to StatStorage Cache for id: %d", table_id);
+    return table_stat_cache[table_id];
+  }
+  
 
   return std::shared_ptr<TableStats>(new TableStats(column_stats_ptrs));
 }
@@ -255,6 +280,8 @@ std::shared_ptr<TableStats> StatsStorage::GetTableStats(
 std::shared_ptr<TableStats> StatsStorage::GetTableStats(
     oid_t database_id, oid_t table_id, std::vector<oid_t> column_ids,
     concurrency::TransactionContext *txn) {
+
+     Notice("Using StatsStorage GetTableStats2");
   auto column_stats_catalog = catalog::ColumnStatsCatalog::GetInstance(nullptr);
   std::map<oid_t, std::unique_ptr<std::vector<type::Value>>> column_stats_map;
   column_stats_catalog->GetTableStats(txn,

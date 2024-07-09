@@ -253,17 +253,20 @@ proto::ConcurrencyControl::Result Server::fetchReadSet(queryMetaDataMap::const_a
 
       if(!cached_queryResult.has_query_read_set()){
         Debug("Cached QueryFailure for current query version;");
+         stats.Increment("cached_read_set_missing", 1);
         return proto::ConcurrencyControl::ABSTAIN;
       } 
 
       if(cached_query_md->failure){
         Debug("Cached QueryFailure for current query version");
+         stats.Increment("cached_read_set_failure", 1);
         return proto::ConcurrencyControl::ABSTAIN; //Replica has already previously voted to abstain by reporting an exec failure (conflicting tx already committed, or sync request aborted) -- choice won't change
       } 
  
       if(!cached_queryResult.has_query_result_hash() || query_group_md->read_set_hash() != cached_queryResult.query_result_hash()){
         Debug("Txn[%s]. Query[%s].Cached wrong read-set %s. Require %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(query_md.query_id(), 16).c_str(),
                 BytesToHex(cached_queryResult.query_result_hash(), 16).c_str(), BytesToHex(query_group_md->read_set_hash(), 16).c_str());
+        stats.Increment("cached_read_set_different", 1);
         return proto::ConcurrencyControl::ABSTAIN;
       } 
      
@@ -602,6 +605,12 @@ proto::ConcurrencyControl::Result Server::DoOCCCheck(
     writebackMessages.insert(std::make_pair(txnDigest, std::move(abort_wb)));
     //writebackMessages[txnDigest] = std::move(abort_wb); // Use insert instead: returns false. if exists..
     Abort(txnDigest, &txn); //Note: This might call Clean from a different Thread than Mainthread: might remove ongoing. However, we never delete Tx currently, so parallel access to Txn should be safe.
+
+    if(params.query_params.cacheReadSet){ 
+      //If caching Read Set then disable ABORT with conflict. This is because Txn does not contain read set necessary for Conflict checks.
+      conflict = nullptr;
+      result = proto::ConcurrencyControl::ABSTAIN;
+    }
   }
     
 
@@ -643,7 +652,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(!CheckMonotonicTableColVersions(txnDigest, txn)){
         Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
         stats.Increment("cc_abstains", 1);
-        stats.Increment("cc_abstains_monotonic", 1);
+        stats.Increment("cc_abstains_non_monotonic", 1);
         return proto::ConcurrencyControl::ABSTAIN;  
       }
     }
@@ -666,15 +675,16 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       bool has_write = GetPreceedingCommittedWrite(read.key(), ts, committedWrite);
       if(has_write){  //If replica does not have preceeding write locally it must have been read from a different replica
         // readVersion < committedTs < ts   (if readVersion == committedTS no conflict)
+        
         //Conflict if: readTS < preceeding Write. Exception: readTS = genesis and preceeding Write := deletion
-        if (Timestamp(read.readtime()) < committedWrite.first && !(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d")) { // && committedWrite.first < ts) {
+        if(read.readtime().timestamp() == 0 && read.readtime().id() == 0 && committedWrite.second.val == "d") continue;
+        if (Timestamp(read.readtime()) < committedWrite.first) { // && committedWrite.first < ts) {
       //   }
       // }
       // std::vector<std::pair<Timestamp, Server::Value>> committedWrites;
       // GetCommittedWrites(read.key(), read.readtime(), committedWrites);
       // for (const auto &committedWrite : committedWrites) {
-      //   // readVersion < committedTs < ts
-      //   //     GetCommittedWrites only returns writes larger than readVersion
+      //   // readVersion < committedTs < ts   //     GetCommittedWrites only returns writes larger than readVersion
       //   if (committedWrite.first < ts) {
           if (params.validateProofs) {
               conflict = committedWrite.second.proof;
@@ -708,18 +718,23 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         std::shared_lock lock(preparedWritesItr->second.first);
 
         std::vector<std::pair<Timestamp, const proto::Transaction *>> preparedPreceedingWrites;
-        GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); 
+        GetPreceedingPreparedWrite(preparedWritesItr->second.second, ts, preparedPreceedingWrites); //get the latest prepared Write (preceeding TS). If it is not the one we read -> abstain.
         for (const auto &[preparedTs, preparedTx] : preparedPreceedingWrites) {
         //for (const auto &preparedTs : preparedWritesItr->second.second) {
           if (Timestamp(read.readtime()) < preparedTs && preparedTs < ts) {
 
             //Check for exception:
+            bool exempt = false;
             if(read.readtime().timestamp() == 0 && read.readtime().id() == 0){
                 for(auto &write: preparedTx->write_set()){
                   if(read.key() == write.key()){
-                      if(write.value() == "d") continue; //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                      if(write.value() == "d"){ //If read genesis TS (0,0) and conflict is deletion --> treat as conflict exception
+                        exempt = false;
+                        break;
+                      }; 
                   }
                 }
+                if(exempt) continue;
             } 
 
             Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared write for key %s [plain:%s]:"
@@ -958,7 +973,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       proto::ConcurrencyControl::Result res = proto::ConcurrencyControl_Result_COMMIT;
       //Check Read deps
       CheckDepLocalPresence(txn, depSet, res);
-      if(res != proto::ConcurrencyControl::COMMIT) return res;
+      if(res != proto::ConcurrencyControl::COMMIT){
+        stats.Increment("cc_semantic_abort");
+        return res;
+      }
     
     }
 

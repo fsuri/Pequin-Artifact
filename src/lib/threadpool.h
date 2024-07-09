@@ -56,6 +56,8 @@ public:
   void start(int process_id = 0, int total_processes = 1, bool hyperthreading = true, bool server = true, int mode = 0, bool optimize_for_dev_machine = false);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
   void stop();
 
+  inline void cancel_load_threads(){load_running=false;}
+
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);
   void dispatch_local(std::function<void*()> f, std::function<void(void*)> cb);
   void detach(std::function<void*()> f);
@@ -63,6 +65,8 @@ public:
   void detach_main(std::function<void*()> f);
   void issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase);
   void issueMainThreadCallback(std::function<void(void*)> cb, void* arg);
+
+  //void cancel_n_threads(uint64_t n);
 
   //Indexed threadpool
   void add_n_indexed(int num_threads); 
@@ -96,6 +100,7 @@ private:
   std::vector<event*> events;
   
   bool running;
+  bool load_running;
   std::vector<std::thread*> threads;
 
   moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>> worker_thread_request_list;

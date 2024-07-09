@@ -147,6 +147,10 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
+
+    if config['replication_protocol'] == 'pg':
+        n = 1
+
     xx = len(config['server_names']) // n
     process_per_server = int(math.ceil(config['num_groups'] / xx))
     for i in range(num_regions):
@@ -660,13 +664,24 @@ def generate_gnuplot_script_agg(plot, plot_script_file, plot_out_file, series):
                 f.write(', \\\n')
 
 def generate_plots(config, base_out_directory, out_dirs):
+    """ Read in outputs in directory using the config
+
+    Parameters
+    ----------
+    config : dict
+        jsonfied experiment config
+    base_out_directory : str
+        base directory
+    out_dirs : list
+        list of output directories
+
+    """
     plots_directory = os.path.join(base_out_directory, config['plot_directory_name'])
     os.makedirs(plots_directory, exist_ok=True)
     csv_classes = set()
     csv_files = []
     subprocesses = []
 
-    ###
     # Generate aggregate cdf plots
     for i in range(len(out_dirs[0])):
         # for each series i

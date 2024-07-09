@@ -48,9 +48,8 @@ class PostgresCostModel : public AbstractCostModel {
   }
 
   void Visit(const PhysicalSeqScan *op) override {
-    auto table_stats = std::dynamic_pointer_cast<TableStats>(
-        StatsStorage::GetInstance()->GetTableStats(
-            op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
+     Notice("Using Postgres Cost model");
+    auto table_stats = std::dynamic_pointer_cast<TableStats>( StatsStorage::GetInstance()->GetTableStats(op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
     if (table_stats->GetColumnCount() == 0) { // We have no table stats
       output_cost_ = 1.f;
       return;
@@ -59,9 +58,8 @@ class PostgresCostModel : public AbstractCostModel {
   }
 
   void Visit(const PhysicalIndexScan *op) override {
-    auto table_stats = std::dynamic_pointer_cast<TableStats>(
-        StatsStorage::GetInstance()->GetTableStats(
-            op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
+     Notice("Using PostgresCost model");
+    auto table_stats = std::dynamic_pointer_cast<TableStats>(StatsStorage::GetInstance()->GetTableStats( op->table_->GetDatabaseOid(), op->table_->GetTableOid(), txn_));
     if (table_stats->GetColumnCount() == 0 || table_stats->num_rows == 0) {
       output_cost_ = 0.f;
       return;

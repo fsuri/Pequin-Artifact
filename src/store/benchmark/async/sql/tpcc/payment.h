@@ -40,6 +40,8 @@ class SQLPayment : public TPCCSQLTransaction {
   virtual transaction_status_t Execute(SyncClient &client);
 
  private:
+  std::mt19937 &gen;
+
   uint32_t w_id;
   uint32_t d_id;
   uint32_t d_w_id;

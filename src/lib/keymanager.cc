@@ -39,7 +39,7 @@ KeyManager::KeyManager(const std::string &keyPath, crypto::KeyType t, bool preco
   struct stat buffer;
   if(stat (last_required_key_file.c_str(), &buffer) != 0){
    Warning("Insufficient number of keys for number of replicas and clients. "
-     "Require %d keys. (IGNORE WARNING IF STORE DOES NOT USE SIGNATURES)", replica_total + client_total);
+     "Require %d keys. (IGNORE WARNING IF STORE DOES NOT USE SIGNATURES). KeyPath: %s", replica_total + client_total, keyPath.c_str());
   }
 }
 

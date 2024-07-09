@@ -184,7 +184,7 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     query = fmt::format("INSERT INTO {} (r_id, r_c_id, r_f_id, r_seat, r_price, r_iattr00, r_iattr01, r_iattr02, r_iattr03, r_iattr04, r_iattr05, r_iattr06, r_iattr07, r_iattr08) "
                         "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})", RESERVATION_TABLE, r_id, c_id, f_id, seatnum, price, 
                         attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7], attributes[8]); 
-    client.Write(query, timeout);
+    client.Write(query, timeout, false, true); //sync, blind write: R_id should always be unique
     //updatedSuccessful = (updatedSuccessful && queryResult->has_rows_affected());
 
     //Update Flight

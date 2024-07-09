@@ -55,6 +55,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
         client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
+        num_client_hosts = min(config['client_total'], len(config['server_names']) * config['client_nodes_per_server'] * config['client_processes_per_client_node'])
 
         client_id = i * config['client_nodes_per_server'] * config['client_processes_per_client_node'] + j * config['client_processes_per_client_node'] + k
         client_command = ' '.join([str(x) for x in [
@@ -70,7 +71,7 @@ class IndicusCodebase(ExperimentCodebase):
             '--protocol_mode', config['client_protocol_mode'],
             '--stats_file', stats_file,
             '--num_client_threads', client_threads,
-            '--num_client_hosts', config['client_total']]])
+            '--num_client_hosts', num_client_hosts]])
 
         if config['server_emulate_wan']:
             client_command += ' --ping_replicas=true'
@@ -82,7 +83,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -375,9 +376,14 @@ class IndicusCodebase(ExperimentCodebase):
             n = 3 * config['fault_tolerance'] + 1
         else:
             n = 2 * config['fault_tolerance'] + 1
-        xx = len(config['server_names']) // n
+        
+        if config['replication_protocol'] == 'pg':
+            n = 1
 
+        xx = len(config['server_names']) // n
+        
         client_threads = 1 if not 'client_threads_per_process' in config else config['client_threads_per_process']
+        num_client_hosts = min(config['client_total'], len(config['server_names']) * config['client_nodes_per_server'] * config['client_processes_per_client_node'])
 
         replica_command = ' '.join([str(x) for x in [
             path_to_server_bin,
@@ -388,9 +394,13 @@ class IndicusCodebase(ExperimentCodebase):
             '--num_groups', config['num_groups'],
             '--stats_file', stats_file,
             '--group_idx', group,
-            '--num_client_hosts', config['client_total'],
+            '--num_client_hosts', num_client_hosts,
             '--num_client_threads', client_threads
             ]])
+        
+        #server load time
+        if 'server_load_time' in config:
+            replica_command += ' --server_load_time %d' % config['server_load_time']
 
         #add multiple processes commands for threadpool assignments.
         replica_command += ' --indicus_process_id %d' % k
@@ -414,7 +424,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
@@ -575,6 +585,8 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['benchmark_name'] == 'rw-sql':
             replica_command += ' --num_tables %d' % config['num_tables']
             replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+        elif config['benchmark_name'] == 'tpcc-sql':
+             replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         
         
         if 'local_config' in config:
@@ -648,6 +660,9 @@ class IndicusCodebase(ExperimentCodebase):
                 n = 3 * config['fault_tolerance'] + 1
             else:
                 n = 2 * config['fault_tolerance'] + 1
+            if config['replication_protocol'] == 'pg':
+                n = 1
+                
             x = len(config['server_names']) // n
             for group in range(config['num_groups']):
                 process_idx = group // x

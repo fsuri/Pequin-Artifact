@@ -34,6 +34,12 @@
 #include <valgrind/callgrind.h>
 #include <filesystem>
 
+#include <gflags/gflags.h>
+
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
 #include "lib/keymanager.h"
 #include "lib/transport.h"
 #include "lib/tcptransport.h"
@@ -66,16 +72,19 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
+
+// CockroachDb
+#include "store/cockroachdb/server.h"
+
 #include "store/bftsmartstore_augustus/replica.h"
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
+// Postgres store
+#include "store/postgresstore/server.h"
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/indicusstore/common.h"
-
-#include <gflags/gflags.h>
-#include <thread>
 
 #include "store/benchmark/async/json_table_writer.h"
 #include <nlohmann/json.hpp>
@@ -99,7 +108,9 @@ enum protocol_t {
     // BftSmart
     PROTO_BFTSMART,
     // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART
+		PROTO_AUGUSTUS_SMART,
+    // Postgres
+    PROTO_PG
 };
 
 enum transmode_t {
@@ -132,6 +143,8 @@ DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
 DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
+DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients start");
+
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
 	"tapir",
@@ -144,7 +157,8 @@ const std::string protocol_args[] = {
     "hotstuffpg",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus" //currently used as augustus version -- maps to BFTSmart Augustus implementation
+	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+  "pg",
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -152,12 +166,14 @@ const protocol_t protos[] {
   PROTO_STRONG,
   PROTO_PEQUIN,
   PROTO_INDICUS,
-      PROTO_PBFT,
-      PROTO_HOTSTUFF,
-      PROTO_HOTSTUFF_PG,
-      PROTO_AUGUSTUS,
-      PROTO_BFTSMART,
-			PROTO_AUGUSTUS_SMART
+  PROTO_PBFT,
+  PROTO_HOTSTUFF,
+  PROTO_HOTSTUFF_PG,
+  PROTO_AUGUSTUS,
+  PROTO_BFTSMART,
+  PROTO_AUGUSTUS_SMART,
+  PROTO_PG
+
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -445,7 +461,7 @@ DEFINE_bool(local_config, true, "this flag determinse whether to use local or re
  * Benchmark settings.
  */
 DEFINE_string(keys_path, "", "path to file containing keys in the system");
-DEFINE_uint64(num_keys, 0, "number of keys to generate");
+DEFINE_uint64(num_keys, 1, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
 DEFINE_uint64(num_tables, 1, "number of tables to generate");
@@ -455,6 +471,9 @@ Server *server = nullptr;
 TransportReceiver *replica = nullptr;
 ::Transport *tport = nullptr;
 Partitioner *part = nullptr;
+
+std::mutex m;
+std::condition_variable cv;
 
 void Cleanup(int signal);
 
@@ -579,6 +598,7 @@ int main(int argc, char **argv) {
     case WAREHOUSE:
     {
       if(FLAGS_sql_bench){
+        Notice("Using WarehouseSQLPartitioner");
         part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, unused);
       }
       else{
@@ -668,12 +688,19 @@ int main(int argc, char **argv) {
    
 
   //////////
-
+  
   uint64_t replica_total = FLAGS_num_shards * config.n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  // std::cerr << "config n: " << config.n << " num_shards: " << FLAGS_num_shards << " replica_total: " << replica_total << std::endl;
+  Notice("config n: %d. num_shards: %d. replica_total: %d",config.n, FLAGS_num_shards, replica_total);
+  
   KeyManager keyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
-  keyManager.PreLoadPubKeys(true);
+ 
+  bool key_free_protocol = (proto == PROTO_TAPIR) || (proto == PROTO_PG); //Note: indicus_codebase.py does not set the key path for PG
+  if(!key_free_protocol){ //temp hack
+    keyManager.PreLoadPubKeys(true);
+  }
+
+  Notice("Configuring protocol parameters");
 
 //Additional protocol configurations
   uint64_t readDepSize = 0;
@@ -690,6 +717,7 @@ int main(int argc, char **argv) {
       case PROTO_TAPIR:
       case PROTO_WEAK:
       case PROTO_STRONG:
+      case PROTO_PG:
         break;
       case PROTO_PEQUIN:
       case PROTO_INDICUS:
@@ -707,7 +735,6 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
-        break;
       case PROTO_HOTSTUFF:
           // Notice("Shir: debugging server 4\n");
       case PROTO_HOTSTUFF_PG:
@@ -731,6 +758,7 @@ int main(int argc, char **argv) {
   }
 
 // Declare Protocol Servers
+  Notice("Start protocol server");
 
   switch (proto) {
   case PROTO_TAPIR: {
@@ -808,7 +836,7 @@ int main(int argc, char **argv) {
                                       query_params);
 
       Debug("Starting new server object");
-      std::cerr << "FILE PATH: " << FLAGS_data_file_path << std::endl;
+      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());;
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
@@ -971,6 +999,11 @@ int main(int argc, char **argv) {
 		break;
 	}
 
+  case PROTO_PG: {
+    server = new postgresstore::Server(tport);
+    break;
+  }
+
   default: {
       NOT_REACHABLE();
   }
@@ -979,7 +1012,7 @@ int main(int argc, char **argv) {
   //SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
   bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
-  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2)
+  //if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2) NOTE: obsolete, since we don't use Peloton Tpool anymore.
      // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
      //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores
 	if(FLAGS_indicus_multi_threading && pinned_protocol){
@@ -996,6 +1029,17 @@ int main(int argc, char **argv) {
 		pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
 		Debug("Main Process running on CPU %d.", sched_getcpu());
 	}
+
+  if(FLAGS_server_load_time >  0){
+    uint64_t delay_ms = FLAGS_server_load_time * 1000;
+    auto f = [tport](){
+      tport->CancelLoadBonus();
+    };
+    tport->Timer(delay_ms, f);
+  }
+  else{
+    tport->CancelLoadBonus();
+  }
 
   // parse keys
   std::vector<std::string> keys;
@@ -1088,6 +1132,7 @@ int main(int argc, char **argv) {
 
         //Load all table data -- NOTE: We do this only AFTER we have loaded all the schemas to avoid concurrency issues inside Peloton...
         for(auto &[table_name, table_args]: tables_to_load.items()){ 
+          //if(table_name!="warehouse" && table_name != "district") continue;
           const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
           const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
 
@@ -1114,6 +1159,7 @@ int main(int argc, char **argv) {
           //TODO: splice row_data path into Data_file_path.   //TODO: Add json file suffix to the file itself. (i.e. add filename)   ===> Test in table_write tester.
           std::string row_data_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(table_args["row_data_path"]); //https://en.cppreference.com/w/cpp/filesystem/path
           server->LoadTableData(table_name, row_data_path, column_names_and_types, primary_key_col_idx);
+          
           // //Load Rows individually 
           // for(auto &row: table_args["rows"]){
           //   const std::vector<std::string> &values = row;
@@ -1210,6 +1256,13 @@ int main(int argc, char **argv) {
   CALLGRIND_STOP_INSTRUMENTATION;
   CALLGRIND_DUMP_STATS;
 
+  std::unique_lock lk(m);
+  bool stop = false;
+  while(!stop){
+     cv.wait(lk, [&]{Notice("Server Woken."); return stop;});
+  }
+ 
+  Notice("Main done");
   return 0;
 }
 
@@ -1235,5 +1288,6 @@ void Cleanup(int signal) {
     tport = nullptr;
   }
   Notice("Exiting.");
+  cv.notify_one();
   exit(0);
 }

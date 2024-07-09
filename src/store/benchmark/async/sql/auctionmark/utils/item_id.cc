@@ -12,7 +12,7 @@ ItemId::ItemId(const std::string& seller_id, int item_ctr)
 ItemId::ItemId(const UserId& seller_id, int item_ctr)
     : seller_id(seller_id), item_ctr(item_ctr) {}
 
-ItemId::ItemId(const std::string& composite_id) {
+ItemId::ItemId(const std::string& composite_id): seller_id(), item_ctr(0) {
     decode(composite_id);
 }
 

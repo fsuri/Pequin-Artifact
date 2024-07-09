@@ -140,6 +140,7 @@ oid_t TileGroup::InsertTuple(const Tuple *tuple) {
 
   // No more slots
   if (tuple_slot_id == INVALID_OID) {
+    //std::cerr << "Failed to get next empty tuple slot within tile group" << std::endl;
     LOG_TRACE("Failed to get next empty tuple slot within tile group.");
     return INVALID_OID;
   }
@@ -316,25 +317,31 @@ oid_t TileGroup::InsertTupleFromCheckpoint(oid_t tuple_slot_id,
 }
 
 type::Value TileGroup::GetValue(oid_t tuple_id, oid_t column_id) {
-  PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
+  if (!(tuple_id < GetNextTupleSlot())) {
+    std::cerr << "Tuple id is " << tuple_id << ". Next tuple slot is " << GetNextTupleSlot() << std::endl;
+    std::cerr << "Total num slots per tile group is " << num_tuple_slots_ << std::endl;
+    std::cerr << "Num allocated tuples tgh is " << tile_group_header->num_tuple_slots << std::endl;
+    std::cerr << "Next tuple slot tgh is " << tile_group_header->next_tuple_slot << std::endl;
+    std::cerr << "tile group id is " << tile_group_id << std::endl;
+    std::cerr << "Table name is " << table->GetName() << std::endl;
+    
+    //Panic("Invalid tuple slot");
+  }
+  //PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
   oid_t tile_column_id, tile_offset;
-  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset,
-                                          tile_column_id);
+  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset, tile_column_id);
   return GetTile(tile_offset)->GetValue(tuple_id, tile_column_id);
 }
 
-void TileGroup::SetValue(type::Value &value, oid_t tuple_id,
-                         oid_t column_id) {
+void TileGroup::SetValue(type::Value &value, oid_t tuple_id, oid_t column_id) {
   PELOTON_ASSERT(tuple_id < GetNextTupleSlot());
   oid_t tile_column_id, tile_offset;
-  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset,
-                                          tile_column_id);
+  tile_group_layout_->LocateTileAndColumn(column_id, tile_offset, tile_column_id);
   GetTile(tile_offset)->SetValue(value, tuple_id, tile_column_id);
 }
 
 
-std::shared_ptr<Tile> TileGroup::GetTileReference(
-    const oid_t tile_offset) const {
+std::shared_ptr<Tile> TileGroup::GetTileReference(const oid_t tile_offset) const {
   PELOTON_ASSERT(tile_offset < tile_count_);
   return tiles[tile_offset];
 }

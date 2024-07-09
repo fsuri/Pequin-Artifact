@@ -62,7 +62,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
     try {
       *result = currTxn->Execute(client);
     }
-    catch(...){
+    catch(...) {
       std::cerr <<"catch abort" << std::endl;
       *result = ABORTED_SYSTEM; //ABORTED_USER;
     }

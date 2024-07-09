@@ -93,7 +93,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
 
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
-  Debug("NEW_ORDER (parallel)");
+  Debug("NEW_ORDER (parallel)"); 
   std::cerr << "NEW ORDER (parallel)" << std::endl;
   
   Debug("Warehouse: %u", w_id);
@@ -138,16 +138,19 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   // (2.5) Increment next available order number for District
   d_row.set_next_o_id(d_row.get_next_o_id() + 1);
   statement = fmt::format("UPDATE {} SET d_next_o_id = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
-  client.Write(statement, timeout, true);
+  client.Write(statement, timeout, true); //async
 
   // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 
-  statement = fmt::format("INSERT INTO {} (no_o_id, no_d_id, no_w_id) VALUES ({}, {}, {});", NEW_ORDER_TABLE, o_id, d_id, w_id);
-  client.Write(statement, timeout, true);
+  //statement = fmt::format("INSERT INTO {} (no_o_id, no_d_id, no_w_id) VALUES ({}, {}, {});", NEW_ORDER_TABLE, o_id, d_id, w_id);
+  statement = fmt::format("INSERT INTO {} (no_w_id, no_d_id, no_o_id) VALUES ({}, {}, {});", NEW_ORDER_TABLE, w_id, d_id, o_id);
+  client.Write(statement, timeout, true, true); //async, blind_write
 
   
-  statement = fmt::format("INSERT INTO {} (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
-          "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
-  client.Write(statement, timeout, true);
+  // statement = fmt::format("INSERT INTO {} (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
+  //         "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
+  statement = fmt::format("INSERT INTO {} (o_w_id, o_d_id, o_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
+          "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, w_id, d_id, o_id, c_id, o_entry_d, 0, ol_cnt, all_local);
+  client.Write(statement, timeout, true, true); //async, blind_write
 
 
   // (5) For each ol, select row from ITEM and retrieve: Price, Name, Data
@@ -238,10 +241,13 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
         default:
           NOT_REACHABLE();
       }
-      statement = fmt::format("INSERT INTO {} (ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
+      // statement = fmt::format("INSERT INTO {} (ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
+      //       "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
+      //       ORDER_LINE_TABLE, o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
+      statement = fmt::format("INSERT INTO {} (ol_w_id, ol_d_id, ol_o_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
-            ORDER_LINE_TABLE, o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
-      client.Write(statement, timeout, true);
+            ORDER_LINE_TABLE, w_id, d_id, o_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
+      client.Write(statement, timeout, true, true); //async, blind write
     }
   }
 

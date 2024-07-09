@@ -87,6 +87,9 @@
 #include "store/bftsmartstore_stable/client.h"
 // Postgres
 #include "store/postgresstore/client.h"
+// CRDB
+#include "store/cockroachdb/client.h"
+
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -122,7 +125,8 @@ enum protomode_t {
   PROTO_BFTSMART,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  PROTO_CRDB
 };
 
 enum benchmode_t {
@@ -508,7 +512,8 @@ const std::string protocol_args[] = {
   "bftsmart",
 // Augustus-BFTSmart
 	"augustus",
-  "postgres"
+  "pg",
+  "crdb"
 };
 const protomode_t protomodes[] {
   PROTO_BLACKHOLE,
@@ -533,7 +538,9 @@ const protomode_t protomodes[] {
   PROTO_BFTSMART,
   // Augustus-BFTSmart
 	PROTO_AUGUSTUS_SMART,
-  PROTO_POSTGRES
+  PROTO_POSTGRES,
+  // Cockroach Database
+  PROTO_CRDB
 };
 
 //Note: this should match the size of protomodes
@@ -554,10 +561,12 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
+
   int n = sizeof(protocol_args);
   for (int i = 0; i < n; ++i) {
     if (value == protocol_args[i]) {
@@ -1215,8 +1224,9 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
-  keyManager->PreLoadPubKeys(false);
+
+  KeyManager *keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
+  //keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
     std::cerr << "If specifying closest replicas, must specify all "
@@ -1231,6 +1241,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  Notice("num hosts=%d; num_threads=%d", FLAGS_num_client_hosts, FLAGS_num_client_threads);
+  
   for (size_t i = 0; i < FLAGS_num_client_threads; i++) {
     Client *client = nullptr;
     AsyncClient *asyncClient = nullptr;
@@ -1241,7 +1253,7 @@ int main(int argc, char **argv) {
     //uint64_t clientId = (FLAGS_client_id << 2) | i;
     //uint64_t clientId = FLAGS_client_id | i;
     uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
-    std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
+  
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
@@ -1262,6 +1274,8 @@ int main(int argc, char **argv) {
 
 
     switch (mode) {
+      case PROTO_POSTGRES:
+      case PROTO_CRDB:
       case PROTO_TAPIR:
            break;
       case PROTO_PEQUIN:
@@ -1432,6 +1446,28 @@ int main(int argc, char **argv) {
               NOT_REACHABLE();
         }
     }
+
+    //TODO: Parameterize better
+    //If SemanticCC enabled need at least these Quorum sizes.
+    if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+      if(FLAGS_pequin_query_eager_exec){
+        queryMessages = std::max((int)queryMessages, 4 * config->f + 1);
+        syncQuorumSize = std::max((int)syncQuorumSize, 3 * config->f + 1); 
+        //Note: syncQuorum size does not necessarily need to increase, but might as well for better freshness since we already have larger queryMessages
+      }
+      syncMessages = std::max((int)syncMessages, 4 * config->f + 1);
+      resultQuorum = 3 * config->f + 1;
+    }
+
+    Notice("Quorum sizes:");
+    Notice("queryMessages: %d", queryMessages);
+    Notice("syncQuorum: %d", syncQuorumSize);
+    Notice("mergeThreshold: %d", mergeThreshold);
+
+    Notice("syncMessages: %d", syncMessages);
+    Notice("resultQuorum: %d", resultQuorum);
+    Notice("optimistic Id: %d",  FLAGS_pequin_query_optimistic_txid);
+
 
 //Declare Protocol Clients
 
@@ -1617,6 +1653,11 @@ int main(int argc, char **argv) {
     case PROTO_POSTGRES: {
       client = new postgresstore::Client(FLAGS_connection_str, clientId);
       break;
+    }
+
+    case PROTO_CRDB: {
+      client = new cockroachdb::Client(*config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport, TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
     }
 
     default:

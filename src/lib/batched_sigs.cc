@@ -117,6 +117,13 @@ void generateBatchedSignatures(const std::vector<const std::string*> &messages, 
 
   // allocate the merkle tree in heap form (i.left = 2i, i.right = 2i+1)
   uint64_t num_nodes = (m * (n - 1) + (m - 2)) / (m - 1) + 1; // add (m-2) to ensure ceil
+          // Closed form solution of:   (sum_x = 1 to log_m(n){ n / (m^(x-1)) } + 1    (e.g. bottom layer has n nodes, next layer n/m, next n/m^2 ... until 1; there is log_m(n)+1 layers, the last layer is just root )
+          // ==> == n * 1/(m^log_m(n) * sum_x to log_m(n){ m^x} + 1
+          // ==> == 1 * sum_x to log_m(n){ m^x} + 1
+          // ==> == 1 * sum_x to log_2(n)/log_2(m){ m^x} + 1
+          // ==> == (m * (n-1)) / (m-1) + 1
+
+
   //std::cerr << "num nodes " << num_nodes << std::endl;
   unsigned char* tree = (unsigned char*) malloc(hash_size*num_nodes);
   // insert the message hashes into the tree
@@ -150,6 +157,7 @@ void generateBatchedSignatures(const std::vector<const std::string*> &messages, 
   // sign the hash at the root of the tree
   std::string rootHash(&tree[0], &tree[hash_size]);
   std::string rootSig = crypto::Sign(privateKey, rootHash);
+
   //VALGRIND_DO_LEAK_CHECK;
   size_t sig_size = crypto::SigSize(privateKey);
 

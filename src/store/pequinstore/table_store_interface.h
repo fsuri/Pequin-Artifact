@@ -85,7 +85,7 @@ class TableStore {
                 // ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery. (Alternatively: Could already send a Sql command from the client)
 
         //Apply a set of Table Writes (versioned row creations) to the Table backend
-        virtual void ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
+        virtual bool ApplyTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest, 
             const proto::CommittedProof *commit_proof = nullptr, bool commit_or_prepare = true, bool forcedMaterialize = false) = 0; 
 
          ///https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-upsert/ 

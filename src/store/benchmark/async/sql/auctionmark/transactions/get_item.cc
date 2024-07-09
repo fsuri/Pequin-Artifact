@@ -72,15 +72,14 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
 
   client.Wait(results);
 
-  //Panic("stop after first get_item");
-
   if(results[0]->empty() || results[1]->empty()){
+    Debug("Query result empty, aborting GET ITEM");
     client.Abort(timeout);
     return ABORTED_USER;
   } 
 
   ItemRow ir;
-  deserialize(ir, results[0]);
+  deserialize(ir, queryResult);
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);

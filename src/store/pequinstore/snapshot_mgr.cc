@@ -42,7 +42,8 @@
 namespace pequinstore {
 
 
-SnapshotManager::SnapshotManager(const QueryParameters *query_params): query_params(query_params), numSnapshotReplies(0UL), useOptimisticTxId(false), config_f(0UL), local_ss(nullptr), merged_ss(nullptr) {}
+SnapshotManager::SnapshotManager(const QueryParameters *query_params): query_params(query_params), numSnapshotReplies(0UL), useOptimisticTxId(false), 
+                                                                      config_f(0UL), local_ss(nullptr), merged_ss(nullptr), merge_complete(false) {}
 SnapshotManager::~SnapshotManager(){}
 
 ////////////////// Manage Local Snapshot:
@@ -74,6 +75,7 @@ void SnapshotManager::ResetLocalSnapshot(bool _useOptimisticTxId){
 
 
 uint64_t MergeTimestampId(const uint64_t &timestamp, const uint64_t &id){
+   UW_ASSERT(timestamp >= 0);
    uint64_t time_mask = 0xFFF; //(1 << 12) - 1; //all bottom 12 bits = 1
   //Debug("Merging Timestamp: %lx, Id: %lx, Timemask: %lx, TS & Mask: %lx ", timestamp, id, time_mask, (timestamp & time_mask));
     
@@ -104,6 +106,8 @@ void SnapshotManager::AddToLocalSnapshot(const std::string &txnDigest, const pro
 }
 
 void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool hash_param, bool committed_or_prepared){ //optimistTxId = params.query_params.optimisticTxId && retry_version == 0.
+
+  if(txn.timestamp().timestamp() == 0 && txn.timestamp().id() == 0) return; // don't need to include genesis TX in snapshot...
 
   UW_ASSERT(local_ss);
   Debug("Add to snapshot of Query [%d:%d]", local_ss->query_seq_num(), local_ss->client_id());
@@ -187,6 +191,7 @@ void SnapshotManager::OpenLocalSnapshot(proto::LocalSnapshot *local_ss){
 void SnapshotManager::InitMergedSnapshot(proto::MergedSnapshot *_merged_ss, const uint64_t &query_seq_num, const uint64_t &client_id, const uint64_t &retry_version, const uint64_t &_config_f){
   config_f = _config_f;
   merged_ss = _merged_ss;
+  merge_complete = false;
   merged_ss->Clear();
   merged_ss->set_query_seq_num(query_seq_num);
   merged_ss->set_client_id(client_id);
@@ -247,6 +252,7 @@ bool SnapshotManager::ProcessReplicaLocalSnapshot(proto::LocalSnapshot* local_ss
     Debug("numSnapshotReplies: %lu, syncquorum: %lu", numSnapshotReplies, query_params->syncQuorum);
     if(numSnapshotReplies == query_params->syncQuorum){
          SealMergedSnapshot();
+         merge_complete = true;
          return true;
     }
     

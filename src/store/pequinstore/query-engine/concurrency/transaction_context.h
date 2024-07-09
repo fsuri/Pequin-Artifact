@@ -78,6 +78,7 @@ private:
             const cid_t &read_id, const cid_t &commit_id);
 
 public:
+    bool is_limit = false;
   //===--------------------------------------------------------------------===//
   // Mutators and Accessors
   //===--------------------------------------------------------------------===//

@@ -77,6 +77,7 @@ enum OCCType {
   TAPIR = 1
 };
 
+static bool ASYNC_WRITES = true; //Perform TableWrites asynchronously.
 
 //TEST/DEBUG variables
 static bool PRINT_READ_SET = false; //print out the read set of a query
@@ -303,7 +304,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         is_waiting = false;
         started_sync = false;
         waiting_sync = false;
-        if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
+        if(merged_ss_msg != nullptr){
+          delete merged_ss_msg; //Delete obsolete sync snapshot
+          merged_ss_msg = nullptr;
+        }
       }
       void SetQuery(const std::string &_query_cmd, const TimestampMessage &timestamp, const TransportAddress &remote, const uint64_t &_req_id){
         has_query = true;
@@ -498,11 +502,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     void FailQuery(QueryMetaData *query_md);
     bool VerifyClientQuery(proto::QueryRequest &msg, const proto::Query *query, std::string &queryId);
     bool VerifyClientSyncProposal(proto::SyncClientProposal &msg, const std::string &queryId);
-    void CleanQueries(proto::Transaction *txn, bool is_commit = true);
+    void CleanQueries(const proto::Transaction *txn, bool is_commit = true);
 
 
     //Materialization
-    void ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+    std::vector<std::string> ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
     // void ApplyTableWrites(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts,
     //             const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare = true, bool forceMaterialize = false);
@@ -1094,6 +1098,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, std::pair<const proto::Transaction*, bool>>> TableWriteMap; //table_name => map(TS, <Tx*, commit_or_prepare>)  
   TableWriteMap tableWrites;
+
+  typedef tbb::concurrent_hash_map<std::string, Timestamp> HighTblVmap;
+  HighTblVmap highTableVersions;
   /* END MAPS FOR SEMANTIC CC*/
 
   //XXX key locks for atomicity of OCC check

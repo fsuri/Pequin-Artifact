@@ -20,6 +20,8 @@
 #include "../../common/internal_types.h"
 #include "../../type/value.h"
 
+#include "lib/message.h"
+
 namespace peloton {
 namespace optimizer {
 
@@ -56,8 +58,10 @@ void TableStatsCollector::CollectColumnStats() {
       if (tuple_txn_id != INVALID_TXN_ID) {
         // Collect stats for all columns.
         for (oid_t column_id = 0; column_id < column_count_; column_id++) {
+          try{
           type::Value value = tile_group->GetValue(tuple_id, column_id);
           column_stats_collectors_[column_id]->AddValue(value);
+          } catch(...){Panic("stats collector fail");}
         } /* column */
       }
     } /* tuple */

@@ -251,7 +251,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
       ~Result_mgr(){}
       uint64_t rand_id;
       uint64_t freq; //Number of times the given result and result-hash (read set) were received
-      std::set<proto::Write*, decltype(&compDepWritePtr)> merged_deps;
+      // std::set<proto::Write*, decltype(&compDepWritePtr)> merged_deps;
+      std::set<proto::Write*> merged_deps;
 
       //TODO: FIXME: Need to enforce that min_table_version is no smaller than max_table_version - bound. Note: max_table_version must be < TX.TS 
       //This is to ensure that a byzantine replica cannot give arbitrarily small or large table versions
@@ -260,7 +261,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   }; 
 //TODO: Define management object fully
   struct PendingQuery {
-    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), snapshot_mode(true), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
+    PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), eager_mode(false), snapshot_mode(true), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
         retry_version(0UL), num_designated_replies(0UL), numResults(0UL), numFails(0UL), 
         query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
         { 
@@ -272,7 +273,11 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     bool done;
 
+    bool eager_mode; //true if in eager mode; false as soon as eager cannot succeed.
     bool snapshot_mode; //true when in snapshot mode (e.g. when NOT using eagerExec, OR when using Snapshot path in EagerPlusSnapshot)
+    //Note: It is not necessarily the case that eager_mode = !snapshot_mode. snapshot_mode might become ready before eager_ends. 
+    //snapshot_mode indicates that we CAN go Sync; but sync may not yet be ready. However, once Sync started, eager will be false.
+    // This ensures that sync can also only be started once, since we ignore all eager replies once eager mode is false
 
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -541,6 +546,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   //void RetryQuery(PendingQuery *pendingQuery);
   void HandleQuerySyncReply(proto::SyncReply &SyncReply);
   void ProcessSync(PendingQuery *pendingQuery, proto::LocalSnapshot *local_ss);
+    void CheckSyncStart(PendingQuery *pendingQuery);
   void SyncReplicas(PendingQuery *pendingQuery);
   void HandleQueryResult(proto::QueryResultReply &queryResult);
   void HandleFailQuery(proto::FailQuery &msg);

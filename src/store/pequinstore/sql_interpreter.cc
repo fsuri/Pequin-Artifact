@@ -185,7 +185,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
 
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool skip_query_interpretation){
+    uint64_t &target_group, bool &skip_query_interpretation, bool blind_write){
 
     //match on write type:
     size_t pos = 0;
@@ -201,7 +201,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group);
+        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group, blind_write);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
@@ -220,7 +220,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
     // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
@@ -328,100 +328,28 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
      //UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
         
 
-    ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a point get on the primary keys. (instead of a sql select statement that's a bit overkill)
+    ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a point get on the primary keys. (instead of a sql select statement that's a bit overkill) => Note: We now do this.
     
-    std::vector<const std::string_view*> primary_key_column_values;
-
-
     UW_ASSERT(value_list.size() == col_registry.col_name_type.size());
 
-    if(false){  //NOTE: DO NOT NEED TO CREATE ANY READ STATEMENT FOR SINGLE ROW INSERTS. ==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
-                    //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
-           
-        //read_statement = "SELECT ";  
-        std::string col_statement;
-        //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            col_statement += col_name +  ", ";   //TODO: Can just do Select *...
-            //read_statement += column_list[p_idx] +  ", ";   //TODO: Can just do Select *...
-        }
-        col_statement.resize(read_statement.size() - 2); //remove trailing ", "
+    std::vector<const std::string_view*> primary_key_column_values;
 
-
-        // read_statement += " FROM " + table_name;
-
-        // read_statement += " WHERE ";
-        std::string cond_statement;
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            const std::string_view &val = value_list[p_idx];
-            //read_statement += column_list[p_idx] + " = " + val + ", ";
-            cond_statement += col_name + " = ";
-            cond_statement += val;
-            cond_statement += ", ";
-            primary_key_column_values.push_back(&val);
-        }
-        //insert primary col conditions.
-        cond_statement.resize(read_statement.size() - 2); //remove trailing ", "
-
-        //read_statement += ";";
-
-        //use fmt::format to create more readable read_statement generation.
-        //read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(cond_statement));
+    for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+        const std::string_view &val = value_list[p_idx];
+        primary_key_column_values.push_back(&val);
     }
-    else{
-        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
-            const std::string_view &val = value_list[p_idx];
-            primary_key_column_values.push_back(&val);
-        }
-    }
-
-    
     std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
-    bool is_blind_write = col_registry.primary_col_idx.empty(); //If there is no primary key, then uniqueness doesn't matter. Treat write as blind! (E.g. history table in TPC-C)
-
-    //////// Create Write continuation:  
-
-     write_continuation = [this, wcb](int status, query_result::QueryResult* result){
-        //TODO: Does one need to use status? --> Query should not fail?
-        
-        //Create result object with rows affected = 1.
-        result->set_rows_affected(1);
-        wcb(REPLY_OK, result); 
-    };
-
-    //Write Table Version itself. //Only for kv-store.   
-    //-- Note: If a TX issues many Inserts => we'll write table_version redundantly to write set -- However, these are all ignored by Prepare/Commit & filtered out in LockTxnKeys_scoped
-    //Safe but wasteful (message bigger than need be + CC checks keys redundantly) // TODO: Improve: Either filter out during client sorting; or better: only when submitting a TXN for commit, add key per table write
-        // WriteMessage *table_ver = txn->add_write_set();
-        // table_ver->set_key(table_name);
-        // table_ver->set_value("");
 
 
-        
-        //Read genesis timestamp (0) for key (if not a blind write)
-        //==> FIXME: THIS IS CURRENTLY NOT HANDLED FULLY CORRECTLY IN EXISTING OCC CHECK.
-            //If genesis EXISTS, then we should abort. But we won't currently because we read 0,0 as well.
-            //This is a rare semantic corner case (if we try to insert something that was loaded)
-            //FIX: In addition to giving this read genesis time, give it a bool "try_insert". 
-                        //If set => abort if the last Write is Genesis.
-                        //Ideally could set read time to -1, but it's an unsigned int...
-        if(!is_blind_write){
-            ReadMessage *read = txn->add_read_set();
-            read->set_key(enc_key);
-            read->mutable_readtime()->set_id(0);
-            read->mutable_readtime()->set_timestamp(0);
-        }
-    
+    if(col_registry.primary_col_idx.empty()) blind_write = true; //If there is no primary key, then uniqueness doesn't matter. Treat write as blind! (E.g. history table in TPC-C)
+
+    if(blind_write){
+        //Don't need to read. Just create write set and Table write. No read set needed.
+
         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
         WriteMessage *write = txn->add_write_set();
         write->set_key(enc_key);
-        // // for(int i=0; i<column_list.size(); ++i){
-        // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
-        // // }
-        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-        //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
-        // }
-
+       
         //New version: 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
         table_write->set_changed_table(true); //Add Table Version.
@@ -435,63 +363,110 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
         target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
 
-        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-        //     std::string *col_val = row_update->add_column_values();
-        //     *col_val = std::move(value_list[col_idx]);
-        // }
+        //dummy write_cont, will be supplied with empty result.
+        write_continuation = [this, wcb](int status, query_result::QueryResult* result){            
+            //Create result object with rows affected = 1.
+            result->set_rows_affected(1);
+            wcb(REPLY_OK, result); 
+        };
 
-    //Write cont that takes in a result (from read)
-    // write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
-    //     //TODO: Does one need to use status? --> Query should not fail?
-    //     if(result->empty()){
+        read_statement.clear();
+        return;
+    }
 
-    //         //Write Table Version itself. //Only for kv-store.
-    //         WriteMessage *table_ver = txn->add_write_set();
-    //         table_ver->set_key(table_name);
-    //         table_ver->set_value("");
+    //Else: NOT A BLIND WRITE
+    UW_ASSERT(!blind_write);
+    //Create a Select statement to read.
+    //Callback: If read empty => add 0 to read set (or use the read set provided -- that would be for a delete);  set_rows affected to 1
+            // If non-empty => set_rows affected to 0 and return.
 
+        
+     //skip_query_interpretation = true; //we know it is a point read... TODO: Current propagation would skip interpretation and decide scan.
+           
+    //Create read statement 
+    std::string col_statement;
+    //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
+    for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+        col_statement += col_name +  ", ";   //TODO: Can just do Select *...
+        //read_statement += column_list[p_idx] +  ", ";   //TODO: Can just do Select *...
+    }
+    col_statement.resize(col_statement.size() - 2); //remove trailing ", "
+
+    std::string cond_statement;
+    for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+        const std::string_view &val = value_list[p_idx];
+        //read_statement += column_list[p_idx] + " = " + val + ", ";
+        cond_statement += col_name + " = ";
+        cond_statement += val;
+        cond_statement += " AND ";
+        
+    }
+    //insert primary col conditions.
+    cond_statement.resize(cond_statement.size() - 5); //remove trailing " AND "
+
+    read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(cond_statement));
+    
+    //////// Create Write continuation:  
+
+    //TODO: Update many TX to be blind writes. (where we know write is successful OR we know that write is idempotent)
+
+     write_continuation = [this, wcb, enc_key, table_name, &col_registry, value_list, &target_group](int status, query_result::QueryResult* result){
+        if(!result->empty()){
+            Debug("Insert continuation has a result row already -> do not Insert.");
+            //Note: If the result is not empty, then we already have the read set.
+
+            //Create result object with rows affected = 0.
+            result->set_rows_affected(1);
+            wcb(REPLY_OK, result); 
+        }
+
+        if(result->empty()){
+            Debug("Insert continuation has a no result -> Insert!. Enc-key: %s", enc_key.c_str());
+            //Note: Read set already contains an entry: If no value, then default is read version 0. If there is a deleted value, then read version = deleted version (+ dep if prepared)
+
+            // //Check whether read set contains key already (e.g. in case the last read was for a delete): If so, do nothing; if not, add genesis.
+            // bool has_read = false;
+            // for(auto read: txn->read_set()){
+            //     Debug("Read set contains: %s", read.key().c_str());
+            //     if(read.key() == enc_key) has_read = true;
+            // }
+            // if(!has_read){
+            //     //Pretend we read Genesis. => this treats any intermediary write as conflict. //Note: we have some extra cornercase handling around deletes. (i.e. if latest val is deleted, no conflict)
+            //     ReadMessage *read = txn->add_read_set();
+            //     read->set_key(enc_key);
+            //     read->mutable_readtime()->set_id(0);
+            //     read->mutable_readtime()->set_timestamp(0);
+            // }
+           
+         
+            //TODO: If write set already contains this write (i.e. we are trying to over-write a write) then we should just replace the TableWrite with new values!!! (don't need to add a new key or TblWrite)
+             //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+            WriteMessage *write = txn->add_write_set();
+            write->set_key(enc_key);
+         
+            TableWrite *table_write = AddTableWrite(table_name, col_registry);
+            table_write->set_changed_table(true); //Add Table Version later.
+            write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
+            RowUpdates *row_update = table_write->add_rows();
+            *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+            row_update->set_write_set_idx(txn->write_set_size()-1);
             
-    //         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
-    //         ReadMessage *read = txn->add_read_set();
-    //         read->set_key(enc_key);
-    //         read->mutable_readtime()->set_id(0);
-    //         read->mutable_readtime()->set_timestamp(0);
+            //Invoke partitioner function to figure out which group/shard we want to send to.
+             //Note: This is only necessary for blind writes; for read modify writes the read already figured this out.
+            // std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+            // target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
 
-    //         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
-    //         WriteMessage *write = txn->add_write_set();
-    //         write->set_key(enc_key);
-    //         // // for(int i=0; i<column_list.size(); ++i){
-    //         // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
-    //         // // }
-    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-    //         //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
-    //         // }
-
-    //         //New version: 
-    //         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
-    //         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
-    //         RowUpdates *row_update = table_write->add_rows();
-    //         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
-    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
-    //         //     std::string *col_val = row_update->add_column_values();
-    //         //     *col_val = std::move(value_list[col_idx]);
-    //         // }
-
-            
-    //         //Create result object with rows affected = 1.
-    //         result->set_rows_affected(1);
-    //         wcb(REPLY_OK, result);
-    //     }
-    //     else{
-    //         //Create result object with rows affected = 0.
-    //         result->set_rows_affected(0);
-    //         wcb(REPLY_OK, result);
-    //     }
-    // };
+            //Create result object with rows affected = 1.
+            result->set_rows_affected(1);
+            wcb(REPLY_OK, result); 
+        }
+    };
 
     return;
 
 }
+
 
 
 void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_statement,
@@ -756,7 +731,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool skip_query_interpretation){
+    uint64_t &target_group, bool &skip_query_interpretation){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
@@ -939,8 +914,295 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     };
 }
 
+////////////////////////////
+//DEPRECATED: This version was overly optimistic in how it handled "Blind Inserts". It would, by default, treat all Inserts as blind -- this would cause concurrency errors (and retries) when not intended.
+//TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
+void SQLTransformer::TransformInsertOLD(size_t pos, std::string_view &write_statement,
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write, bool skip_query_interpretation){
+    //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
+    // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
-//////////////////// Table Write Generator
+     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
+              //Note: Value list may be the output of a nested SELECT statement. In that case, embed the nested select statement as part of the read_statement
+        //-> Turn into read_statement: Result(column, column_value) SELECT <primary_columns> FROM <table_name> WHERE <col = value>  // Nested Select Statement. //Optimization: Don't send a Read.
+        //             write_cont: if(Result.empty()) create TableWrite with primary column encoded key, column_list, value_list
+        //     TODO: Need to add to read set the time stamp of read "empty" version: I.e. for no existing version (result = empty) -> 0 (genesis TS); for deleted version --> version that deleted row.
+                                                                                        // I think it's always fine to just set version to 0 here.
+                                                                                        // During CC, should ignore conflicts of genesis against delete versions (i.e. they are equivalent)
+        // TODO: Also need to write new "Table version" (in write set) -- to indicate set of rows changes     
+
+    std::string table_name;
+    std::vector<std::string> column_list;
+    std::vector<std::string_view> value_list;
+
+    //1 Remove insert hook
+    write_statement = write_statement.substr(pos + insert_hook.length()-1);
+  
+    //2 Split on values
+    pos = write_statement.find(values_hook);
+    UW_ASSERT(pos != std::string::npos);
+    //Everything from 0 - pos is "<table_name>(columns)". Everything from pos + values_hook.length() --> end is "(values)"
+    std::string_view table_col_statement = write_statement.substr(0, pos);
+    std::string_view values_statement = write_statement.substr(pos + values_hook.length());
+
+    
+    //3) Extract table
+    //std::string table_col = write_statement.substr(0, pos);
+    // Look for "(" (before end)
+    pos = table_col_statement.find("("); //Look only until start of values_hook   // Might be easier if we just create substring.
+    //NOTE: With TableRegistry extractic columsn is obsolete.
+    if(pos == std::string::npos){ //if > val_pos then we found the "(" for Values
+        // If "(" doesn't exist --> whole string is table_name.. Throw error -> can't compute Select Statement
+        table_name = std::move(static_cast<std::string>(table_col_statement));
+        //Panic("Codebase requires INSERT statement to contain (at least primary) column names for translation into SELECT statement");
+    }
+    else{
+        //Extract table name
+        table_name = std::move(static_cast<std::string>(table_col_statement.substr(0, pos-1)));
+
+        //Remove "()"
+        //NOTE: with col registry there is no longer a need to parse cols.
+        if(false){
+             std::string_view col_statement = table_col_statement.substr(pos);
+            col_statement.remove_prefix(1); //remove "("
+            pos = col_statement.find(")"); 
+            UW_ASSERT(pos != std::string::npos);
+            col_statement.remove_suffix(1); //remove ")"
+
+            // split on ", "
+            // add item inbetween to cols vector   -- only search until 
+            if(false){
+                size_t next_col;
+                while((next_col = col_statement.find(", ")) != string::npos){
+                    column_list.push_back(std::move(static_cast<std::string>(col_statement.substr(0, next_col))));
+                    col_statement = col_statement.substr(next_col + 2);
+                }
+                column_list.push_back(std::move(static_cast<std::string>(col_statement))); //push back last col (only remaining).
+                }
+        }
+        // Done.
+    }
+
+    Debug("Find TABLE: [%s] in Registry", table_name.c_str());
+    auto itr = TableRegistry.find(table_name);
+    UW_ASSERT(itr != TableRegistry.end()); //Panic if ColRegistry does not exist.
+    const ColRegistry &col_registry = itr->second;//TableRegistry[table_name];
+    
+    //4) Extract values
+    // Remove "()"
+    pos = values_statement.find("("); //Look only from after values_hook  
+    UW_ASSERT(pos != std::string::npos);
+    values_statement.remove_prefix(1); //remove "("
+    pos = values_statement.find_last_of(")"); //Look only from after values_hook  
+    UW_ASSERT(pos != std::string::npos);
+    values_statement.remove_suffix(values_statement.length()-pos); //remove ")"
+
+    //Check that there are no nested Selects
+    pos = values_statement.find("SELECT");
+    if(pos != std::string::npos) Panic("Pequinstore does not support Write Parsing for Inserts with nested Select statements. Please write the statements sequentially");
+    //Note: If we wanted to support nested Inserts: We'd have to parse all present Selects, execute them in parallel ideally, and pass the write_cont as callback that is exec once all select results ready...
+         //E.g. Value might be a nested Select + arithmetic. Extract Select statement and create a callback that adds result to a map<col_name, select>. 
+                                                         // Then execute all the select statements to find all relevant values. 
+                                                         // Once callback is notified that alls selects are done --> call write_cont with the result map
+                                                         // Alternatively: Extract all selects and store any arithmetic (cont statements) in a map
+                                                                            //Then Union all the selects and perform as one query --> produces one query result
+                                                                            //Callback Write_cont ==> Loop through results and apply update with arithmetic.
+
+    // split on ", "
+    // add item inbetween to values vector    
+    int i = 0;        //remove quotes if applicable                        
+    size_t next_val;                                                                
+    while((next_val = values_statement.find(", ")) != string::npos){
+        std::string_view curr_val = values_statement.substr(0, next_val);
+        value_list.push_back(std::move(TrimValue(curr_val, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
+        values_statement = values_statement.substr(next_val+2);
+    }
+    value_list.push_back(std::move(TrimValue(values_statement, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
+
+    // Done.
+            
+    //UW_ASSERT(value_list.size() == column_list.size()); //Require to pass all columns currently.
+    //UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
+     //UW_ASSERT(column_list.size() >= 1); // At least one column specified (e.g. single column primary key)
+        
+
+    ///////// //Create Read statement:  ==> Ideally for Inserts we'd just use a point get on the primary keys. (instead of a sql select statement that's a bit overkill)
+    
+    std::vector<const std::string_view*> primary_key_column_values;
+
+
+    UW_ASSERT(value_list.size() == col_registry.col_name_type.size());
+
+    bool is_blind_write = col_registry.primary_col_idx.empty(); //If there is no primary key, then uniqueness doesn't matter. Treat write as blind! (E.g. history table in TPC-C)
+
+    if(false){  //NOTE: DO NOT NEED TO CREATE ANY READ STATEMENT FOR MOST SINGLE ROW INSERTS (only necessary if we cant to handle Duplicate Reads). 
+                    //==> Just set read version = 0 (TODO: Confirm OCC check will check vs latest version = delete)
+                    //THIS WAY WILL SAVE QUERY ROUNDTRIP + WONT HAVE TO REMOVE TABLE VERSION POSSIBLY ADDED BY SCAN
+
+        //skip_query_interpretation = true; //we know it is a point read... TODO: Current propagation would skip interpretation and decide scan.
+           
+        read_statement = "SELECT ";  
+        std::string col_statement;
+        //insert primary columns --> Can already concat them with delimiter:   col1  || '###' || col2 ==> but then how do we look up column?  
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+            col_statement += col_name +  ", ";   //TODO: Can just do Select *...
+            //read_statement += column_list[p_idx] +  ", ";   //TODO: Can just do Select *...
+        }
+        col_statement.resize(read_statement.size() - 2); //remove trailing ", "
+
+
+        read_statement += " FROM " + table_name;
+
+        read_statement += " WHERE ";
+        std::string cond_statement;
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+            const std::string_view &val = value_list[p_idx];
+            //read_statement += column_list[p_idx] + " = " + val + ", ";
+            cond_statement += col_name + " = ";
+            cond_statement += val;
+            cond_statement += ", ";
+            primary_key_column_values.push_back(&val);
+        }
+        //insert primary col conditions.
+        cond_statement.resize(read_statement.size() - 2); //remove trailing ", "
+
+        //read_statement += ";";
+
+        //use fmt::format to create more readable read_statement generation.
+        //read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(cond_statement));
+    }
+    else{
+        for(auto [col_name, p_idx]: col_registry.primary_key_cols_idx){
+            const std::string_view &val = value_list[p_idx];
+            primary_key_column_values.push_back(&val);
+        }
+    }
+
+     std::string enc_key = EncodeTableRow(table_name, primary_key_column_values);
+
+    //////// Create Write continuation:  
+
+     write_continuation = [this, wcb](int status, query_result::QueryResult* result){
+        //TODO: Does one need to use status? --> Query should not fail?
+        
+        //Create result object with rows affected = 1.
+        result->set_rows_affected(1);
+        wcb(REPLY_OK, result); 
+    };
+
+    //Write Table Version itself. //Only for kv-store.   
+    //-- Note: If a TX issues many Inserts => we'll write table_version redundantly to write set -- However, these are all ignored by Prepare/Commit & filtered out in LockTxnKeys_scoped
+    //Safe but wasteful (message bigger than need be + CC checks keys redundantly) // TODO: Improve: Either filter out during client sorting; or better: only when submitting a TXN for commit, add key per table write
+        // WriteMessage *table_ver = txn->add_write_set();
+        // table_ver->set_key(table_name);
+        // table_ver->set_value("");
+
+
+        
+        //Read genesis timestamp (0) for key (if not a blind write)
+        //==> FIXME: THIS IS CURRENTLY NOT HANDLED FULLY CORRECTLY IN EXISTING OCC CHECK.
+            //If genesis EXISTS, then we should abort. But we won't currently because we read 0,0 as well.
+            //This is a rare semantic corner case (if we try to insert something that was loaded)
+            //FIX: In addition to giving this read genesis time, give it a bool "try_insert". 
+                        //If set => abort if the last Write is Genesis.
+                        //Ideally could set read time to -1, but it's an unsigned int...
+    
+        if(!is_blind_write){
+            ReadMessage *read = txn->add_read_set();
+            read->set_key(enc_key);
+            read->mutable_readtime()->set_id(0);
+            read->mutable_readtime()->set_timestamp(0);
+        }
+    
+    
+        //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+        WriteMessage *write = txn->add_write_set();
+        write->set_key(enc_key);
+        // // for(int i=0; i<column_list.size(); ++i){
+        // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+        // // }
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+        // }
+
+        //New version: 
+        TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        table_write->set_changed_table(true); //Add Table Version.
+        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+
+        RowUpdates *row_update = table_write->add_rows();
+        *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+        row_update->set_write_set_idx(txn->write_set_size()-1);
+        
+        //Invoke partitioner function to figure out which group/shard we want to send to.
+        std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
+        target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
+
+        // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+        //     std::string *col_val = row_update->add_column_values();
+        //     *col_val = std::move(value_list[col_idx]);
+        // }
+
+    //Write cont that takes in a result (from read)
+    // write_continuation = [this, wcb, enc_key, table_name, col_registry_ptr = &col_registry, value_list](int status, query_result::QueryResult* result){
+    //     //TODO: Does one need to use status? --> Query should not fail?
+    //     if(result->empty()){
+
+    //         //Write Table Version itself. //Only for kv-store.
+    //         WriteMessage *table_ver = txn->add_write_set();
+    //         table_ver->set_key(table_name);
+    //         table_ver->set_value("");
+
+            
+    //         //Read genesis timestamp (0) for key ==> FIXME: THIS CURRENTLY DOES NOT WORK WITH EXISTING OCC CHECK.
+    //         ReadMessage *read = txn->add_read_set();
+    //         read->set_key(enc_key);
+    //         read->mutable_readtime()->set_id(0);
+    //         read->mutable_readtime()->set_timestamp(0);
+
+    //         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
+    //         WriteMessage *write = txn->add_write_set();
+    //         write->set_key(enc_key);
+    //         // // for(int i=0; i<column_list.size(); ++i){
+    //         // //     (*write->mutable_rowupdates()->mutable_attribute_writes())[column_list[i]] = value_list[i];
+    //         // // }
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     (*write->mutable_rowupdates()->mutable_attribute_writes())[col_name] = value_list[col_idx];
+    //         // }
+
+    //         //New version: 
+    //         TableWrite *table_write = AddTableWrite(table_name, *col_registry_ptr);
+    //         write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+    //         RowUpdates *row_update = table_write->add_rows();
+    //         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
+    //         // for(auto &[col_name, col_idx]: col_registry_ptr->col_name_index){
+    //         //     std::string *col_val = row_update->add_column_values();
+    //         //     *col_val = std::move(value_list[col_idx]);
+    //         // }
+
+            
+    //         //Create result object with rows affected = 1.
+    //         result->set_rows_affected(1);
+    //         wcb(REPLY_OK, result);
+    //     }
+    //     else{
+    //         //Create result object with rows affected = 0.
+    //         result->set_rows_affected(0);
+    //         wcb(REPLY_OK, result);
+    //     }
+    // };
+
+    return;
+
+}
+
+
+
+//////////////////// 
+
+        //Table Write Generator
+
+////////////////////
 
 static bool fine_grained_quotes = true;  //false == add quotes to everything, true == add quotes only to the fields that need it. (e.g. strings, bool; not int)
 //fine_grained_quotes requires use of TableRegistry now. However, it seems to work fine for Peloton to add quotes to everything indiscriminately. 
@@ -1090,13 +1352,18 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
         //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
     //Create separate Delete statements for each delete
 
+    write_statement.clear();
     // write_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
+    // Notice("Table[%s] generating write statement.", table_name.c_str());
 
     const ColRegistry &col_registry = TableRegistry.at(table_name);
 
     for(auto &row: table_write.rows()){
           UW_ASSERT(part);
-        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) {
+            //Notice("Skip row for table %s", table_name.c_str());
+            continue;
+        } 
         
         if(row.has_deletion() && row.deletion()){
             delete_statements.push_back("");
@@ -1177,15 +1444,15 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
         purge_statement = "";
         return;
     } 
-    //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
-    purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name);
-    
+   
+ 
     for(auto &row: table_write.rows()){  //Alternatively: Move row contents to a vector and use: fmt::join(vec, ",")
         UW_ASSERT(part);
-        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx) continue; 
-
+        if ((*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups != groupIdx){
+            //Notice("[%s]. Row is for group %d. Current group. %d", table_name.c_str(), (*part)(table_name, row.column_values(), num_shards, groupIdx, dummyTxnGroups) % num_groups, groupIdx);
+            continue; 
+        }
        
-
         purge_statement += "(";
         if(fine_grained_quotes){ // Use this to add fine grained quotes:
             for(int i = 0; i < row.column_values_size(); ++i){
@@ -1205,9 +1472,14 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
 
         //purge_statement += fmt::format("{}, ", fmt::join(row.column_values(), ','));
     }
-    purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
-   
-    purge_statement += ";";
+  
+    //Only generate the full purge_statement if there were relevant rows to add
+    if(!purge_statement.empty()){
+        purge_statement.resize(purge_statement.length()-2); //remove trailing ", "
+        //NOTE: Inserts must always insert -- even if value exists ==> Insert new row.
+        purge_statement = fmt::format("INSERT INTO {0} VALUES ", table_name) + purge_statement;
+        purge_statement += ";";
+    }
 }
 
 //Deprecated

@@ -127,6 +127,7 @@ bool TimestampOrderingTransactionManager::AcquireOwnership(
   // consider a transaction that is executed under snapshot isolation.
   // in this case, commit_id is not equal to read_id.
   if (last_reader_cid > current_txn->GetCommitId()) {
+    Panic("Serializability conflict");
     latch.Unlock();
 
     return false;
@@ -408,8 +409,10 @@ void TimestampOrderingTransactionManager::PerformInsert(
   tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
 
   // Add the new tuple into the insert set
-  current_txn->RecordInsert(location);
+  //current_txn->RecordInsert(location);
+  tile_group_header->GetSpinLatch(tuple_id).Lock();
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
+  tile_group_header->GetSpinLatch(tuple_id).Unlock();
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(
@@ -520,6 +523,9 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     }
 
     COMPILER_MEMORY_FENCE;
+    new_tile_group_header->GetSpinLatch(new_location.offset).Lock();
+    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock();
+
     new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
     curr_tile_group_header->SetIndirection(curr_pointer.offset, index_entry_ptr);
     // UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, old_location);
@@ -541,6 +547,9 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       // std::cerr << "Record update else case" << std::endl;
       current_txn->RecordUpdate(new_location);
     }
+
+    new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
+    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
   }
 }
 
@@ -625,6 +634,9 @@ void TimestampOrderingTransactionManager::PerformDelete(
   // newer version to older version.
   COMPILER_MEMORY_FENCE;
 
+  new_tile_group_header->GetSpinLatch(new_location.offset).Lock();
+  tile_group_header->GetSpinLatch(old_location.offset).Lock();
+
   // we must be deleting the latest version.
   // Set the header information for the new version
   ItemPointer *index_entry_ptr =
@@ -645,6 +657,9 @@ void TimestampOrderingTransactionManager::PerformDelete(
         AtomicUpdateItemPointer(index_entry_ptr, new_location);
     PELOTON_ASSERT(res == true);
   }
+
+  new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
+  tile_group_header->GetSpinLatch(old_location.offset).Unlock();
 
   current_txn->RecordDelete(old_location);
 }
@@ -817,27 +832,27 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(TransactionCon
       // log_manager.LogDelete(ItemPointer(tile_group_id, tuple_slot));
 
     } else if (tuple_entry.second == RWType::INSERT) {
-      // std::cerr << "Commit txn insert" << std::endl;
-      // std::cerr << "tuple slot is " << tuple_slot << std::endl;
-      PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());
-      // std::cerr << "tuple 1 " << tuple_slot << std::endl;
+      // // std::cerr << "Commit txn insert" << std::endl;
+      // // std::cerr << "tuple slot is " << tuple_slot << std::endl;
+      // PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());
+      // // std::cerr << "tuple 1 " << tuple_slot << std::endl;
 
-      // set the begin commit id to persist insert
-      tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
-      // std::cerr << "tuple 2 " << tuple_slot << std::endl;
+      // // set the begin commit id to persist insert
+      // tile_group_header->SetBeginCommitId(tuple_slot, end_commit_id);
+      // // std::cerr << "tuple 2 " << tuple_slot << std::endl;
 
-      tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
-      // std::cerr << "tuple 3 " << tuple_slot << std::endl;
+      // tile_group_header->SetEndCommitId(tuple_slot, MAX_CID);
+      // // std::cerr << "tuple 3 " << tuple_slot << std::endl;
 
-      // we should set the version before releasing the lock.
-      COMPILER_MEMORY_FENCE;
+      // // we should set the version before releasing the lock.
+      // COMPILER_MEMORY_FENCE;
 
-      tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
-      // std::cerr << "tuple 4 " << tuple_slot << std::endl;
+      // tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+      // // std::cerr << "tuple 4 " << tuple_slot << std::endl;
 
-      // nothing to be added to gc set.
+      // // nothing to be added to gc set.
 
-      // log_manager.LogInsert(ItemPointer(tile_group_id, tuple_slot));
+      // // log_manager.LogInsert(ItemPointer(tile_group_id, tuple_slot));
 
     } else if (tuple_entry.second == RWType::INS_DEL) {
       PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_slot) == current_txn->GetTransactionId());

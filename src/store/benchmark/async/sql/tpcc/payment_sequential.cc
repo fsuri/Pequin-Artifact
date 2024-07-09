@@ -35,7 +35,7 @@ namespace tpcc_sql {
 
 SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
-    TPCCSQLTransaction(timeout), w_id(w_id) {
+    TPCCSQLTransaction(timeout), w_id(w_id), gen(gen) {
   d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
   d_w_id = w_id;
   int x = std::uniform_int_distribution<int>(1, 100)(gen);
@@ -166,11 +166,16 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   UW_ASSERT(queryResult->has_rows_affected());
 
   // (5) Create History entry.
-  statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
-  client.Write(statement, queryResult, timeout);
-  UW_ASSERT(queryResult->has_rows_affected());
+
+
+  uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
+   statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}');", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
+  client.Write(statement, queryResult, timeout, true); //blind write
   
+  //Writes to history are blind, it technically doesn't matter if they are duplicate. But should ideally make it unique (or no primary key at all)
+  if(!queryResult->has_rows_affected()){Warning("History row not unique. Might want to investigate");} 
+  UW_ASSERT(queryResult->has_rows_affected());
 
   Debug("COMMIT");
   return client.Commit(timeout);

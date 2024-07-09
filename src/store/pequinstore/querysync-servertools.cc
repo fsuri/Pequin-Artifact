@@ -88,9 +88,16 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
             if(PRINT_SNAPSHOT){
                 for(auto &ts: local_ss->local_txns_committed_ts()){
                     Debug("Snapshot Txn TS (commit): %lu", ts);
+                    if(!ts_to_tx.count(ts)){
+                        Panic("Snapshot Txn TS (commit) no translation: %lu", ts);
+                    }
                 }
                 for(auto &ts: local_ss->local_txns_prepared_ts()){
+                    
                     Debug("Snapshot Txn TS (prep): %lu", ts);
+                      if(!ts_to_tx.count(ts)){
+                        Panic("Snapshot Txn TS (prepared) no translation: %lu", ts);
+                    }
                 }
             }
         } 
@@ -222,7 +229,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     auto duration = microseconds_end - microseconds_start;
-    Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
+    if(duration > 1000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
     
    
     return serialized_result;
@@ -233,7 +240,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     query_md->executed_query = true;
 
     Debug("Eagerly Execute Query[%lu:%lu:%lu].", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
-    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, false); 
+    QueryReadSetMgr queryReadSetMgr(query_md->queryResultReply->mutable_result()->mutable_query_read_set(), groupIdx, query_md->useOptimisticTxId); 
 
     std::string result(ExecQuery(queryReadSetMgr, query_md, false, true)); //eager = true
     
@@ -354,6 +361,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
 
      //1) If we have never seen the Txn, we must request it
      if(TEST_SYNC || !has_txn_locally){                                      //TODO: TEST_SYNC will trigger message sync, but won't cause Query to wait for it. 
+        Notice("Query: [%lu:%lu:%lu] requests Tx_id %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(tx_id, 16).c_str());
         RequestMissing(replica_list, replica_requests, tx_id);
     }
 
@@ -397,12 +405,14 @@ bool Server::CheckPresence(const uint64_t &ts_id, const std::string &query_retry
         //query_md->merged_ss.insert(t->second); //store snapshot locally.  
         t.release();
 
-        Debug("TX translation exists: TS[%lu] -> TX[%s]", ts_id, BytesToHex(tx_id, 16).c_str());
+        Notice("TX translation exists: TS[%lu] -> TX[%s]", ts_id, BytesToHex(tx_id, 16).c_str());
         return CheckPresence(tx_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns);
     }
 
     else{
-        Debug("TX translation does not exist: TS[%lu] WAITING for TX", ts_id);
+        Notice("TX translation does not exist: TS[%lu] WAITING for TX", ts_id);
+        UW_ASSERT(query_md);
+        Notice("Query: [%lu:%lu:%lu] requests Ts_id %lu", query_md->query_seq_num, query_md->client_id, query_md->retry_version, ts_id);
         RequestMissing( replica_list, replica_requests, ts_id);
         
         WaitForTX(ts_id,  query_retry_id, missing_ts);
@@ -447,20 +457,23 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
             // replica_requests[replica_idx].set_replica_idx(idx);
         }
         else {
-            Panic("Should not be trying to request missing from a TX whose snapshot claims Replica was part. This is a byz behavior that should not trigger in tests.");
+            Panic("Should not be trying to request missing from a TX whose snapshot claims Replica was part. This is a byz behavior that should not trigger in tests. Replica id: %d is missing Tx: %s", 
+                    idx, BytesToHex(tx_id, 16).c_str());
         }
         count++;
     }
 }
 
 void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uint64_t, proto::RequestMissingTxns> &replica_requests, const uint64_t &ts_id) {
-  
+
     Debug("Request missing TS[%lu]", ts_id);
     uint64_t count = 0;
     for(auto const &replica_id: replica_list.replicas()){ 
         Debug("    Request missing TS[%lu] from replica %d", ts_id, replica_id);
-        if(count > config.f +1) return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
-        
+        if(count > config.f +1){
+            Panic("Replica requesting missing from more than f+1");
+            return; //only send to f+1 --> an honest client will never include more than f+1 replicas to request from. --> can ignore byz request.
+        } 
         
         uint64_t replica_idx = replica_id % config.n;  //since  id = local-groupIdx * config.n + idx
         if(replica_idx != idx){
@@ -469,7 +482,9 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
             req_txn.set_replica_idx(idx);
         }
         else if(!TEST_MATERIALIZE_TS) {
-            Panic("Should not be trying to request missing from a TX whose snapshot claims Replica was part. This is a byz behavior that should not trigger in tests.");
+            Panic("Should not be trying to request missing from a TS_ID whose snapshot claims Replica was part. This is a byz behavior that should not trigger in tests.Replica id: %d is missing Ts: %lu", 
+                    idx, ts_id);
+            //Unless we maybe aborted in the meantime?
         }
         count++;
     }
@@ -528,15 +543,21 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 
 
 //Note: for Multi-shard TXs only want to write the rows that are relevant to the shard managed by this replica. The ownership logic happens inside the sql_interpreter GenerateWriteSatement logic.
-void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
+std::vector<std::string> Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts,
                 const std::string &txn_digest, const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize){
 
+    RegisterTxTS(txn_digest, &txn); //Guarantee that translation exists
+
     Debug("Apply all TableWrites for Txn[%s]. TS[%lu:%lu]. ForceMat? %d", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID(), forceMaterialize);
+
+    std::vector<std::string> locally_relevant_tables; //contains the set of tables for which the TXN contained updates that were relevant to the local shard. 
+                                                      //E.g. if this shard only holds warehouse w_id=1, but the write was to w_id=2, then we won't record an updated TableVersion.
 
     //TODO: Parallelize application of each table's writes. Note: This requires multi-threading + callback to ensure synchronous join
         //Not urgent: Realistically most transactions do not touch that many tables...
     for (const auto &[table_name, table_write] : txn.table_writes()){
-        table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
+        bool this_shard_has_writes = table_store->ApplyTableWrite(table_name, table_write, ts, txn_digest, commit_proof, commit_or_prepare, forceMaterialize); 
+        if(this_shard_has_writes) locally_relevant_tables.push_back(EncodeTable(table_name));
     }
 
     materializedMap::accessor mat;
@@ -547,6 +568,8 @@ void Server::ApplyTableWrites(const proto::Transaction &txn, const Timestamp &ts
 
     //Wake any queries waiting for materialization of Txn:
     CheckWaitingQueries(txn_digest, ts.getTimestamp(), ts.getID());  
+
+    return locally_relevant_tables;
 }
 
 //DEPRECATED:
@@ -1048,6 +1071,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
                 std::map<uint64_t, proto::RequestMissingTxns> replica_requests; //dummy arg
                 const pequinstore::proto::ReplicaList replica_list;             //dummy arg
 
+                Notice("CheckPresence of tx_id: %s via UpdateWaitingQueriesTS", BytesToHex(txnDigest, 16).c_str());
                 bool isFinished = CheckPresence(txnDigest, query_id_version, query_md, replica_requests, replica_list, missingTxns.missing_txns);
                 UW_ASSERT(replica_requests.empty()); //no sync requests should be made! otherwise we shouldn't have woken up...
               

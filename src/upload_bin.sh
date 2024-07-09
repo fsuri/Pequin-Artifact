@@ -21,19 +21,30 @@ declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0"
 						"client-15-0" "client-16-0" "client-17-0"
 			  		   )
 
+
+USER="fs435"
+EXP_NAME="pequin"
+
+while getopts u:e: option; do
+case "${option}" in
+u) USER=${OPTARG};;
+e) EXP_NAME=${OPTARG};;
+esac;
+done
+
 ## now loop through the above array
 for host in "${arr_servers[@]}"
 do
    echo "uploading binaries to $host"
    #ssh fs435@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
-   rsync -v -r -e ssh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/bin fs435@$host.indicus.morty-pg0.utah.cloudlab.us:/users/fs435/indicus
+   rsync -v -r -e ssh ./src/bin ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us:/users/${USER}/indicus
 done
 
 for host in "${arr_clients[@]}"
 do
    echo "uploading binaries to $host"
-   #ssh fs435@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
-   rsync -v -r -e ssh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact/src/bin fs435@$host.indicus.morty-pg0.utah.cloudlab.us:/users/fs435/indicus
+   #ssh liam0215@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
+   rsync -v -r -e ssh ./src/bin ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us:/users/${USER}/indicus
 done
 
 

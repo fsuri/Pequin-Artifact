@@ -122,6 +122,7 @@ public:
   uint64_t GetScaledTimestamp(uint64_t benchmark_start, uint64_t client_start, uint64_t current);
 
   std::string GetUniqueElementId(std::string item_id_, int idx);
+  std::string GetNextElementId(std::string item_id_);
 
   uint64_t GetProcTimestamp(std::vector<uint64_t> benchmark_times);
 

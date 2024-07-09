@@ -35,6 +35,11 @@ SyncClient::~SyncClient() {
 }
 
 void SyncClient::Begin(uint32_t timeout) {
+  //Confirm that all promises have been cleared -- i.e. no ongoing operations.
+  UW_ASSERT(getPromises.empty());
+  UW_ASSERT(queryPromises.empty());
+  UW_ASSERT(asyncPromises.empty());
+
   Promise promise(timeout);
   client->Begin([promisePtr = &promise](uint64_t id){ promisePtr->Reply(0); },
       [](){}, timeout);
@@ -88,6 +93,15 @@ transaction_status_t SyncClient::Commit(uint32_t timeout) {
     Wait(strs);
   }
 
+  if (queryPromises.size() > 0) {
+    std::vector<std::unique_ptr<const query_result::QueryResult>> values;
+    Wait(values);
+  }
+
+  if (asyncPromises.size() > 0) {
+    asyncWait();
+  }
+
   Promise promise(timeout);
 
   client->Commit(std::bind(&SyncClient::CommitCallback, this, &promise,
@@ -104,12 +118,36 @@ void SyncClient::Abort(uint32_t timeout) {
     Wait(strs);
   }
 
+  if (queryPromises.size() > 0) {
+    std::vector<std::unique_ptr<const query_result::QueryResult>> values;
+    Wait(values);
+  }
+
+  if (asyncPromises.size() > 0) {
+    asyncWait();
+  }
+
   Promise promise(timeout);
 
   client->Abort(std::bind(&SyncClient::AbortCallback, this, &promise),
         std::bind(&SyncClient::AbortTimeoutCallback, this, &promise), timeout);
 
   promise.GetReply();
+}
+
+//Ensure that we wait for any possibly outstanding concurrent requests to return before throwing an exception.
+std::unique_ptr<const query_result::QueryResult> SyncClient::SafeRelease(Promise &promise){
+  try{
+    std::unique_ptr<const query_result::QueryResult> result = promise.ReleaseQueryResult();
+    return result;
+  }
+  catch(...){
+    Notice("CATCHING ABORT. WILL PROPAGATE ONCE ALL OUTSTANDING ASYNC REQUESTS ARE DONE");
+    std::vector<std::unique_ptr<const query_result::QueryResult>> throw_away_values;
+    Wait(throw_away_values);
+    asyncWait();
+    throw std::exception(); //Propagate Abort exception
+  }
 }
 
 
@@ -120,11 +158,13 @@ void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::SQLTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
- result = promise.ReleaseQueryResult(); 
+
+  //result = promise.ReleaseQueryResult(); 
+  result = SafeRelease(promise);
 }
 
 void SyncClient::SQLRequest(std::string &statement, uint32_t timeout) {
-   Promise *promise = new Promise(timeout);
+  Promise *promise = new Promise(timeout);
   queryPromises.emplace_back(promise);
   
   client->SQLRequest(statement, std::bind(&SyncClient::SQLCallback, this, promise,
@@ -134,18 +174,19 @@ void SyncClient::SQLRequest(std::string &statement, uint32_t timeout) {
 }
 
 
-void SyncClient::Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
+void SyncClient::Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool blind_write) {
   Promise promise(timeout);
   
   client->Write(statement, std::bind(&SyncClient::WriteCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::WriteTimeoutCallback, this,
-        &promise, std::placeholders::_1), timeout);
+        &promise, std::placeholders::_1), timeout, blind_write);
   result.reset();
-  result = promise.ReleaseQueryResult();
+  //result = promise.ReleaseQueryResult(); 
+  result = SafeRelease(promise);
 }
 
-void SyncClient::Write(std::string &statement, uint32_t timeout, bool async) {
+void SyncClient::Write(std::string &statement, uint32_t timeout, bool async, bool blind_write) {
    Promise *promise = new Promise(timeout);
   if(async){
     asyncPromises.push_back(promise);
@@ -157,7 +198,7 @@ void SyncClient::Write(std::string &statement, uint32_t timeout, bool async) {
   client->Write(statement, std::bind(&SyncClient::WriteCallback, this, promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::WriteTimeoutCallback, this,
-        promise, std::placeholders::_1), timeout);
+        promise, std::placeholders::_1), timeout, blind_write);
 }
 
 void SyncClient::Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool cache_result) {
@@ -169,10 +210,9 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
         &promise, std::placeholders::_1), timeout, cache_result);
 
   result.reset();
-  // std::cerr<< "Shir: performing query transaction 22\n";
-  result = promise.ReleaseQueryResult();
-  // std::cerr<< "Shir: Query managed to get some result \n";
 
+  //result = promise.ReleaseQueryResult(); 
+  result = SafeRelease(promise);
 }
 
 void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_result) {
@@ -190,20 +230,22 @@ void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_re
 void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values) {
   values.clear();
   bool aborted = false;
- 
+  
   for (auto &promise : queryPromises) {
     try{
       values.push_back(promise->ReleaseQueryResult());
     }
     catch(...){
-      std::cerr << "CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE" << std::endl;
+      Notice("CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE");
       aborted = true;
     }
     delete promise;
   }
   queryPromises.clear();
+
   if(aborted){
     values.clear();
+    asyncWait(); //wait for any possibly outstanding requests to return before throwing exception.
     throw std::exception(); //Propagate Abort exception
   }
   
@@ -211,6 +253,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
 
 void SyncClient::asyncWait() {
   bool aborted = false;
+
   for (auto promise : asyncPromises) {
     int status = promise->GetReply();
     if(status > 0) aborted = true;
@@ -218,7 +261,11 @@ void SyncClient::asyncWait() {
   }
   asyncPromises.clear();
 
-  if(aborted) throw std::exception(); //Propagate Abort exception
+  if(aborted) {
+    std::vector<std::unique_ptr<const query_result::QueryResult>> throw_away_values;
+    Wait(throw_away_values); //wait for any possibly outstanding requests to return before throwing exception.
+    throw std::exception(); //Propagate Abort exception
+  }
 }
 
 ///////// Callbacks

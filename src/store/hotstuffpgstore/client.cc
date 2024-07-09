@@ -181,8 +181,7 @@ void Client::Query(const std::string &query, query_callback qcb, query_timeout_c
 }
 
 
-void Client::Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout){
+void Client::Write(std::string &write_statement, write_callback wcb, write_timeout_callback wtcb, uint32_t timeout, bool blind_write){
     Debug("Processing Write Statement: %s", write_statement.c_str());
     this->SQLRequest(write_statement,wcb,wtcb,timeout);
 }

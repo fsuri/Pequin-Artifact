@@ -179,6 +179,8 @@ uint64_t RWSQLPartitioner::operator()(const std::string &table_name, const googl
       //b) allow the server to figure out which keys are owned or not. (for CC purposes). To figure out which rows should be written to SQL backend use the other operator below.
 uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, const std::string &input,  //Note: if is_key: input = encoded key
     uint64_t nshards, int group, const std::vector<int> &txnGroups, bool is_key) {  //bool is_key: Set true if INSERT, Else = everything else. (i.e. has a Where clause)
+
+  // if(is_key && input.find(unique_delimiter) == std::string::npos) Panic("unhandled Table Version: %s", input.c_str());
     
   if(nshards == 1) return 0;
 
@@ -190,28 +192,29 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
     case 'w':  // WAREHOUSE
     case 's':  // STOCK
     {
-      std::cerr << "table name: " << table_name << std::endl;
-      std::cerr << "input: " << input << std::endl;
+      // std::cerr << "table name: " << table_name << std::endl;
+      // std::cerr << "input: " << input << std::endl;
       uint32_t w_id;
       if(is_key){
           size_t w_pos = input.find(unique_delimiter);
-          if((is_key? input[0] : table_name[0]) == 's') w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the SECOND position.
-          if(w_pos == std::string::npos) Panic("Cannot find w_id.");
+          if(t == 's') w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the SECOND position.
+          if(w_pos == std::string::npos) Panic("Key mode: Cannot find w_id. input: %s", input.c_str());
           size_t w_start = w_pos + unique_delimiter.size();
           w_id = std::stoi(input.substr(w_start));
+          if(w_id > numWarehouses) Panic("partitioner bug. w_id = %d. numWarehouses = %d. input: %s", w_id, numWarehouses, input.c_str());
       }
       else{
          //Extract the  'xyz_w_id = 5' portion and get 5.'
         size_t w_pos = input.find("w_id = ");
-        if(w_pos == std::string::npos) Panic("Cannot find w_id.");
+        if(w_pos == std::string::npos) Panic("Cond mode: Cannot find w_id. input: %s", input.c_str());
         size_t w_start = w_pos + 7;  //Start: just search for w_id.
          //End: first space or semicolon after 5.
         size_t w_end = input.find_first_of("; ", w_start);
         if(w_pos == std::string::npos) Panic("Cannot find end point");
         w_id = std::stoi(input.substr(w_start, w_end-w_start));
       }
-      std::cerr << "w_id: " << w_id << std::endl;
-      return w_id % nshards;
+      //std::cerr << "w_id: " << w_id << std::endl;
+      return (w_id - 1) % nshards;
     }
     case 'i':  // ITEM
     {
@@ -240,11 +243,11 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
       if(is_key){  //w_id d_id are first and second entries of the primary key
           //w_id is the first after delim
           size_t w_pos = input.find(unique_delimiter);
-          if(w_pos == std::string::npos) Panic("Cannot find w_id.");
+          if(w_pos == std::string::npos) Panic("Cannot find w_id. input: %s", input.c_str());
           size_t w_start = w_pos + unique_delimiter.size();
           //d_id is the second 
           size_t d_pos = input.find(unique_delimiter, w_start);
-          if(d_pos == std::string::npos) Panic("Cannot find d_id.");
+          if(d_pos == std::string::npos) Panic("Cannot find d_id. input: %s", input.c_str());
          
           w_id = std::stoi(input.substr(w_start, d_pos-w_start));
 
@@ -261,11 +264,11 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
       else{
          //Extract the  'xyz_w_id = 5' portion and get 5.'
         size_t w_pos = input.find("w_id = ");
-        if(w_pos == std::string::npos) Panic("Cannot find w_id.");
+        if(w_pos == std::string::npos) Panic("Cannot find w_id. input: %s", input.c_str());
         size_t w_start = w_pos + 7;  //Start: just search for w_id.
          //End: first space or semicolon after 5.
         size_t w_end = input.find_first_of("; ", w_start);
-        if(w_pos == std::string::npos) Panic("Cannot find end point");
+        if(w_pos == std::string::npos) Panic("Cannot find end point. input: %s", input.c_str());
         w_id = std::stoi(input.substr(w_start, w_end-w_start));
 
         // size_t d_pos = input.find("d_id = ");
@@ -277,17 +280,32 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
         // d_id = std::stoi(input.substr(d_start, w_end-w_start));
       }
 
-       std::cerr << "w_id: " << w_id << std::endl;
+       //std::cerr << "w_id: " << w_id << std::endl;
       //  std::cerr << "w_id: " << w_id << ". d_id: " << d_id << std::endl;
       // return (((w_id - 1) * 10) + (d_id - 1)) % nshards; //TODO: Seems unecessary to put different districts from the same warehouse on different shards? (Will only increase number of cross shard TXs)
-      return w_id % nshards; //TODO: Remove d_id computation.
+      return (w_id-1) % nshards; //TODO: Remove d_id computation.
     }
     case 'h':  // HISTORY           
     {
       //Note: History has no primary key so the primary key is always empty.
    
-      if(is_key){  
-        return 0; //Technically nobody needs to be responsible for writing History for CC purposes. Since it has no primary key, we enforce no uniqueness.
+      if(is_key){  //i.e. server checks ownership.
+        //For load balancing purposes it is better to store at the customers home warehouse.
+        uint32_t w_id;
+        size_t w_pos = input.find(unique_delimiter);
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the SECOND position.
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the THIRD position.
+        w_pos = input.find(unique_delimiter, w_pos+unique_delimiter.size()); //Find the FOURTH position.
+        if(w_pos == std::string::npos) Panic("Key mode: Cannot find w_id. input: %s", input.c_str());
+        size_t w_start = w_pos + unique_delimiter.size();
+        w_id = std::stoi(input.substr(w_start));
+        if(w_id > numWarehouses) Panic("partitioner bug. w_id = %d. numWarehouses = %d. input: %s", w_id, numWarehouses, input.c_str());
+
+        return (w_id-1) % nshards; 
+
+         //Technically nobody needs to be responsible for writing History for CC purposes. Since it has no primary key, we enforce no uniqueness.
+        return 0; //For CC purposes, only store at shard 0 (TODO: it's even fine if nobody stores, since there are no conflicts on History)
+
       }
       else{
         Panic("TPCC should never be reading from History Table");
@@ -343,14 +361,14 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
     case 'w':  // WAREHOUSE
     {
       uint32_t w_id = std::stoi(col_values[0]);
-      return w_id % nshards;
+      return (w_id-1) % nshards;
     }
     case 's':  // STOCK
     {
       
       uint32_t w_id = std::stoi(col_values[1]);
-      std::cerr << "w_id: " << w_id << std::endl;
-      return w_id % nshards;
+      //std::cerr << "w_id: " << w_id << std::endl;
+      return (w_id-1) % nshards;
     }
     case 'i':  // ITEM
     {
@@ -376,22 +394,21 @@ uint64_t WarehouseSQLPartitioner::operator()(const std::string &table_name, cons
       uint32_t w_id = std::stoi(col_values[0]);
       //uint32_t d_id = std::stoi(col_values[1]);
 
-       std::cerr << "w_id: " << w_id << std::endl;
+       //std::cerr << "w_id: " << w_id << std::endl;
       //  std::cerr << "w_id: " << w_id << ". d_id: " << d_id << std::endl;
       // return (((w_id - 1) * 10) + (d_id - 1)) % nshards; //TODO: Seems unecessary to put different districts from the same warehouse on different shards? (Will only increase number of cross shard TXs)
-      return w_id % nshards; //TODO: Remove d_id computation.
+      return (w_id-1) % nshards; //TODO: Remove d_id computation.
     }
     case 'h':  // HISTORY           
     //TODO: FIXME: History has no primary key so we cannot hope to process a key.
    
           //TODO: Either include w_id as part of history primary key. Or allow partitioner function to be called directly on RowUpdate (col_values) and consider Owned only if this shard has that w_id.
     {
-       //w_id d_id are fourth and fifth entries of the row
       uint32_t w_id = std::stoi(col_values[3]);
-      //uint32_t d_id = std::stoi(col_values[4]);
+      //uint32_t d_id = std::stoi(col_values[2]);
        
       //return (((w_id - 1) * 10) + (d_id - 1)) % nshards;
-       return w_id % nshards; //TODO: Remove d_id computation.
+       return (w_id-1) % nshards; //TODO: Remove d_id computation.
     }
     default:
       {

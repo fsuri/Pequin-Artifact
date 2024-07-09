@@ -118,7 +118,8 @@ void test_insert(){
   std::cerr << write_statement << std::endl;
 
   uint64_t dummy_target_table;
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
+  bool skip_query_interpretation = false;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table, skip_query_interpretation);
 
 
   query_result::QueryResult *res = new sql::QueryResultProtoWrapper("");
@@ -176,7 +177,8 @@ void test_update(){
   std::cerr << write_statement << std::endl;
 
   uint64_t dummy_target_table;
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
+  bool skip_query_interpretation = false;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table, skip_query_interpretation);
 
 
   // std::vector<std::string> result_row;
@@ -262,8 +264,8 @@ void test_delete(){
 
   std::cerr << write_statement << std::endl;
 
-  
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
+  bool skip_query_interpretation = false;
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table, skip_query_interpretation);
 
 
   // std::vector<std::string> result_row;
@@ -324,7 +326,7 @@ void test_delete(){
  
   std::cerr << write_statement << std::endl;
 
-  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table);
+  sql_interpreter.TransformWriteStatement(write_statement, read_statement, write_continuation, wcb, dummy_target_table, skip_query_interpretation);
 
   std::cerr << "Read Statement: " << read_statement << std::endl;
 

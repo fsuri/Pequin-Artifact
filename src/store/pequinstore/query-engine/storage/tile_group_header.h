@@ -135,6 +135,7 @@ public:
         next_tuple_slot.fetch_add(1, std::memory_order_relaxed);
 
     if (tuple_slot_id >= num_tuple_slots) {
+      std::cerr << "Tile group overflow" << std::endl;
       return INVALID_OID;
     } else {
       return tuple_slot_id;
@@ -358,6 +359,14 @@ public:
   // Get a string representation for debugging
   const std::string GetInfo() const;
 
+  // number of tuple slots allocated
+  oid_t num_tuple_slots;
+
+  // next free tuple slot
+  // WARNING: this variable may not be the right boundary of the tile
+  // IT MAY OUT OF BOUNDARY! ALWAYS CHECK IF IT EXCEEDS num_tuple_slots
+  std::atomic<oid_t> next_tuple_slot;
+
 private:
   //===--------------------------------------------------------------------===//
   // Data members
@@ -370,14 +379,6 @@ private:
   TileGroup *tile_group;
 
   std::unique_ptr<TupleHeader[]> tuple_headers_;
-
-  // number of tuple slots allocated
-  oid_t num_tuple_slots;
-
-  // next free tuple slot
-  // WARNING: this variable may not be the right boundary of the tile
-  // IT MAY OUT OF BOUNDARY! ALWAYS CHECK IF IT EXCEEDS num_tuple_slots
-  std::atomic<oid_t> next_tuple_slot;
 
   common::synchronization::SpinLatch tile_header_lock;
 

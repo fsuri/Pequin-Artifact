@@ -96,7 +96,9 @@ struct asyncVerification{
   asyncVerification(uint32_t _quorumSize, mainThreadCallback mcb, int groupTotals,
     proto::CommitDecision _decision, Transport* tp) :  quorumSize(_quorumSize),
     mcb(mcb), groupTotals(groupTotals), decision(_decision),
-    terminate(false), callback(true), tp(tp) { }
+    terminate(false), callback(true), tp(tp) { 
+        groupCounts.empty();
+    }
   ~asyncVerification() { deleteMessages();}
 
   std::mutex objMutex;
@@ -455,10 +457,13 @@ struct QueryReadSetMgr {
         }
 
         void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
+            UW_ASSERT(tx_ts.timestamp() > 0); //should never add genesis
+
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
             add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
             Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            add_dep->mutable_write()->clear_prepared_timestamp();
             //Note: Send merged TS.
             if(useOptimisticId){
                 //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
@@ -469,10 +474,13 @@ struct QueryReadSetMgr {
         }
 
         void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
+            UW_ASSERT(tx_ts.getTimestamp() > 0); //should never add genesis
+
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
             add_dep->mutable_write()->set_prepared_txn_digest(tx_id);
             Debug("Adding Dep: %s", BytesToHex(tx_id, 16).c_str());
+            add_dep->mutable_write()->clear_prepared_timestamp();
             //Note: Send merged TS.
             if(useOptimisticId){
                 //MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()
@@ -651,6 +659,8 @@ public:
   void SealMergedSnapshot();
   void OpenMergedSnapshot(proto::MergedSnapshot *merged_ss);
 
+  inline bool IsMergeComplete() { return merge_complete;}
+
 private:
     const QueryParameters *query_params;
     //TODO: Alternatively deifine and pass only the params we want (then QueryParam definition can move below SnapshotManager)
@@ -668,6 +678,7 @@ private:
     proto::LocalSnapshot *local_ss; //For replica to client   //TODO: Needs to have a field for compressed values.
 
     proto::MergedSnapshot *merged_ss; //For client to replica
+    bool merge_complete;
     
     uint64_t numSnapshotReplies;
     std::unordered_map<std::string, std::set<uint64_t>> txn_freq; //replicas that have txn committed.

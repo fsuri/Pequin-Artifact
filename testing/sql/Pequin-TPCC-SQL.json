@@ -10,22 +10,27 @@
   ],
   "replication_protocol": ["pequin"],
   "client_protocol_mode": ["pequin"],
-  "num_shards": [1],
-  "num_groups": [1],
+  "num_shards": [3],
+  "num_groups": [3],
   
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-   "_NOTE: Set this to 13 if using 1 warehouse + ASAN. 60 if ASAN true":false,
-   "server_load_time": 15,
-   "_server_load_time": 52,
-  
+   "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
+   "_server_load_time": 24,
+   "_server_load_time": 16,
+   "server_load_time": 22,
+   "_server_load_time": 24,
+   "_server_load_time": 28,
+   "_server_load_time": 46,
+   "_server_load_time": 96,
+ 
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 5,
+	  "tpcc_num_warehouses": 20,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -91,12 +96,12 @@
 		  "mainThreadDispatching": true,
 		  "dispatchMessageReceive": false,
 		  "parallel_reads": true,     
-		  "parallel_CCC": true,
+		  "parallel_CCC": false,
 		  "dispatchCallbacks": true,
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": true,
+		  "no_fallback": false,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -108,7 +113,7 @@
 	  
 	  
 	 "_QUERY_ARGS_": 0,
-	
+
 		  "query_sync_quorum": "query-majority-honest",
 		  "query_messages": "query-quorum",
 		  "query_merge_threshold": "query-one-honest",
@@ -121,14 +126,14 @@
 		  "eager_plus_snapshot": true,
 		   
 		  "query_read_prepared": true,
-		  "query_cache_read_set": true,
+		  "query_cache_read_set": false,
 		  "query_merge_active_at_client": true,
 		  
 		  "query_optimistic_txid": true,
 		  "query_compress_optimistic_txid": false,
 		  
 		  "use_semantic_cc": true,
-		  "monotonicity_grace": 100,
+		  "monotonicity_grace": 5,
 		  "use_active_read_set": true,
 		  
 		  "sign_client_queries": false,
@@ -140,8 +145,10 @@
   "experiment_name": "pequin",
   "codebase_name": "indicus",
 
+  "_client total is the upper bound on total client processes": 0,
+  "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [30]
+    [100]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -154,24 +161,69 @@
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "_client_debug_output": false,
-  "client_debug_output": "store/pequinstore/*",
+  "client_debug_output": false,
+  "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/concurrencycontrol*",
+  "_server_debug_output": "store/pequinstore/query-engine/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
-  "client_experiment_length": 23,
-  "client_ramp_down": 7,
+  
+  "client_experiment_length": 20,
+  "client_ramp_down": 5,
   "client_ramp_up": 5,
+  
   "default_remote_shell": "bash",
+  
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  
   "project_name": "pequin-pg0",
+  
   "fault_tolerance": 1,
-  "server_names": [
+  
+  "_server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
+	
+  ],
+
+  "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+    }
+  ],
+  
+   "_server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2"] 
+	
+  ],
+  
+   "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
+      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
+        "ap-northeast-1-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"]
+    }
+  ],
+
+  
+  "server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "eu-central-1-0", "eu-central-1-1", "eu-central-1-2", "ap-southeast-2-0",
+    "ap-southeast-2-1", "ap-southeast-2-2"] 
 	
   ],
 
@@ -179,7 +231,12 @@
    
     {
       "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
+      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
+        "ap-northeast-1-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"],
+"eu-central-1": ["eu-central-1-0", "eu-central-1-1", "eu-central-1-2"],
+      "ap-southeast-2": ["ap-southeast-2-0", "ap-southeast-2-1", "ap-southeast-2-2"]
     }
   ],
 
@@ -235,6 +292,8 @@
     }
   },
   "server_emulate_wan": false,
+  
+  
   "plots": [
     {
       "name": "lat-tput",

@@ -58,6 +58,7 @@ static std::string from_hook(" FROM ");
 static std::string where_hook(" WHERE ");
 static std::string order_hook(" ORDER BY");
 static std::string group_hook(" GROUP BY");
+static std::string limit_hook(" LIMIT ");
 static std::string join_hook("JOIN");
 
 //Insert
@@ -178,7 +179,8 @@ class SQLTransformer {
             txn = _txn;
         }
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
-             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool skip_query_interpretation = false);
+             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, 
+            bool &skip_query_interpretation, bool check_duplicate = false);
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
         bool IsPoint(const std::string &_query, const std::string &table_name, bool relax = false) const; //Use this if we don't need the p_col_values.
@@ -208,11 +210,15 @@ class SQLTransformer {
         TableRegistry_t TableRegistry;
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 
-            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group);
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write = false);
+            void TransformInsertOLD(size_t pos, std::string_view &write_statement, 
+                std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, 
+                bool check_duplicate = false, bool skip_query_interpretation = false);
+       
         void TransformUpdate(size_t pos, std::string_view &write_statement, 
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb);
         void TransformDelete(size_t pos, std::string_view &write_statement, 
-            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool skip_query_interpretation = false);
+            std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool &skip_query_interpretation);
 
         //Helper Functions
         typedef struct Col_Update {

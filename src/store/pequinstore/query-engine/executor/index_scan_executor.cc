@@ -153,7 +153,7 @@ bool IndexScanExecutor::DExecute() {
   if (!done_) {
     //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
     if(is_metadata_table_){
-      Notice("Doing a META DATA secondary index scan for %s", table_->GetName().c_str());
+      Debug("Doing a META DATA secondary index scan for %s", table_->GetName().c_str());
       //auto status = ExecSecondaryIndexLookup_OLD();
 
       // struct timespec ts_start;
@@ -419,6 +419,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   auto current_txn = executor_context_->GetTransaction();
 
+  //if(current_txn->is_limit) Notice("Starting Scan");
+
   //////////////// Get TableVersion and TableColVersions    //These should be taken before the index lookup //
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
@@ -599,17 +601,24 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
     std::vector<std::string> primary_key_cols;
     for (auto const &col_idx : current_txn->GetTableRegistry()->at(table_->GetName()).primary_col_idx) {
     //for (auto const &col_idx : primary_index_columns_) { //These are not the right primary key cols. They may be secondary index cols...
+      try{
       auto const &val = row.GetValue(col_idx);
+     
       UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL); //FIXME: We need to get a non-decimal encoding. Results like 1.3e+12 are not useable by us. (or client needs to do this as well)
       primary_key_cols.push_back(val.ToString());
       Debug("Read set. Primary col %d has value: %s", col_idx, val.ToString().c_str());
       //std::cerr << "primary col: " << col_idx << std::endl;
+       }
+      catch(...){Panic("Fail in Read");}
     }
 
 
     const Timestamp &time = tile_group_header->GetBasilTimestamp(tuple_location.offset);
     std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
     Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+
+    //if(current_txn->is_limit) Notice("Next key that is read for limit txn: %s", encoded.c_str());
+
     query_read_set_mgr->AddToReadSet(std::move(encoded), time);
 
     //If prepared: Additionally set Dependency
@@ -640,17 +649,23 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     Debug("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
+    tile_group_header->GetSpinLatch(tuple_location.offset).Lock();
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
 
     if (head == nullptr) {
-      // std::cerr << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
+      std::cerr << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
+      Warning("head of linked list is null");
+      return;
     }
 
-    auto head_tile_group_header = storage_manager->GetTileGroup(head->block)->GetHeader();
+    auto head_tile_group = storage_manager->GetTileGroup(head->block);
+    auto head_tile_group_header = head_tile_group.get()->GetHeader();
 
     auto tuple_timestamp = head_tile_group_header->GetBasilTimestamp(head->offset);
     tuple_location = *head;
     tile_group_header = head_tile_group_header;
+
+    tile_group_header->GetSpinLatch(tuple_location.offset).Unlock();
     // auto curr_tuple_id = location.offset;
 
     //std::cerr << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;
@@ -1075,6 +1090,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
   if(current_txn->IsPointRead()) RefinePointRead(current_txn, tile_group_header, tuple_location, eval);
   
 
+  //UW_ASSERT(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet);
   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
   if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
   //if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
@@ -1217,6 +1233,8 @@ void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_
    //bool is_metadata_table_ = table_->GetName().substr(0,3) == "pg_"; //don't do any of the Pequin features for meta data tables..
    //UW_ASSERT(!is_metadata_table_);
   if(is_metadata_table_) return;
+
+  UW_ASSERT(!tile_group_header->GetMaterialize(tuple_location.offset)); // not force mat
 
   Debug("Manage Snapshot. Add TS [%lu:%lu]", write_timestamp.getTimestamp(), write_timestamp.getID());
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
@@ -2001,6 +2019,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
    auto current_txn = executor_context_->GetTransaction();
 
+   //if(current_txn->is_limit) Notice("Starting Scan (Secondary)");
+
   //////////////// Get TableVersion and TableColVersions    //These should be taken before the index lookup //   //TODO: Confirm that this works the same way for secondary index
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
@@ -2042,7 +2062,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
   if (tuple_location_ptrs.size() == 0) {
     LOG_TRACE("no tuple is retrieved from index.");
-    std::cerr << " Found no matching rows in table: " << table_->GetName() << std::endl;
+    Warning(" Found no matching rows in table: %s", table_->GetName().c_str());
     return false;
   }
 
