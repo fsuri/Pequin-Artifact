@@ -239,7 +239,8 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const
         }
         try_commit_callback tccb = pendingTryCommit->tccb;
         pendingTryCommits.erase(reqId);
-                tccb(REPLY_FAIL);
+        tccb(REPLY_FAIL);
+        return;
       }
     }
     // Shir: clean code duplications...

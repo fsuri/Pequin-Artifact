@@ -22,7 +22,7 @@
     "async_server": "true",
 
      "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-     "server_load_time": 16,
+     "server_load_time": 60,
      "_server_load_time": 22,
      "_server_load_time": 28,
      "_server_load_time": 46,
@@ -31,7 +31,7 @@
     "_TPCC_SQL_ARGS_" :0,
           "_note: parititoner is unused currently": 0,
         "partitioner": "warehouse",
-        "tpcc_num_warehouses": 1,
+        "tpcc_num_warehouses": 10,
         
         "tpcc_stock_level_ratio": 4,
         "tpcc_delivery_ratio": 4,
@@ -68,9 +68,9 @@
         "signature_type": 4,
         "sig_batch": 2,
         "sig_batch_timeout": 4,
-        "ebatch_size": 1,
+        "ebatch_size": 2,
         "ebatch_tout": 4,
-        "dummy_tout":1,
+        "dummy_tout":5,
         "multi_threading": true,
       "mainThreadDispatching": false,
       "dispatchMessageReceive": false,
@@ -84,7 +84,7 @@
     "codebase_name": "indicus",
   
     "client_total": [
-      [10]
+      [20]
     ],
     "client_processes_per_client_node": [
       [8]
@@ -95,7 +95,7 @@
   
     "client_nodes_per_server": 2,
     "_NOTE: Pin again since now we don't use Peloton threads":0,
-    "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+    "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
     "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
     "_client_debug_output": false,
     "client_debug_output": "store/hotstuffpgstore/*",
