@@ -88,7 +88,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   // (1) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);
   client.Query(statement, queryResult, timeout);
-  UW_ASSERT(!queryResult->empty());
 
   WarehouseRow w_row;
   deserialize(w_row, queryResult);

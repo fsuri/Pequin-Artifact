@@ -63,7 +63,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
       *result = currTxn->Execute(client);
     }
     catch(...) {
-      std::cerr <<"catch abort" << std::endl;
+      Notice("catch abort");
       *result = ABORTED_SYSTEM; //ABORTED_USER;
     }
     //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
@@ -95,11 +95,10 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
         backoff = std::uniform_int_distribution<uint64_t>(upper >> 1, upper)(GetRand());
         stats.Increment(GetLastOp() + "_backoff", backoff);
         Debug("Backing off for %lums", backoff);
-        std::cerr<<"Shir:  Backing off for "<<backoff<<"ms\n";
       }
       Notice("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
       std::this_thread::sleep_for(std::chrono::milliseconds(backoff));
-      std::cerr << "Woke up, continue!" << std::endl;
+      //std::cerr << "Woke up, continue!" << std::endl;
     }
   }
   Debug("Transaction finished with result %d.", *result);

@@ -28,9 +28,6 @@
 #include <fmt/core.h>
 #include "store/common/query_result/query_result.h"
 #include "rw-sql_transaction.h"
-#include "lib/cereal/archives/binary.hpp"
-#include "lib/cereal/types/string.hpp"
-
 
 namespace rwsql {
 
@@ -80,40 +77,26 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   past_ranges.clear();
   statements.clear();
 
-  // std::cerr << "Shir  33 + liveops= " << liveOps<< std::endl;
-
-
   Debug("Start next Transaction");
-  //std::cerr << "Exec next TX" << std::endl;
 
   client.Begin(timeout);
 
   //Execute #liveOps queries
   for(int i=0; i < liveOps; ++i){
-    // std::cerr << "LiveOp: " << i << std::endl;
-    // std::cerr << "starts size: " << starts.size() << std::endl;
     Debug("LiveOp: %d",i);
     Debug("starts size: %d",starts.size());
     //UW_ASSERT(liveOps <= (querySelector->numKeys)); //there should never be more ops than keys; those should've been cancelled. FIXME: new splits might only be cancelled later.
-
-    // std::cerr << "Shir  44" << std::endl;
-
 
     string table_name = "t" + std::to_string(tables[i]);
     int left_bound = starts[i]; 
     int right_bound = ends[i];  //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
     UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
 
-    // std::cerr << "Shir  55" << std::endl;
-
     if(DISABLE_WRAP_AROUND && right_bound < left_bound){
       Debug("DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0");
       left_bound = 0;
       //continue;
     }
-
-    // std::cerr << "Shir  66" << std::endl;
-
 
     if(AVOID_DUPLICATE_READS){
       //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
@@ -135,8 +118,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   }
 
   GetResults(client);
-  Debug("Shir: got results");
- 
 
     // client.Abort(timeout);
     // return ABORTED_USER;
@@ -144,9 +125,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
 
   transaction_status_t commitRes = client.Commit(timeout);
-
-
-
 
   Debug("TXN COMMIT STATUS: %d",commitRes);
 
@@ -156,15 +134,8 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   return commitRes;
 }
 
-auto seq=0;
+
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
-  // // if (seq==0){
-  // //   seq++;
-    // return  fmt::format("UPDATE {0} SET value = value + 1 WHERE key = 1;", table_name);
-  // // }else{
-  // //   seq++;
-  return fmt::format("SELECT * FROM {0};", table_name);
-  // // }
 
   if(readOnly){
     if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("SELECT * FROM {0} WHERE key = {1};", table_name, left_bound);
@@ -238,7 +209,7 @@ void RWSQLTransaction::GetResults(SyncClient &client){
     for(auto &queryResult: results){
 
 
-      // if(!readOnly) UW_ASSERT(queryResult->rows_affected());
+      if(!readOnly) UW_ASSERT(queryResult->rows_affected());
       // std::cerr << "Num rows affected: " << queryResult->rows_affected() << std::endl;
       Debug("Num rows affected: %d",queryResult->rows_affected() );
     }

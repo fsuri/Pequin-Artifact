@@ -83,7 +83,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -346,14 +346,6 @@ class IndicusCodebase(ExperimentCodebase):
             remote_exp_directory):
         name, ext = os.path.splitext(config['network_config_file_name'])
 
-
-        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
-        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
-        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
-        print(config['local_config'])
-        
-
-
         if  'run_locally' in config and config['run_locally']:
             path_to_server_bin = os.path.join(config['src_directory'],
                     config['bin_directory_name'], config['server_bin_name'])
@@ -427,7 +419,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:

@@ -522,17 +522,6 @@ void HotStuffBase::do_decide(Finality &&fin) {
     part_decided++;
     state_machine_execute(fin);
 
-
-
-    // struct timeval tv;
-    // gettimeofday(&tv, nullptr);
-    // struct tm *tm = localtime(&tv.tv_sec);
-    // fprintf(stderr,
-    //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: in do decide for cmd_idx, cmd_height: %d ,%d \n",
-    //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
-    //     tm->tm_hour, tm->tm_min, tm->tm_sec,
-    //     (int)(tv.tv_usec / 100), getpid(),fin.cmd_idx, fin.cmd_height);
-
     auto it = decision_waiting.find(fin.cmd_hash);
     if (it != decision_waiting.end())
     {
@@ -550,7 +539,7 @@ HotStuffBase::~HotStuffBase() {}
 void HotStuffBase::start(
         std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
-    std::cout << "HSBase started" << std::endl;
+   
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = std::get<0>(replicas[i]);
@@ -560,14 +549,9 @@ void HotStuffBase::start(
         HotStuffCore::add_replica(i, peer, std::move(std::get<1>(replicas[i])));
         if (addr != listen_addr)
         {
-            std::cerr << "Shir: adding peers" << std::endl;
             peers.push_back(peer);
             pn.add_peer(peer);
-            std::cerr << "Shir: setting addr for peers" << std::string(addr).c_str() << std::endl;
-
             pn.set_peer_addr(peer, addr);
-            std::cerr << "Shir: connecting peers" << std::endl;
-
             pn.conn_peer(peer);
         }
     }
@@ -665,16 +649,6 @@ void HotStuffBase::start(
     exec_pending.reg_handler(ec, [this](exec_queue_t &q) {
         std::pair<commit_cb_t, Finality> e;
 
-        // struct timeval tv;
-        // gettimeofday(&tv, nullptr);
-        // struct tm *tm = localtime(&tv.tv_sec);
-        // fprintf(stderr,
-        //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: new in exec_pending\n",
-        //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
-        //     tm->tm_hour, tm->tm_min, tm->tm_sec,
-        //     (int)(tv.tv_usec / 100), getpid());
-
-
         while (q.try_dequeue(e))
         {
             // execute the command
@@ -696,33 +670,19 @@ void HotStuffBase::start(
                 // command has been committed
                 auto seqinfo = decision_made[cmd_hash];
 
-
-                // struct timeval tv;
-                // gettimeofday(&tv, nullptr);
-                // struct tm *tm = localtime(&tv.tv_sec);
-                // fprintf(stderr,
-                //     "%04d%02d%02d-%02d%02d%02d-%04d %05d      Shir: new in committed txn index, height: %d, %d\n",
-                //     1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
-                //     tm->tm_hour, tm->tm_min, tm->tm_sec,
-                //     (int)(tv.tv_usec / 100), getpid(), seqinfo.first, seqinfo.second);
-
-                    
                 //e.second(Finality(id, 0, 0, height, cmd_hash, uint256_t()));
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, seqinfo.first, seqinfo.second, cmd_hash, uint256_t())));
                 continue;
             }
 
-            
             auto it = decision_waiting.find(cmd_hash);
 
             if (it == decision_waiting.end())
             {
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
-
             }
             else
                 //e.second(Finality(id, 0, 0, 0, cmd_hash, uint256_t()));
-            
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
                 
             if (proposer != get_id()) continue;

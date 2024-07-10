@@ -266,30 +266,19 @@ static bool ValidateReadMessages(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas"
-    " to send messages for reads (for Indicus)");
+DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas to send messages for reads (for Indicus)");
 DEFINE_validator(indicus_read_messages, &ValidateReadMessages);
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as" // Changed for testing of hotstuffpg
-    " necessary to prevent impersonation (for Indicus)");
-DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
-    " necessary to check Byzantine behavior (for Indicus)");
-DEFINE_bool(indicus_hash_digest, false, "use hash function compute transaction"
-    " digest (for Indicus)");
-DEFINE_bool(indicus_verify_deps, true, "check signatures of transaction"
-    " depdendencies (for Indicus)");
-DEFINE_uint64(indicus_sig_batch, 2, "signature batch size"
-    " sig batch size (for Indicus)");
-DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree"
-    " of batch (for Indicus)");
-DEFINE_string(indicus_key_path, "", "path to directory containing public and"
-    " private keys (for Indicus)");
-DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
-    " allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
-DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
-    " key type (for Indicus)");
+DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as necessary to prevent impersonation (for Indicus)");
+DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as necessary to check Byzantine behavior (for Indicus)");
+DEFINE_bool(indicus_hash_digest, false, "use hash function compute transaction digest (for Indicus)");
+DEFINE_bool(indicus_verify_deps, true, "check signatures of transaction depdendencies (for Indicus)");
+DEFINE_uint64(indicus_sig_batch, 2, "signature batch size sig batch size (for Indicus)");
+DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree of batch (for Indicus)");
+DEFINE_string(indicus_key_path, "", "path to directory containing public and private keys (for Indicus)");
+DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
+DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings) key type (for Indicus)");
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
-    " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
+DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 //Client failure configurations    
 DEFINE_uint64(indicus_inject_failure_ms, 0, "number of milliseconds to wait"
@@ -740,8 +729,8 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
  */
 // Shir: this should match the flags in server.cc
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 3, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
 DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
 
 
@@ -861,12 +850,11 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numBenchs; ++i) {
     if (FLAGS_benchmark == benchmark_args[i]) {
       benchMode = benchmodes[i];
-      std::cout << benchMode << std::endl;
       break;
     }
   }
   if (benchMode == BENCH_UNKNOWN) {
-    std::cerr << "Unknown benchmark." << std::endl;
+    Warning("Unknown benchmark.");
     return 1;
   }
 

@@ -4,6 +4,7 @@ if [ -z "$1" ]
   then
     echo "No argument supplied. Please add your CloudLab username as argument."
 fi
+
 CL_USERNAME=$1
 
 TARGET_DIR="/users/${CL_USERNAME}/config/"
@@ -15,7 +16,7 @@ echo '#define REMOTE_CONFIG_DIR "'$TARGET_DIR'"' > ../store/hotstuffstore/libhot
 
 
 
-cat ./hosts_pg_smr | while read machine
+cat ./hosts | while read machine
 do
     echo "#### send config to machine ${machine}"
     #scp  -r config ${CL_USERNAME}@${machine}.indicus.morty-pg0.utah.cloudlab.us:/users/${CL_USERNAME}/
