@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "indicus_interface.h"
 #include "hotstuff_app.cpp"
 
@@ -8,20 +10,54 @@ namespace hotstuff {
 namespace hotstuffstore {
 
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        // std::cout << "############# Shir: HotStuff Interface #############" << std::endl;
+        // std::cerr << "############# Shir: Digest proposed:   "<<hash<<" #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
+        // std::cout << "############# HotStuff Interface Proposed #############" << std::endl;
     }
 
-    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
-        shardId(shardId), replicaId(replicaId), cpuId(cpuId)
+    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config):
+        shardId(shardId), replicaId(replicaId), cpuId(cpuId), local_config(local_config)
     {
+
+        // if (local_config){
+        // std::cerr << "Shir: using local config (hotstuffstore)\n";
+        // } else{
+        // std::cerr << "Shir: using remote config (hotstuffstore)\n";
+        // }
+
+        // std::cerr<<"Shir: did it get here1?\n";
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
-        string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
+        string config_dir_base = REMOTE_CONFIG_DIR;
+        // std::cerr<<"Shir: did it get here? local config:   "<< local_config<<"\n";
 
-        string config_file = config_dir + "hotstuff.gen.conf";
+        if (local_config){
+            // std::cerr << "Shir: using local config (hotstuffstore)\n";
+            auto curr_path=std::filesystem::current_path();
+            auto target_dir="src";
+            while (!curr_path.empty()) {
+                // Check if the current path contains the "target_dir" directory
+                if (std::filesystem::is_directory(curr_path / target_dir)) {
+                    break; // Found 'src', no need to continue searching
+                }
+                curr_path = curr_path.parent_path();
+            }
+            // std::cerr<<"Shir: did it get here aaa?\n";
+
+            config_dir_base=std::filesystem::path(curr_path / target_dir/"scripts/config/local_config/");
+        }
+
+        // std::cerr<<"Shir: did it get here 20?\n";
+        // std::cerr<<"Shir:  config_dir_base:      "<< config_dir_base<<"\n";
+
+
+        string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
+        // std::cerr<<"Shir:  config_dir:      "<< config_dir<<"\n";
+
         string key_file = config_dir + "hotstuff.gen-sec" + std::to_string(replicaId) + ".conf";
+        string config_file = config_dir + "hotstuff.gen.conf";
 
         char* argv[4];
         char arg1[200];
@@ -34,8 +70,9 @@ namespace hotstuffstore {
         argv[1] = arg1;
         argv[2] = "--conf";
         argv[3] = arg3;
+        // std::cerr<<"Shir: did it get here 30?\n";
 
-        std::cout << std::endl << "############## HotStuff Config: " << config_file << "   " << key_file << std::endl << std::endl;
+        std::cout << std::endl << "############## Shir: HotStuff Config (hotstuffstore): " << config_file << "   " << key_file << std::endl << std::endl;
 
         initialize(4, argv);
     }
@@ -43,6 +80,7 @@ namespace hotstuffstore {
     void IndicusInterface::initialize(int argc, char** argv) {
         Config config(argv[1]);
         //Config config("hotstuff.conf");
+        // std::cerr<<"Shir: did it get here2?    with config:    "<<   argv[1]<<"\n";
 
         ElapsedTime elapsed;
         elapsed.start();
@@ -114,7 +152,7 @@ namespace hotstuffstore {
             }
 
         if (!(0 <= idx && (size_t)idx < replicas.size())) {
-            std::cout << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
+            std::cerr << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
             throw HotStuffError("replica idx out of range");
         }
         std::string binding_addr = std::get<0>(replicas[idx]);
@@ -141,6 +179,7 @@ namespace hotstuffstore {
             std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;  //Note: It appears that the RR pacemaker performs better. 
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
         }
+        std::cerr << "HOTSTUFF BLOCK SIZE IS: "<<  opt_blk_size->get() << std::endl;  
 
         HotStuffApp::Net::Config repnet_config;
         ClientNetwork<opcode_t>::Config clinet_config;

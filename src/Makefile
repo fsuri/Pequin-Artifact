@@ -10,7 +10,7 @@ EXPAND = lib/tmpl/expand
 include Sanitizer.mk
 #CFLAGS := -g -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 -DNUW_ASSERT
 CFLAGS :=  -g -no-pie -Wall -pthread -iquote.obj/gen -Wno-uninitialized -O2 #-O3#-O1#-O2 
-CXXFLAGS := -g -no-pie -std=c++17 $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
+CXXFLAGS := -g -no-pie -std=c++2a $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread
 # -luv for HotStuff
 LDFLAGS := -levent_pthreads -lrt -luv $(SANITIZE_FLAG) #-fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls #-fsanitize=thread #
 
@@ -35,6 +35,8 @@ LIBSSL_CFLAGS := $(shell pkg-config --cflags openssl)
 LIBSSL_LDFLAGS := $(shell pkg-config --libs openssl)
 CFLAGS += $(LIBSSL_CFLAGS)
 LDFLAGS += $(LIBSSL_LDFLAGS)
+# fmt
+LDFLAGS += -lfmt
 # cryptopp
 LDFLAGS += -l:libcryptopp.a #why does lcryptopp not work? why the .a file here?
 # libsodium
@@ -199,6 +201,7 @@ include store/blackholestore/Rules.mk
 include store/indicusstore/Rules.mk
 include store/pbftstore/Rules.mk
 include store/hotstuffstore/Rules.mk
+include store/hotstuffpgstore/Rules.mk
 include store/augustusstore/Rules.mk
 include store/bftsmartstore/Rules.mk
 include store/bftsmartstore_augustus/Rules.mk

@@ -108,10 +108,9 @@ private:
 
   //For indexed threadpool
   std::atomic_uint64_t total_indexed_workers;
-  //typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  // typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
   typedef tbb::concurrent_unordered_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
   IndexWorkerMap indexed_worker_thread_request_list;
-
 };
 
 #endif  // _LIB_THREADPOOL_H_

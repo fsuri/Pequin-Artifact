@@ -1,0 +1,1 @@
+#define LOCAL_CONFIG_DIR "./scripts/config/"

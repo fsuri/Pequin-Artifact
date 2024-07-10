@@ -62,6 +62,9 @@
 // HotStuff
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
+// HotStuffPG
+#include "store/hotstuffpgstore/replica.h"
+#include "store/hotstuffpgstore/server.h"
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -98,6 +101,8 @@ enum protocol_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
+    // HotStuffPG
+    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // BftSmart
@@ -148,8 +153,9 @@ const std::string protocol_args[] = {
   "pequin",
   "indicus",
 	"pbft",
-  "hotstuff",
-  "augustus-hs", //not used currently by experiment scripts (deprecated)
+    "hotstuff",
+    "hotstuffpg",
+    "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
 	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
@@ -162,10 +168,12 @@ const protocol_t protos[] {
   PROTO_INDICUS,
   PROTO_PBFT,
   PROTO_HOTSTUFF,
+  PROTO_HOTSTUFF_PG,
   PROTO_AUGUSTUS,
   PROTO_BFTSMART,
   PROTO_AUGUSTUS_SMART,
   PROTO_PG
+
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -391,6 +399,9 @@ DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
+DEFINE_bool(async_server, false, "Determine if using a replica that does async server calls");
+DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
+
 const std::string occ_type_args[] = {
 	"tapir",
   "mvtso"
@@ -446,6 +457,8 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 
 DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 
+DEFINE_bool(local_config, true, "this flag determinse whether to use local or remote config directory");
+
 /**
  * Benchmark settings.
  */
@@ -454,7 +467,7 @@ DEFINE_uint64(num_keys, 1, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
 DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
 DEFINE_uint64(num_tables, 1, "number of tables to generate");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys to generate per table");
+DEFINE_uint64(num_keys_per_table, 3, "number of keys to generate per table");
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -532,7 +545,7 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
 
@@ -553,6 +566,7 @@ int main(int argc, char **argv) {
     default:
       NOT_REACHABLE();
   }
+  // Notice("Shir: debugging server 1\n");
 
   // parse protocol and mode
   partitioner_t partType = DEFAULT;
@@ -627,6 +641,7 @@ int main(int argc, char **argv) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
+  // Notice("Shir: debugging server 3\n");
 
 	crypto::KeyType keyType;
   switch (FLAGS_indicus_key_type) {
@@ -696,6 +711,10 @@ int main(int argc, char **argv) {
   num_cpus /= FLAGS_indicus_total_processes;
   int protocol_cpu;
 
+  // Notice("Shir: debugging server proto: \n");
+  // std::cerr <<  "Shir:  Proto enum number is:  " << proto <<"\n";
+
+
   switch(proto){
       case PROTO_TAPIR:
       case PROTO_WEAK:
@@ -719,6 +738,9 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
+          // Notice("Shir: debugging server 4\n");
+      case PROTO_HOTSTUFF_PG:
+          // Notice("Shir: debugging server 4 - proto hotstuff pg \n");
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -898,6 +920,33 @@ int main(int argc, char **argv) {
       break;
   }
 
+     // HotStuffPG
+  case PROTO_HOTSTUFF_PG: {
+      std::cerr << "Shir: check FLAGS_replica_idx:    "<<  FLAGS_replica_idx <<"\n";
+      if (FLAGS_local_config){
+        std::cerr << "Shir: using local config (server)\n";
+      } else{
+        std::cerr << "Shir: using remote config (server)\n";
+      }
+
+      server = new hotstuffpgstore::Server(config, &keyManager,
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+
+      std::cerr << "Shir: starting the replica \n";
+
+      replica = new hotstuffpgstore::Replica(config, &keyManager,
+                                       dynamic_cast<hotstuffpgstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server, FLAGS_hs_dummy_to);
+      std::cerr << "Shir: started!!! the replica \n";
+
+      break;
+  }
+
       // Augustus running on top of Hotstuff
   case PROTO_AUGUSTUS: {
       server = new augustusstore::Server(config, &keyManager,
@@ -1000,6 +1049,9 @@ int main(int argc, char **argv) {
 
   //RW, Retwis
   if (FLAGS_data_file_path.empty() && FLAGS_keys_path.empty()) {
+
+    Notice("Shir: debugging server 1111111111\n");
+
     Notice("Benchmark: RW, Retwis");
     /*if (FLAGS_num_keys > 0) {
       for (size_t i = 0; i < FLAGS_num_keys; ++i) {
@@ -1039,41 +1091,46 @@ int main(int argc, char **argv) {
   } 
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
-     UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
-     Notice("Benchmark: SQL with Loaded Table Registry");
-     std::ifstream generated_tables(FLAGS_data_file_path);
-       json tables_to_load;
-       try {
-          tables_to_load = json::parse(generated_tables);
-       }
-       catch (const std::exception &e) {
-         Panic("Failed to load Table JSON Schema");
-       }
+
+    UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
+    Notice("Benchmark: SQL with Loaded Table Registry");
+    std::cerr << FLAGS_data_file_path <<"   data file path \n";
+
+    std::ifstream generated_tables(FLAGS_data_file_path);
+    json tables_to_load;
+    try {
+      tables_to_load = json::parse(generated_tables);
+    }
+    catch (const std::exception &e) {
+      std::cerr<< e.what() << std::endl;
+      Panic("Failed to load Table JSON Schema");
+    }
        
-       //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
+    //Note: If RW-SQL, then currently already autogenerating a file further up. if(tables_to_load.empty()){ => Autogen. 
      
-        //Create all table schemas. 
-       for(auto &[table_name, table_args]: tables_to_load.items()){ 
-          //if(table_name != "item_purchase") continue;
-          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
-          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
-          //Create Table
-          server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
-          //Create Secondary Indices
-          for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
-            server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
-          }
-       }
-           //Create a Peloton cache...
-      if(proto == PROTO_PEQUIN){
-         for(auto &[table_name, table_args]: tables_to_load.items()){ 
-          //if(table_name != "item_purchase") continue;
-          const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
-          const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
-          //Create Table
-          server->CacheCatalog(table_name, column_names_and_types, primary_key_col_idx);   
-       }
+    //Create all table schemas. 
+    for(auto &[table_name, table_args]: tables_to_load.items()){ 
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+      const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+      //Create Table
+      server->CreateTable(table_name, column_names_and_types, primary_key_col_idx); 
+      //Create Secondary Indices
+
+      for(auto &[index_name, index_col_idx]: table_args["indexes"].items()){
+        server->CreateIndex(table_name, column_names_and_types, index_name, index_col_idx);
       }
+    }
+      
+    //Create a Peloton cache...
+    if(proto == PROTO_PEQUIN){
+      for(auto &[table_name, table_args]: tables_to_load.items()){ 
+        //if(table_name != "item_purchase") continue;
+        const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
+        const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
+        //Create Table
+        server->CacheCatalog(table_name, column_names_and_types, primary_key_col_idx);   
+      }
+    }
 
 
         //Load all table data -- NOTE: We do this only AFTER we have loaded all the schemas to avoid concurrency issues inside Peloton...
@@ -1097,8 +1154,8 @@ int main(int argc, char **argv) {
             }
             server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
 
-            continue;
-          }
+        continue;
+      }
 
           //If data path exists: Load full table data directly from CSV.
 
@@ -1112,8 +1169,17 @@ int main(int argc, char **argv) {
           //   server->LoadTableRow(table_name, column_names_and_types, row, primary_key_col_idx);
           // }
        }
+       Notice("Shir: done setting tables\n");
+      std::cerr<<"Shir: done setting tables\n";
+
+
   }
   else if (FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
+
+
+
+    Notice("Shir: debugging server 33333333333333\n");
+
     Notice("Benchmark: TPCC/Smallbank");
 
     std::ifstream in;
@@ -1146,6 +1212,8 @@ int main(int argc, char **argv) {
     // Debug("Stored %lu out of %lu key-value pairs from file %s.", stored,
     //     loaded, FLAGS_data_file_path.c_str());
   } else {
+    Notice("Shir: debugging server 444444444444\n");
+
     Notice("Benchmark: reading from keys");
     std::ifstream in;
     in.open(FLAGS_keys_path);
@@ -1169,7 +1237,21 @@ int main(int argc, char **argv) {
   std::signal(SIGINT, Cleanup);
 
   CALLGRIND_START_INSTRUMENTATION;
-	
+	//SET THREAD AFFINITY if running multi_threading:
+	//if(FLAGS_indicus_multi_threading){
+	if((proto == PROTO_INDICUS || proto == PROTO_PBFT || proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) && FLAGS_indicus_multi_threading){
+		cpu_set_t cpuset;
+		CPU_ZERO(&cpuset);
+		//bool hyperthreading = true;
+        int num_cpus = std::thread::hardware_concurrency();///(2-FLAGS_indicus_hyper_threading);
+		//CPU_SET(num_cpus-1, &cpuset); //last core is for main
+		num_cpus /= FLAGS_indicus_total_processes;
+        int offset = FLAGS_indicus_process_id * num_cpus;
+		//int offset = FLAGS_indicus_process_id;
+		CPU_SET(0 + offset, &cpuset); //first assigned core is for main
+		//pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+		Debug("MainThread running on CPU %d.", sched_getcpu());
+	}
 
 	//event_enable_debug_logging(EVENT_DBG_ALL);
 

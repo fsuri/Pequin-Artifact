@@ -203,7 +203,7 @@ void SyncClient::Write(std::string &statement, uint32_t timeout, bool async, boo
 
 void SyncClient::Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool cache_result) {
   Promise promise(timeout);
-  
+  // std::cerr<< "Shir: performing query transaction 11\n";
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, &promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,
@@ -290,10 +290,12 @@ void SyncClient::PutTimeoutCallback(Promise *promise, int status, const std::str
 }
 
 void SyncClient::CommitCallback(Promise *promise, transaction_status_t status) {
+  std::cerr<< "Shir: Commit callback\n";
   promise->Reply(status);
 }
 
 void SyncClient::CommitTimeoutCallback(Promise *promise) {
+  std::cerr<< "Shir: Commit Timeout callback\n";
   promise->Reply(REPLY_TIMEOUT);
 }
 

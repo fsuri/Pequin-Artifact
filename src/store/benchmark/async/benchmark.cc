@@ -76,6 +76,8 @@
 #include "store/pbftstore/client.h"
 // HotStuff
 #include "store/hotstuffstore/client.h"
+// HotStuffPostgres
+#include "store/hotstuffpgstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -115,6 +117,8 @@ enum protomode_t {
 	PROTO_PBFT,
   // HotStuff
   PROTO_HOTSTUFF,
+  // HotStuffPG
+  PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS,
   // Bftsmart
@@ -265,7 +269,7 @@ static bool ValidateReadMessages(const char* flagname,
 DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas"
     " to send messages for reads (for Indicus)");
 DEFINE_validator(indicus_read_messages, &ValidateReadMessages);
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as"
+DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as" // Changed for testing of hotstuffpg
     " necessary to prevent impersonation (for Indicus)");
 DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
     " necessary to check Byzantine behavior (for Indicus)");
@@ -311,6 +315,8 @@ DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart 
 DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC locking at server");
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
+
+DEFINE_bool(async_server, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
@@ -500,6 +506,8 @@ const std::string protocol_args[] = {
 	"pbft",
 // HotStuff
     "hotstuff",
+// HotStuff Postgres
+    "hotstuffpg",
 // Augustus-Hotstuff
     "augustus-hs",
 // BFTSmart
@@ -521,11 +529,13 @@ const protomode_t protomodes[] {
   //
   PROTO_PEQUIN,
   PROTO_INDICUS,
-      PROTO_PBFT,
+  PROTO_PBFT,
   // HotStuff
-      PROTO_HOTSTUFF,
+  PROTO_HOTSTUFF,
+  // HotStuff Postgres
+  PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
-      PROTO_AUGUSTUS,
+  PROTO_AUGUSTUS,
   // BFTSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
@@ -545,7 +555,7 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_LOCK,
   strongstore::Mode::MODE_SPAN_OCC,
   strongstore::Mode::MODE_SPAN_LOCK,
-  //
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
@@ -728,9 +738,10 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 /**
  * RW-sql additional settings.
  */
+// Shir: this should match the flags in server.cc
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(num_keys_per_table, 3, "number of keys per table for rw-sql");
+DEFINE_uint64(max_range, 10, "max amount of reads in a single scan for rw-sql");
 DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
 
 
@@ -850,6 +861,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numBenchs; ++i) {
     if (FLAGS_benchmark == benchmark_args[i]) {
       benchMode = benchmodes[i];
+      std::cout << benchMode << std::endl;
       break;
     }
   }
@@ -1404,6 +1416,7 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
+      case PROTO_HOTSTUFF_PG:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -1586,6 +1599,17 @@ int main(int argc, char **argv) {
                                        keyManager,
 																			 FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort,
 																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
+// HotStuff Postgres
+    case PROTO_HOTSTUFF_PG: {
+        client = new hotstuffpgstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_async_server);
         break;
     }
 

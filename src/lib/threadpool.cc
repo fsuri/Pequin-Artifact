@@ -424,7 +424,7 @@ void ThreadPool::dispatch_indexed(uint64_t id, std::function<void *()> f, std::f
 //Dispatch a job f to a worker thread of choice (with id), without any callback.
 void ThreadPool::detach_indexed(uint64_t id, std::function<void *()> f) {
   EventInfo *info = nullptr;
-
+  
   auto worker_id = id % total_indexed_workers;
 
   indexed_worker_thread_request_list[worker_id].enqueue(std::make_pair(std::move(f), info));

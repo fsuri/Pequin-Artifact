@@ -70,7 +70,7 @@ def kill_servers(config, executor, kill_args=' -9'):
     # Define n as the minimun number of replicas that is satisfies the fault tolerance
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -256,7 +256,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -321,6 +321,20 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 print("Waiting for the setup")
 
 
+            
+            ## set-up dbs for pg-smr
+            if config['replication_protocol'] == 'hotstuffpg':
+                print("Shir: setting up databases for postgres usage")
+                # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r;'
+                # # Creating a single db per machine
+                # cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1;'
+                # cmd = cmd7 + cmd8 + cmd
+
+                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -c;'
+                cmd = cmd7  +cmd
+
+
+
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
@@ -328,8 +342,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
             #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
-            cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
+            cmd6 = 'source /usr/local/etc/set_env.sh; export ASAN_OPTIONS=new_delete_type_mismatch=0;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
             cmd = cmd6 + cmd
+
+
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -337,6 +353,8 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             server_threads.append(subprocess.Popen(cmd, shell=True))
         time.sleep(0.1)
     time.sleep(1)
+
+
     return server_threads
 
 def start_master(config, local_exp_directory, remote_exp_directory, run):

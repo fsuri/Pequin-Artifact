@@ -83,7 +83,7 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -345,6 +345,15 @@ class IndicusCodebase(ExperimentCodebase):
     def get_replica_cmd(self, config, i, k, group, run, local_exp_directory,
             remote_exp_directory):
         name, ext = os.path.splitext(config['network_config_file_name'])
+
+
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print("Shir XOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOXOXOXOXOXOXXOXOX")
+        print(config['local_config'])
+        
+
+
         if  'run_locally' in config and config['run_locally']:
             path_to_server_bin = os.path.join(config['src_directory'],
                     config['bin_directory_name'], config['server_bin_name'])
@@ -366,7 +375,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
             n = 5 * config['fault_tolerance'] + 1
-        elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             n = 3 * config['fault_tolerance'] + 1
         else:
             n = 2 * config['fault_tolerance'] + 1
@@ -418,7 +427,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'pg':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
@@ -464,6 +473,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --pbft_esig_batch_timeout %d' % config['replication_protocol_settings']['ebatch_tout']
             if 'ebatch_size' in config['replication_protocol_settings']:
                 replica_command += ' --pbft_esig_batch %d' % config['replication_protocol_settings']['ebatch_size']
+            if 'dummy_tout' in config['replication_protocol_settings']:
+                replica_command += ' --hs_dummy_to %d' % config['replication_protocol_settings']['dummy_tout']
             if 'use_coord' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_use_coordinator=%s' % str(config['replication_protocol_settings']['use_coord']).lower()
             #Added multithreading and batch verification
@@ -583,8 +594,12 @@ class IndicusCodebase(ExperimentCodebase):
              replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         
         
-       
-           
+        if 'local_config' in config:
+            replica_command += ' --local_config=%s' % config['local_config']
+
+        if 'async_server' in config:
+            replica_command += ' --async_server=%s' % config['async_server']
+
 
 
         if 'partitioner' in config:
@@ -646,7 +661,7 @@ class IndicusCodebase(ExperimentCodebase):
         with open(config_file, 'w') as f:
             if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
                 n = 5 * config['fault_tolerance'] + 1
-            elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
                 n = 3 * config['fault_tolerance'] + 1
             else:
                 n = 2 * config['fault_tolerance'] + 1
@@ -671,7 +686,7 @@ class IndicusCodebase(ExperimentCodebase):
         return local_exp_directory
 
     def prepare_remote_server_codebase(self, config, host, local_exp_directory, remote_out_directory):
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff'  or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             run_remote_command_sync('sudo rm -rf /dev/shm/*', config['emulab_user'], host)
 
     def setup_nodes(self, config):

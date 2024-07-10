@@ -80,6 +80,8 @@ class HotStuffApp: public HotStuff {
     /** The listen address for client RPC */
     NetAddr clisten_addr;
 
+    std::set<uint256_t> hashed_digests;
+
     std::unordered_map<const uint256_t, promise_t> unconfirmed;
 
     using conn_t = ClientNetwork<opcode_t>::conn_t;
@@ -166,6 +168,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
     ec(ec),
     cn(req_ec, clinet_config),
     clisten_addr(clisten_addr) {
+
     /* prepare the thread used for sending back confirmations */
     resp_tcall = new salticidae::ThreadCall(resp_ec);
     req_tcall = new salticidae::ThreadCall(req_ec);
@@ -189,6 +192,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
 }
 
 void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn) {
+
     const NetAddr addr = conn->get_addr();
     auto cmd = parse_cmd(msg.serialized);
     const auto &cmd_hash = cmd->get_hash();
@@ -200,12 +204,19 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 
 
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
-
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
+
+
+    if (!this->hashed_digests.insert(cmd_hash).second){
+        std::cerr << "Panic:  duplicate hash per Hotstuff requests with hash "<<hash << std::endl;
+        abort;
+        exit(1);
+    }
+
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
-            // std::cout << "height: " << fin.cmd_height << ", idx: " << fin.cmd_idx << std::endl;
             assert(fin.cmd_height >= 1);
             uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
+            // std::cout << seqnum << std::endl;
             cb(hash, seqnum);
     });
 }
@@ -224,6 +235,7 @@ void HotStuffApp::start(const std::vector<std::tuple<NetAddr, bytearray_t, bytea
             get_pace_maker()->impeach();
         reset_imp_timer();
     });
+
     impeach_timer.add(impeach_timeout);
     HOTSTUFF_LOG_INFO("** starting the system with parameters **");
     HOTSTUFF_LOG_INFO("blk_size = %lu", blk_size);

@@ -26,6 +26,10 @@ message WriteMessage {
     optional bool is_table_col_version = 4; 
 }
 
+message QueryMessage {
+    required bytes query = 1;
+}
+
 message PingMessage {
   required uint64 salt = 1;
 }
