@@ -81,7 +81,8 @@ void test_snapshot_tx_id(){
                                   false,    //  FLAGS_pequin_parallel_queries
                                   false,    //  FLAGS_pequin_use_semantic_cc
                                   false,    // FLAGS_pequin_use_active_read_set
-                                  0UL       // FLAGS_pequin_monotonicity_grace
+                                  0UL,       // FLAGS_pequin_monotonicity_grace
+                                  0UL        // FLAGS_pequin_non_monotonicity_grace
                                   );
 
     proto::LocalSnapshot local_ss;
@@ -146,7 +147,8 @@ void test_snapshot_optimistic_tx_id(bool compress){
                                    false,    //  FLAGS_pequin_parallel_queries
                                   false,    //  FLAGS_pequin_use_semantic_cc
                                    false,    // FLAGS_pequin_use_active_read_set
-                                  0UL       // FLAGS_pequin_monotonicity_grace
+                                   0UL,       // FLAGS_pequin_monotonicity_grace
+                                  0UL        // FLAGS_pequin_non_monotonicity_grace
                                   );
     
     proto::LocalSnapshot local_ss;

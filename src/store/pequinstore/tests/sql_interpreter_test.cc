@@ -61,7 +61,8 @@ static QueryParameters query_params(true,
                                    false,    //  FLAGS_pequin_parallel_queries
                                   false,    //  FLAGS_pequin_use_semantic_cc
                                    false,    // FLAGS_pequin_use_active_read_set
-                                  0UL       // FLAGS_pequin_monotonicity_grace
+                                  0UL,       // FLAGS_pequin_monotonicity_grace
+                                  0UL        // FLAGS_pequin_non_monotonicity_grace
                                   );
 
 static DefaultSQLPartitioner dummy_part;

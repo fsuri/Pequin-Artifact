@@ -33,15 +33,15 @@
 
 namespace postgresstore {
 
-Client::Client(std::string connection_str, std::uint64_t id) : client_id(id), txn_id(0UL) {
+Client::Client(std::string connection_str, std::string experiment_name, std::uint64_t id) : client_id(id), txn_id(0UL) {
   Notice("Initializing PostgreSQL client with id [%lu]", client_id);
   //connection_str = "host=us-east-1-0.postgres-test.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
   //connection_str = "postgres://pequin_user:123@us-east-1-0.postgres-test.pequin-pg0.utah.cloudlab.us:5432/db1";
-  connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
-  //TODO: Parametrize this!!
-
-  //connection_str = "postgres://giridhn:123@us-east-1-0.postgres-test.pequin-pg0.utah.cloudlab.us:5432/db1";
   
+  //connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+  //TODO: Parameterize further
+  connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+ 
   Notice("Connection string: %s", connection_str.c_str());
   connection = tao::pq::connection::create(connection_str);
  

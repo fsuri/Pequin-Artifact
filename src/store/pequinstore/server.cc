@@ -152,7 +152,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   materialized.insert(mat, genesis_txn_dig);
   mat.release();
 
-  //Compute write_monotonicity_grac 
+  //Compute write_monotonicity_grace  //DEPRECATED 
   write_monotonicity_grace = timeServer.MStoTS(params.query_params.monotonicityGrace);
   Notice("write_monotonicity_grace: %d", write_monotonicity_grace);
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;

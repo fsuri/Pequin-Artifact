@@ -27,7 +27,7 @@ NUM_SHARDS=1
 PG_MODE=0
 
 
-while getopts u:e:b:s:f:c: option; do
+while getopts u:e:b:s:f:c:p: option; do
 case "${option}" in
 u) USER=${OPTARG};;
 e) EXP_NAME=${OPTARG};;
@@ -35,6 +35,7 @@ b) BENCHMARK_NAME=${OPTARG};;
 s) NUM_SHARDS=${OPTARG};;
 f) FIRST_TIME_CONNECTION=${OPTARG};;
 c) CLUSTER_NAME=${OPTARG};;
+p) PG_MODE=${OPTARG};;
 esac;
 done
 

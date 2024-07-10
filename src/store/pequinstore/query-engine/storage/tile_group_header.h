@@ -135,7 +135,7 @@ public:
         next_tuple_slot.fetch_add(1, std::memory_order_relaxed);
 
     if (tuple_slot_id >= num_tuple_slots) {
-      std::cerr << "Tile group overflow" << std::endl;
+      //std::cerr << "Tile group overflow" << std::endl;
       return INVALID_OID;
     } else {
       return tuple_slot_id;

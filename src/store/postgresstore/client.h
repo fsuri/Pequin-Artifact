@@ -37,7 +37,7 @@ namespace postgresstore {
 
 class Client : public ::Client {
  public:
-  Client(std::string connection_str, std::uint64_t id);
+  Client(std::string connection_str, std::string experiment_name, std::uint64_t id);
   virtual ~Client();
 
 // Begin a transaction.

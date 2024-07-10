@@ -303,6 +303,11 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             if config['replication_protocol'] == 'pg':
                 #print("66666666666666666666666666666666666666666666666666666666")
                 print("setting up databases for postgres usage")
+
+                #reset DB FIXME: For whatever reason just using -c is slower...
+                # cmd_pg = 'sudo /usr/local/etc/postgres_service_new.sh -c'
+                # run_remote_command_sync(cmd_pg, config['emulab_user'], server_host)
+
                 # Dropping old pg cluster (if exists)
                 cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
                 run_remote_command_sync(cmd7, config['emulab_user'], server_host)
@@ -315,7 +320,6 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 run_remote_command_sync(cmd12, config['emulab_user'], server_host)
                 print("Waiting for the setup")
 
-                #time.sleep(config['server_load_time'])
 
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '

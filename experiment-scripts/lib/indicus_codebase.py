@@ -199,6 +199,9 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'bftsmart':
             client_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
+        if config['replication_protocol'] == 'pg':
+            client_command += " --experiment_name=%s" % str(config['experiment_name'])
+
         if config['replication_protocol'] == 'morty':
             if 'send_writes' in config['replication_protocol_settings']:
                 client_command += ' --morty_send_writes=%s' % str(config['replication_protocol_settings']['send_writes']).lower()
@@ -523,6 +526,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += " --pequin_use_semantic_cc=%s" % str(config['replication_protocol_settings']['use_semantic_cc']).lower()
             if 'monotonicity_grace' in config['replication_protocol_settings']:
                 replica_command += " --pequin_monotonicity_grace %d" % config['replication_protocol_settings']['monotonicity_grace']
+            if 'non_monotonicity_grace' in config['replication_protocol_settings']:
+                replica_command += " --pequin_non_monotonicity_grace %d" % config['replication_protocol_settings']['non_monotonicity_grace']
             if 'use_active_read_set' in config['replication_protocol_settings']:
                 replica_command += " --pequin_use_active_read_set=%s" % str(config['replication_protocol_settings']['use_active_read_set']).lower()
             

@@ -99,7 +99,6 @@ static bool lazy_check = true; //TURN TO FALSE TO ENABLE RECHECK FOR MORE PRECIS
       //This is much easier to enforce if TableWrites only include deltas for the updated cols.
 
 
-static uint64_t second_grace = 20; //ms //TODO: parameterize
 static tbb::concurrent_unordered_set<std::string> non_monotonic_writes; //txn_digest of non-monotonic writes.
 
 //Enforce that we can ony issue monotonic writes
@@ -122,7 +121,7 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     // const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
     
     //NOTE: only comparing on the real time component currently.
-    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + second_grace <= timeServer.TStoMS(highTS.getTimestamp())) {
+    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
       Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
@@ -288,7 +287,7 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
 
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
         //if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;   //this math is wrong!
-    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace + second_grace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
+    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;

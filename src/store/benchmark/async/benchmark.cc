@@ -183,6 +183,8 @@ DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
 DEFINE_bool(ping_replicas, false, "determine latency to replicas via pings");
 
+DEFINE_string(experiment_name, "pequin", "Cloudlab experiment name");
+
 DEFINE_bool(tapir_sync_commit, true, "wait until commit phase completes before"
     " sending additional transactions (for TAPIR)");
 
@@ -1492,7 +1494,7 @@ int main(int argc, char **argv) {
                                                  false,   //FLAGS_pequin_parallel_queries);
                                                  FLAGS_pequin_use_semantic_cc,
                                                  FLAGS_pequin_use_active_read_set,
-                                                 0UL);
+                                                 0UL, 0UL); //monotonicity grace (first & second)
 
         pequinstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
@@ -1627,7 +1629,7 @@ int main(int argc, char **argv) {
     }
 
     case PROTO_POSTGRES: {
-      client = new postgresstore::Client(FLAGS_connection_str, clientId);
+      client = new postgresstore::Client(FLAGS_connection_str, FLAGS_experiment_name, clientId);
       break;
     }
 

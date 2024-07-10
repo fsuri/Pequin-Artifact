@@ -588,15 +588,16 @@ typedef struct QueryParameters {
     const bool useSemanticCC;
     const bool useActiveReadSet;
     const bool useColVersions;
-    const uint64_t monotonicityGrace;
+    const uint64_t monotonicityGrace;     //first grace: writes within are considered monotonic
+    const uint64_t non_monotonicityGrace; //second grace: writes within are not considered monotonic, but still accepted.
 
     QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
         bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
-        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace) : 
+        bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace, uint64_t non_monotonicityGrace) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
         eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
-        useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace) {
+        useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace), non_monotonicityGrace(non_monotonicityGrace) {
             //std::cerr << "eagerPlusSnapshot: " 
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
             if(useSemanticCC) UW_ASSERT(sql_mode);

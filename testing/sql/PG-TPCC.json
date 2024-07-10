@@ -85,7 +85,7 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 25,
+  "client_experiment_length": 20,
   "client_ramp_down": 5,
   "client_ramp_up": 5,
   
