@@ -19,6 +19,7 @@
 #include "../storage/database.h"
 #include "../storage/storage_manager.h"
 
+
 namespace peloton {
 namespace catalog {
 

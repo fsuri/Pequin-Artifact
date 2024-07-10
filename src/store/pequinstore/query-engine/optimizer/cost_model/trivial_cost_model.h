@@ -34,7 +34,8 @@ namespace optimizer {
 class Memo;
 class TrivialCostModel : public AbstractCostModel {
  public:
-  TrivialCostModel(){};
+  TrivialCostModel(){
+  };
 
   double CalculateCost(GroupExpression *gexpr, Memo *memo,
                        concurrency::TransactionContext *txn) override {

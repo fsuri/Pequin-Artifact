@@ -126,7 +126,9 @@ void PelotonTableStore::Init(int num_threads) {
   txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 
-  peloton::catalog::Catalog::GetInstance()->SetQueryParams(query_params);
+  peloton::catalog::Catalog::GetInstance()->SetQueryParams(query_params); //Bootstrap Catalog
+
+  peloton::optimizer::StatsStorage::GetInstance(); //Force early creation of pg_column_stats
 
 
   if (num_threads > 0) {
@@ -1259,8 +1261,8 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
  
   //Should not take more than 1 ms (already generous) to parse and prepare.
   auto duration = microseconds_end - microseconds_start;
-  if(duration > 1000){
-    Warning("ScanRead exceeded 1000us: %d us", duration); 
+  if(duration > 2000){
+    Warning("ScanRead exceeded 2000us: %d us", duration); 
   }
 
   Debug("Finish Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());

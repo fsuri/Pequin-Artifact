@@ -77,6 +77,9 @@ Catalog::Catalog() : pool_(new type::EphemeralPool()) {
 
   // Commit transaction
   txn_manager.CommitTransaction(txn);
+
+  Notice("Finished constructing Catalog object");
+
 }
 
 /*@brief   This function *MUST* be called after a new database is created to
@@ -88,12 +91,12 @@ Catalog::Catalog() : pool_(new type::EphemeralPool()) {
  */
 void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
                                       storage::Database *database) {
-  std::cerr << "Begin bootstrap system catalogs" << std::endl;
+  Notice("Begin bootstrap system catalogs");
   oid_t database_oid = database->GetOid();
   catalog_map_.emplace(database_oid,
                        std::shared_ptr<SystemCatalogs>(
                            new SystemCatalogs(txn, database, pool_.get())));
-  std::cerr << "Create new system catalogs" << std::endl;
+  Notice("Create new system catalogs");
   auto system_catalogs = catalog_map_[database_oid];
 
   // Create indexes on catalog tables, insert them into pg_index
@@ -202,11 +205,11 @@ void Catalog::BootstrapSystemCatalogs(concurrency::TransactionContext *txn,
 
   // Insert catalog tables into pg_table
   // pg_database record is shared across different databases
-  std::cerr << "Bootstrap first table catalog insert" << std::endl;
+  Notice("Bootstrap first table catalog insert");
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, CATALOG_DATABASE_OID, CATALOG_SCHEMA_NAME, DATABASE_CATALOG_OID,
       DATABASE_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
-  std::cerr << "Bootstrap second table catalog insert" << std::endl;
+  Notice("Bootstrap second table catalog insert");
   system_catalogs->GetTableCatalog()->InsertTable(
       txn, database_oid, CATALOG_SCHEMA_NAME, SCHEMA_CATALOG_OID,
       SCHEMA_CATALOG_NAME, ROW_STORE_LAYOUT_OID, pool_.get());
@@ -255,6 +258,8 @@ void Catalog::Bootstrap() {
       ->UpdateOid(OID_FOR_USER_OFFSET);
   LanguageCatalog::GetInstance().UpdateOid(OID_FOR_USER_OFFSET);
   ProcCatalog::GetInstance().UpdateOid(OID_FOR_USER_OFFSET);
+
+  Notice("Finished Bootstrapping Catalog");
 }
 
 //===----------------------------------------------------------------------===//
@@ -383,25 +388,26 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
                                 const std::string &table_name, bool is_catalog,
                                 uint32_t tuples_per_tilegroup,
                                 LayoutType layout_type) {
+
   if (txn == nullptr)
-    throw CatalogException("Do not have transaction to create table " +
-                           table_name);
+    throw CatalogException("Do not have transaction to create table " + table_name);
+
+  if(table_name == "pg_column_stats"){
+    Notice("db_name: %s. schema_name: %s", database_name.c_str(), schema_name.c_str());
+  }
 
   LOG_TRACE("Creating table %s in database %s", table_name.c_str(),
             database_name.c_str());
   // check whether database exists from pg_database
-  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)
-                             ->GetDatabaseCatalogEntry(txn, database_name);
+  auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_name);
   if (database_object == nullptr)
-    throw CatalogException("Can't find Database " + database_name +
-                           " to create table");
+    throw CatalogException("Can't find Database " + database_name + " to create table");
   // check whether namespace exists from pg_namespace
   auto schema_object = catalog_map_[database_object->GetDatabaseOid()]
                            ->GetSchemaCatalog()
                            ->GetSchemaCatalogEntry(txn, schema_name);
   if (schema_object == nullptr)
-    throw CatalogException("Can't find namespace " + schema_name +
-                           " to create table");
+    throw CatalogException("Can't find namespace " + schema_name + " to create table");
 
   // get table oid from pg_table
   auto table_object = database_object->GetTableCatalogEntry(table_name, schema_name);
@@ -425,12 +431,10 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
   }
 
   // Create actual table
-  auto pg_table =
-      catalog_map_[database_object->GetDatabaseOid()]->GetTableCatalog();
-  auto pg_attribute =
-      catalog_map_[database_object->GetDatabaseOid()]->GetColumnCatalog();
+  auto pg_table = catalog_map_[database_object->GetDatabaseOid()]->GetTableCatalog();
+  auto pg_attribute = catalog_map_[database_object->GetDatabaseOid()]->GetColumnCatalog();
   oid_t table_oid = pg_table->GetNextOid();
-  std::cerr << "Table " << table_name << " inserted with oid " << table_oid << std::endl;
+  Notice("Table: %s inserted with oid: %lu", table_name.c_str(), table_oid);
   bool own_schema = true;
   bool adapt_table = false;
   auto table = storage::TableFactory::GetDataTable(

@@ -19,11 +19,11 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "_server_load_time": 24,
+   "server_load_time": 24,
    "_server_load_time": 16,
    "_server_load_time": 22,
    "_server_load_time": 24,
-   "server_load_time": 28,
+   "_server_load_time": 28,
    "_server_load_time": 46,
    "_server_load_time": 96,
  
@@ -158,7 +158,7 @@
     [1]
   ],
 
-  "client_nodes_per_server": 4,
+  "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],

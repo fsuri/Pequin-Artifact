@@ -229,7 +229,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     clock_gettime(CLOCK_MONOTONIC, &ts_end);
     uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     auto duration = microseconds_end - microseconds_start;
-    if(duration > 1000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
+    if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
     
    
     return serialized_result;
@@ -361,7 +361,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
 
      //1) If we have never seen the Txn, we must request it
      if(TEST_SYNC || !has_txn_locally){                                      //TODO: TEST_SYNC will trigger message sync, but won't cause Query to wait for it. 
-        Notice("Query: [%lu:%lu:%lu] requests Tx_id %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(tx_id, 16).c_str());
+        Debug("Query: [%lu:%lu:%lu] requests Tx_id %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(tx_id, 16).c_str());
         RequestMissing(replica_list, replica_requests, tx_id);
     }
 
@@ -405,14 +405,14 @@ bool Server::CheckPresence(const uint64_t &ts_id, const std::string &query_retry
         //query_md->merged_ss.insert(t->second); //store snapshot locally.  
         t.release();
 
-        Notice("TX translation exists: TS[%lu] -> TX[%s]", ts_id, BytesToHex(tx_id, 16).c_str());
+        Debug("TX translation exists: TS[%lu] -> TX[%s]", ts_id, BytesToHex(tx_id, 16).c_str());
         return CheckPresence(tx_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns);
     }
 
     else{
-        Notice("TX translation does not exist: TS[%lu] WAITING for TX", ts_id);
+        Debug("TX translation does not exist: TS[%lu] WAITING for TX", ts_id);
         UW_ASSERT(query_md);
-        Notice("Query: [%lu:%lu:%lu] requests Ts_id %lu", query_md->query_seq_num, query_md->client_id, query_md->retry_version, ts_id);
+        Debug("Query: [%lu:%lu:%lu] requests Ts_id %lu", query_md->query_seq_num, query_md->client_id, query_md->retry_version, ts_id);
         RequestMissing( replica_list, replica_requests, ts_id);
         
         WaitForTX(ts_id,  query_retry_id, missing_ts);
@@ -1071,7 +1071,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
                 std::map<uint64_t, proto::RequestMissingTxns> replica_requests; //dummy arg
                 const pequinstore::proto::ReplicaList replica_list;             //dummy arg
 
-                Notice("CheckPresence of tx_id: %s via UpdateWaitingQueriesTS", BytesToHex(txnDigest, 16).c_str());
+                Debug("CheckPresence of tx_id: %s via UpdateWaitingQueriesTS", BytesToHex(txnDigest, 16).c_str());
                 bool isFinished = CheckPresence(txnDigest, query_id_version, query_md, replica_requests, replica_list, missingTxns.missing_txns);
                 UW_ASSERT(replica_requests.empty()); //no sync requests should be made! otherwise we shouldn't have woken up...
               

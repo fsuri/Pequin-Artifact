@@ -447,15 +447,15 @@ void Client::Query(const std::string &query, query_callback qcb,
       auto itr = point_read_cache.find(encoded_key);
       if(itr != point_read_cache.end()){
 
-          if(PROFILING_LAT){
-            struct timespec ts_start;
-            clock_gettime(CLOCK_MONOTONIC, &ts_start);
-            uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+        //   if(PROFILING_LAT){
+        //     struct timespec ts_start;
+        //     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        //     uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
             
-            //Should not take more than 1 ms (already generous) to parse and prepare.
-            auto duration = query_end_ms - query_start_times[query_seq_num];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
-            Warning("PointQuery[%d] Cache latency in ms [%d]. in us [%d]", query_seq_num, duration/1000, duration);
-        }
+        //     //Should not take more than 1 ms (already generous) to parse and prepare.
+        //     auto duration = query_end_ms - query_start_times[query_seq_num];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
+        //     Warning("PointQuery[%d] Cache latency in ms [%d]. in us [%d]", query_seq_num, duration/1000, duration);
+        // }
 
 
         Debug("Supply point query result from cache! (Query seq: %d)", query_seq_num);
@@ -544,8 +544,8 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
-    Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
-    if(duration > 20000) Warning("PointQuery exec exceeded 20ms");
+    // Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
+    // if(duration > 20000) Warning("PointQuery exec exceeded 20ms");
   }
 
   if (addReadSet) { 
@@ -613,7 +613,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()]; ;
-    Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
+    //Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
   }
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
@@ -923,7 +923,7 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
       //curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites, and the write keys are sorted.
       //Use DecodeTable if we are using TableEncoding. If not, use line above.
       curr_table = DecodeTable(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
-      Warning("Print: Curr Table: %s", curr_table->c_str());
+      Debug("Print: Curr Table: %s", curr_table->c_str());
       UW_ASSERT(txn.table_writes().count(*curr_table));
     }
     else{
@@ -944,7 +944,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
         //Should not take more than 1 ms (already generous) to parse and prepare.
         auto duration = exec_end_ms - exec_start_ms;
-        Warning("Transaction total execution latency in ms [%d]", duration/1000);
+        //Warning("Transaction total execution latency in ms [%d]", duration/1000);
     }
     
     uint64_t ns = Latency_End(&executeLatency);
@@ -1479,7 +1479,7 @@ void Client::Writeback(PendingRequest *req) {
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = commit_end_ms - commit_start_ms;
-    Warning("Transaction commit latency in ms [%d]", duration/1000);
+    //Warning("Transaction commit latency in ms [%d]", duration/1000);
   }
 
   //total_writebacks++;

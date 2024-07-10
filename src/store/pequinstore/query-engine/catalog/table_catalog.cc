@@ -783,20 +783,20 @@ TableCatalog::GetTableCatalogEntry(concurrency::TransactionContext *txn,
 
         //TODO: Instead of passing the shared ptr => create a copy of the object and pass that shared ptr.
         //Can even pass own Txn_context as part of that.
-      TableCatalogEntry table_object_copy = *table_object;
-      table_object_copy.txn_ = txn;
-      auto table_object_ptr = std::make_shared<TableCatalogEntry>(table_object_copy);
-      // std::make_shared<TableCatalogEntry>(txn, (*result_tiles)[0].get());
+        TableCatalogEntry table_object_copy = *table_object;
+        table_object_copy.txn_ = txn;
+        auto table_object_ptr = std::make_shared<TableCatalogEntry>(table_object_copy);
+        // std::make_shared<TableCatalogEntry>(txn, (*result_tiles)[0].get());
 
       //This next part of code is obsolete I believe.
-          auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid_);
-        PELOTON_ASSERT(database_object);
-        //std::cerr << "The table name for catalog get table catalog entry is " << table_name << std::endl;
-        Debug("GetCatalog for table name: %s", table_name.c_str());
-       //std::cerr << "case4" << std::endl;
-        bool success = database_object->InsertTableCatalogEntry(table_object_ptr);
-        PELOTON_ASSERT(success == true);
-        (void)success;
+      //     auto database_object = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr)->GetDatabaseCatalogEntry(txn, database_oid_);
+      //   PELOTON_ASSERT(database_object);
+      //   //std::cerr << "The table name for catalog get table catalog entry is " << table_name << std::endl;
+      //   Debug("GetCatalog for table name: %s", table_name.c_str());
+      //  //std::cerr << "case4" << std::endl;
+      //   bool success = database_object->InsertTableCatalogEntry(table_object_ptr);
+      //   PELOTON_ASSERT(success == true);
+      //   (void)success;
 
           
         // clock_gettime(CLOCK_MONOTONIC, &ts_start);

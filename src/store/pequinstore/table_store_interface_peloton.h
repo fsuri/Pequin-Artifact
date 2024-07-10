@@ -56,6 +56,9 @@
 #include "./query-engine/traffic_cop/traffic_cop.h"
 // #include "../../query-engine/type/type.h"
 // #include "../../query-engine/type/value_factory.h"
+ #include "query-engine/optimizer/stats/stats_storage.h"
+
+
 #include "store/common/query_result/query_result_proto_builder.h"
 #include <ostream>
 #include <string>
