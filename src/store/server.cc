@@ -400,7 +400,7 @@ DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
 //HotstuffPG settings.
-DEFINE_bool(async_server, true, "Whether to simulate fake SMR (parallel invocations to server) or true SMR (sequential exec) -- true SMR is deprecated.");
+DEFINE_bool(fake_SMR, true, "Whether to simulate fake SMR (parallel invocations to server) or true SMR (sequential exec) -- true SMR is deprecated.");
 DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
 
 const std::string occ_type_args[] = {
@@ -458,7 +458,7 @@ DEFINE_string(stats_file, "", "path to file for server stats");
 
 DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
 
-DEFINE_bool(local_config, true, "this flag determinse whether to use local or remote config directory");
+DEFINE_bool(local_config, true, "this flag determines whether to use local or remote config directory");
 
 /**
  * Benchmark settings.
@@ -928,7 +928,7 @@ int main(int argc, char **argv) {
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_async_server, FLAGS_hs_dummy_to);
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_fake_SMR, FLAGS_hs_dummy_to);
     
       break;
   }

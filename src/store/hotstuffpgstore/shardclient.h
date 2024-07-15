@@ -65,25 +65,23 @@ class ShardClient : public TransportReceiver {
       uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
       KeyManager *keyManager, Stats* stats,
-      bool async_server = false);
+      bool fake_SMR = false);
   ~ShardClient();
 
-  void ReceiveMessage(const TransportAddress &remote,
-      const std::string &type, const std::string &data,
-      void *meta_data);
+  void ReceiveMessage(const TransportAddress &remote, const std::string &type, const std::string &data, void *meta_data);
 
-  void Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-      sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout);
+  void Query(const std::string &query, uint64_t client_id, int client_seq_num, sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout);
 
-  void Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
-      try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout);
+  void Commit(uint64_t client_id, int client_seq_num, try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout);
 
-  void Abort(const std::string& txn_digest, uint64_t client_id, int client_seq_num);
+  void Abort(uint64_t client_id, int client_seq_num);
 
  private:
-   uint64_t start_time;
-   uint64_t total_elapsed = 0 ;
-   uint64_t total_prepare = 0;
+  uint64_t start_time;
+  uint64_t total_elapsed = 0 ;
+  uint64_t total_prepare = 0;
+
+  uint64_t reqId;
 
   transport::Configuration config;
   Transport *transport; // Transport layer.
@@ -92,53 +90,70 @@ class ShardClient : public TransportReceiver {
   bool validateProofs;
   KeyManager *keyManager;
 
-  // This flag is to determine if the test should run deterministically.
-  // If this is false, then results are returned based on f + 1 including the
-  // leader's results to get consistent results. If it is, then it is based on a 
-  // simple f + 1, returning the result of any replica's execution
-  bool async_server;
+  // If this flag is set, then we are simulating a fake SMR in which we only care about the reply from a single replica ("leader").
+  //We use this to simulate an upper bound of performance that would be achievable with a parallel SMR execution engine (akin to Block-STM)
+  bool fake_SMR;
 
 
-  uint64_t SQL_RPCReq;
-  uint64_t tryCommitReq;
   std::vector<int> closestReplicas;
   inline size_t GetNthClosestReplica(size_t idx) const {
     return closestReplicas[idx];
   }
 
+  
+  //REPLY HANDLING
+
   struct PendingSQL_RPC {
-    // the set of ids that we have received a read reply for
-    std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
-    std::string leaderReply;
-    bool hasLeaderReply;
+    PendingSQL_RPC(): hasLeaderReply(false), leaderReply(""), status(REPLY_FAIL), numReceivedReplies(0){
+      receivedReplies.clear();
+    }
 
     // the current status of the reply (default to fail)
     uint64_t status;
-
+    
     sql_rpc_callback srcb;
+    Timeout* timeout;
+
+    // the set of ids that we have received a read reply for. 
+    // Note: If running deterministically (DEPRECATED), then all replies must match. (non-matching = byz) If running non-deterministic (ONLY CURRENTLY SUPPORTED MODE) we only care about the leader reply.
+    std::unordered_map<std::string, std::unordered_set<uint64_t>> receivedReplies;
     uint64_t numReceivedReplies;
 
-    Timeout* timeout;
+    bool hasLeaderReply;
+    std::string leaderReply;
   };
   
   struct PendingTryCommit {
-    // the set of ids that we have received a read reply for
-    std::unordered_set<uint64_t> receivedAcks;
-    std::unordered_set<uint64_t> receivedFails;
+    PendingTryCommit(): hasLeaderReply(false), numReceivedReplies(0UL)
+    {
+      receivedReplies.clear();
+    }
 
     // the current status of the reply (default to fail)
     uint64_t status;
-
     try_commit_callback tccb;
-
     Timeout* timeout;
+
+    // the set of ids that we have received a read reply for
+    std::unordered_map<uint64_t, std::unordered_set<uint64_t>> receivedReplies;
+    uint64_t numReceivedReplies;
+
+    bool hasLeaderReply; 
   };
 
-  void HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const proto::SignedMessage& signedMsg);
-  void SQL_RPCReplyHelper(PendingSQL_RPC* PendingSQL_RPC, const std::string sql_rpcReply, 
-    uint64_t reqId, uint64_t status);
+  proto::SignedMessage signedMessage;
+  proto::SQL_RPCReply sql_rpcReply;
+  proto::TryCommitReply tryCommitReply;
 
-  void HandleTryCommitReply(const proto::TryCommitReply& reply, const proto::SignedMessage& signedMsg);
+  int ValidateAndExtractData(const std::string &t, const std::string &d, std::string &type, std::string &data);
+
+  void HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int replica_id);
+    void SQL_RPCReplyHelper(PendingSQL_RPC &PendingSQL_RPC, const std::string sql_rpcReply, uint64_t req_id, uint64_t status);
+
+  void HandleTryCommitReply(const proto::TryCommitReply& reply, int replica_id);
+    void TryCommitReplyHelper(PendingTryCommit &pendingTryCommit, uint64_t req_id, uint64_t status); 
+
+
 
   // req id to (read)
   std::unordered_map<uint64_t, PendingSQL_RPC> pendingSQL_RPCs;

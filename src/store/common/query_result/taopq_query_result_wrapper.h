@@ -24,6 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef _TAOPQ_WRAPPER_H_
+#define _TAOPQ_WRAPPER_H_
 
 #include <string>
 #include <memory>
@@ -74,3 +76,5 @@ namespace taopq_wrapper
   };
 
 }
+
+#endif // _TAOPQ_WRAPPER_H_

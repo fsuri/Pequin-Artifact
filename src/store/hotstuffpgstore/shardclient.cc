@@ -30,19 +30,17 @@
 
 namespace hotstuffpgstore {
 
+static bool SEND_ONLY_TO_LEADER = true;
+static bool ONLY_WAIT_FOR_LEADER = true;
+
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
-    bool signMessages, bool validateProofs,
-    KeyManager *keyManager, Stats* stats, bool async_server) :
-    config(config), transport(transport),
-    group_idx(group_idx),
-    signMessages(signMessages), validateProofs(validateProofs),
-    keyManager(keyManager), stats(stats),
-    async_server(async_server) {
+    bool signMessages, bool validateProofs, KeyManager *keyManager, Stats* stats, bool fake_SMR) :
+    config(config), transport(transport), group_idx(group_idx), signMessages(signMessages), validateProofs(validateProofs),
+    keyManager(keyManager), stats(stats), fake_SMR(fake_SMR), reqId(0UL) {
   transport->Register(this, config, -1, -1);
-  SQL_RPCReq = 0;
-  tryCommitReq = 0;
-
+  
+  //NOTE: This is useless for HS-based stores since HS runs with stable leader...
   if (closestReplicas_.size() == 0) {
     for  (int i = 0; i < config.n; ++i) {
       closestReplicas.push_back((i + client_id) % config.n);
@@ -57,332 +55,312 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
 
 ShardClient::~ShardClient() {}
 
-void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::string &t, const std::string &d, void *meta_data) {
-
-  Debug("handling message of type %s", t.c_str());
-  proto::SignedMessage signedMessage;
-  std::string type;
-  std::string data;
-  proto::SQL_RPCReply sql_rpcReply;
-  proto::TryCommitReply tryCommitReply;
-
-  bool recvSignedMessage = false;
-  if (t == signedMessage.GetTypeName()) {
-    if (!signedMessage.ParseFromString(d)) {
-      return;
-    }
-
-    proto::PackedMessage pmsg;
-    pmsg.ParseFromString(signedMessage.packed_msg());
-    // std::cout << "Inner type: " << pmsg.type() << std::endl;
-    if (pmsg.type() == sql_rpcReply.GetTypeName() || pmsg.type() == tryCommitReply.GetTypeName() ) {
-      crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(signedMessage.replica_id());
-      if (!hotstuffpgBatchedSigs::verifyBatchedSignature(signedMessage.mutable_signature(), signedMessage.mutable_packed_msg(),
-            replicaPublicKey)) {
-             Debug("dec signature was invalid");
-             return;
-            }
-      data = pmsg.msg();
-      type = pmsg.type();
-    } else if(!ValidateSignedMessage(signedMessage, keyManager, data, type)) {
-       Debug("signature was invalid");
-       return;
-    }
-
-    recvSignedMessage = true;
-    Debug("signature was valid");
-  } else {
-    type = t;
-    data = d;
-  }
-
-  if (type == sql_rpcReply.GetTypeName()) {
-    sql_rpcReply.ParseFromString(data);
-    if(signMessages && !recvSignedMessage) {
-      return;
-    }
-    HandleSQL_RPCReply(sql_rpcReply, signedMessage);
-
-  } else if (type == tryCommitReply.GetTypeName()) {
-    tryCommitReply.ParseFromString(data);
-    if(signMessages && !recvSignedMessage) {
-      return;
-    }
-    HandleTryCommitReply(tryCommitReply, signedMessage);
-  }
-}
-
-// ================================
-// ======= MESSAGE HANDLERS =======
-// ================================
-
-void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, const proto::SignedMessage& signedMsg) {
-  Debug("Handling a sql_rpc reply");
-
-  uint64_t reqId = reply.req_id();
-  Debug("sql_rpc req id: %lu", reqId);
-  Debug("Shir: sql_rpc req status: %lu", reply.status());
-
-// OLD CODE FLOW:
-//  if(signMessages) { 
-//       if(reply.status() == REPLY_OK) {
-//         if(pendingSQL_RPC->status == REPLY_FAIL) {
-//              pendingSQL_RPC->status = REPLY_OK;
-
-  if(pendingSQL_RPCs.find(reqId) != pendingSQL_RPCs.end()) {
-    PendingSQL_RPC* pendingSQL_RPC = &pendingSQL_RPCs[reqId];
-
-    pendingSQL_RPC->numReceivedReplies++;
-    // std::cerr <<"Shir: (1) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
-    Debug("Shir: got an additional reply. request:  %lu now has  %lu replies.",reqId,pendingSQL_RPC->numReceivedReplies);
-    // Debug("Shir: the current reply status is %lu",reply.status());
-
- 
-    // // Will change previously failed rpc status only if leader response is OK
-    // bool status_changed_to_ok=false;
-    // if(reply.status() == REPLY_OK && pendingSQL_RPC->status == REPLY_FAIL) {
-    //   status_changed_to_ok=true;
-    // }
-
-    // // Updating a previously failed sql_rpc-- only for deterministic mode
-    // if(!async_server && status_changed_to_ok) {
-    //     pendingSQL_RPC->status = REPLY_OK;
-    // }
-
-    if(signMessages) {
-      uint64_t replica_id = signedMsg.replica_id();
-      if (replica_id / config.n != (uint64_t) group_idx) {
-        Debug("sql_rpc Reply: replica not in group");
-        return;
-      }
-      pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(replica_id);
-      // The leader has replied      
-      if(async_server && replica_id == 0) {
-        Debug("Updating leader reply.");
-        pendingSQL_RPC->hasLeaderReply=true;
-        pendingSQL_RPC->status=reply.status();
-        pendingSQL_RPC->leaderReply = reply.sql_res(); // this might be empty if status is failed
-        // if (status_changed_to_ok){
-        //   pendingSQL_RPC->status = REPLY_OK;
-        // }
-      }
-            // std::cerr <<"Shir: (2) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
-    } 
-    else {
-      pendingSQL_RPC->receivedReplies[reply.sql_res()].insert(pendingSQL_RPC->numReceivedReplies);
-    }
-
-    Debug("Shir: 888");
-    // std::cerr <<"Shir: Is async?:  "<< async_server <<"\n";
-    // std::cerr <<"Shir: Is signed messages?:  "<< signMessages <<"\n";
-    // std::cerr <<"Shir: !signMessages:  "<< !signMessages <<"   !async_server   " <<!async_server<<"\n";
-    // std::cerr <<"Shir: (3) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
-
-    if(!signMessages || !async_server) { // This is for a fault tolerant system, curently we only look for the leader's opinion (only works in signed system)
-      Panic("Deterministic solution is currently not supported because of postgres blocking queries");
-      if(pendingSQL_RPC->receivedReplies[reply.sql_res()].size() 
-          >= (uint64_t) config.f + 1) {
-                SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, pendingSQL_RPC->status);
-      } else if(pendingSQL_RPC->numReceivedReplies  >= (uint64_t) config.f + 1) {
-                SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), reqId, REPLY_FAIL);
-      }
-    } else{
-      Debug("Shir: 101010"); // not deterministic
-      // std::cerr <<"Shir: (4) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies \n";
-
-      // std::cerr <<"Shir: will it crash?: "<<pendingSQL_RPC->numReceivedReplies<<" \n";
-      // std::cerr <<"Shir: leader reply is :   "<<pendingSQL_RPC->leaderReply<<" \n";
-      // std::cerr <<"Shir: has the leader replied :   "<<pendingSQL_RPC->hasLeaderReply<<" \n";
-      
-      if(pendingSQL_RPC->numReceivedReplies >= (uint64_t) config.f + 1 && pendingSQL_RPC->hasLeaderReply) {
-        // std::cerr <<"Shir: (5) For SQL_rpc req id: "<<reqId<<" There are "<<pendingSQL_RPC->numReceivedReplies<<" replies. which is why i'm here \n";
-        SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC->leaderReply, reqId, pendingSQL_RPC->status);
-      }
-
-    }
-  }
-}
-
-void ShardClient::SQL_RPCReplyHelper(PendingSQL_RPC* pendingSQL_RPC, const std::string sql_rpcReply, 
-    uint64_t reqId, uint64_t status) {
-  if(pendingSQL_RPC->timeout != nullptr) {
-    pendingSQL_RPC->timeout->Stop();
-  }
-  // Debug("Shir: For redId %d, with status %d and result: %s",reqId,status,sql_rpcReply.c_str());
-
-  sql_rpc_callback srcb = pendingSQL_RPC->srcb;
-  pendingSQL_RPCs.erase(reqId);
-  Debug("Shir: calling callback");
-  srcb(status, sql_rpcReply);
-  Debug("Shir: finished callback");
-}
-
-void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, const proto::SignedMessage& signedMsg) {
-  Debug("Handling a tryCommit reply");
-
-  uint64_t reqId = reply.req_id();
-  Debug("tryCommit req id: %lu", reqId);
-
-  if(pendingTryCommits.find(reqId) != pendingTryCommits.end()) {
-    PendingTryCommit* pendingTryCommit = &pendingTryCommits[reqId];
-
-    uint64_t replica_id = pendingTryCommit->receivedAcks.size() + pendingTryCommit->receivedFails.size();
-    if (signMessages) {
-      replica_id = signedMsg.replica_id();
-    }
-    
-    if(reply.status() == REPLY_OK) {
-      pendingTryCommit->receivedAcks.insert(replica_id);
-    } else {
-      pendingTryCommit->receivedFails.insert(replica_id);
-      if(async_server && signMessages && replica_id == 0) {
-        if(pendingTryCommit->timeout != nullptr) {
-          pendingTryCommit->timeout->Stop();
-        }
-        try_commit_callback tccb = pendingTryCommit->tccb;
-        pendingTryCommits.erase(reqId);
-        tccb(REPLY_FAIL);
-        return;
-      }
-    }
-    // Shir: clean code duplications...
-    if(!signMessages || !async_server) {
-      if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1) {
-        if(pendingTryCommit->timeout != nullptr) {
-          pendingTryCommit->timeout->Stop();
-        }
-        try_commit_callback tccb = pendingTryCommit->tccb;
-        pendingTryCommits.erase(reqId);
-        tccb(REPLY_OK);
-      } else if(pendingTryCommit->receivedFails.size() >= (uint64_t) config.f + 1) {
-        if(pendingTryCommit->timeout != nullptr) {
-          pendingTryCommit->timeout->Stop();
-        }
-        try_commit_callback tccb = pendingTryCommit->tccb;
-        pendingTryCommits.erase(reqId);
-                tccb(REPLY_FAIL);
-      }
-    } else {
-      if(pendingTryCommit->receivedAcks.size() >= (uint64_t) config.f + 1 && 
-      pendingTryCommit->receivedAcks.find(0) != pendingTryCommit->receivedAcks.end()) {
-        if(pendingTryCommit->timeout != nullptr) {
-          pendingTryCommit->timeout->Stop();
-        }
-        try_commit_callback tccb = pendingTryCommit->tccb;
-        pendingTryCommits.erase(reqId);
-        tccb(REPLY_OK);
-      }
-    }
-  }
-}
-
 
 // ================================
 // ==== SHARD CLIENT INTERFACE ====
 // ================================
 
 // Currently assumes no duplicates, can add de-duping code later if needed
-void ShardClient::Query(const std::string &query,  const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+void ShardClient::Query(const std::string &query, uint64_t client_id, int client_seq_num, 
       sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout) {
 
-  proto::SQL_RPC sql_rpc;
-
-  uint64_t reqId = SQL_RPCReq++;
+  reqId++;
   Debug("Query id: %lu", reqId);
 
+  //Create SQL RPC request (this is what server consumes)
+  proto::SQL_RPC sql_rpc;
   sql_rpc.set_req_id(reqId);
   sql_rpc.set_query(query);
   sql_rpc.set_client_id(client_id);
   sql_rpc.set_txn_seq_num(client_seq_num);
-  ts.serialize(sql_rpc.mutable_timestamp());
 
+  //Register Reply Handler
+  PendingSQL_RPC &psr = pendingSQL_RPCs[reqId];
+  psr.srcb = std::move(srcb);
+  psr.timeout = new Timeout(transport, timeout, [this, query_req_id = reqId, srtcb]() {
+          auto itr = pendingSQL_RPCs.find(query_req_id);
+          if(itr == pendingSQL_RPCs.end()) return;
+          Warning("Query timeout was triggered. Received %d / %d replies", itr->second.numReceivedReplies, config.f + 1);
+          stats->Increment("q_tout", 1);
+      });
+  psr.timeout->Start();
+
+  //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
   request.set_digest(crypto::Hash(sql_rpc.SerializeAsString()));
   request.mutable_packed_msg()->set_msg(sql_rpc.SerializeAsString());
   request.mutable_packed_msg()->set_type(sql_rpc.GetTypeName());
 
+  Debug("Sending Query. reqID: %lu", reqId);
 
-  Debug("Sending Query id: %lu", reqId);
-
-  transport->SendMessageToGroup(this, group_idx, request);
-  // transport->SendMessageToReplica(this,0,request);
-
-  PendingSQL_RPC psr;
-  psr.srcb = srcb;
-  psr.status = REPLY_FAIL;
-  psr.numReceivedReplies = 0;
-  psr.leaderReply = "";
-  psr.hasLeaderReply=false;
-  psr.timeout = new Timeout(transport, timeout, [this, reqId, srtcb]() {
-    Debug("Query timeout called (but nothing was done)");
-      stats->Increment("q_tout", 1);
-      fprintf(stderr,"q_tout recv %lu\n",  (uint64_t) config.f + 1);
-  });
-  psr.timeout->Start();
-
-  pendingSQL_RPCs[reqId] = psr;
-
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, request);
+  }
+  else{
+    transport->SendMessageToGroup(this, group_idx, request);
+  }
 }
 
-void ShardClient::Commit(const std::string& txn_digest, const Timestamp &ts, uint64_t client_id, int client_seq_num, 
+void ShardClient::Commit(uint64_t client_id, int client_seq_num, 
   try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout) {
 
-
-  Debug("Shir: shardClient trying to commit the txn");
-  proto::TryCommit try_commit;
-
-  uint64_t reqId = tryCommitReq++;
+  reqId++;
   Debug("Commit id: %lu", reqId);
 
+  //Create TryCommit request (this is what server consumes)
+  proto::TryCommit try_commit;
   try_commit.set_req_id(reqId);
   try_commit.set_client_id(client_id);
   try_commit.set_txn_seq_num(client_seq_num);
-  ts.serialize(try_commit.mutable_timestamp());
-  Debug("Shir: a");
+  
+  //Register Reply Handler
+  PendingTryCommit &ptc = pendingTryCommits[reqId];
+  ptc.tccb = std::move(tccb);
+  ptc.timeout = new Timeout(transport, timeout, [this, commit_req_id = reqId, tctcb](){
+        auto itr = pendingTryCommits.find(commit_req_id);
+        if(itr == pendingTryCommits.end()) return;
+        Warning("Commit timeout was triggered. Received %d / %d replies", itr->second.numReceivedReplies, config.f + 1);
+        stats->Increment("c_tout", 1);
+      });
+  ptc.timeout->Start();
 
+  //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
-  request.set_digest(txn_digest);
-  Debug("Shir: b");
-
+  request.set_digest(crypto::Hash(try_commit.SerializeAsString()));
   request.mutable_packed_msg()->set_msg(try_commit.SerializeAsString());
   request.mutable_packed_msg()->set_type(try_commit.GetTypeName());
   
 
-  Debug("Shir: now going to send a message in order to do that");
-  transport->SendMessageToGroup(this, group_idx, request);
+  Debug("Sending TryCommit. reqID: %lu", reqId);
 
-  Debug("Shir: trying to send the following message:");
-  // std::cerr<< "To group:   "<<group_idx<<"   Send the request:  "<<try_commit.GetTypeName() <<"\n";
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, request);
+  }
+  else{
+    transport->SendMessageToGroup(this, group_idx, request);
+  }
+  }
 
-  PendingTryCommit ptc;
-  ptc.tccb = tccb;
-  ptc.timeout = new Timeout(transport, timeout, [this, reqId, tctcb](){
-    Debug("Commit timeout called (but nothing was done)");
-      stats->Increment("c_tout", 1);
-      fprintf(stderr,"c_tout recv %lu\n",  (uint64_t) config.f + 1);
-  });
-  ptc.timeout->Start();
+void ShardClient::Abort(uint64_t client_id, int client_seq_num) {
 
-  pendingTryCommits[reqId] = ptc;
-}
+  Debug("Abort Transaction");
 
-void ShardClient::Abort(const std::string& txn_digest,  uint64_t client_id, int client_seq_num) {
+  //Cancel all Reply Handlers for ongoing concurrent requests.
+  pendingSQL_RPCs.clear();
+  pendingTryCommits.clear();
 
+  //Create UerAbort request (this is what server consumes)
   proto::UserAbort user_abort;
-
-  Debug("Abort Triggered");
-
   user_abort.set_client_id(client_id);
   user_abort.set_txn_seq_num(client_seq_num);
 
+   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
-  
   request.set_digest(crypto::Hash(user_abort.SerializeAsString()));
-  // request.set_digest(txn_digest);
   request.mutable_packed_msg()->set_msg(user_abort.SerializeAsString());
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
-  transport->SendMessageToGroup(this, group_idx, request);
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, request);
+  }
+  else{
+    transport->SendMessageToGroup(this, group_idx, request);
+  }
+}
+
+
+// ================================
+// ======= MESSAGE HANDLERS =======
+// ================================
+
+int ShardClient::ValidateAndExtractData(const std::string &t, const std::string &d, std::string &type, std::string &data){
+  //If message is signed
+  if (t == signedMessage.GetTypeName()) {
+    if (!signedMessage.ParseFromString(d)) {
+      Panic("Failed to Parse Signed Message");
+      return -1;
+    }
+
+    //extract the packed Message
+    proto::PackedMessage pmsg;
+    pmsg.ParseFromString(signedMessage.packed_msg());
+    
+    //Verify that message type is valid -- otherwise no need to verify sig
+    if (!(pmsg.type() == sql_rpcReply.GetTypeName() || pmsg.type() == tryCommitReply.GetTypeName())){
+      Panic("The only replies we should receive are of type SQL_REPLY or TryCommit_REPLY");
+      return -1;
+    }
+
+    //Validate signature
+    crypto::PubKey* replicaPublicKey = keyManager->GetPublicKey(signedMessage.replica_id());
+    if (!hotstuffpgBatchedSigs::verifyBatchedSignature(&signedMessage.signature(), &signedMessage.packed_msg(), replicaPublicKey)) {
+        Panic("Signature from replica %d was invalid", signedMessage.replica_id());
+        return -1;
+    }
+    Debug("signature was valid");
+    data = pmsg.msg();
+    type = pmsg.type();
+  
+    return signedMessage.replica_id();
+  } 
+  else { //Message is not signed
+    //if(signMessages) Panic("All replies are supposed to be signed");
+   
+    type = t;
+    data = d;
+
+    return -1; //no replica id needed
+  }
+}
+
+
+void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::string &t, const std::string &d, void *meta_data) {
+
+  Debug("handling message of type %s", t.c_str());
+  std::string type;
+  std::string data;
+
+  int replica_id = ValidateAndExtractData(t, d, type, data);
+
+  if (type == sql_rpcReply.GetTypeName()) {
+    sql_rpcReply.ParseFromString(data);
+    HandleSQL_RPCReply(sql_rpcReply, replica_id);
+
+  } else if (type == tryCommitReply.GetTypeName()) {
+    tryCommitReply.ParseFromString(data);
+    HandleTryCommitReply(tryCommitReply, replica_id);
+  }
+  else{
+    Panic("The only replies we should receive are of type SQL_REPLY or TryCommit_REPLY");
+  }
+}
+
+
+void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int replica_id) {
+  Debug("Handling a sql_rpc reply");
+
+  const uint64_t &req_id = reply.req_id();
+  Debug("sql_rpc reply for req id: %lu. Status: %d", req_id, reply.status());
+
+  auto itr = pendingSQL_RPCs.find(req_id);
+  if(itr == pendingSQL_RPCs.end()){
+    Debug("req_id: %lu is no longer active", req_id);
+    return;
+  }
+
+  PendingSQL_RPC &pendingSQL_RPC = itr->second;
+
+  if(replica_id < 0){ //if not signing messages, simply add a new reply
+    replica_id = pendingSQL_RPC.numReceivedReplies;
+  }
+ 
+  if (replica_id / config.n != group_idx) {Panic("Received reply from replica_id that is not in group");}
+  pendingSQL_RPC.receivedReplies[reply.sql_res()].insert(replica_id);
+  
+  pendingSQL_RPC.numReceivedReplies++; //TODO: Should check that we are not accepting multiple replies from one replica
+  Debug("pendingSQL with req_id: %lu now has  %lu replies.", req_id, pendingSQL_RPC.numReceivedReplies);
+
+
+  if(fake_SMR){ //Check if we received leader reply and use the status and result from this reply.
+    if(replica_id == 0){
+      pendingSQL_RPC.hasLeaderReply=true;
+      pendingSQL_RPC.status=reply.status();
+      pendingSQL_RPC.leaderReply = reply.sql_res(); // this might be empty if status is failed
+
+      if(ONLY_WAIT_FOR_LEADER){
+        SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC.leaderReply, req_id, pendingSQL_RPC.status);
+        return;
+      }
+    }
+   
+    //Wait for at least f+1 total replies
+    if(pendingSQL_RPC.numReceivedReplies >= (uint64_t) config.f + 1 && pendingSQL_RPC.hasLeaderReply) {
+      SQL_RPCReplyHelper(pendingSQL_RPC, pendingSQL_RPC.leaderReply, req_id, pendingSQL_RPC.status);
+    }
+
+  }
+  else{
+    Panic("Deprecated. Only fake_SMR mode supported right now.");
+    if(pendingSQL_RPC.receivedReplies[reply.sql_res()].size() == (uint64_t) config.f + 1) {
+        SQL_RPCReplyHelper(pendingSQL_RPC, reply.sql_res(), req_id, pendingSQL_RPC.status);
+    }
+  }
+}
+
+//Note: This must only be called once per req_id.
+void ShardClient::SQL_RPCReplyHelper(PendingSQL_RPC &pendingSQL_RPC, const std::string sql_rpcReply, uint64_t req_id, uint64_t status) {
+  if(pendingSQL_RPC.timeout != nullptr) {
+    pendingSQL_RPC.timeout->Stop();
+  }
+
+  sql_rpc_callback srcb = pendingSQL_RPC.srcb;
+  pendingSQL_RPCs.erase(req_id);
+  srcb(status, sql_rpcReply);
+}
+
+//Note: This must only be called once per req_id.
+void ShardClient::TryCommitReplyHelper(PendingTryCommit &pendingTryCommit, uint64_t req_id, uint64_t status) {
+  if(pendingTryCommit.timeout != nullptr) {
+    pendingTryCommit.timeout->Stop();
+  }
+
+  auto tccb = pendingTryCommit.tccb;
+  pendingTryCommits.erase(req_id);
+  tccb(status);
+}
+
+//TODO: Avoid duplicating code with SQL_RPC reply 
+void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, int replica_id) {
+  
+
+  const uint64_t &req_id = reply.req_id();
+  Debug("Receive commit reply from replica %d for req id: %lu", replica_id, req_id);
+
+  auto itr = pendingTryCommits.find(req_id);
+  if(itr == pendingTryCommits.end()){
+    Debug("req_id: %lu is no longer active", req_id);
+    return;
+  }
+
+  PendingTryCommit &pendingTryCommit = itr->second;
+
+
+
+
+  if(replica_id < 0){
+    replica_id = pendingTryCommit.numReceivedReplies;
+  }
+
+  if (replica_id / config.n != group_idx) {Panic("Received reply from replica_id that is not in group");}
+ 
+  if (replica_id / config.n != group_idx) {Panic("Received reply from replica_id that is not in group");}
+  pendingTryCommit.receivedReplies[reply.status()].insert(replica_id);
+  
+  pendingTryCommit.numReceivedReplies++; //TODO: Should check that we are not accepting multiple replies from one replica
+
+  if(fake_SMR){ //Check if we received leader reply and use the status and result from this reply.
+    if(replica_id == 0){
+      pendingTryCommit.hasLeaderReply=true;
+      pendingTryCommit.status=reply.status();
+
+      if(ONLY_WAIT_FOR_LEADER){
+        TryCommitReplyHelper(pendingTryCommit, req_id, pendingTryCommit.status);
+        return;
+      }
+    }
+   
+    //Wait for at least f+1 total replies
+    if(pendingTryCommit.numReceivedReplies >= (uint64_t) config.f + 1 && pendingTryCommit.hasLeaderReply) {
+       TryCommitReplyHelper(pendingTryCommit, req_id, pendingTryCommit.status);
+    }
+
+  }
+  else{
+    Panic("Deprecated. Only fake_SMR mode supported right now.");
+    if(pendingTryCommit.receivedReplies[reply.status()].size() == (uint64_t) config.f + 1) {
+         TryCommitReplyHelper(pendingTryCommit, req_id, reply.status());
+    }
+  }
 }
 
 }

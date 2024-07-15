@@ -20,6 +20,6 @@ cat ./hosts | while read machine
 do
     echo "#### send config to machine ${machine}"
     #scp  -r config ${CL_USERNAME}@${machine}.indicus.morty-pg0.utah.cloudlab.us:/users/${CL_USERNAME}/
-    rsync -rtuv config ${CL_USERNAME}@${machine}.pg-smr.pequin-pg0.utah.cloudlab.us:/users/${CL_USERNAME}/
+    rsync -rtuv config ${CL_USERNAME}@${machine}.pequin.pequin-pg0.utah.cloudlab.us:/users/${CL_USERNAME}/
 done
 

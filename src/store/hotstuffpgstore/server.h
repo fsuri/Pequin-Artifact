@@ -59,6 +59,7 @@ public:
   ~Server();
 
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
+    std::vector<::google::protobuf::Message*> Execute_OLD(const string& type, const string& msg);
   void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
 
   void Load(const std::string &key, const std::string &value,
@@ -90,6 +91,44 @@ private:
   typedef tbb::concurrent_hash_map<std::string,std::tuple<std::shared_ptr< tao::pq::connection >, std::shared_ptr< tao::pq::transaction >, bool>> txnStatusMap; 
   txnStatusMap txnMap;
 
+  std::string connection_string;
+
+  std::shared_ptr<tao::pq::connection> test_connection; //PG connection
+  std::shared_ptr< tao::pq::transaction> test_transaction;
+
+  //TODO: FIXME: CHANGE THIS TO HANDLE CONCURRENT TXNS -> What if failed.
+  struct ClientConnection {
+    ClientConnection(): tx_id(0), connection(nullptr), transaction(nullptr), active(false) {}
+    
+    void CreateNewConnection(const std::string &connection_str, uint64_t client_id){
+      if(active) Panic("Calling Create twice");
+      Notice("Opening connection for client: %lu. Connection string: %s", client_id, connection_str.c_str());
+      connection = tao::pq::connection::create(connection_str);
+      active = true;
+    }
+    
+    std::shared_ptr< tao::pq::transaction> GetTX(uint64_t tx_id_){ // if tx exists / tx_id is same => return current TX. If Tx_id is greater => Start new tx}
+      if(tx_id_ > tx_id){
+        //Start new transaction
+        UW_ASSERT(transaction == nullptr);
+        Debug("Start new Transaction. id: %lu", tx_id_);
+        tx_id = tx_id_;
+        transaction = connection->transaction();
+      }
+      Debug("Continue existing TX");
+      return transaction; //returns nullptr if current tx is dead.
+    }
+    void TerminateTX(){ // close current txn
+      transaction = nullptr;
+    }
+    bool active;
+    std::shared_ptr<tao::pq::connection> connection; //PG connection
+    uint64_t tx_id; //current tx_id;
+    std::shared_ptr< tao::pq::transaction> transaction; //Current Transaction
+  };
+  typedef tbb::concurrent_hash_map<uint64_t, ClientConnection> clientConnectionMap; 
+  clientConnectionMap clientConnections;
+
   Transport* tp;
   Stats stats;
   transport::Configuration config;
@@ -107,35 +146,24 @@ private:
   TrueTime timeServer;
 
 
+  proto::SQL_RPC sql_rpc_template;
+  proto::TryCommit try_commit_template;
+  proto::UserAbort user_abort_template;
+
   std::shared_mutex atomicMutex;
 
-  void exec_statement(const std::string &sql_statement);
-
-  std::string createClientSeqKey(uint64_t cid, uint64_t tid);
-  
-  std::pair<std::shared_ptr<tao::pq::transaction>, bool> getPgTransaction(txnStatusMap::accessor &t, const std::string &key);
-
-  uint64_t getThreadID(const std::string &key);
-
-  // void CleanTxnMap(const std::string &client_seq_key);
-
+     /////////////////// HELPER FUNCTIONS ///////////////////
+  ::google::protobuf::Message* ParseMsg(const string& type, const string& msg, std::string &client_seq_key, uint64_t &req_id, uint64_t &client_id, uint64_t &tx_id);
+  ::google::protobuf::Message* ProcessReq(uint64_t req_id, uint64_t client_id, uint64_t tx_id, const string& type, ::google::protobuf::Message *req);
+  std::shared_ptr< tao::pq::transaction> GetClientTransaction(clientConnectionMap::accessor &c, const uint64_t &client_id, const uint64_t &tx_id);
   sql::QueryResultProtoBuilder* createResult(const tao::pq::result &sql_res);
 
-  void markTxnTerminated(txnStatusMap::accessor &t, string s);
-  // void Shir();
-
-  std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);
-
-  // ::google::protobuf::Message* HandleSQL_RPC(const proto::SQL_RPC& sql_rpc);
-  ::google::protobuf::Message* HandleSQL_RPC(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query);
-
-  // ::google::protobuf::Message* HandleTryCommit(const proto::TryCommit& try_commit);
-  ::google::protobuf::Message* HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id);
-
-  // ::google::protobuf::Message* HandleUserAbort(const proto::UserAbort& user_abort);
-  ::google::protobuf::Message* HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) ;
-
-  ::google::protobuf::Message* returnMessage(::google::protobuf::Message* msg);
+  ::google::protobuf::Message* HandleSQL_RPC(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id,std::string query);
+  ::google::protobuf::Message* HandleTryCommit(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id);
+  ::google::protobuf::Message* HandleUserAbort(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx);
+  
+  void exec_statement(const std::string &sql_statement);
+  std::string GenerateLoadStatement(const std::string &table_name, const std::vector<std::vector<std::string>> &row_segment, int segment_no);  
 
   // return true if this key is owned by this shard
   inline bool IsKeyOwned(const std::string &key) const {
@@ -145,6 +173,16 @@ private:
 
   //Testing:
   std::unordered_set<std::string> executed_tx;
+
+  //////////////////// OLD
+
+  ::google::protobuf::Message* HandleSQL_RPC_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query);
+  ::google::protobuf::Message* HandleTryCommit_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id);
+  ::google::protobuf::Message* HandleUserAbort_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr);
+  std::string createClientSeqKey(uint64_t cid, uint64_t tid);
+  std::pair<std::shared_ptr<tao::pq::transaction>, bool> getPgTransaction(txnStatusMap::accessor &t, const std::string &key);
+  uint64_t getThreadID(const std::string &key);
+  void markTxnTerminated(txnStatusMap::accessor &t);
 };
 
 }

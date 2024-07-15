@@ -53,318 +53,520 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
   std::string db_name = "db1";
   if (localConfig){
-    // std::cerr << "Shir: using local config (pg server)\n";
-    Debug("Shir: using local config (pg server");
+    Debug("using local config (pg server");
     db_name = "db" + std::to_string(1 + idx);
   }
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
-  std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
-  // std::cerr<<"Shir: 33333333333333333333333333333333333333333333333333333333333\n";
-  // std::cerr << connection_str <<"\n";
-  Debug("Shir: 33333333333333333333333333333333333333333333333333333333333");
+ 
+  connection_string = "host=/users/fs435/tmp-pgdata/socket/ user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
+  //connection_string = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
+  // if(idx ==0){
+  // connection_string = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+  // }
+  // if(idx ==1){
+  // connection_string = "host=us-east-1-1.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+  // }
+  // if(idx ==2){
+  // connection_string = "host=us-east-1-2.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+  // }
+  // if(idx ==3){
+  // connection_string = "host=eu-west-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+  // }
 
+  connectionPool = tao::pq::connection_pool::create(connection_string);
 
-  connectionPool = tao::pq::connection_pool::create(connection_str);
-
-  Debug("PostgreSQL client created! Id: %d", idx);
-  // std::cerr << "PostgreSQL client created! Id:  "<< idx <<"\n";
-
+  Notice("PostgreSQL serverside client-proxy created! Server Id: %d", idx);
 }
 
 Server::~Server() {}
 
 
+////////////////////////////////////////////
+/*         SQL Exec Orchestration         */
+////////////////////////////////////////////
 
-// void Server::Shir(){
-//   auto f = [this](){
-//     for (int i=0; i<=100000000; i++)
-//     {
-//       auto connection = connectionPool->connection();
-//       auto tr = connection->transaction();
-//       tr->execute("SELECT * FROM t0;");      
-//     }
-//     return (void*) true;
-//   };
+std::shared_ptr< tao::pq::transaction> Server::GetClientTransaction(clientConnectionMap::accessor &c, const uint64_t &client_id, const uint64_t &tx_id){
+  bool new_connection = clientConnections.insert(c, client_id);
+  if(new_connection) c->second.CreateNewConnection(connection_string, client_id);
+  return c->second.GetTX(tx_id);
+}
 
+::google::protobuf::Message* Server::ParseMsg(const string& type, const string& msg, std::string &client_seq_key, uint64_t &req_id, uint64_t &client_id, uint64_t &tx_id){
 
-//   for (int i=0; i<=number_of_threads; i++)
-//   {
-//     // create a loop of querys and dispatch to the thread i
-//     tp->DispatchIndexedTP_noCB(i,f);
-//   }
-// }
-
-
-::google::protobuf::Message* Server::returnMessage(::google::protobuf::Message* msg) {
-  // Send decision to client
-  if (false) { //signMessages
-    Debug("Returning signed Message");
-    proto::SignedMessage *signedMessage = new proto::SignedMessage();
-    SignMessage(*msg, keyManager->GetPrivateKey(id), id, *signedMessage);
-    delete msg;
-    return signedMessage;
-  } else {
-    Debug("Returning basic Message");
-    return msg;
+  if (type == sql_rpc_template.GetTypeName()) {
+    proto::SQL_RPC *sql_rpc = new proto::SQL_RPC();
+    sql_rpc->ParseFromString(msg);
+    client_seq_key = createClientSeqKey(sql_rpc->client_id(), sql_rpc->txn_seq_num());
+    req_id = sql_rpc->req_id();
+    client_id = sql_rpc->client_id();
+    tx_id = sql_rpc->txn_seq_num();
+    return sql_rpc;
+  } 
+  else if (type == try_commit_template.GetTypeName()) {
+    proto::TryCommit *try_commit = new proto::TryCommit();
+    try_commit->ParseFromString(msg);
+    client_seq_key = createClientSeqKey(try_commit->client_id(),try_commit->txn_seq_num());
+    req_id = try_commit->req_id();
+    client_id = try_commit->client_id();
+    tx_id = try_commit->txn_seq_num();
+    return try_commit;
+  } 
+  else if (type == user_abort_template.GetTypeName()) {
+    proto::UserAbort *user_abort = new proto::UserAbort();
+    user_abort->ParseFromString(msg);
+    client_seq_key = createClientSeqKey(user_abort->client_id(), user_abort->txn_seq_num());
+    client_id = user_abort->client_id();
+    tx_id = user_abort->txn_seq_num();
+    return user_abort;
   }
 }
 
+static uint64_t counter = 0;
+//Synchronous Execution Interface -> Exec synchronously and return result (no threads)
 std::vector<::google::protobuf::Message*> Server::Execute(const string& type, const string& msg) {
-  // std::cerr<<"Shir: recieved a message of type:    "<<type.c_str()<<"   and looking for the right handler\n";
   Debug("Execute: %s", type.c_str());
-  proto::SQL_RPC sql_rpc;
-  proto::TryCommit try_commit;
-  proto::UserAbort user_abort;
+  
   std::vector<::google::protobuf::Message*> results;
-  std::string client_seq_key ;
-  if (type == sql_rpc.GetTypeName()) {
-    sql_rpc.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
-  } else if (type == try_commit.GetTypeName()) {
-    try_commit.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
-  } else if (type == user_abort.GetTypeName()) {
-    user_abort.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
-  }
+  std::string client_seq_key;
+  uint64_t req_id;
 
-  txnStatusMap::accessor t;
-  auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
-  if (tr){
-    // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. handle this case later
+    //TODO: extract client_id and tx_id.
+  uint64_t client_id = 0;
+  uint64_t tx_id = 0;
 
-    if (type == sql_rpc.GetTypeName()) {
-      results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
-    } else if (type == try_commit.GetTypeName()) {
-      results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
-    } else if (type == user_abort.GetTypeName()) {
-      results.push_back(HandleUserAbort(t,tr));
-    }
+  ::google::protobuf::Message *req = ParseMsg(type, msg, client_seq_key, req_id, client_id, tx_id);
 
-  }else{
-    if (type == sql_rpc.GetTypeName()) {
-      UW_ASSERT(is_aborted);
-      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
-      reply->set_req_id(sql_rpc.req_id());
-      reply->set_status(REPLY_FAIL);
-      results.push_back(returnMessage(reply));
-    } else if (type == try_commit.GetTypeName()) {
-      Debug("tr is null - trycommit ");
-      UW_ASSERT(is_aborted);
-      proto::TryCommitReply* reply = new proto::TryCommitReply();
-      reply->set_req_id(try_commit.req_id());
-      reply->set_status(REPLY_FAIL); // OR should it be reply_ok?
-      results.push_back(returnMessage(reply));
-    }else{
-      // shir: when should we get here?
-      Panic("Should not try to issue parallel operations that aren't sql_query");
-    }
-  }
+  Debug("Received Request from client: %lu. Tx: %lu", client_id, tx_id);
 
+  results.push_back(ProcessReq(req_id, client_id, tx_id, type, req)); //TODO: NEED TO PUSH BACK.
+  
+  delete req;
   return results;
 }
 
 
-void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
-  // std::cerr<< "Shir Execute with callback: "<< type.c_str()<<"\n" ;
-  Debug("Execute with callback: %s", type.c_str());
 
-  proto::SQL_RPC sql_rpc;
-  proto::TryCommit try_commit;
-  proto::UserAbort user_abort;
+//TODO: Call this from ExecuteCallback too.
+::google::protobuf::Message* Server::ProcessReq(uint64_t req_id, uint64_t client_id, uint64_t tx_id, const string& type, ::google::protobuf::Message *req){
+
+  clientConnectionMap::accessor c;
+   //auto tx = GetClientTransaction(c, client_id, tx_id);
+  bool new_connection = clientConnections.insert(c, client_id);
+  if(new_connection) c->second.CreateNewConnection(connection_string, client_id);
+  //auto tx = c->second.GetTX(tx_id);
+  
+///////////////  Dummy testing
+  counter++;
+  if(counter % 2 == 1){
+    auto transaction = c->second.connection->transaction();
+
+    proto::SQL_RPCReply *reply  = new proto::SQL_RPCReply();
+    reply->set_req_id(req_id);
+    reply->set_status(0);
+    
+    sql::QueryResultProtoBuilder res;
+    res.set_rows_affected(1);
+    reply->set_sql_res(res.get_result()->SerializeAsString());
+    //transport->SendMessage(this, remote, reply);
+    transaction->commit();
+    return reply;
+  }
+  else{
+    //tx->commit();
+    //c->second.TerminateTX();
+    proto::TryCommitReply *reply = new proto::TryCommitReply();
+    reply->set_req_id(req_id);
+    reply->set_status(0);
+    //transport->SendMessage(this, remote, reply);
+     return reply;
+  }
+ 
+ Panic("getting here");
+ auto tx = c->second.GetTX(tx_id);
+  ///////////////
+  
+
+  if (tx){ // if TX is still active
+    if (type == sql_rpc_template.GetTypeName()) {
+      proto::SQL_RPC *sql_rpc = (proto::SQL_RPC*) req;
+      return HandleSQL_RPC(c, tx, req_id, sql_rpc->query());
+    } 
+    else if (type == try_commit_template.GetTypeName()) {
+      return HandleTryCommit(c, tx, req_id);
+    } 
+    else if (type == user_abort_template.GetTypeName()) {
+      Panic("This case should not be triggered in simple RW test with single client");
+      HandleUserAbort(c, tx); //no reply needed.
+      return nullptr;
+    }
+
+  }
+  else{ //if TX has been aborted
+    Panic("Should never get triggered in simple RW test with single client");
+    if (type == sql_rpc_template.GetTypeName()) {
+      //UW_ASSERT(is_aborted);
+      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+      reply->set_req_id(req_id);
+      reply->set_status(REPLY_FAIL);
+      return reply;
+    } else if (type == try_commit_template.GetTypeName()) {
+      Debug("tr is null - trycommit ");
+      //UW_ASSERT(is_aborted);
+      proto::TryCommitReply* reply = new proto::TryCommitReply();
+      reply->set_req_id(req_id);
+      reply->set_status(REPLY_FAIL); // OR should it be reply_ok?
+      return reply;
+    }
+  }
+}
+
+
+//Synchronous Execution Interface -> Exec synchronously and return result (no threads)
+std::vector<::google::protobuf::Message*> Server::Execute_OLD(const string& type, const string& msg) {
+  Debug("Execute: %s", type.c_str());
+  
   std::vector<::google::protobuf::Message*> results;
-  std::string client_seq_key ;
-  if (type == sql_rpc.GetTypeName()) {
-    sql_rpc.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(sql_rpc.client_id(),sql_rpc.txn_seq_num());
-  } else if (type == try_commit.GetTypeName()) {
-    try_commit.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(try_commit.client_id(),try_commit.txn_seq_num());
-  } else if (type == user_abort.GetTypeName()) {
-    user_abort.ParseFromString(msg);
-    client_seq_key = createClientSeqKey(user_abort.client_id(),user_abort.txn_seq_num());
+  std::string client_seq_key;
+  uint64_t req_id;
+
+  uint64_t client_id = 0;
+  uint64_t tx_id = 0;
+  
+  ::google::protobuf::Message *req = ParseMsg(type, msg, client_seq_key, req_id, client_id, tx_id);
+
+    //TEST code
+  // counter++;
+  // if(counter % 2 == 1){
+  //   proto::SQL_RPCReply *reply  = new proto::SQL_RPCReply();
+  //   reply->set_req_id(req_id);
+  //   reply->set_status(0);
+    
+  //   sql::QueryResultProtoBuilder res;
+  //   res.set_rows_affected(1);
+  //   reply->set_sql_res(res.get_result()->SerializeAsString());
+  //   //transport->SendMessage(this, remote, reply);
+  //   results.push_back(reply);
+  // }
+  // else{
+  //   proto::TryCommitReply *reply = new proto::TryCommitReply();
+  //   reply->set_req_id(req_id);
+  //   reply->set_status(0);
+  //   //transport->SendMessage(this, remote, reply);
+  //    results.push_back(reply);
+  // }
+
+  // return results;
+
+  txnStatusMap::accessor t;
+  auto [tx, is_aborted] = getPgTransaction(t, client_seq_key);
+  if (tx){ // if TX is still active
+    if (type == sql_rpc_template.GetTypeName()) {
+      proto::SQL_RPC *sql_rpc = (proto::SQL_RPC*) req;
+      results.push_back(HandleSQL_RPC_OLD(t, tx, req_id, sql_rpc->query()));
+    } 
+    else if (type == try_commit_template.GetTypeName()) {
+      results.push_back(HandleTryCommit_OLD(t, tx, req_id));
+    } 
+    else if (type == user_abort_template.GetTypeName()) {
+      HandleUserAbort_OLD(t, tx); //no reply needed.
+    }
+
+  }
+  else{ //if TX has been aborted
+    if (type == sql_rpc_template.GetTypeName()) {
+      //UW_ASSERT(is_aborted);
+      proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+      reply->set_req_id(req_id);
+      reply->set_status(REPLY_FAIL);
+      results.push_back(reply);
+    } else if (type == try_commit_template.GetTypeName()) {
+      Debug("tr is null - trycommit ");
+      //UW_ASSERT(is_aborted);
+      proto::TryCommitReply* reply = new proto::TryCommitReply();
+      reply->set_req_id(req_id);
+      reply->set_status(REPLY_FAIL); // OR should it be reply_ok?
+      results.push_back(reply);
+    }
   }
 
+  delete req;
+  return results;
+}
+
+
+
+//Asynchronous Execution Interface -> Dispatch execution to a thread, and let it call callback when done
+void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
+  Debug("Execute with callback: %s", type.c_str());
+
+  std::string client_seq_key;
+  uint64_t req_id;
+
+   uint64_t client_id = 0;
+  uint64_t tx_id = 0;
+  
+  ::google::protobuf::Message *req = ParseMsg(type, msg, client_seq_key, req_id, client_id, tx_id);
+
+  //TODO: Change this: 
   auto thread_id = getThreadID(client_seq_key);
   Debug("Thread id for key %s is: %d",client_seq_key.c_str(), thread_id);
   // std::cerr << "Shir print:    " << "Thread id for key " << client_seq_key.c_str()<<" is: "<<thread_id << std::endl;
 
-
-  auto f = [this, type, client_seq_key, sql_rpc, try_commit, user_abort, ecb](){
-    proto::SQL_RPC sql_rpc_template;
-    proto::TryCommit try_commit_template;
-    proto::UserAbort user_abort_template;
+  
+  auto f = [this, type, client_seq_key, req, req_id, ecb](){
     std::vector<::google::protobuf::Message*> results;
+
+    //TODO: Replace all this with ProcessReq();
+
     txnStatusMap::accessor t;
     auto [tr, is_aborted] = getPgTransaction(t, client_seq_key);
     // auto [tr, is_aborted] = std::make_pair(nullptr,true);
     if (tr){
       // this means tr is not a null pointer. it would be a null pointer if this txn was alerady aborted. 
       if (type == sql_rpc_template.GetTypeName()) {
-        // std::cerr<<sql_rpc.query()<<"\n";  
-        // results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),"SELECT * FROM t0;"));
-        results.push_back(HandleSQL_RPC(t,tr,sql_rpc.req_id(),sql_rpc.query()));
-      } else if (type == try_commit_template.GetTypeName()) {
-        results.push_back(HandleTryCommit(t,tr,try_commit.req_id()));
-      } else if (type == user_abort_template.GetTypeName()) {
-        results.push_back(HandleUserAbort(t,tr));
+        proto::SQL_RPC *sql_rpc = (proto::SQL_RPC*) req;
+        results.push_back(HandleSQL_RPC_OLD(t, tr, req_id, sql_rpc->query()));
+      } 
+      else if (type == try_commit_template.GetTypeName()) {
+        results.push_back(HandleTryCommit_OLD(t, tr, req_id));
+      } 
+      else if (type == user_abort_template.GetTypeName()) {
+        HandleUserAbort_OLD(t,tr);
       }
-    }else{
+    }
+    else{
       if (type == sql_rpc_template.GetTypeName()) {
         UW_ASSERT(is_aborted);
         proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
-        reply->set_req_id(sql_rpc.req_id());
+        reply->set_req_id(req_id);
         reply->set_status(REPLY_FAIL);
-        results.push_back(returnMessage(reply));
-      } else if (type == try_commit.GetTypeName()) {
-      Debug("tr is null - trycommit ");
-      UW_ASSERT(is_aborted);
-      proto::TryCommitReply* reply = new proto::TryCommitReply();
-      reply->set_req_id(try_commit.req_id());
-      reply->set_status(REPLY_OK); // OR should it be reply_ok?
-      results.push_back(returnMessage(reply));
-      }else{
-        // std::cerr<< type<<"\n";
-
-        // std::cerr << "Shir print:    " << "Panic" << std::endl;
-        abort;
-        exit(-1);
-        Panic("Should not try to issue parallel operations that aren't sql_query");
+        results.push_back(reply);
+      } 
+      else if (type == try_commit_template.GetTypeName()) {
+        Debug("tr is null - trycommit ");
+        UW_ASSERT(is_aborted);
+        proto::TryCommitReply* reply = new proto::TryCommitReply();
+        reply->set_req_id(req_id);
+        reply->set_status(REPLY_OK); // OR should it be reply_ok?
+        results.push_back(reply);
       }
     }
+    delete req;
 
-    // puts it back on main
-    tp->Timer(0, std::bind(ecb,results));
+    // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
+    tp->Timer(0, std::bind(ecb, results));
   
     return (void*) true;
   };
 
+  //Dispatch the exec job to the Indexed Threadpool. Make sure that all operations from the same TX go onto the same Thread (and thus are sequential)
   tp->DispatchIndexedTP_noCB(thread_id,f);
 }
 
-::google::protobuf::Message* Server::HandleSQL_RPC(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id,std::string query) {
-  Debug("Handling SQL_RPC");
-  // std::cerr << "Shir print:    " << "Handling SQL_RPC" << std::endl;
 
+
+////////////////////////////////////////////
+/*          SQL PROCESSING LOGIC          */
+////////////////////////////////////////////
+
+::google::protobuf::Message* Server::HandleSQL_RPC(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id, std::string query) {
+  Debug("Handling SQL_RPC");
+  
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
 
   try {
     Debug("Attempt query %s", query.c_str());
-    // std::cerr << "Shir print:    " << "Attempt query  " <<query.c_str() << std::endl;
+    
+    if(true){
+          sql::QueryResultProtoBuilder res;
+      res.set_rows_affected(1);
+      reply->set_sql_res(res.get_result()->SerializeAsString());
+      reply->set_status(0);
+    }
+    else{
 
-    // std::cerr<< "Shir: Before executing tr->execute with the following tr addr:  "<< tr <<"\n";
-    const tao::pq::result sql_res = tr->execute(query);
-    // std::cerr<< "Shir: After executing tr->execute \n";
+    
+    const tao::pq::result sql_res = tx->execute(query);
+   
     Debug("Query executed");
-    // std::cerr << "Shir print:    " << "Query executed"<< std::endl;
-
+ 
     sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
     reply->set_status(REPLY_OK);
     reply->set_sql_res(res_builder->get_result()->SerializeAsString());
-  } catch(tao::pq::sql_error e) {
+    }
+    
+  } 
+  catch(tao::pq::sql_error e) {
+    Panic("No exceptions should be thrown for simple rw sql test with single client");
     Debug("An exception caugth while using postgres.");
-    // std::cerr << "Shir print:    " << "A exception caugth while using postgres." << std::endl;
-
- 
+   
     if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
-      Debug("A concurrency exception caugth while using postgres.");
-      // std::cerr << "Shir print:    " << "A concurrency exception caugth while using postgres." << std::endl;
-      std::cerr<< e.sqlstate << std::endl;
-
-      markTxnTerminated(t,"sql_rpc, concurrency problem");
-      t.release();
+      Notice("A concurrency exception caugth while using postgres.: %s", e.what());
+      //tr->rollback();
+      c->second.TerminateTX(); //tx = nullptr; //alternatively: Then must pass tx by reference
+      
       reply->set_status(REPLY_FAIL);
-    } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
-      reply->set_status(REPLY_OK);
-    }else{
-      std::cerr<< e.sqlstate << std::endl;
-      Panic("Unexpected postgres exception");
+      reply->set_sql_res("");
+    } 
+    else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
+    Notice("An integrity exception caugth while using postgres.: %s", e.what());
+      reply->set_status(REPLY_OK); 
+      reply->set_sql_res("");
+    }
+    else{
+      Panic("Unexpected postgres exception: %s", e.what());
     }
   }
 
-  return returnMessage(reply);
+  return reply;
 }
 
-::google::protobuf::Message* Server::HandleTryCommit(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id) {
-  Debug("Trying to commit a txn %d",req_id);
-  // std::cerr << "Shir print:    " << "Trying to commit a txn  " <<req_id << std::endl;
-
-  // std::cerr<<"the tr pointer for commit is :     "<< tr << "\n";
-  Debug("the tr pointer for commit is :    %s ",tr);
+::google::protobuf::Message* Server::HandleTryCommit(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id) {
+  Debug("Trying to commit a txn %d", req_id);
+ 
   proto::TryCommitReply* reply = new proto::TryCommitReply();
   reply->set_req_id(req_id);
-  try {
-    tr->commit();
-    Debug("TryCommit went through successfully.");
-    // std::cerr << "Shir print:    " << "TryCommit went through successfully."  << std::endl;
 
-    reply->set_status(REPLY_OK);
-  } catch(tao::pq::sql_error e) {
-    std::cerr<< e.sqlstate << std::endl;
-    Debug("A exception caugth while using postgres."); 
-    // std::cerr << "Shir print:    " << "A exception caugth while using postgres." << std::endl;
+  
+  if(false){
 
-    reply->set_status(REPLY_FAIL);
-    // Shir: do we need diffenet codes here?
-    // if (std::regex_match(e.sqlstate, std::regex("40..."))){ // Concurrency errors
-    //   Debug("A concurrency exception caugth while using postgres.");
-    //   markTxnTerminated(t);
-    //   t.release();
-    //   reply->set_status(REPLY_FAIL);
-    // } else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
-    //   reply->set_status(REPLY_OK);
-    // }else{
-    //   std::cerr<< e.sqlstate << std::endl;
-    //   Panic("Unexpected postgres exception");
-    // }
-
+    try {
+      tx->commit();
+      Debug("TryCommit went through successfully.");
+      reply->set_status(REPLY_OK);
+    } 
+    catch(tao::pq::sql_error e) {
+      Debug("A exception caugth while using postgres: %s", e.what()); 
+      reply->set_status(REPLY_FAIL);
+    }
   }
-  markTxnTerminated(t,"trycommit");
-  return returnMessage(reply);
+  else{
+    reply->set_status(0); //FIXME: REMOVE: DUMMY TESTING
+  }
+
+  c->second.TerminateTX();
+  return reply;
+
 }
 
-::google::protobuf::Message* Server::HandleUserAbort(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) {
-  tr->rollback();
-  markTxnTerminated(t,"abort");
+::google::protobuf::Message* Server::HandleUserAbort(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx) {
+
+  Debug("UserAbort: Rollback transaction");
+  tx->rollback();
+  c->second.TerminateTX();
+
+  Debug("Return no reply for Abort");
   return nullptr;
 }
 
-std::string Server::createClientSeqKey(uint64_t cid, uint64_t tid){
-  std::string client_seq_key;
-  client_seq_key.append(std::to_string(cid));
-  client_seq_key.append("|");
-  client_seq_key.append(std::to_string(tid));
-  return client_seq_key;
+
+
+::google::protobuf::Message* Server::HandleSQL_RPC_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id, std::string query) {
+  Debug("Handling SQL_RPC");
+  
+  proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
+  reply->set_req_id(req_id);
+
+  try {
+    Debug("Attempt query %s", query.c_str());
+    
+    const tao::pq::result sql_res = tr->execute(query);
+   
+    Debug("Query executed");
+   
+    sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
+    reply->set_status(REPLY_OK);
+    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+  } 
+  catch(tao::pq::sql_error e) {
+    Debug("An exception caugth while using postgres.");
+   
+    if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
+      Notice("A concurrency exception caugth while using postgres.: %s", e.what());
+      //tr->rollback();
+      markTxnTerminated(t);
+      t.release();
+      reply->set_status(REPLY_FAIL);
+      reply->set_sql_res("");
+    } 
+    else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
+    Notice("An integrity exception caugth while using postgres.: %s", e.what());
+      reply->set_status(REPLY_OK); 
+      reply->set_sql_res("");
+    }
+    else{
+      Panic("Unexpected postgres exception: %s", e.what());
+    }
+  }
+
+  return reply;
 }
 
+::google::protobuf::Message* Server::HandleTryCommit_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr, uint64_t req_id) {
+  Debug("Trying to commit a txn %d",req_id);
+ 
+  Debug("the tr pointer for commit is :    %s ",tr);
+  proto::TryCommitReply* reply = new proto::TryCommitReply();
+  reply->set_req_id(req_id);
+
+  try {
+    tr->commit();
+    Debug("TryCommit went through successfully.");
+    reply->set_status(REPLY_OK);
+  } 
+  catch(tao::pq::sql_error e) {
+    Debug("A exception caugth while using postgres: %s", e.what()); 
+    reply->set_status(REPLY_FAIL);
+    //tr->rollback(); //probably unecessary
+  }
+  markTxnTerminated(t);
+  return reply;
+}
+
+::google::protobuf::Message* Server::HandleUserAbort_OLD(txnStatusMap::accessor &t, std::shared_ptr<tao::pq::transaction> tr) {
+
+  Debug("UserAbort: Rollback transaction");
+  tr->rollback();
+  markTxnTerminated(t);
+
+  Debug("Return no reply for Abort");
+  return nullptr;
+}
+
+////////////////////////////////////////////
+/*          HELPER FUNCTIONS         */
+////////////////////////////////////////////
+
+ std::string Server:: createClientSeqKey(uint64_t cid, uint64_t tid){
+    std::string client_seq_key;
+    client_seq_key.append(std::to_string(cid));
+    client_seq_key.append("|");
+    client_seq_key.append(std::to_string(tid));
+    return client_seq_key;
+}
+
+
 std::pair<std::shared_ptr<tao::pq::transaction>, bool> Server::getPgTransaction(txnStatusMap::accessor &t, const std::string &key){
+
   std::shared_ptr<tao::pq::transaction> tr;
   Debug("Client transaction key: %s", key.c_str());
-  // std::cout << key << std::endl;
-
-  // std::cerr << "Shir print:    " << "Client transaction key " <<key << std::endl;
-
+ 
   bool is_aborted=false;
 
   if(txnMap.insert(t,key)) {
       Debug("Key was not found, creating a new connection");
-      // std::cerr << "Shir print:    " << "Key was not found, creating a new connection"<< std::endl;
-
+     
       auto connection = connectionPool->connection();
       tr = connection->transaction();
-      // std::cerr<<"Shir: new tr pointer is :     "<< tr <<"\n";
-      Debug("Shir: new tr pointer is :    %s ", tr);
+    
       auto txn_status =std::make_tuple(connection, tr, false);
-      // txnMap.insert(t, key);
       t->second=txn_status;
     } else {
-      Debug("Key already exists");
+      Debug("Key already exists. Returning open Tx connection");
       tr = get<1>(t->second);
-      // std::cerr<<"Shir: for key:  "<< key.c_str() <<"  existing tr pointer is :     "<< tr <<"\n";
-      Debug("Shir: for key: %s, existing tr pointer is :  %s ", key.c_str(),tr);
       is_aborted=get<2>(t->second);
   }
     return std::make_pair(tr,is_aborted);
@@ -377,12 +579,10 @@ uint64_t Server::getThreadID(const std::string &key){
 }
 
 // fields are < connection, transaction tr, bool was_aborted>
-void Server::markTxnTerminated(txnStatusMap::accessor &t,string from){
-  // std::cerr<<"Shir: terminating txn from  "<< from.c_str() << "with tr pointer:    "<< get<1>(t->second) <<"\n";
-  Debug("Shir: terminating txn from %s with tr pointer %s",from.c_str(),get<1>(t->second));
-  get<0>(t->second) = nullptr;
-  get<1>(t->second) = nullptr;
+void Server::markTxnTerminated(txnStatusMap::accessor &t){
+  get<1>(t->second) = nullptr; //reset transaction
   get<2>(t->second) = true;
+   get<0>(t->second) = nullptr; //reset connection -> goes back to pool
 }
 
 sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_res){
@@ -419,10 +619,20 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
   return res_builder;
 }
 
+////////////////////////////////////////////
+/*          TABLE GENERATION LOGIC        */
+////////////////////////////////////////////
+
+void Server::exec_statement(const std::string &sql_statement) {
+  auto connection = connectionPool->connection();
+  connection->execute(sql_statement);
+}
+
+
 void Server::CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<uint32_t> &primary_key_col_idx){
   // //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-create-table/ 
 
-  Debug("Shir: Creating table! %s",table_name.c_str());
+  Debug("Creating table! %s",table_name.c_str());
 
   //NOTE: Assuming here we do not need special descriptors like foreign keys, column condidtions... (If so, it maybe easier to store the SQL statement in JSON directly)
   UW_ASSERT(!column_data_types.empty());
@@ -455,9 +665,17 @@ void Server::CreateTable(const std::string &table_name, const std::vector<std::p
   sql_statement +=");";
 
   // std::cerr << "Create Table: " << sql_statement << std::endl;
-  Debug("Create Table: %s", sql_statement.c_str());
+  Notice("Create Table: %s", sql_statement.c_str());
   this->exec_statement(sql_statement);
 
+  //TEST:
+  sql_statement = "UPDATE t0 SET value = value + 1 WHERE key = 9;";
+  try{
+    this->exec_statement(sql_statement);
+  }
+  catch(tao::pq::sql_error e){
+    Panic("Failed with: %s", e.what());
+  }
 
 }
 
@@ -506,12 +724,6 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
 //!!"Deprecated" (Unused)
 void Server::LoadTableRow(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const std::vector<std::string> &values, const std::vector<uint32_t> &primary_key_col_idx ){
     Debug("Shir: Load Table row!");
-}
-
-
-void Server::exec_statement(const std::string &sql_statement) {
-  auto connection = connectionPool->connection();
-  connection->execute(sql_statement);
 }
 
 

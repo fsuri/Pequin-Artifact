@@ -92,8 +92,6 @@ void SignMessage(const ::google::protobuf::Message &msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage &signedMessage);
 
-std::string TransactionDigest(const proto::Transaction &txn);
-
 std::string BatchedDigest(proto::BatchedRequest& breq);
 
 std::string string_to_hex(const std::string& input);

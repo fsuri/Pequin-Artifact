@@ -44,7 +44,12 @@
 
 #include <unordered_map>
 
+#include <tao/pq.hpp> //Test connecting directly
+#include "store/common/query_result/taopq_query_result_wrapper.h"
+
 namespace hotstuffpgstore {
+
+static bool TEST_DIRECT_PG_CONNECTION = false;
 
 class Client : public ::Client {
  public:
@@ -53,7 +58,7 @@ class Client : public ::Client {
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      TrueTime timeserver = TrueTime(0,0), bool async_server = false);
+      TrueTime timeserver = TrueTime(0,0), bool fake_SMR = true);
   ~Client();
 
   // Begin a transaction.
@@ -86,6 +91,12 @@ class Client : public ::Client {
   virtual void Write(std::string &write_statement, write_callback wcb,write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false) override;
 
  private:
+  std::shared_ptr<tao::pq::connection> connection;
+  std::shared_ptr<tao::pq::transaction> transaction;
+
+  std::shared_ptr<tao::pq::connection_pool> connectionPool;
+
+
   uint64_t client_id;
   /* Configuration State */
   transport::Configuration config;
@@ -107,19 +118,14 @@ class Client : public ::Client {
   TrueTime timeServer;
   int client_seq_num;
 
-  // This flag is to determine if the test should run deterministically.
-  // If this is false, then results are returned based on f + 1 including the
-  // leader's results to get consistent results. If it is, then it is based on a 
-  // simple f + 1, returning the result of any replica's execution
-  bool async_server;
+   // If this flag is set, then we are simulating a fake SMR in which we only care about the reply from a single replica ("leader").
+  //We use this to simulate an upper bound of performance that would be achievable with a parallel SMR execution engine (akin to Block-STM)
+  bool fake_SMR;
 
-  // Current transaction.
-  proto::Transaction currentTxn;
 
   /* Debug State */
   std::unordered_map<std::string, uint32_t> statInts;
 
-  bool IsParticipant(int g);
 };
 
 } // namespace hotstuffpgstore

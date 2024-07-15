@@ -305,7 +305,7 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
-DEFINE_bool(async_server, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
+DEFINE_bool(fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
@@ -1597,7 +1597,7 @@ int main(int argc, char **argv) {
                                        readMessages, readQuorumSize,
                                        FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                        keyManager,
-																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_async_server);
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_fake_SMR);
         break;
     }
 

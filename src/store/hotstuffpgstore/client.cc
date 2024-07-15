@@ -39,38 +39,40 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      TrueTime timeserver, bool async_server) : config(config), nshards(nShards),
+      TrueTime timeserver, bool fake_SMR) : config(config), nshards(nShards),
     ngroups(nGroups), transport(transport), part(part), readMessages(readMessages), readQuorumSize(readQuorumSize),
     signMessages(signMessages),
     validateProofs(validateProofs), keyManager(keyManager),
-    timeServer(timeserver), async_server(async_server) {
+    timeServer(timeserver), fake_SMR(fake_SMR) {
   // just an invariant for now for everything to work ok
   assert(nGroups == nShards);
 
   client_id = id;
-  // generate a random client uuid
-  // client_id = 0;
-  // while (client_id == 0) {
-  //   random_device rd;
-  //   mt19937_64 gen(rd());
-  //   uniform_int_distribution<uint64_t> dis;
-  //   client_id = dis(gen);
-  // }
+
   client_seq_num = 0;
 
   bclient.reserve(ngroups);
 
-  Debug("Initializing HotStuff Postgres client with id [%lu] %lu", client_id, ngroups);
+  Notice("Initializing HotStuff Postgres client with id [%lu] %lu", client_id, ngroups);
+
+  if(ngroups > 1) Panic("HS PG store does not support sharding");
 
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient[i] = new ShardClient(config, transport, client_id, i, closestReplicas,
-        signMessages, validateProofs, keyManager, &stats,
-        async_server);
+        signMessages, validateProofs, keyManager, &stats, fake_SMR);
   }
 
-  Debug("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups,
-      bclient.size());
+  Notice("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups, bclient.size());
+
+  //Test connecting directly.
+  if(TEST_DIRECT_PG_CONNECTION){
+    std::string connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+    Notice("Connection string: %s", connection_str.c_str());
+    connection = tao::pq::connection::create(connection_str);
+    //connectionPool = tao::pq::connection_pool::create(connection_str);
+  }
+ 
 }
 
 Client::~Client()
@@ -80,21 +82,19 @@ Client::~Client()
     }
 }
 
-/* Begins a transaction. All subsequent operations before a commit() or
- * abort() are part of this transaction.
- */
+/* Begins a transaction. All subsequent operations before a commit() or abort() are part of this transaction. */
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb, uint32_t timeout, bool retry) {
   transport->Timer(0, [this, bcb, btcb, timeout]() {
-    // Debug("Shir: step 1");
     Debug("BEGIN tx");
-
     client_seq_num++;
-    currentTxn = proto::Transaction();
-    // Optimistically choose a read timestamp for all reads in this transaction
-    currentTxn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
-    currentTxn.mutable_timestamp()->set_id(client_id);
+
+    //Test connecting directly
+    if(TEST_DIRECT_PG_CONNECTION){
+      //connection = connectionPool->connection();
+      transaction = connection->transaction();
+    }
+
     bcb(client_seq_num);
-    // Debug("Shir: step 2");
   });
 }
 
@@ -109,69 +109,123 @@ void Client::Put(const std::string &key, const std::string &value, put_callback 
 }
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
+
+  //Test
+  if(TEST_DIRECT_PG_CONNECTION){
+   try {
+    transaction->commit();
+    transaction = nullptr; //reset txn
+    ccb(COMMITTED);
+    } catch (const std::exception &e) {
+      Panic("Commit should not fail while testing RW-SQL");
+      const std::string &error_message = e.what();
+      Debug("Commit Failed: %s. Aborting!", error_message.c_str());
+      if (error_message.find("restart transaction") != std::string::npos) {
+        transaction = nullptr;
+      }
+      ccb(ABORTED_SYSTEM);
+    }
+    return;
+  }
+
+
+
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     try_commit_callback tccb = [ccb, this](int status) {
-      Debug("Shir: executing try_commit callback");
-
+  
       if(status == REPLY_OK) {
-        Debug("Shir: executing try_commit callback 111");
-
+        Debug("COMMIT SUCCESS");
         ccb(COMMITTED);
       } else {
+        Debug("COMMIT ABORT");
         ccb(ABORTED_SYSTEM);
       }
     };
-    try_commit_timeout_callback tctcb = ctcb;
-    Debug("Shir: Client trying to commit txn");
-    bclient[0]->Commit(TransactionDigest(currentTxn),  currentTxn.timestamp(), client_id, client_seq_num, tccb, tctcb, timeout);
+    
+    Debug("Trying to commit txn: [%lu:%lu]", client_id, client_seq_num);
+    bclient[0]->Commit(client_id, client_seq_num, tccb, ctcb, timeout);
   });
 }
 
 void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t timeout) {
-  transport->Timer(0, [this, acb, atcb, timeout]() {
-    bclient[0]->Abort(TransactionDigest(currentTxn), client_id, client_seq_num);
 
+  //TEST
+  if(TEST_DIRECT_PG_CONNECTION){
+    try {
+      transaction->rollback();
+    } catch (...) {
+      Panic("Rolling back Txn failed");
+    }
+    acb();
+    return;
+  }
+
+
+  transport->Timer(0, [this, acb, atcb, timeout]() {
+    Debug("Issue Abort (asynchronously)");
+    bclient[0]->Abort(client_id, client_seq_num);
     acb();
   });
 }
 
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
+
+  if(TEST_DIRECT_PG_CONNECTION){
+   try {
+    if (transaction == nullptr) {
+      Warning("Transaction has already been terminated. ReplyFail");
+      scb(REPLY_FAIL, nullptr);
+      return;
+    }
+
+    tao::pq::result result = transaction->execute(statement);
+    taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
+    scb(REPLY_OK, tao_res);
+  } catch (const tao::pq::integrity_constraint_violation &e) {
+    Notice("Write[%s] exec failed with integrity violation: %s", statement.c_str(), e.what());
+    auto result = new taopq_wrapper::TaoPQQueryResultWrapper();
+    scb(REPLY_OK, result);
+  } catch (const tao::pq::transaction_rollback &e) {
+    Notice("Transaction rollback: %s", e.what());
+    transaction->rollback();
+    transaction = nullptr;
+    scb(REPLY_FAIL, nullptr);
+  } catch (const tao::pq::in_failed_sql_transaction &e) {
+    Notice("In failed sql transaction: %s", e.what());
+    transaction = nullptr;
+    scb(REPLY_FAIL, nullptr);
+  } catch (const std::exception &e) {
+    Panic("Tx write failed with uncovered exception: %s", e.what());
+  }
+  return;
+  }
+
+
   transport->Timer(0, [this, statement, scb, stcb, timeout](){
 
-    Debug("Query called");
-    // std::cerr << "Shir:  issue SQLRequest from client:     "<<statement << std::endl;
+    Debug("Invoke SQL Request: %s", statement.c_str());
 
     sql_rpc_callback srcb = [scb, statement, this](int status, const std::string& sql_res) {
       Debug("Received query response");
-      QueryMessage *query_msg = currentTxn.add_queryset();
-      query_msg->set_query(statement);
+      
+      //Deserialize sql_res and return to application.
       query_result::QueryResult* query_res;
       if(status == REPLY_OK) {
-        Debug("Shir: executing SQL_rpc callback with successful result");
+        Debug("Statement execution SUCCESS. Return result");
         query_res = new sql::QueryResultProtoWrapper(sql_res);
       } else {
-        Debug("Shir: executing SQL_rpc callback after aborting");
-        bclient[0]->Abort(TransactionDigest(currentTxn),client_id,client_seq_num);
-        // bclient[0]->Abort(TransactionDigest(currentTxn),client_id,client_seq_num);
-
+        Debug("Statement execution FAILURE.");
+        //This is simply a hack to force all follower replicas to also abort in order to make them unlock any held locks.
+        if(fake_SMR) bclient[0]->Abort(client_id, client_seq_num);
+        
         query_res = new sql::QueryResultProtoWrapper();
       }
-
-      // std::cerr << "Shir: For the following statement:     "<<statement << std::endl;
-      // std::cerr << "Shir: rows affected is:     "<<query_res->rows_affected() << std::endl;
-      // // std::cerr << "Shir: WAS IT ABORTED?:     "<<query_res->rows_affected() << std::endl;
-      // std::cerr << "Shir: status is:     "<<status << std::endl;
     
       scb(status, query_res);
 
-      // std::cerr << "Shir: does it get here?" << std::endl;
-
-
     };
-    sql_rpc_timeout_callback srtcb = stcb;
-
-
-    bclient[0]->Query(statement, currentTxn.timestamp(), client_id, client_seq_num, srcb, srtcb, timeout);
+    
+    bclient[0]->Query(statement, client_id, client_seq_num, srcb, stcb, timeout);
 
   });
 }
@@ -179,24 +233,13 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
 
 void Client::Query(const std::string &query, query_callback qcb, query_timeout_callback qtcb, uint32_t timeout,bool cache_result, bool skip_query_interpretation) {
     Debug("Processing Query Statement: %s", query.c_str());
-    std::string non_const_query = query;
-    this->SQLRequest(non_const_query,qcb,qtcb,timeout);
+    this->SQLRequest(const_cast<std::string &>(query), qcb, qtcb, timeout);
 }
 
 
 void Client::Write(std::string &write_statement, write_callback wcb, write_timeout_callback wtcb, uint32_t timeout, bool blind_write){
     Debug("Processing Write Statement: %s", write_statement.c_str());
-    this->SQLRequest(write_statement,wcb,wtcb,timeout);
+    this->SQLRequest(write_statement, wcb, wtcb, timeout);
 }
-
-bool Client::IsParticipant(int g) {
-  for (const auto &participant : currentTxn.participating_shards()) {
-    if (participant == (uint64_t) g) {
-      return true;
-    }
-  }
-  return false;
-}
-
 
 }

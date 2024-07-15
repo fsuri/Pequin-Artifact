@@ -164,7 +164,8 @@ inline void Client::Write(std::string &write_statement, write_callback wcb,
     transaction = nullptr;
     wcb(REPLY_FAIL, nullptr);
   } catch (const tao::pq::in_failed_sql_transaction &e) {
-    Notice("In failed sql transaction: %s", e.what());
+    Panic("In failed sql transaction: %s", e.what());
+    transaction->rollback();
     transaction = nullptr;
     wcb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {

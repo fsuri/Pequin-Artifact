@@ -51,12 +51,14 @@
 
 namespace hotstuffpgstore {
 
+static bool TEST_WITHOUT_HOTSTUFF = true;
+
 class Replica : public TransportReceiver {
 public:
   Replica(const transport::Configuration &config, KeyManager *keyManager,
     App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
           uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, bool local_config, int numShards, Transport *transport,
-          bool asyncServer = false, int dummyTO = 100);
+          bool fake_SMR = false, int dummyTO = 100);
   ~Replica();
 
   // Message handlers.
@@ -66,8 +68,10 @@ public:
                            const proto::Request &msg);
 
  private:
+  void HandleRequest_noHS(const TransportAddress &remote, const proto::Request &request);
+
   hotstuffstore::IndicusInterface hotstuffpg_interface;
-  std::unordered_map<std::string, proto::PackedMessage> requests_dup;
+  std::unordered_set<std::string> requests_dup;
 
   const transport::Configuration &config;
   KeyManager *keyManager;
@@ -86,7 +90,7 @@ public:
   int currentView;
   int nextSeqNum;
   int numShards;
-  bool asyncServer;
+  bool fake_SMR;
   int dummyTO;
 
   // members to reduce alloc
@@ -109,8 +113,9 @@ public:
   int EbatchTimerId;
   std::vector<::google::protobuf::Message*> EpendingBatchedMessages;
   std::vector<std::string> EpendingBatchedDigs;
-  void EsendBatchedPreprepare();
   std::unordered_map<uint64_t, std::string> EbStatNames;
+
+  void ProcessReplies(const std::string &digest, const std::vector<::google::protobuf::Message*> &replies);
   void sendEbatch();
   void delegateEbatch(std::vector<::google::protobuf::Message*> EpendingBatchedMessages_,
      std::vector<std::string> EpendingBatchedDigs_);
@@ -142,9 +147,6 @@ public:
   
   void bubbleCB(uint64_t currProposedCounter);
   Stats* stats;
-
-  std::pair<::google::protobuf::Message*,uint64_t> deserializeMsgAndObtainID(const string& type, const string& msg);
-  // uint64_t getTxnId(const string& type, const string& msg);
 
 };
 

@@ -202,6 +202,9 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'pg':
             client_command += " --experiment_name=%s" % str(config['experiment_name'])
 
+        if config['replication_protocol'] == 'hotstuffpg':
+            client_command += ' --fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
+
         if config['replication_protocol'] == 'morty':
             if 'send_writes' in config['replication_protocol_settings']:
                 client_command += ' --morty_send_writes=%s' % str(config['replication_protocol_settings']['send_writes']).lower()
@@ -553,6 +556,10 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'bftsmart':
             replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
+        if config['replication_protocol'] == 'hotstuffpg':
+            replica_command += ' --local_config=%s' % str(config['replication_protocol_settings']['local_config']).lower()
+            replica_command += ' --fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
+
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'
 
@@ -586,14 +593,6 @@ class IndicusCodebase(ExperimentCodebase):
              replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         
         
-        if 'local_config' in config:
-            replica_command += ' --local_config=%s' % config['local_config']
-
-        if 'async_server' in config:
-            replica_command += ' --async_server=%s' % config['async_server']
-
-
-
         if 'partitioner' in config:
             replica_command += ' --partitioner %s' % config['partitioner']
 
