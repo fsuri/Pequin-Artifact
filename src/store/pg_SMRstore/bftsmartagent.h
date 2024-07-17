@@ -1,8 +1,7 @@
 /***********************************************************************
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
- *                Liam Arzola <lma77@cornell.edu>
+ *                Zheng Wang <zw494@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,43 +24,41 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SQL_DELIVERY_H
-#define SQL_DELIVERY_H
+#ifndef _PG_BFTSMART_AGENT_H_
+#define _PG_BFTSMART_AGENT_H_
 
-#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
-namespace tpcc_sql {
+#include <jni.h>
+#include "lib/repltransport.h"
+#include "lib/message.h"
 
-static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
+#include <iostream>
+#include <sstream>
+#define MAGIC 0x06121983
 
-class SQLDelivery : public TPCCSQLTransaction {
- public:
-  SQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  virtual ~SQLDelivery();
-  virtual transaction_status_t Execute(SyncClient &client);
+namespace pg_SMRstore{
+class ShardClient;
 
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t o_carrier_id;
-  uint32_t ol_delivery_d;
-};
+    class BftSmartAgent{
+public:
+        static bool create_java_vm(const std::string& PG_BFTSMART_config_path);
+        BftSmartAgent(bool is_client, TransportReceiver* receiver, int id, int group_idx, const std::string &PG_BFTSMART_config_path);
+        ~BftSmartAgent();
+        static void destroy_java_vm();
+        void send_to_group(ShardClient* recv, int group_idx, void * buffer, size_t size);
 
-class SQLDeliverySequential : public TPCCSQLTransaction {
- public:
-  SQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  virtual ~SQLDeliverySequential();
-  virtual transaction_status_t Execute(SyncClient &client);
+private:
+        static JavaVM *jvm;
+        static JNIEnv *env;
+        jobject bft_client;
+        jobject bft_server;
+        bool is_client;
+        const std::string remote_home;
 
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t o_carrier_id;
-  uint32_t ol_delivery_d;
-};
+        bool create_interface_client(TransportReceiver* receiver, int client_id, std::string config_home);
+        bool create_interface_server(TransportReceiver* receiver, int server_id);
+        bool register_natives();
+    };
+}
 
-} // namespace tpcc_sql
-
-#endif /* SQL_DELIVERY_H */
+#endif

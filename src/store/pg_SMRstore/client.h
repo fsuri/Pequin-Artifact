@@ -36,9 +36,9 @@
 #include "store/common/timestamp.h"
 #include "store/common/truetime.h"
 #include "store/common/frontend/client.h"
-#include "store/hotstuffpgstore/pbft-proto.pb.h"
+#include "store/pg_SMRstore/pbft-proto.pb.h"
 #include "store/common/query_result/query-result-proto.pb.h"
-#include "store/hotstuffpgstore/shardclient.h"
+#include "store/pg_SMRstore/shardclient.h"
 #include "store/common/query_result/query_result.h"
 #include "store/common/query_result/query_result_proto_wrapper.h"
 
@@ -47,7 +47,7 @@
 #include <tao/pq.hpp> //Test connecting directly
 #include "store/common/query_result/taopq_query_result_wrapper.h"
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
 static bool TEST_DIRECT_PG_CONNECTION = false;
 
@@ -58,7 +58,7 @@ class Client : public ::Client {
       Transport *transport, Partitioner *part,
       uint64_t readMessages, uint64_t readQuorumSize, bool signMessages,
       bool validateProofs, KeyManager *keyManager,
-      TrueTime timeserver = TrueTime(0,0), bool fake_SMR = true);
+      TrueTime timeserver = TrueTime(0,0), bool fake_SMR = true, uint64_t SMR_mode = 0, const std::string &PG_BFTSMART_config_path = "");
   ~Client();
 
   // Begin a transaction.
@@ -116,18 +116,23 @@ class Client : public ::Client {
   KeyManager *keyManager;
   // TrueTime server.
   TrueTime timeServer;
-  int client_seq_num;
+  uint64_t client_seq_num;
 
    // If this flag is set, then we are simulating a fake SMR in which we only care about the reply from a single replica ("leader").
   //We use this to simulate an upper bound of performance that would be achievable with a parallel SMR execution engine (akin to Block-STM)
   bool fake_SMR;
+  uint64_t SMR_mode; //Control whether to run without replication (0), with Hotstuff (1) or BFTSmart (2)
+  const std::string& PG_BFTSMART_config_path; //Path for BFTSmart (if in use)
 
 
   /* Debug State */
   std::unordered_map<std::string, uint32_t> statInts;
 
+  uint64_t exec_start_us;
+  uint64_t exec_end_us;
+
 };
 
-} // namespace hotstuffpgstore
+} // namespace pg_SMRstore
 
 #endif /* _HOTSTUFF_PG_CLIENT_H_ */

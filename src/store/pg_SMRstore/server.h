@@ -33,8 +33,8 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "store/hotstuffpgstore/app.h"
-#include "store/hotstuffpgstore/server-proto.pb.h"
+#include "store/pg_SMRstore/app.h"
+#include "store/pg_SMRstore/server-proto.pb.h"
 #include "store/server.h"
 #include "lib/keymanager.h"
 #include "lib/configuration.h"
@@ -46,7 +46,7 @@
 #include "store/common/query_result/query_result_proto_builder.h"
 #include "tbb/concurrent_hash_map.h"
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
 typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_callback;
 // typedef std::function<void()> execute_timeout_callback;
@@ -60,7 +60,9 @@ public:
 
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
     std::vector<::google::protobuf::Message*> Execute_OLD(const string& type, const string& msg);
+    
   void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
+    void Execute_Callback_OLD(const std::string& type, const std::string& msg, const execute_callback ecb);
 
   void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp){};
@@ -98,7 +100,7 @@ private:
 
   //TODO: FIXME: CHANGE THIS TO HANDLE CONCURRENT TXNS -> What if failed.
   struct ClientConnection {
-    ClientConnection(): tx_id(0), connection(nullptr), transaction(nullptr), active(false) {}
+    ClientConnection(): tx_id(0), connection(nullptr), transaction(nullptr), active(false), test_counter(0) {}
     
     void CreateNewConnection(const std::string &connection_str, uint64_t client_id){
       if(active) Panic("Calling Create twice");
@@ -108,6 +110,12 @@ private:
     }
     
     std::shared_ptr< tao::pq::transaction> GetTX(uint64_t tx_id_){ // if tx exists / tx_id is same => return current TX. If Tx_id is greater => Start new tx}
+      // test_counter++;
+      // if(test_counter % 2 == 1){
+      //   transaction = connection->transaction();
+      // }
+      // return transaction;
+
       if(tx_id_ > tx_id){
         //Start new transaction
         UW_ASSERT(transaction == nullptr);
@@ -118,13 +126,20 @@ private:
       Debug("Continue existing TX");
       return transaction; //returns nullptr if current tx is dead.
     }
+    bool ValidTX(uint64_t tx_id_){
+      return true; //TESTING
+      return tx_id_ >= tx_id;
+    }
     void TerminateTX(){ // close current txn
+      Debug("Terminate Tnxn %lu", tx_id);
       transaction = nullptr;
     }
     bool active;
     std::shared_ptr<tao::pq::connection> connection; //PG connection
     uint64_t tx_id; //current tx_id;
     std::shared_ptr< tao::pq::transaction> transaction; //Current Transaction
+
+    uint64_t test_counter;
   };
   typedef tbb::concurrent_hash_map<uint64_t, ClientConnection> clientConnectionMap; 
   clientConnectionMap clientConnections;
@@ -155,6 +170,7 @@ private:
      /////////////////// HELPER FUNCTIONS ///////////////////
   ::google::protobuf::Message* ParseMsg(const string& type, const string& msg, std::string &client_seq_key, uint64_t &req_id, uint64_t &client_id, uint64_t &tx_id);
   ::google::protobuf::Message* ProcessReq(uint64_t req_id, uint64_t client_id, uint64_t tx_id, const string& type, ::google::protobuf::Message *req);
+  uint64_t getThreadID(const uint64_t &client_id);
   std::shared_ptr< tao::pq::transaction> GetClientTransaction(clientConnectionMap::accessor &c, const uint64_t &client_id, const uint64_t &tx_id);
   sql::QueryResultProtoBuilder* createResult(const tao::pq::result &sql_res);
 

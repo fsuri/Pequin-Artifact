@@ -24,20 +24,23 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/hotstuffpgstore/shardclient.h"
-#include "store/hotstuffpgstore/pbft_batched_sigs.h"
-#include "store/hotstuffpgstore/common.h"
+#include "store/pg_SMRstore/shardclient.h"
+#include "store/pg_SMRstore/pbft_batched_sigs.h"
+#include "store/pg_SMRstore/common.h"
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
 static bool SEND_ONLY_TO_LEADER = true;
 static bool ONLY_WAIT_FOR_LEADER = true;
 
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
-    bool signMessages, bool validateProofs, KeyManager *keyManager, Stats* stats, bool fake_SMR) :
+    bool signMessages, bool validateProofs, KeyManager *keyManager, Stats* stats, 
+    bool fake_SMR, uint64_t SMR_mode, const std::string& PG_BFTSMART_config_path) :
     config(config), transport(transport), group_idx(group_idx), signMessages(signMessages), validateProofs(validateProofs),
-    keyManager(keyManager), stats(stats), fake_SMR(fake_SMR), reqId(0UL) {
+    keyManager(keyManager), stats(stats), reqId(0UL), client_id(client_id),
+    fake_SMR(fake_SMR), SMR_mode(SMR_mode)  {
+
   transport->Register(this, config, -1, -1);
   
   //NOTE: This is useless for HS-based stores since HS runs with stable leader...
@@ -51,9 +54,85 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
     closestReplicas = closestReplicas_;
   }
 
+  if(SMR_mode == 2){
+    Debug("created bftsmart agent in shard client!");
+    bftsmartagent = new BftSmartAgent(true, this, 1000 + client_id, group_idx, PG_BFTSMART_config_path);
+
+     // notify the servers about my reply address (Note: This is necessary because the replica doesn't receive a ReturnAddress when calling ReceiveFromBFTSmart)
+    Debug("Sending connect messages! with client id %d, config n: %d", client_id, config.n);
+    proto::Connect connect;
+    connect.set_client_id(client_id);
+    transport->SendMessageToGroup(this, group_idx, connect);
+    Debug("Finished sending connect messages!");
+  }
+
 }
 
-ShardClient::~ShardClient() {}
+ShardClient::~ShardClient() {
+   if(SMR_mode == 2){
+    Debug("delete bftsmart agent in shard client!");
+    delete bftsmartagent;
+  }
+}
+
+// ================================
+// ==== BFT_SMART INTERFACE ====
+// ================================
+
+void ShardClient::SendMessageToGroup_viaBFTSMART(proto::Request& msg, int group_idx){
+  // Set my address in the request
+  // const UDPTransportAddress& addr = dynamic_cast<const UDPTransportAddress&>(*myAddress);
+  // const TCPTransportAddress& addr = dynamic_cast<const TCPTransportAddress&>(*myAddress);
+  // msg.mutable_client_address()->set_sin_addr(addr.addr.sin_addr.s_addr);
+  // msg.mutable_client_address()->set_sin_port(addr.addr.sin_port);
+  // msg.mutable_client_address()->set_sin_family(addr.addr.sin_family);
+  // Debug("client addr: %d %d %d", addr.addr.sin_port, addr.addr.sin_addr.s_addr, addr.addr.sin_family);
+  msg.set_client_id(client_id);
+  Debug("sending to group with client id %d", client_id);
+
+  // Serialize message
+  string data;
+  UW_ASSERT(msg.SerializeToString(&data));
+  string type = msg.GetTypeName();
+  size_t typeLen = type.length();
+  size_t dataLen = data.length();
+  size_t totalLen = (typeLen + sizeof(typeLen) +
+                      dataLen + sizeof(dataLen) +
+                      sizeof(totalLen) +
+                      sizeof(uint32_t));
+
+  Debug("Message is %lu total bytes", totalLen);
+
+  char buf[totalLen];
+  char *ptr = buf;
+
+  *((uint32_t *) ptr) = MAGIC;
+  ptr += sizeof(uint32_t);
+  UW_ASSERT((size_t)(ptr-buf) < totalLen);
+
+  *((size_t *) ptr) = totalLen;
+  ptr += sizeof(size_t);
+  UW_ASSERT((size_t)(ptr-buf) < totalLen);
+
+  *((size_t *) ptr) = typeLen;
+  ptr += sizeof(size_t);
+  UW_ASSERT((size_t)(ptr-buf) < totalLen);
+
+  UW_ASSERT((size_t)(ptr+typeLen-buf) < totalLen);
+  memcpy(ptr, type.c_str(), typeLen);
+  ptr += typeLen;
+  *((size_t *) ptr) = dataLen;
+  ptr += sizeof(size_t);
+
+  UW_ASSERT((size_t)(ptr-buf) < totalLen);
+  UW_ASSERT((size_t)(ptr+dataLen-buf) == totalLen);
+  memcpy(ptr, data.c_str(), dataLen);
+  ptr += dataLen;
+  Debug("sending the buffer to the group!");
+  this->bftsmartagent->send_to_group(this, group_idx, buf, totalLen);
+  Debug("finished sending the buffer to the group!");
+}
+
 
 
 // ================================
@@ -61,11 +140,17 @@ ShardClient::~ShardClient() {}
 // ================================
 
 // Currently assumes no duplicates, can add de-duping code later if needed
-void ShardClient::Query(const std::string &query, uint64_t client_id, int client_seq_num, 
+void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t client_seq_num, 
       sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout) {
 
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // auto exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  
+
   reqId++;
-  Debug("Query id: %lu", reqId);
+  Debug("Query id: %lu. Tx_id: %lu", reqId, client_seq_num);
 
   //Create SQL RPC request (this is what server consumes)
   proto::SQL_RPC sql_rpc;
@@ -85,23 +170,38 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, int client
       });
   psr.timeout->Start();
 
+  //TEST
+  transport->SendMessageToReplica(this, 0, sql_rpc);
+
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // Notice("Shardclient outbound latency: %lu us", exec_end_us - exec_start_us);
+  return;
+
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
   request.set_digest(crypto::Hash(sql_rpc.SerializeAsString()));
   request.mutable_packed_msg()->set_msg(sql_rpc.SerializeAsString());
   request.mutable_packed_msg()->set_type(sql_rpc.GetTypeName());
 
-  Debug("Sending Query. reqID: %lu", reqId);
+  Debug("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
+
+  
 
   if(SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
-    transport->SendMessageToGroup(this, group_idx, request);
+    if(SMR_mode == 2){
+      SendMessageToGroup_viaBFTSMART(request, group_idx);
+    }
+    else{
+      transport->SendMessageToGroup(this, group_idx, request);
+    }
   }
 }
 
-void ShardClient::Commit(uint64_t client_id, int client_seq_num, 
+void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num, 
   try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout) {
 
   reqId++;
@@ -124,6 +224,10 @@ void ShardClient::Commit(uint64_t client_id, int client_seq_num,
       });
   ptc.timeout->Start();
 
+  //TEST
+  transport->SendMessageToReplica(this, 0, try_commit);
+  return;
+
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
   request.set_digest(crypto::Hash(try_commit.SerializeAsString()));
@@ -131,17 +235,22 @@ void ShardClient::Commit(uint64_t client_id, int client_seq_num,
   request.mutable_packed_msg()->set_type(try_commit.GetTypeName());
   
 
-  Debug("Sending TryCommit. reqID: %lu", reqId);
+  Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
 
   if(SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
-    transport->SendMessageToGroup(this, group_idx, request);
+    if(SMR_mode == 2){
+      SendMessageToGroup_viaBFTSMART(request, group_idx);
+    }
+    else{
+      transport->SendMessageToGroup(this, group_idx, request);
+    }
   }
-  }
+}
 
-void ShardClient::Abort(uint64_t client_id, int client_seq_num) {
+void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
 
   Debug("Abort Transaction");
 
@@ -160,11 +269,17 @@ void ShardClient::Abort(uint64_t client_id, int client_seq_num) {
   request.mutable_packed_msg()->set_msg(user_abort.SerializeAsString());
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
+  Debug("Sending Abort TxnSeq: %lu ", client_seq_num);
   if(SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
-    transport->SendMessageToGroup(this, group_idx, request);
+    if(SMR_mode == 2){
+      SendMessageToGroup_viaBFTSMART(request, group_idx);
+    }
+    else{
+      transport->SendMessageToGroup(this, group_idx, request);
+    }
   }
 }
 
@@ -213,8 +328,13 @@ int ShardClient::ValidateAndExtractData(const std::string &t, const std::string 
   }
 }
 
-
+static uint64_t start_us;
+static uint64_t end_us;
 void ShardClient::ReceiveMessage(const TransportAddress &remote, const std::string &t, const std::string &d, void *meta_data) {
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   Debug("handling message of type %s", t.c_str());
   std::string type;
@@ -295,6 +415,11 @@ void ShardClient::SQL_RPCReplyHelper(PendingSQL_RPC &pendingSQL_RPC, const std::
 
   sql_rpc_callback srcb = pendingSQL_RPC.srcb;
   pendingSQL_RPCs.erase(req_id);
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // Notice("Shardclient inbound latency: %lu us", end_us - start_us);
   srcb(status, sql_rpcReply);
 }
 

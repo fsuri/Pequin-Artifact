@@ -37,7 +37,7 @@
 
 namespace tpcc_sql {
 
-TPCCSQLClient::TPCCSQLClient(SyncClient &client, Transport &transport,
+TPCCSQLClient::TPCCSQLClient(bool run_sequential, SyncClient &client, Transport &transport,
     uint64_t seed, int numRequests, int expDuration, uint64_t delay, int warmupSec,
     int cooldownSec, int tputInterval,  uint32_t num_warehouses, uint32_t w_id,
     uint32_t C_c_id, uint32_t C_c_last, uint32_t new_order_ratio,
@@ -48,6 +48,7 @@ TPCCSQLClient::TPCCSQLClient(SyncClient &client, Transport &transport,
       SyncTransactionBenchClient(client, transport, seed, numRequests,
         expDuration, delay, warmupSec, cooldownSec, tputInterval, abortBackoff,
         retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename), 
+      run_sequential(run_sequential),
       num_warehouses(num_warehouses), w_id(w_id), C_c_id(C_c_id),
       C_c_last(C_c_last), new_order_ratio(new_order_ratio),
       delivery_ratio(delivery_ratio), payment_ratio(payment_ratio),
@@ -67,6 +68,7 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
     wid = deliveryWId;
     did = deliveryDId;
     lastOp = "delivery";
+    if(run_sequential) return new SQLDeliverySequential(GetTimeout(), wid, did, GetRand());
     return new SQLDelivery(GetTimeout(), wid, did, GetRand());
   } else {
     delivery = false;
@@ -91,9 +93,11 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   }
   if (ttype < (freq = new_order_ratio)) {
     lastOp = "new_order";
+    if(run_sequential) return new SQLNewOrderSequential(GetTimeout(), wid, C_c_id, num_warehouses, gen);
     return new SQLNewOrder(GetTimeout(), wid, C_c_id, num_warehouses, gen);
   } else if (ttype < (freq += payment_ratio)) {
     lastOp = "payment";
+    if(run_sequential) return new SQLPaymentSequential(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, gen);
     return new SQLPayment(GetTimeout(), wid, C_c_last, C_c_id, num_warehouses, gen);
   } else if (ttype < (freq += order_status_ratio)) {
     lastOp = "order_status";
@@ -112,6 +116,7 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
     did = deliveryDId;
     delivery = true;
     lastOp = "delivery";
+    if(run_sequential) return new SQLDeliverySequential(GetTimeout(), wid, did, gen);
     return new SQLDelivery(GetTimeout(), wid, did, gen);
   }
 }

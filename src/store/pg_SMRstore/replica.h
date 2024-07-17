@@ -38,18 +38,20 @@
 #include "lib/keymanager.h"
 
 #include "store/common/stats.h"
-#include "store/hotstuffpgstore/pbft-proto.pb.h"
-#include "store/hotstuffpgstore/app.h"
-#include "store/hotstuffpgstore/common.h"
+#include "store/pg_SMRstore/pbft-proto.pb.h"
+#include "store/pg_SMRstore/app.h"
+#include "store/pg_SMRstore/common.h"
 #include <mutex>
 #include "tbb/concurrent_unordered_map.h"
-#include "store/hotstuffpgstore/server.h"
+#include "store/pg_SMRstore/server.h"
 
 // use HotStuff library
 // comment out the below macro to switch back to pbftstore
 #include "store/hotstuffstore/libhotstuff/examples/indicus_interface.h"
 
-namespace hotstuffpgstore {
+#include "store/pg_SMRstore/bftsmartagent.h"
+
+namespace pg_SMRstore {
 
 static bool TEST_WITHOUT_HOTSTUFF = true;
 
@@ -58,19 +60,31 @@ public:
   Replica(const transport::Configuration &config, KeyManager *keyManager,
     App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
           uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, bool local_config, int numShards, Transport *transport,
-          bool fake_SMR = false, int dummyTO = 100);
+          bool fake_SMR = false, int dummyTO = 100, uint64_t SMR_mode = 0, const std::string& PG_BFTSMART_config_path = "");
   ~Replica();
 
   // Message handlers.
-  void ReceiveMessage(const TransportAddress &remote, const std::string &type,
-                      const std::string &data, void *meta_data);
+  void ReceiveMessage(const TransportAddress &remote, const std::string &type, const std::string &data, void *meta_data);
+    void ReceiveFromBFTSmart(const string &type, const string &data);
+
   void HandleRequest(const TransportAddress &remote,
                            const proto::Request &msg);
 
  private:
   void HandleRequest_noHS(const TransportAddress &remote, const proto::Request &request);
+  void HandleRequest_noPacked(const TransportAddress &remote, const std::string &type, const std::string &data);
 
-  hotstuffstore::IndicusInterface hotstuffpg_interface;
+  uint64_t SMR_mode;
+
+  hotstuffstore::IndicusInterface* hotstuffpg_interface;
+
+  pg_SMRstore::BftSmartAgent* bftsmartagent;
+    std::mutex client_cache_mutex;
+    std::unordered_map<uint64_t, const TransportAddress*> clientCache;
+    std::unordered_map<uint64_t, std::vector<proto::Request>> reqBuffer;
+
+
+
   std::unordered_set<std::string> requests_dup;
 
   const transport::Configuration &config;
@@ -94,8 +108,13 @@ public:
   int dummyTO;
 
   // members to reduce alloc
+  proto::Connect connect_msg;
   proto::Request recvrequest;
   proto::RequestRequest recvrr;
+
+  proto::SQL_RPC sql_rpc_template;
+  proto::TryCommit try_commit_template;
+  proto::UserAbort user_abort_template;
 
   std::unordered_map<uint64_t, std::string> sessionKeys;
 
@@ -148,8 +167,11 @@ public:
   void bubbleCB(uint64_t currProposedCounter);
   Stats* stats;
 
+
+  void RW_TEST();
+
 };
 
-} // namespace hotstuffpgstore
+} // namespace pg_SMRstore
 
 #endif

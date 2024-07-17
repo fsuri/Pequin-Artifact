@@ -70,7 +70,7 @@ def kill_servers(config, executor, kill_args=' -9'):
     # Define n as the minimun number of replicas that is satisfies the fault tolerance
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -256,7 +256,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
     if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'hotstuffpg' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
     else:
         n = 2 * config['fault_tolerance'] + 1
@@ -323,7 +323,7 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
 
             
             ## set-up dbs for pg-smr
-            if config['replication_protocol'] == 'hotstuffpg':
+            if config['replication_protocol'] == 'pg-smr':
                 cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r > /dev/null 2>&1;'
                 # # Creating a single db per machine
                 cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1 > /dev/null 2>&1;'

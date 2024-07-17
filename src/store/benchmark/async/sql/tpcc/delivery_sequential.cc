@@ -32,17 +32,17 @@
 
 namespace tpcc_sql { 
 
-SQLDelivery::SQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+SQLDeliverySequential::SQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
     std::mt19937 &gen)
     : TPCCSQLTransaction(timeout), w_id(w_id), d_id(d_id) {
   o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
   ol_delivery_d = std::time(0); 
 }
 
-SQLDelivery::~SQLDelivery() {
+SQLDeliverySequential::~SQLDeliverySequential() {
 }
 
-transaction_status_t SQLDelivery::Execute(SyncClient &client) {
+transaction_status_t SQLDeliverySequential::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;

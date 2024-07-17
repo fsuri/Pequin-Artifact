@@ -77,7 +77,7 @@
 // HotStuff
 #include "store/hotstuffstore/client.h"
 // HotStuffPostgres
-#include "store/hotstuffpgstore/client.h"
+#include "store/pg_SMRstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -117,8 +117,6 @@ enum protomode_t {
 	PROTO_PBFT,
   // HotStuff
   PROTO_HOTSTUFF,
-  // HotStuffPG
-  PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS,
   // Bftsmart
@@ -126,6 +124,8 @@ enum protomode_t {
   // Augustus-Hotstuff
   PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES,
+   // PG-SMR
+  PROTO_PG_SMR,
   PROTO_CRDB
 };
 
@@ -305,7 +305,8 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
-DEFINE_bool(fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
+DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
+DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
 
 //Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
@@ -495,8 +496,6 @@ const std::string protocol_args[] = {
 	"pbft",
 // HotStuff
     "hotstuff",
-// HotStuff Postgres
-    "hotstuffpg",
 // Augustus-Hotstuff
     "augustus-hs",
 // BFTSmart
@@ -504,6 +503,7 @@ const std::string protocol_args[] = {
 // Augustus-BFTSmart
 	"augustus",
   "pg",
+  "pg-smr", //Formerly: hotstuffpg
   "crdb"
 };
 const protomode_t protomodes[] {
@@ -521,8 +521,6 @@ const protomode_t protomodes[] {
   PROTO_PBFT,
   // HotStuff
   PROTO_HOTSTUFF,
-  // HotStuff Postgres
-  PROTO_HOTSTUFF_PG,
   // Augustus-Hotstuff
   PROTO_AUGUSTUS,
   // BFTSmart
@@ -530,6 +528,8 @@ const protomode_t protomodes[] {
   // Augustus-BFTSmart
 	PROTO_AUGUSTUS_SMART,
   PROTO_POSTGRES,
+   // PG-SMR
+  PROTO_PG_SMR,
   // Cockroach Database
   PROTO_CRDB
 };
@@ -743,6 +743,7 @@ DEFINE_int32(clients_per_warehouse, 1, "number of clients per warehouse"
 		" (for tpcc)");
 DEFINE_int32(remote_item_milli_p, 0, "remote item milli p (for tpcc)");
 
+DEFINE_bool(tpcc_run_sequential, false, "run all queries within a TPCC transaction sequentiallly");
 DEFINE_int32(tpcc_num_warehouses, 1, "number of warehouses (for tpcc)");
 DEFINE_int32(tpcc_w_id, 1, "home warehouse id for this client (for tpcc)");
 DEFINE_int32(tpcc_C_c_id, 1, "C value for NURand() when selecting"
@@ -1404,7 +1405,7 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
-      case PROTO_HOTSTUFF_PG:
+      case PROTO_PG_SMR:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -1590,14 +1591,14 @@ int main(int argc, char **argv) {
         break;
     }
 // HotStuff Postgres
-    case PROTO_HOTSTUFF_PG: {
-        client = new hotstuffpgstore::Client(*config, clientId, FLAGS_num_shards,
+    case PROTO_PG_SMR: {
+        client = new pg_SMRstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
                                        readMessages, readQuorumSize,
                                        FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                        keyManager,
-																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_fake_SMR);
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_pg_fake_SMR, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
         break;
     }
 
@@ -1734,7 +1735,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_TPCC_SQL:
         UW_ASSERT(syncClient != nullptr);
-        bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport,
+        bench = new tpcc_sql::TPCCSQLClient(FLAGS_tpcc_run_sequential, *syncClient, *tport,
             seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
@@ -1810,12 +1811,12 @@ int main(int argc, char **argv) {
           int num_tpcch_threads = std::max(static_cast<int>(FLAGS_ch_client_proportion * client_total), 0);
           if (id < num_tpcch_threads) {
             std::mt19937 gen_tpcch(seed); //Seems to be unused.
-            bench = new tpcch_sql::TPCCHSQLClient( *syncClient, *tport,
+            bench = new tpcch_sql::TPCCHSQLClient(*syncClient, *tport,
                 seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
                 FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
                 FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
           } else {
-            bench = new tpcc_sql::TPCCSQLClient(*syncClient, *tport, seed,
+            bench = new tpcc_sql::TPCCSQLClient(FLAGS_tpcc_run_sequential, *syncClient, *tport, seed,
                 FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
                 FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
                 FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,

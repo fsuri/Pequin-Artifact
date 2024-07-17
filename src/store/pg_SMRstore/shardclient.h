@@ -37,15 +37,17 @@
 #include "store/common/timestamp.h"
 #include "store/common/transaction.h"
 #include "store/common/common-proto.pb.h"
-#include "store/hotstuffpgstore/pbft-proto.pb.h"
+#include "store/pg_SMRstore/pbft-proto.pb.h"
 #include "store/common/query_result/query-result-proto.pb.h"
-#include "store/hotstuffpgstore/server-proto.pb.h"
+#include "store/pg_SMRstore/server-proto.pb.h"
 #include <sys/time.h>
+
+#include "store/pg_SMRstore/bftsmartagent.h"
 
 #include <map>
 #include <string>
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
 // status, key, value
 
@@ -65,22 +67,26 @@ class ShardClient : public TransportReceiver {
       uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
       bool signMessages, bool validateProofs,
       KeyManager *keyManager, Stats* stats,
-      bool fake_SMR = false);
+      bool fake_SMR = false, uint64_t SMR_mode = 0, const std::string& PG_BFTSMART_config_path = "");
   ~ShardClient();
 
   void ReceiveMessage(const TransportAddress &remote, const std::string &type, const std::string &data, void *meta_data);
 
-  void Query(const std::string &query, uint64_t client_id, int client_seq_num, sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout);
+  void Query(const std::string &query, uint64_t client_id, uint64_t client_seq_num, sql_rpc_callback srcb, sql_rpc_timeout_callback srtcb,  uint32_t timeout);
 
-  void Commit(uint64_t client_id, int client_seq_num, try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout);
+  void Commit(uint64_t client_id, uint64_t client_seq_num, try_commit_callback tccb, try_commit_timeout_callback tctcb, uint32_t timeout);
 
-  void Abort(uint64_t client_id, int client_seq_num);
+  void Abort(uint64_t client_id, uint64_t client_seq_num);
 
  private:
+  pg_SMRstore::BftSmartAgent* bftsmartagent;
+  void SendMessageToGroup_viaBFTSMART(proto::Request& msg, int group_idx);
+
   uint64_t start_time;
   uint64_t total_elapsed = 0 ;
   uint64_t total_prepare = 0;
 
+  uint64_t client_id;
   uint64_t reqId;
 
   transport::Configuration config;
@@ -93,6 +99,7 @@ class ShardClient : public TransportReceiver {
   // If this flag is set, then we are simulating a fake SMR in which we only care about the reply from a single replica ("leader").
   //We use this to simulate an upper bound of performance that would be achievable with a parallel SMR execution engine (akin to Block-STM)
   bool fake_SMR;
+  uint64_t SMR_mode;
 
 
   std::vector<int> closestReplicas;
@@ -162,6 +169,6 @@ class ShardClient : public TransportReceiver {
   Stats* stats;
 };
 
-} // namespace hotstuffpgstore
+} // namespace pg_SMRstore
 
 #endif /* _INDICUS_SHARDCLIENT_H_ */

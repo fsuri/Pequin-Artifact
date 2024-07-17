@@ -2,9 +2,9 @@ syntax = "proto2";
 
 import "store/common/common-proto.proto";
 import "store/common/query_result/query-result-proto.proto";
-import "store/hotstuffpgstore/pbft-proto.proto";
+import "store/pg_SMRstore/pbft-proto.proto";
 
-package hotstuffpgstore.proto;
+package pg_SMRstore.proto;
 
 message SQL_RPC {
   required uint64 req_id = 1;

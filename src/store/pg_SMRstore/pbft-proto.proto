@@ -2,7 +2,11 @@ syntax = "proto2";
 
 import "store/common/query_result/query-result-proto.proto";
 
-package hotstuffpgstore.proto;
+package pg_SMRstore.proto;
+
+message Connect {
+  required uint64 client_id = 1;
+}
 
 message PackedMessage {
   required bytes msg = 1;
@@ -31,6 +35,7 @@ message Request {
   // digest should correspond to an application specific digest of
   // the message in the packed message
   required bytes digest = 2;
+  required uint64 client_id = 3;
 }
 
 message RequestRequest {

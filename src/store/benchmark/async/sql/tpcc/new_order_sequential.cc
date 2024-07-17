@@ -32,7 +32,7 @@
 
 namespace tpcc_sql { 
 
-SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
+SQLNewOrderSequential::SQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
     TPCCSQLTransaction(timeout), w_id(w_id) {
 
@@ -82,10 +82,10 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
   //std::cerr << "All local == " << all_local << std::endl;
 }
 
-SQLNewOrder::~SQLNewOrder() {
+SQLNewOrderSequential::~SQLNewOrderSequential() {
 }
 
-transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
+transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
@@ -93,7 +93,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER");
-  std::cerr << "NEW ORDER" << std::endl;
+  std::cerr << "NEW_ORDER" << std::endl;
   Debug("Warehouse: %u", w_id); 
 
   std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
@@ -158,6 +158,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
     statement = fmt::format("SELECT * FROM {} WHERE i_id = {}", ITEM_TABLE, o_ol_i_ids[ol_number]);
     client.Query(statement, queryResult, timeout);
     if(queryResult->empty()) {
+      Notice("Triggering NewOrder Abort");
       client.Abort(timeout);
       return ABORTED_USER;
     }

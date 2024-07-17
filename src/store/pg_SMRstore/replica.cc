@@ -24,21 +24,31 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/hotstuffpgstore/replica.h"
-#include "store/hotstuffpgstore/pbft_batched_sigs.h"
-#include "store/hotstuffpgstore/common.h"
+#include "store/pg_SMRstore/replica.h"
+#include "store/pg_SMRstore/pbft_batched_sigs.h"
+#include "store/pg_SMRstore/common.h"
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
 using namespace std;
 
 
 Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
   uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuffpg_cpu, bool local_config, 
-  int numShards, Transport *transport, bool fake_SMR, int dummyTO)
-    : config(config), hotstuffpg_interface(groupIdx, idx, hotstuffpg_cpu, local_config), keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
+  int numShards, Transport *transport, bool fake_SMR, int dummyTO, uint64_t SMR_mode, const std::string& PG_BFTSMART_config_path)
+    : config(config), keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
       id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize), batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), 
-      primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport), fake_SMR(fake_SMR), dummyTO(dummyTO) {
+      primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport), 
+      fake_SMR(fake_SMR), dummyTO(dummyTO), SMR_mode(SMR_mode) {
+
+  if(SMR_mode == 1){
+    hotstuffpg_interface = new hotstuffstore::IndicusInterface(groupIdx, idx, hotstuffpg_cpu, local_config);
+  }
+  else if(SMR_mode == 2){
+    std::cerr << "bftsmart config path: " << PG_BFTSMART_config_path << std::endl;
+    bftsmartagent = new BftSmartAgent(false, this, idx, groupIdx, PG_BFTSMART_config_path);
+  }
+
   transport->Register(this, config, groupIdx, idx);
 
   // initial seqnum
@@ -76,7 +86,14 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
   }
 }
 
-Replica::~Replica() {}
+Replica::~Replica() {
+  if(SMR_mode == 1){
+    delete hotstuffpg_interface;
+  }
+  else if(SMR_mode == 2){
+    delete bftsmartagent;
+  }
+}
 
 void Replica::bubbleCB(uint64_t currProposedCounter){
  
@@ -119,7 +136,7 @@ void Replica::proposeBubble(){
     transport->DispatchTP_main(f);
   };
 
-  hotstuffpg_interface.propose(dummy_digest, execb_bubble);
+  hotstuffpg_interface->propose(dummy_digest, execb_bubble);
   proposedCounter++;
 }
 
@@ -127,10 +144,31 @@ void Replica::proposeBubble(){
 void Replica::ReceiveMessage(const TransportAddress &remote, const string &type, const string &data, void *meta_data) {
  
   Debug("Received message of type %s", type.c_str());
-  
-  if (type == recvrequest.GetTypeName()) {
 
-    if(TEST_WITHOUT_HOTSTUFF){
+  if(type == connect_msg.GetTypeName()){
+    connect_msg.ParseFromString(data);
+    std::unique_lock lock(client_cache_mutex);
+    const uint64_t &client_id = connect_msg.client_id();
+    clientCache[client_id] = remote.clone();
+    Debug("Registering client ID %d to the Connection cache!", client_id);
+    //Handle any buffered requests   //NOTE: Doing so will technically violate the total order from consensus, but we are only simulating a fake SMR anyways.
+    if (reqBuffer.find(client_id) != reqBuffer.end()){
+      for (proto::Request request: reqBuffer[client_id]){
+        Debug("fetching previous buffered requests because we get reads!");
+        HandleRequest_noHS(*(clientCache[client_id]), request);
+      }
+      reqBuffer.erase(client_id);
+    }
+  }
+
+  else if(type == sql_rpc_template.GetTypeName() || type == try_commit_template.GetTypeName()){
+    HandleRequest_noPacked(remote, type, data);
+  }
+
+  
+  else if (type == recvrequest.GetTypeName()) {
+
+    if(SMR_mode == 0){ //TEST_WITHOUT_HOTSTUFF){ //If no SMR enabled, then just execute directly.
        recvrequest.ParseFromString(data);
        HandleRequest_noHS(remote, recvrequest);
       return;
@@ -144,13 +182,74 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &type,
   }
 }
 
-static bool USE_SYNC_INTERFACE = true;
+void Replica::ReceiveFromBFTSmart(const string &type, const string &data){
+  bool recvSignedMessage = false;
 
+    // TODO: modify transport address!
+  Debug("message upcalled from BFT smart agent");
+  Debug("Received message of type %s", type.c_str());
+
+  if (type == recvrequest.GetTypeName()) {
+
+    // TODO: special processing requests
+    recvrequest.ParseFromString(data);
+   
+    uint64_t client_id = recvrequest.client_id();
+    std::unique_lock lock(client_cache_mutex);
+    const TransportAddress* client = clientCache[client_id];
+    Debug("handling the request here... ");
+    if (client == nullptr){
+      Debug("Failed to get client ID! %d, putting the request in the buffer...", client_id);
+      reqBuffer[client_id].push_back(recvrequest);
+    }
+    else {
+      Debug("handling the request for real!");
+      HandleRequest_noHS(*client, recvrequest);
+    }
+    Debug("finished handling requests");
+  }else{
+    Panic("message type not proto::Request, unimplemented");
+  }
+
+}
+
+
+static uint64_t req = 0;
+void Replica::RW_TEST(){
+  auto loops = 0;
+  while(loops > 0){
+    loops--;
+    req++;
+    auto key = req % 10;
+    std::string statement = "UPDATE t0 SET value = value + 1 WHERE key = " + std::to_string(key) + ";";
+    
+    proto::SQL_RPC sql_rpc;
+    sql_rpc.set_req_id(req);
+    sql_rpc.set_query(statement);
+    sql_rpc.set_client_id(0);
+    sql_rpc.set_txn_seq_num(req);
+
+
+
+    app->Execute(sql_rpc.GetTypeName(), sql_rpc.SerializeAsString());
+      
+    proto::TryCommit try_commit;
+    try_commit.set_req_id(req);
+    try_commit.set_client_id(0);
+    try_commit.set_txn_seq_num(req);
+
+  
+    app->Execute(try_commit.GetTypeName(), try_commit.SerializeAsString());
+  }
+}
+
+
+
+static bool USE_SYNC_INTERFACE = true; //NOTE: THIS MUST BE FALSE WITH > 1 client
 static uint64_t counter = 0;
 //Directly call into Server (skip HS)
 //Note: BubbleTimer will never be called since we never call HandleRequest
 void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Request &request){
-
 
   // //Reply immediately with a dummy result -- pay deserialization cost, but don't talk to postgres.
   // //1 Sql reply, 1 commit reply.
@@ -181,21 +280,32 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
 
   // return;
   //
+  Debug("Received new Request");
 
   const string &digest = request.digest();
   const proto::PackedMessage &packedMsg = request.packed_msg();
   TransportAddress* clientAddr = remote.clone(); //The return address to reply to
+
+
+  //TEST: Before every new TX exec a few more.
+   proto::SQL_RPC sql_rpc;
+  if(packedMsg.type() == sql_rpc.GetTypeName()) RW_TEST();
+  //Count total number or ProcessReq invocations remote vs here.
+  //If coordination is bottleneck, the number will be way larger. If postgres is bottleneck, they will be close.
   
   auto f = [this, digest, packedMsg, clientAddr](){
+    Debug("Executing App interface");
     replyAddrs[digest] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
 
     auto cb = [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
+      Debug("Trigger reply callback");
       //TEST: Send back unsigned.
       if(!signMessages){
         UW_ASSERT(replies.size() <= 1);
         for(auto reply: replies){
            if(reply == nullptr){
             Debug("Abort needs no reply");
+            continue;
            }
           TransportAddress* clientAddr = replyAddrs[digest];
           transport->SendMessage(this, *clientAddr, *reply);
@@ -223,8 +333,91 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
   transport->DispatchTP_main(f);
 }
 
+static uint64_t exec_start_us;
+static uint64_t exec_end_us;
+void Replica::HandleRequest_noPacked(const TransportAddress &remote, const std::string &type, const std::string &data){
+
+ 
+  TransportAddress* clientAddr = remote.clone(); //The return address to reply to
+
+  //TEST: Before every new TX exec a few more.
+  if(type == sql_rpc_template.GetTypeName()) RW_TEST();
+  //Count total number or ProcessReq invocations remote vs here.
+  //If coordination is bottleneck, the number will be way larger. If postgres is bottleneck, they will be close.
+
+
+  // if(type == sql_rpc_template.GetTypeName()){
+  //    struct timespec ts_start;
+  //     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //     exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // }
+
+
+  //skipping dispatch. Not really needed? 
+  std::vector<::google::protobuf::Message*> replies = app->Execute(type, data);
+
+ 
+
+    for(auto reply: replies){
+        if(reply == nullptr){
+        Debug("Abort needs no reply");
+        continue;
+        }
+      transport->SendMessage(this, *clientAddr, *reply);
+      delete reply;
+    }
+
+  //    if(type == sql_rpc_template.GetTypeName()){
+  //   struct timespec ts_start;
+  //       clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //       uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //       Notice("Server side full latency: %lu us", exec_end_us - exec_start_us);
+  // }
+
+  return;
+ 
+  auto f = [this, clientAddr, type, data](){
+    Debug("Executing App interface");
+  
+    auto cb = [this, clientAddr](const std::vector<::google::protobuf::Message*> &replies){
+      Debug("Trigger reply callback");
+      //TEST: Send back unsigned.
+      if(!signMessages){
+        UW_ASSERT(replies.size() <= 1);
+        for(auto reply: replies){
+           if(reply == nullptr){
+            Debug("Abort needs no reply");
+            continue;
+           }
+          transport->SendMessage(this, *clientAddr, *reply);
+          delete reply;
+          delete clientAddr;
+        }
+      }
+      else{
+         //Create EBatch
+        //ProcessReplies(digest, replies);
+      }
+    };
+    if(USE_SYNC_INTERFACE){
+      //Use Synchronous interface
+      std::vector<::google::protobuf::Message*> replies = app->Execute(type, data);
+      cb(replies);
+    }
+    else{
+     //Use Asynchronous interface
+      app->Execute_Callback(type, data,cb);
+    }
+  
+    return (void*) true;
+  };
+  Debug("Dispatching to main");
+  transport->DispatchTP_main(f);
+}
+
 //Receive Client Requests and Route them via HS first.
 void Replica::HandleRequest(const TransportAddress &remote, const proto::Request &request) {
+  //TODO: FIXME: Re-factor to get rid of packed message. It's a useless indirection that wastes costs.
 
   Debug("Handling request message");
   
@@ -269,7 +462,7 @@ void Replica::HandleRequest(const TransportAddress &remote, const proto::Request
 
   Debug("Proposing execb");
   DebugHash(digest);
-  hotstuffpg_interface.propose(digest, execb);
+  hotstuffpg_interface->propose(digest, execb);
   proposedCounter++;
   Debug("Execb proposed");
 
@@ -424,7 +617,7 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
 }
 
 
-}  // namespace hotstuffpgstore
+}  // namespace pg_SMRstore
 
 
 

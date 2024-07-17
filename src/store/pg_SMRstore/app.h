@@ -24,30 +24,34 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/hotstuffpgstore/app.h"
-#include "lib/assert.h"
+#ifndef _HOTSTUFF_PG_APP_H_
+#define _HOTSTUFF_PG_APP_H_
 
-namespace hotstuffpgstore {
+#include <string>
+#include "store/pg_SMRstore/pbft-proto.pb.h"
+#include <google/protobuf/message.h>
+#include "store/common/stats.h"
+#include <vector>
+// #include "store/pg_SMRstore/server.h"
 
-App::App() {
+namespace pg_SMRstore {
+
+class App {
+public:
+
+    App();
+    virtual ~App();
+
+    virtual ::google::protobuf::Message* HandleMessage(const std::string& type, const std::string& msg);
+    // upcall to execute the message
+    virtual std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
+    virtual void Execute_Callback(const std::string& type, const std::string& msg, std::function<void(std::vector<::google::protobuf::Message*>&)> ecb);
+
+
+
+    virtual Stats* mutableStats() = 0;
+};
 
 }
 
-App::~App() {
-
-}
-
-std::vector<::google::protobuf::Message*> App::Execute(const std::string &msg, const std::string &type) {
-  Panic("Unimplemented");
-}
-
-void App::Execute_Callback(const std::string& type, const std::string& msg, std::function<void(std::vector<::google::protobuf::Message*>&)> ecb) {
-  Panic("Unimplemented");
-}
-
-
-::google::protobuf::Message* App::HandleMessage(const std::string& type, const std::string& msg) {
-  Panic("Unimplemented");
-}
-
-}
+#endif /* _HOTSTUFF_PG_APP_H_ */

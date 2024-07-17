@@ -30,8 +30,8 @@
 #include "lib/configuration.h"
 #include "lib/keymanager.h"
 #include "store/common/timestamp.h"
-#include "store/hotstuffpgstore/pbft-proto.pb.h"
-#include "store/hotstuffpgstore/server-proto.pb.h"
+#include "store/pg_SMRstore/pbft-proto.pb.h"
+#include "store/pg_SMRstore/server-proto.pb.h"
 #include "lib/transport.h"
 
 #include <map>
@@ -46,7 +46,7 @@
 
 
 
-namespace hotstuffpgstore {
+namespace pg_SMRstore {
 
   struct asyncVerification{
     asyncVerification(int no_groups) : groupTotals(no_groups), result(false) { }
@@ -98,6 +98,6 @@ std::string string_to_hex(const std::string& input);
 
 void DebugHash(const std::string& hash);
 
-} // namespace hotstuffpgstore
+} // namespace pg_SMRstore
 
 #endif /* HOTSTUFF_PG_COMMON_H */

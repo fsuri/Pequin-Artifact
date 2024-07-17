@@ -1,6 +1,6 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), app.cc replica.cc common.cc server.cc shardclient.cc client.cc testreplica.cc testclient.cc pbft_batched_sigs.cc)
+SRCS += $(addprefix $(d), app.cc replica.cc common.cc server.cc shardclient.cc client.cc testreplica.cc testclient.cc pbft_batched_sigs.cc bftsmartagent.cc)
 
 PROTOS += $(addprefix $(d), pbft-proto.proto server-proto.proto)
 
@@ -11,7 +11,7 @@ LIB-hotstuff-pg-interface := store/hotstuffstore/libhotstuff/examples/libindicus
 LIB-pbft-batched-sigs := $(LIB-crypto) $(o)pbft_batched_sigs.o 
 
 LIB-hotstuff-pg-store := $(o)common.o $(o)replica.o $(o)server.o \
-	$(o)pbft-proto.o $(o)server-proto.o $(o)app.o $(o)shardclient.o \
+	$(o)pbft-proto.o $(o)server-proto.o $(o)app.o $(o)bftsmartagent.o $(o)shardclient.o \
 	$(o)client.o $(LIB-crypto) $(LIB-pbft-batched-sigs) $(LIB-configuration) $(LIB-store-common) \
 	$(LIB-transport) $(LIB-store-backend) $(LIB-hotstuff-pg-interface)
 

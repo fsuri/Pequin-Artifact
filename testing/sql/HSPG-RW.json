@@ -8,8 +8,8 @@
     ["client_total", "client_processes_per_client_node",
       "client_threads_per_process"]
   ],
-  "replication_protocol": ["hotstuffpg"],
-  "client_protocol_mode": ["hotstuffpg"],
+  "replication_protocol": ["pg-smr"],
+  "client_protocol_mode": ["pg-smr"],
   "num_shards": [1],
   "num_groups": [1],
   

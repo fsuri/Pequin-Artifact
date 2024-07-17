@@ -63,8 +63,8 @@
 #include "store/hotstuffstore/replica.h"
 #include "store/hotstuffstore/server.h"
 // HotStuffPG
-#include "store/hotstuffpgstore/replica.h"
-#include "store/hotstuffpgstore/server.h"
+#include "store/pg_SMRstore/replica.h"
+#include "store/pg_SMRstore/server.h"
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -101,8 +101,6 @@ enum protocol_t {
 	PROTO_PBFT,
     // HotStuff
     PROTO_HOTSTUFF,
-    // HotStuffPG
-    PROTO_HOTSTUFF_PG,
     // Augustus-Hotstuff
     PROTO_AUGUSTUS,
     // BftSmart
@@ -110,7 +108,9 @@ enum protocol_t {
     // Augustus-BFTSmart
 		PROTO_AUGUSTUS_SMART,
     // Postgres
-    PROTO_PG
+    PROTO_PG,
+     // PG-SMR
+    PROTO_PG_SMR
 };
 
 enum transmode_t {
@@ -154,11 +154,11 @@ const std::string protocol_args[] = {
   "indicus",
 	"pbft",
     "hotstuff",
-    "hotstuffpg",
     "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
 	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
+  "pg-smr"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -168,12 +168,11 @@ const protocol_t protos[] {
   PROTO_INDICUS,
   PROTO_PBFT,
   PROTO_HOTSTUFF,
-  PROTO_HOTSTUFF_PG,
   PROTO_AUGUSTUS,
   PROTO_BFTSMART,
   PROTO_AUGUSTUS_SMART,
-  PROTO_PG
-
+  PROTO_PG,
+  PROTO_PG_SMR
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -400,7 +399,8 @@ DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
 //HotstuffPG settings.
-DEFINE_bool(fake_SMR, true, "Whether to simulate fake SMR (parallel invocations to server) or true SMR (sequential exec) -- true SMR is deprecated.");
+DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
+DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
 DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
 
 const std::string occ_type_args[] = {
@@ -545,7 +545,7 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_HOTSTUFF_PG || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_PG_SMR || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
 
@@ -734,7 +734,7 @@ int main(int argc, char **argv) {
         break;
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
-      case PROTO_HOTSTUFF_PG:
+      case PROTO_PG_SMR:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -915,20 +915,21 @@ int main(int argc, char **argv) {
   }
 
      // HotStuffPG
-  case PROTO_HOTSTUFF_PG: {
+  case PROTO_PG_SMR: {
       Notice("Using [%s] server config", FLAGS_local_config ? "LOCAL" : "REMOTE");
    
-      server = new hotstuffpgstore::Server(config, &keyManager,
+      server = new pg_SMRstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
                                      FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
 
-      replica = new hotstuffpgstore::Replica(config, &keyManager,
-                                       dynamic_cast<hotstuffpgstore::App *>(server),
+      replica = new pg_SMRstore::Replica(config, &keyManager,
+                                       dynamic_cast<pg_SMRstore::App *>(server),
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
-                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, FLAGS_fake_SMR, FLAGS_hs_dummy_to);
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, 
+                                       FLAGS_pg_fake_SMR, FLAGS_hs_dummy_to, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
     
       break;
   }

@@ -53,6 +53,28 @@ class SQLNewOrder : public TPCCSQLTransaction {
   bool all_local;
 };
 
+//TODO: Create a shared super class...
+class SQLNewOrderSequential : public TPCCSQLTransaction {
+ public:
+  SQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
+      uint32_t num_warehouses, std::mt19937 &gen);
+  virtual ~SQLNewOrderSequential();
+  virtual transaction_status_t Execute(SyncClient &client);
+
+ private:
+  uint32_t w_id;
+  uint32_t d_id;
+  uint32_t c_id;
+  uint8_t ol_cnt;
+  uint8_t rbk;
+  std::vector<uint32_t> o_ol_i_ids;
+  std::set<uint32_t> unique_items;
+  std::vector<uint32_t> o_ol_supply_w_ids;
+  std::vector<uint8_t> o_ol_quantities;
+  uint32_t o_entry_d;
+  bool all_local;
+};
+
 } // namespace tpcc_sql
 
 #endif /* SQL_NEW_ORDER_H */

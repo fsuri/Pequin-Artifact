@@ -33,7 +33,7 @@
 #include <mutex>
 #include <shared_mutex>
 
-//#include "store/hotstuffpgstore/server-proto.pb.h"
+//#include "store/pg_SMRstore/server-proto.pb.h"
 #include "store/server.h"
 #include "lib/keymanager.h"
 #include "lib/configuration.h"

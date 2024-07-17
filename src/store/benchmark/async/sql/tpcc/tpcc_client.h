@@ -36,7 +36,7 @@ namespace tpcc_sql {
 
 class TPCCSQLClient : public SyncTransactionBenchClient {
  public:
-  TPCCSQLClient(SyncClient &client, Transport &transport, uint64_t id,
+  TPCCSQLClient(bool run_sequential, SyncClient &client, Transport &transport, uint64_t id,
       int numRequests, int expDuration, uint64_t delay, int warmupSec,
       int cooldownSec, int tputInterval, uint32_t num_warehouses, uint32_t w_id,
       uint32_t C_c_id, uint32_t C_c_last, uint32_t new_order_ratio,
@@ -49,6 +49,8 @@ class TPCCSQLClient : public SyncTransactionBenchClient {
   virtual ~TPCCSQLClient();
 
  protected:
+  bool run_sequential;
+  
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
 

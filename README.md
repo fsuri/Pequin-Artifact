@@ -543,8 +543,9 @@ The following steps are necessary to run Postgres.
    > :warning: **[NOTE]**: These steps have already been completed on our pre-supplied postgres image. However, you will need to adjust the paths in the `postgresql_copy.conf`, `pg_hba_copy.conf` files to match the current cloudlab user, and not fs435.
 First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
 1. Uninstall existing Postgres state: run `./postgres_service.sh -u`
-2. Install postgres and initialize a first time: run `./postgres_service.sh -n 1`. This will delete the default main cluster, and create a new one (pgdata) with config files located in `/etc/postgres/12/pgdata`
-3. Modify the config files as described here (https://www.bigbinary.com/blog/configure-postgresql-to-allow-remote-connection) in order to enable remote connections
+2. If creating a disk iamge, also run `sudo groupadd postgres` and `sudo userdel postgres`
+3. Install postgres and initialize a first time: run `./postgres_service.sh -n 1`. This will delete the default main cluster, and create a new one (pgdata) with config files located in `/etc/postgres/12/pgdata`
+4. Modify the config files as described here (https://www.bigbinary.com/blog/configure-postgresql-to-allow-remote-connection) in order to enable remote connections
    - Specifically, modify `postgresql.conf` by replacing the line `listen_address = local host` with `listen_address = '*'`
    - And add the following line to the end of `pg_hba.conf`: `host    all             all              0.0.0.0/0                       md5`
    - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.

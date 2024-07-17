@@ -33,7 +33,7 @@
 
 namespace tpcc_sql { 
 
-SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+SQLPaymentSequential::SQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
     TPCCSQLTransaction(timeout), w_id(w_id), gen(gen) {
   d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
@@ -67,10 +67,10 @@ SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
   h_date = std::time(0);
 }
 
-SQLPayment::~SQLPayment() {
+SQLPaymentSequential::~SQLPaymentSequential() {
 }
 
-transaction_status_t SQLPayment::Execute(SyncClient &client) {
+transaction_status_t SQLPaymentSequential::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;

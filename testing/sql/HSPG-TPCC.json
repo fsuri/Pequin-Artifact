@@ -8,8 +8,8 @@
     ["client_total", "client_processes_per_client_node",
       "client_threads_per_process"]
   ],
-  "replication_protocol": ["hotstuffpg"],
-  "client_protocol_mode": ["hotstuffpg"],
+  "replication_protocol": ["pg-smr"],
+  "client_protocol_mode": ["pg-smr"],
   "num_shards": [1],
   "num_groups": [1],
   
@@ -20,11 +20,12 @@
   
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 18,
+   "server_load_time": 28,
    
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
+  	  "tpcc_run_sequential": false,
 	  "partitioner": "warehouse",
 	  "tpcc_num_warehouses": 1,
 	  
@@ -98,7 +99,7 @@
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
-  "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
   "_client_debug_output": "store/hotstuffpgstore/*",
@@ -107,9 +108,9 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 10,
+  "client_experiment_length": 13,
   "client_ramp_down": 2,
-  "client_ramp_up": 2,
+  "client_ramp_up": 5,
   
   "default_remote_shell": "bash",
   

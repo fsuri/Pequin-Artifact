@@ -25,7 +25,7 @@
  *
  **********************************************************************/
 #include "lib/assert.h"
-#include "store/hotstuffpgstore/pbft_batched_sigs.h"
+#include "store/pg_SMRstore/pbft_batched_sigs.h"
 #include <cstring>
 #include <unordered_map>
 #include "lib/blake3.h"
