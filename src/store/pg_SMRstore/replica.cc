@@ -40,12 +40,15 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
       id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize), batchTimeoutMS(batchTimeoutMS), EbatchSize(EbatchSize), EbatchTimeoutMS(EbatchTimeoutMS), 
       primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport), 
       fake_SMR(fake_SMR), dummyTO(dummyTO), SMR_mode(SMR_mode) {
+    
+  Notice("SMR_mode: %d", SMR_mode);
+  UW_ASSERT(SMR_mode < 3);
 
   if(SMR_mode == 1){
     hotstuffpg_interface = new hotstuffstore::IndicusInterface(groupIdx, idx, hotstuffpg_cpu, local_config);
   }
   else if(SMR_mode == 2){
-    std::cerr << "bftsmart config path: " << PG_BFTSMART_config_path << std::endl;
+    Notice("bftsmart config path: %s", PG_BFTSMART_config_path.c_str());
     bftsmartagent = new BftSmartAgent(false, this, idx, groupIdx, PG_BFTSMART_config_path);
   }
 
@@ -162,56 +165,77 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &type,
   }
 
   else if(type == sql_rpc_template.GetTypeName() || type == try_commit_template.GetTypeName()){
+    Debug("Handle no Packed");
     HandleRequest_noPacked(remote, type, data);
   }
 
   
   else if (type == recvrequest.GetTypeName()) {
-
     if(SMR_mode == 0){ //TEST_WITHOUT_HOTSTUFF){ //If no SMR enabled, then just execute directly.
        recvrequest.ParseFromString(data);
        HandleRequest_noHS(remote, recvrequest);
       return;
     }
+    else if(SMR_mode == 1){ //This path will be invoked for Hotstuff
+      recvrequest.ParseFromString(data);
+      HandleRequest(remote, recvrequest);
+    }
+    else if(SMR_mode == 2){ //This path will be invoked if it comes from BFTSmart
+       recvrequest.ParseFromString(data);
+   
+      uint64_t client_id = recvrequest.client_id();
+      std::unique_lock lock(client_cache_mutex);
+      const TransportAddress* client = clientCache[client_id];
+      Debug("handling the request here... ");
+      if (client == nullptr){
+        Debug("Failed to get client ID! %d, putting the request in the buffer...", client_id);
+        reqBuffer[client_id].push_back(recvrequest);
+      }
+      else {
+        Debug("handling the request for real!");
+        HandleRequest_noHS(*client, recvrequest);
+      }
+      Debug("finished handling requests");
+    }
 
-    recvrequest.ParseFromString(data);
-    HandleRequest(remote, recvrequest);
   } 
   else{
     Panic("Received invalid message type: %s", type.c_str());
   }
 }
 
-void Replica::ReceiveFromBFTSmart(const string &type, const string &data){
-  bool recvSignedMessage = false;
 
-    // TODO: modify transport address!
-  Debug("message upcalled from BFT smart agent");
-  Debug("Received message of type %s", type.c_str());
+//TODO: GEt rid off
+// void Replica::ReceiveFromBFTSmart(const string &type, const string &data){
+//   bool recvSignedMessage = false;
 
-  if (type == recvrequest.GetTypeName()) {
+//     // TODO: modify transport address!
+//   Notice("message upcalled from BFT smart agent");
+//   Debug("Received message of type %s", type.c_str());
 
-    // TODO: special processing requests
-    recvrequest.ParseFromString(data);
+//   if (type == recvrequest.GetTypeName()) {
+
+//     // TODO: special processing requests
+//     recvrequest.ParseFromString(data);
    
-    uint64_t client_id = recvrequest.client_id();
-    std::unique_lock lock(client_cache_mutex);
-    const TransportAddress* client = clientCache[client_id];
-    Debug("handling the request here... ");
-    if (client == nullptr){
-      Debug("Failed to get client ID! %d, putting the request in the buffer...", client_id);
-      reqBuffer[client_id].push_back(recvrequest);
-    }
-    else {
-      Debug("handling the request for real!");
-      HandleRequest_noHS(*client, recvrequest);
-    }
-    Debug("finished handling requests");
-  }else{
-    Panic("message type not proto::Request, unimplemented");
-  }
+//     uint64_t client_id = recvrequest.client_id();
+//     std::unique_lock lock(client_cache_mutex);
+//     const TransportAddress* client = clientCache[client_id];
+//     Debug("handling the request here... ");
+//     if (client == nullptr){
+//       Debug("Failed to get client ID! %d, putting the request in the buffer...", client_id);
+//       reqBuffer[client_id].push_back(recvrequest);
+//     }
+//     else {
+//       Debug("handling the request for real!");
+//       HandleRequest_noHS(*client, recvrequest);
+//     }
+//     Debug("finished handling requests");
+//   }else{
+//     Panic("message type not proto::Request, unimplemented");
+//   }
 
-}
+// }
 
 
 static uint64_t req = 0;
@@ -253,6 +277,7 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
 
   // //Reply immediately with a dummy result -- pay deserialization cost, but don't talk to postgres.
   // //1 Sql reply, 1 commit reply.
+  // Debug("Use dummy request");
   // counter++;
   // if(counter % 2 == 1){
   //   proto::SQL_RPC sql_rpc;
@@ -266,7 +291,9 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
   //   sql::QueryResultProtoBuilder res;
   //   res.set_rows_affected(1);
   //   reply.set_sql_res(res.get_result()->SerializeAsString());
+  //   Debug("Send reply");
   //   transport->SendMessage(this, remote, reply);
+  //   Debug("Finished reply");
   // }
   // else{
   //   proto::TryCommit try_commit;
@@ -275,7 +302,9 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
   //   proto::TryCommitReply reply;
   //   reply.set_req_id(try_commit.req_id());
   //   reply.set_status(0);
+  //   Debug("Send reply");
   //   transport->SendMessage(this, remote, reply);
+  //   Debug("Finished reply");
   // }
 
   // return;
@@ -295,7 +324,7 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
   
   auto f = [this, digest, packedMsg, clientAddr](){
     Debug("Executing App interface");
-    replyAddrs[digest] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+    replyAddrs[digest] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer
 
     auto cb = [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
       Debug("Trigger reply callback");

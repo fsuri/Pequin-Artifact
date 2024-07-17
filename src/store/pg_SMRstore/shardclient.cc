@@ -54,6 +54,8 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
     closestReplicas = closestReplicas_;
   }
 
+  Notice("SMR_mode: %d", SMR_mode);
+
   if(SMR_mode == 2){
     Debug("created bftsmart agent in shard client!");
     bftsmartagent = new BftSmartAgent(true, this, 1000 + client_id, group_idx, PG_BFTSMART_config_path);
@@ -170,13 +172,13 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
       });
   psr.timeout->Start();
 
-  //TEST
-  transport->SendMessageToReplica(this, 0, sql_rpc);
+  // //TEST
+  // transport->SendMessageToReplica(this, 0, sql_rpc);
 
-  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-  // Notice("Shardclient outbound latency: %lu us", exec_end_us - exec_start_us);
-  return;
+  // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // // Notice("Shardclient outbound latency: %lu us", exec_end_us - exec_start_us);
+  // return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
@@ -224,9 +226,9 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
       });
   ptc.timeout->Start();
 
-  //TEST
-  transport->SendMessageToReplica(this, 0, try_commit);
-  return;
+  // //TEST
+  // transport->SendMessageToReplica(this, 0, try_commit);
+  // return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;

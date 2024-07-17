@@ -254,7 +254,8 @@ void agent_request_received(JNIEnv* env, jobject arr){
     string msg(ptr, msgLen);
     ptr += msgLen;
     Debug("start sending the message to the receiver!");
-    // replica->ReceiveFromBFTSmart(msgType, msg);
+    //Notice("Getting message from BFTSmart");
+    //replica->ReceiveFromBFTSmart(msgType, msg);
     replica->ReceiveMessage(*repl_addr, msgType, msg, nullptr);
 }
 

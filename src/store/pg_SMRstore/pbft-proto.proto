@@ -35,7 +35,7 @@ message Request {
   // digest should correspond to an application specific digest of
   // the message in the packed message
   required bytes digest = 2;
-  required uint64 client_id = 3;
+  optional uint64 client_id = 3;
 }
 
 message RequestRequest {

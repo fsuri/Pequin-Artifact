@@ -204,10 +204,10 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'pg-smr':
             client_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
-            if 'SMR_mode' in config:
-                replica_command += ' --pg_SMR_mode=%d' % config['replication_protocol_settings']['SMR_mode']
+            if 'SMR_mode' in config['replication_protocol_settings']:
+                client_command += ' --pg_SMR_mode=%d' % config['replication_protocol_settings']['SMR_mode']
                 if config['replication_protocol_settings']['SMR_mode'] == 2:
-                    replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
+                    client_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
         if config['replication_protocol'] == 'morty':
             if 'send_writes' in config['replication_protocol_settings']:
@@ -565,7 +565,7 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'pg-smr':
             replica_command += ' --local_config=%s' % str(config['replication_protocol_settings']['local_config']).lower()
             replica_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
-            if 'SMR_mode' in config:
+            if 'SMR_mode' in config['replication_protocol_settings']:
                 replica_command += ' --pg_SMR_mode=%d' % config['replication_protocol_settings']['SMR_mode']
                 if config['replication_protocol_settings']['SMR_mode'] == 2:
                     replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])

@@ -18,9 +18,10 @@
   "benchmark_name": "rw-sql",
   "benchmark_schema_file_path": "/users/fs435/rw-sql.json",
   
+  "bftsmart_codebase_dir" : "/users/fs435",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 17,
+   "server_load_time": 20,
    
  
   "_TPCC_SQL_ARGS_" :0,
@@ -52,6 +53,7 @@
     	
     	"local_config": "false",
  	"fake_SMR": "true",
+ 	"SMR_mode": 0,
   
         "message_transport_type": "tcp",
 	"watermark_time_delta": 30000,
@@ -93,12 +95,12 @@
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
-  "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
   "_client_debug_output": "store/hotstuffpgstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/hotstuffpgstore/*",
+  "_server_debug_output": "store/pg_SMRstore/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   

@@ -550,6 +550,11 @@ First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh
    - And add the following line to the end of `pg_hba.conf`: `host    all             all              0.0.0.0/0                       md5`
    - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.
 
+#### Running PG_SMR store
+- If SMR_mode = 0, nothing to do
+- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
+- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
+
 ## Setting up Cloudlab <a name="cloudlab"></a>
    
 To run experiments on [Cloudlab](https://www.cloudlab.us/) you will need to request an account with your academic email (if you do not already have one) and create a new project  To request an account click [here](https://cloudlab.us/signup.php). You can create a new project either directly while requesting an account, or by selecting "Start/Join project" in your account drop down menu.
