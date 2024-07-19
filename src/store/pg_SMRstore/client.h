@@ -49,7 +49,7 @@
 
 namespace pg_SMRstore {
 
-static bool TEST_DIRECT_PG_CONNECTION = false;
+static bool TEST_DIRECT_PG_CONNECTION = true;
 
 class Client : public ::Client {
  public:

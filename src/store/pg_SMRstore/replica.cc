@@ -164,7 +164,7 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &type,
     }
   }
 
-  else if(type == sql_rpc_template.GetTypeName() || type == try_commit_template.GetTypeName()){
+  else if(type == sql_rpc_template.GetTypeName() || type == try_commit_template.GetTypeName() || type == user_abort_template.GetTypeName()){
     Debug("Handle no Packed");
     HandleRequest_noPacked(remote, type, data);
   }
@@ -382,28 +382,28 @@ void Replica::HandleRequest_noPacked(const TransportAddress &remote, const std::
   // }
 
 
-  //skipping dispatch. Not really needed? 
-  std::vector<::google::protobuf::Message*> replies = app->Execute(type, data);
+  // //skipping dispatch. Not really needed? 
+  // std::vector<::google::protobuf::Message*> replies = app->Execute(type, data);
 
  
 
-    for(auto reply: replies){
-        if(reply == nullptr){
-        Debug("Abort needs no reply");
-        continue;
-        }
-      transport->SendMessage(this, *clientAddr, *reply);
-      delete reply;
-    }
+  //   for(auto reply: replies){
+  //       if(reply == nullptr){
+  //       Debug("Abort needs no reply");
+  //       continue;
+  //       }
+  //     transport->SendMessage(this, *clientAddr, *reply);
+  //     delete reply;
+  //   }
 
-  //    if(type == sql_rpc_template.GetTypeName()){
-  //   struct timespec ts_start;
-  //       clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  //       uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-  //       Notice("Server side full latency: %lu us", exec_end_us - exec_start_us);
-  // }
+  // //    if(type == sql_rpc_template.GetTypeName()){
+  // //   struct timespec ts_start;
+  // //       clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // //       uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // //       Notice("Server side full latency: %lu us", exec_end_us - exec_start_us);
+  // // }
 
-  return;
+  // return;
  
   auto f = [this, clientAddr, type, data](){
     Debug("Executing App interface");

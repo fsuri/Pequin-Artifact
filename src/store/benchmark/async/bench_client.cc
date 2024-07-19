@@ -103,8 +103,7 @@ void BenchmarkClient::TimeInterval() {
 
 void BenchmarkClient::WarmupDone() {
   started = true;
-  Notice("Completed warmup period of %d seconds with %d requests", warmupSec,
-      n);
+  Notice("Completed warmup period of %d seconds with %d requests", warmupSec, n);
   n = 0;
 }
 
@@ -193,7 +192,7 @@ void BenchmarkClient::IncrementSent(int result) {
       struct timeval diff = timeval_sub(currTime, startTime);
       if (diff.tv_sec > expDuration - cooldownSec && !cooldownStarted) {
         Debug("Starting cooldown after %ld seconds.", diff.tv_sec);
-        //Notice("Starting cooldown after %ld seconds.", diff.tv_sec);
+        Notice("Starting cooldown after %ld seconds.", diff.tv_sec);
         Finish();
       } else if (diff.tv_sec > expDuration) {
         Debug("Finished cooldown after %ld seconds.", diff.tv_sec);

@@ -115,6 +115,7 @@ private:
       //   transaction = connection->transaction();
       // }
       // return transaction;
+      if(tx_id_ < tx_id) return nullptr; //outdated req
 
       if(tx_id_ > tx_id){
         //Start new transaction

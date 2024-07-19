@@ -172,8 +172,9 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
       });
   psr.timeout->Start();
 
-  // //TEST
-  // transport->SendMessageToReplica(this, 0, sql_rpc);
+  //TEST
+  transport->SendMessageToReplica(this, 0, sql_rpc);
+  return;
 
   // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -227,8 +228,8 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
   ptc.timeout->Start();
 
   // //TEST
-  // transport->SendMessageToReplica(this, 0, try_commit);
-  // return;
+  transport->SendMessageToReplica(this, 0, try_commit);
+  return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
@@ -257,13 +258,20 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   Debug("Abort Transaction");
 
   //Cancel all Reply Handlers for ongoing concurrent requests.
-  pendingSQL_RPCs.clear();
-  pendingTryCommits.clear();
+  //FIXME: THIS IS UNSAFE: if we are using the parallel client interface, then there might be concurrent pendingRPCs. 
+  //Even though one RPC may have aborted, we need to wait for the other ones to complete in order to fulfill all promises at SyncClient and return to application. Otherwise we will be stuck!
+  //pendingSQL_RPCs.clear();
+  // pendingTryCommits.clear();
 
   //Create UerAbort request (this is what server consumes)
   proto::UserAbort user_abort;
   user_abort.set_client_id(client_id);
   user_abort.set_txn_seq_num(client_seq_num);
+
+    // //TEST
+  transport->SendMessageToReplica(this, 0, user_abort);
+  return;
+
 
    //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
