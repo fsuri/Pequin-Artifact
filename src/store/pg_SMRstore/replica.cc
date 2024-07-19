@@ -269,7 +269,7 @@ void Replica::RW_TEST(){
 
 
 
-static bool USE_SYNC_INTERFACE = true; //NOTE: THIS MUST BE FALSE WITH > 1 client
+static bool USE_SYNC_INTERFACE = false; //NOTE: THIS MUST BE FALSE WITH > 1 client
 static uint64_t counter = 0;
 //Directly call into Server (skip HS)
 //Note: BubbleTimer will never be called since we never call HandleRequest
@@ -317,8 +317,8 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
 
 
   //TEST: Before every new TX exec a few more.
-   proto::SQL_RPC sql_rpc;
-  if(packedMsg.type() == sql_rpc.GetTypeName()) RW_TEST();
+  //  proto::SQL_RPC sql_rpc;
+  // if(packedMsg.type() == sql_rpc.GetTypeName()) RW_TEST();
   //Count total number or ProcessReq invocations remote vs here.
   //If coordination is bottleneck, the number will be way larger. If postgres is bottleneck, they will be close.
   

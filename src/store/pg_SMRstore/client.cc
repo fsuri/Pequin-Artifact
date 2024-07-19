@@ -119,7 +119,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t 
     transaction = nullptr; //reset txn
     ccb(COMMITTED);
     } catch (const std::exception &e) {
-      Panic("Commit should not fail while testing RW-SQL");
+      //Panic("Commit should not fail while testing RW-SQL");
       const std::string &error_message = e.what();
       Debug("Commit Failed: %s. Aborting!", error_message.c_str());
       if (error_message.find("restart transaction") != std::string::npos) {
@@ -237,7 +237,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
       } else {
         Debug("Statement execution FAILURE.");
         //This is simply a hack to force all follower replicas to also abort in order to make them unlock any held locks.
-        if(fake_SMR) bclient[0]->Abort(client_id, client_seq_num);
+        //if(fake_SMR) bclient[0]->Abort(client_id, client_seq_num); //TODO: FIXME: ADD THIS BACK?
         
         query_res = new sql::QueryResultProtoWrapper();
       }

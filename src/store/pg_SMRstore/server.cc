@@ -35,7 +35,7 @@
 
 namespace pg_SMRstore {
 
-static bool TEST_DUMMY_RESULT = true;
+static bool TEST_DUMMY_RESULT = false;
 const uint64_t number_of_threads = 8;
 
 using namespace std;
@@ -187,7 +187,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     return nullptr;
   }
   if(new_connection) c->second.CreateNewConnection(connection_string, client_id);
-  //auto tx = c->second.GetTX(tx_id);
+  auto tx = c->second.GetTX(tx_id);
   
 // ///////////////  Dummy testing
 if(TEST_DUMMY_RESULT){
@@ -199,12 +199,14 @@ if(TEST_DUMMY_RESULT){
       // clock_gettime(CLOCK_MONOTONIC, &ts_start);
       // uint64_t exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     
-      // auto transaction = c->second.connection->transaction(); //NEXT: Try the difference between setting it here and setting to nullptr, vs keeping it open.
-      // transaction = nullptr;
+      auto transaction = c->second.connection->transaction(); //NEXT: Try the difference between setting it here and setting to nullptr, vs keeping it open.
+      transaction = nullptr;
 
       // clock_gettime(CLOCK_MONOTONIC, &ts_start);
       // uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
       // Notice("Postgres latency: %lu us", exec_end_us - exec_start_us);
+      
+      //if(req_id % 1000 == 1) Notice("Finished Postgres: %lu", req_id);
 
       
       proto::SQL_RPCReply *reply  = new proto::SQL_RPCReply();
@@ -231,11 +233,11 @@ if(TEST_DUMMY_RESULT){
  
 }
 
- if(type == sql_rpc_template.GetTypeName()){
-  c->second.transaction = nullptr;
-  c->second.transaction = c->second.connection->transaction();
- }
- auto tx = c->second.transaction;
+//  if(type == sql_rpc_template.GetTypeName()){
+//   c->second.transaction = nullptr;
+//   c->second.transaction = c->second.connection->transaction();
+//  }
+//  auto tx = c->second.transaction;
  //auto tx = c->second.GetTX(tx_id);
   ///////////////
   
@@ -261,14 +263,14 @@ if(TEST_DUMMY_RESULT){
   else{ //if TX has been aborted
      Debug("ProcessReq Has Been terminated already. client: %lu. txn: %lu. req: %lu", client_id, tx_id, req_id);
     if (type == sql_rpc_template.GetTypeName()) {
-      Panic("Should never get triggered in simple test with single client running sequentially");
+      //Panic("Should never get triggered in simple test with single client running sequentially");
       //UW_ASSERT(is_aborted);
       proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
       reply->set_req_id(req_id);
       reply->set_status(REPLY_FAIL);
       return reply;
     } else if (type == try_commit_template.GetTypeName()) {
-      Panic("Should never get triggered in simple test with single client running sequentially");
+      //Panic("Should never get triggered in simple test with single client running sequentially");
       Debug("tr is null - trycommit ");
       //UW_ASSERT(is_aborted);
       proto::TryCommitReply* reply = new proto::TryCommitReply();
@@ -444,7 +446,7 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
     Debug("An exception caught while using postgres.");
    
     if (std::regex_match(e.sqlstate, std::regex("40...")) || std::regex_match(e.sqlstate, std::regex("55P03"))){ // Concurrency errors
-      Notice("A concurrency exception caught while using postgres.: %s", e.what());
+      Debug("A concurrency exception caught while using postgres.: %s", e.what());
       //tr->rollback();
       c->second.TerminateTX(); //tx = nullptr; //alternatively: Then must pass tx by reference
       

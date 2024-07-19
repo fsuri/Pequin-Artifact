@@ -545,9 +545,10 @@ int main(int argc, char **argv) {
   }
 
   int threadpool_mode = 0; //default for Basil.
-  if(proto == PROTO_HOTSTUFF || proto == PROTO_PG_SMR || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
+  if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
+  if(proto == PROTO_PG_SMR) threadpool_mode = 3;
 
   switch (trans) {
     case TRANS_TCP:

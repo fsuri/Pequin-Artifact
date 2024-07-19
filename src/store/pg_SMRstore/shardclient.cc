@@ -370,6 +370,8 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int repli
     return;
   }
 
+  //if(req_id % 1000 == 1) Notice("Finished Postgres: %lu", req_id);
+
   PendingSQL_RPC &pendingSQL_RPC = itr->second;
 
   if(replica_id < 0){ //if not signing messages, simply add a new reply
@@ -448,6 +450,7 @@ void ShardClient::HandleTryCommitReply(const proto::TryCommitReply& reply, int r
     Debug("req_id: %lu is no longer active", req_id);
     return;
   }
+
 
   PendingTryCommit &pendingTryCommit = itr->second;
 

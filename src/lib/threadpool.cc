@@ -101,9 +101,16 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       // }
       end = end - num_core_for_hotstuff; // use last core for Hotstuff only
     } else if (mode == 2) {              // TxBFTSmart && Pequin
-      start = 0;                         // use all cores
-    } else
-      Panic("No valid system defined");
+      start = 0;    
+    }                     // use all cores
+    else if (mode == 3){
+      start = 1;
+      end = 2; //Don't run any worker threads
+    
+    } else {
+       Panic("No valid system defined");
+    }
+     
 
     Debug("Network Process running on CPU %d.", sched_getcpu());
     running = true;
