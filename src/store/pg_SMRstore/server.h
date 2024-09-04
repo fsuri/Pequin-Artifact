@@ -61,7 +61,7 @@ public:
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
     std::vector<::google::protobuf::Message*> Execute_OLD(const string& type, const string& msg);
     
-  void Execute_Callback(const std::string& type, const std::string& msg, const execute_callback ecb);
+  void Execute_Callback(const std::string& type, const std::string& msg, execute_callback &&ecb);
     void Execute_Callback_OLD(const std::string& type, const std::string& msg, const execute_callback ecb);
 
   void Load(const std::string &key, const std::string &value,
@@ -173,7 +173,7 @@ private:
   ::google::protobuf::Message* ProcessReq(uint64_t req_id, uint64_t client_id, uint64_t tx_id, const string& type, ::google::protobuf::Message *req);
   uint64_t getThreadID(const uint64_t &client_id);
   std::shared_ptr< tao::pq::transaction> GetClientTransaction(clientConnectionMap::accessor &c, const uint64_t &client_id, const uint64_t &tx_id);
-  sql::QueryResultProtoBuilder* createResult(const tao::pq::result &sql_res);
+  std::string createResult(const tao::pq::result &sql_res);
 
   ::google::protobuf::Message* HandleSQL_RPC(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id,std::string query);
   ::google::protobuf::Message* HandleTryCommit(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id);
@@ -201,6 +201,13 @@ private:
   uint64_t getThreadID(const std::string &key);
   void markTxnTerminated(txnStatusMap::accessor &t);
 };
+
+// proto::SQL_RPC* GetUnusedSQLRPC();
+// void FreeSQLRPC(proto::SQL_RPC *m);
+// proto::TryCommit* GetUnusedCommit();
+// void FreeTryCommit(proto::TryCommit *m);
+// proto::UserAbort GetUnusedUserAbort();
+// void FreeUserAbort(proto::UserAbort *m);
 
 }
 

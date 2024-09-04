@@ -726,6 +726,8 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
   else stats.Increment("Sync_successes", 1);
 
+  stats.IncrementList("NumRetries", pendingQuery->version);
+
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
   if(TEST_READ_SET){
@@ -861,8 +863,11 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
   //if it was a point query
   if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
   //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_failures", 1);
-  else stats.Increment("Sync_failures", 1);
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec && !params.query_params.eagerPlusSnapshot) stats.Increment("EagerExec_failures", 1);
+  else{
+     if(pendingQuery->version == 0) stats.Increment("First_Sync_fail");
+     stats.Increment("Sync_failures", 1);
+  } 
   
 
   pendingQuery->version++;

@@ -138,7 +138,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 }
 
 //Asynchronous Execution Interface -> Dispatch execution to a thread, and let it call callback when done
-void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
+void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> &&ecb) {
   Debug("Execute with callback: %s", type.c_str());
 
   std::string client_seq_key; //TODO: GET RID OF THIS
@@ -149,13 +149,13 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
   
   ::google::protobuf::Message *req = ParseMsg(type, msg, client_seq_key, req_id, client_id, tx_id);
 
-  auto f = [this, type, client_id, tx_id, req, req_id, ecb](){
+  auto f = [this, type, client_id, tx_id, req, req_id, cb = std::move(ecb)]() mutable{
     std::vector<::google::protobuf::Message*> results;
     results.push_back(ProcessReq(req_id, client_id, tx_id, type, req));
     delete req;
 
     // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
-    tp->Timer(0, std::bind(ecb, results));
+    tp->Timer(0, std::bind(cb, results));
   
     return (void*) true;
   };
@@ -435,9 +435,8 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
     
       Debug("Finished Exec");
   
-      sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
       reply->set_status(REPLY_OK);
-      reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+      reply->set_sql_res(createResult(sql_res));
     }
     
   } 
@@ -525,9 +524,8 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
    
     Debug("Query executed");
    
-    sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
     reply->set_status(REPLY_OK);
-    reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+    reply->set_sql_res(createResult(sql_res));
   } 
   catch(tao::pq::sql_error e) {
     Debug("An exception caugth while using postgres.");
@@ -634,17 +632,18 @@ void Server::markTxnTerminated(txnStatusMap::accessor &t){
    get<0>(t->second) = nullptr; //reset connection -> goes back to pool
 }
 
-sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_res){
+
+std::string Server::createResult(const tao::pq::result &sql_res){
   // Should extrapolate out into builder method
   // Start by looping over columns and adding column names
 
-  sql::QueryResultProtoBuilder* res_builder = new sql::QueryResultProtoBuilder();
-  res_builder->set_rows_affected(sql_res.rows_affected());
+  sql::QueryResultProtoBuilder res_builder;  
+  res_builder.set_rows_affected(sql_res.rows_affected());
   if(sql_res.columns() == 0) {
-    res_builder->add_empty_row();
+    res_builder.add_empty_row();
   } else {
     for(int i = 0; i < sql_res.columns(); i++) {
-      res_builder->add_column(sql_res.name(i));
+      res_builder.add_column(sql_res.name(i));
       //std::cout << sql_res.name(i) << std::endl;
     }
     // After loop over rows and add them using add_row method
@@ -656,15 +655,15 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
     // }
     Debug("res size: %d", sql_res.size());
     for( const auto& row : sql_res ) {
-      RowProto *new_row = res_builder->new_row();
+      RowProto *new_row = res_builder.new_row();
       for( const auto& field : row ) {
         std::string field_str = field.as<std::string>();
-        res_builder->AddToRow(new_row,field_str);
+        res_builder.AddToRow(new_row,field_str);
         //std::cout << field_str << std::endl;
       }
     }
   }
-  return res_builder;
+  return res_builder.get_result()->SerializeAsString();
 }
 
 ////////////////////////////////////////////

@@ -51,7 +51,7 @@
   "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
   "client_message_timeout": 10000,
   "run_locally": false,
-  "stats_merge_lists": ["txn_groups", "sig_batch"],
+  "stats_merge_lists": ["txn_groups", "sig_batch", "NumRetries"],
 
 
   "replication_protocol_settings": [

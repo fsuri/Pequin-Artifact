@@ -592,7 +592,7 @@ int TCPTransport::TimerMicro(uint64_t us, timer_callback_t cb) {
 }
 
 int TCPTransport::TimerInternal(struct timeval &tv, timer_callback_t cb) {
-  std::unique_lock<std::shared_mutex> lck(mtx);
+  std::unique_lock<std::shared_mutex> lck(timer_mtx);
 
   TCPTransportTimerInfo *info = new TCPTransportTimerInfo();
 
@@ -613,7 +613,7 @@ int TCPTransport::TimerInternal(struct timeval &tv, timer_callback_t cb) {
 bool
 TCPTransport::CancelTimer(int id)
 {
-    std::unique_lock<std::shared_mutex> lck(mtx);
+    std::unique_lock<std::shared_mutex> lck(timer_mtx);
     TCPTransportTimerInfo *info = timers[id];
 
     if (info == NULL) {
@@ -631,22 +631,22 @@ TCPTransport::CancelTimer(int id)
 void
 TCPTransport::CancelAllTimers()
 {
-    mtx.lock();
+    timer_mtx.lock();
     while (!timers.empty()) {
         auto kv = timers.begin();
         int id = kv->first;
-        mtx.unlock();
+        timer_mtx.unlock();
         CancelTimer(id);
-        mtx.lock();
+        timer_mtx.lock();
     }
-    mtx.unlock();
+    timer_mtx.unlock();
 }
 
 void
 TCPTransport::OnTimer(TCPTransportTimerInfo *info)
 {
     {
-	    std::unique_lock<std::shared_mutex> lck(mtx);
+	    std::unique_lock<std::shared_mutex> lck(timer_mtx);
 
 	    timers.erase(info->id);
 	    event_del(info->ev);
@@ -661,8 +661,7 @@ TCPTransport::OnTimer(TCPTransportTimerInfo *info)
 void
 TCPTransport::TimerCallback(evutil_socket_t fd, short what, void *arg)
 {
-    TCPTransport::TCPTransportTimerInfo *info =
-        (TCPTransport::TCPTransportTimerInfo *)arg;
+    TCPTransport::TCPTransportTimerInfo *info = (TCPTransport::TCPTransportTimerInfo *)arg;
 
     UW_ASSERT(what & EV_TIMEOUT);
 

@@ -637,6 +637,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             Debug("Replica %d Request Data Sync from replica %d", replica_req.replica_idx(), replica_idx); 
             // for(auto const& txn : replica_req.missing_txn()){ std::cerr << "Requesting txn : " << (BytesToHex(txn, 16)) << std::endl;}
         }
+        stats.Increment("RequestMissing");
     }
 
     Debug("Query[%d][ver:%d] has been fullyMat? %d", *queryId, query_md->retry_version, fullyMaterialized);

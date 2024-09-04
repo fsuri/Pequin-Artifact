@@ -489,6 +489,37 @@ def calculate_op_statistics(config, stats, total_recorded_time, op_type, latenci
             stats['%s_norm' % op_type] = calculate_statistics_for_data(norm_latencies)
             stats['%s_norm' % op_type]['samples'] = len(norm_latencies)
 
+        #Record the ratio of Point Reads to Queries (invoked only - not counting retries). This also counts Recon-Reads
+        if 'PointQueryAttemps' in stats and stats['PointQueryAttemps'] > 0:
+            if 'QueryAttemps' in stats and stats['QueryAttemps'] > 0:
+                stats['point_univ_ratio'] = stats['PointQueryAttemps'] / (stats['PointQueryAttemps'] + stats['QueryAttempts'])
+            else:
+                stats['point_univ_ratio'] = 1
+        else:
+            stats['point_univ_ratio'] = 0
+
+        #Record the ratio of successful eager executions. I.e. what percentage of queries succeeded without snapshot
+        if 'QueryAttemps' in stats and stats['QueryAttemps'] > 0:
+            stats['eager_success_rate'] = 0
+            if 'EagerExec_success' in stats:
+                stats['eager_success_rate'] = stats['EagerExec_success'] / stats['QueryAttempts']
+            else:
+                stats['EagerExec_success'] = 0
+                stats['eager_success_rate'] = 0
+
+
+        #Record Sync Failures, i.e. the percentage of times query failed.
+            # number of queries that had to retry sync.
+            if 'First_Sync_fail' in stats and stats['First_Sync_fail'] > 0:
+                stats['retried_queries_rate'] = stats['First_Sync_fail'] / ( stats['QueryAttemps'] - stats['EagerExec_success'])
+            #b) percentage of unsuccessful sync
+            if 'Sync_failures' in stats and stats['Sync_failures'] > 0:
+                stats['sync_fail_rate'] = stats['Sync_failures'] / (stats['QueryAttemps'] - stats['EagerExec_success'] + stats['Sync_failures'])
+
+        ##TODO: max number of retries
+
+        
+
 def calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs):
     total_recorded_time = float(config['client_experiment_length'] - config['client_ramp_up'] - config['client_ramp_down'])
 
