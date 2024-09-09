@@ -93,7 +93,7 @@ transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER");
-  std::cerr << "NEW_ORDER" << std::endl;
+  //std::cerr << "NEW_ORDER" << std::endl;
   Debug("Warehouse: %u", w_id); 
 
   std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
@@ -119,6 +119,7 @@ transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
   Debug("  Tax Rate: %u", d_row.get_tax());
   uint32_t o_id = d_row.get_next_o_id();
   Debug("  Order Number: %u", o_id);
+  UW_ASSERT(o_id > 2100);
 
 
   // (3) Retrieve customer row from CUSTOMER, extract discount rate, last name, and credit status.

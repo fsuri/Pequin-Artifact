@@ -49,7 +49,7 @@ transaction_status_t SQLDeliverySequential::Execute(SyncClient &client) {
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency
-  std::cerr << "DELIVERY TX" << std::endl;
+  //std::cerr << "DELIVERY TX" << std::endl;
   Debug("DELIVERY");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
@@ -72,7 +72,7 @@ transaction_status_t SQLDeliverySequential::Execute(SyncClient &client) {
       return client.Commit(timeout);
     }
 
-    deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
+    deserialize(no_o_id, queryResult, 0, 2); //get third col of first row (there is only 1 row, this is a point read).
 
    statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
     client.Write(statement, timeout);

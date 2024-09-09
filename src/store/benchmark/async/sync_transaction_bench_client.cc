@@ -96,7 +96,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
         stats.Increment(GetLastOp() + "_backoff", backoff);
         Debug("Backing off for %lums", backoff);
       }
-      Notice("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
+      Debug("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
       std::this_thread::sleep_for(std::chrono::milliseconds(backoff));
       //std::cerr << "Woke up, continue!" << std::endl;
     }

@@ -19,7 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 24,
+    "_server_load_time": 90,
+   "server_load_time": 26,
    "_server_load_time": 16,
    "_server_load_time": 22,
    "_server_load_time": 24,
@@ -101,7 +102,7 @@
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": false,
+		  "no_fallback": true,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -120,10 +121,12 @@
 		  "query_result_honest": true,
 		  "sync_messages": "query-quorum",
 		  
+		  "retry_limit": 2,
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
 		  "query_point_eager_exec": false,
 		  "eager_plus_snapshot": true,
+		  "force_read_from_snapshot": false,
 		   
 		  "query_read_prepared": true,
 		  "query_cache_read_set": false,

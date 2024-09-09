@@ -216,7 +216,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
-        Notice("Retrying Query %s. Retry version: %d. Last version: %d",query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        Notice("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
         if(query->retry_version()>1) Warning("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
@@ -471,7 +471,22 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
         //queryId = &query_id;
         queryId = &merged_ss->query_digest();
     }
-    Debug("\n Received Query Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver)", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
+    Debug("Received Query Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver)", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
+
+    // if(merged_ss->retry_version() > 0){
+    //     for(auto &[ts, replica_list] : merged_ss->merged_ts()){
+    //         Notice("MergedSS contains TS_id: %lu", ts);
+    //         for(auto &replica: replica_list.replicas()){
+    //             Notice("   Replica list has replica: %d", replica);
+    //         }
+    //     }
+    //     for(auto &[tx, replica_list] : merged_ss->merged_txns()){
+    //         Notice("MergedSS contains TX_id: %s", BytesToHex(tx, 256).c_str());
+    //         for(auto &replica: replica_list.replicas()){
+    //             Notice("   Replica list has replica: %d", replica);
+    //         }
+    //     }
+    // }
 
      //Only process if below watermark.
     clientQueryWatermarkMap::const_accessor qw;
@@ -594,6 +609,17 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
             //Check whether replica has the txn & whether it is already materialized
             fullyMaterialized &= CheckPresence(tx_id, query_retry_id, query_md, replica_requests, replica_list, missing_txns); 
         }
+
+        //if using UTF8_safe_mode then read the tx_ids from merged_txns_utf, but move them into the map so the remainingcode works as intended
+        for(auto &tx_data : merged_ss->merged_txns_utf()){
+            //move over into map
+            (*merged_ss->mutable_merged_txns())[tx_data.txn()];
+
+             Debug("Snapshot for Query Sync Proposal[%lu:%lu:%d] contains tx_id [%s]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version(), BytesToHex(tx_data.txn(), 16).c_str());    
+            //Check whether replica has the txn & whether it is already materialized
+            fullyMaterialized &= CheckPresence(tx_data.txn(), query_retry_id, query_md, replica_requests, tx_data.replica_list(), missing_txns); 
+        }
+        merged_ss->clear_merged_txns_utf();
     }
     //else: Using optimistic tx-id (i.e. TS)
     if(query_md->useOptimisticTxId){
@@ -1097,28 +1123,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
       ///Note (FIXME:?): A Replica that has a prepare but receives an abort proof might want to remove the tx from the snapshot. TODO: For this reason, may want to move prepare check after abort proof check.
 
-    //If not committed/aborted ==> Check if locally present.
-    //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
-    p1MetaDataMap::const_accessor c;
-    if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
-        c.release();
-         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-        if(txn_info.has_p1()){
-             RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
-             return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
-        }
-        // if(c->second.hasP1){
-        //     // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it?");
-        //     //if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
-        //     // // if(c->second.result == proto::ConcurrencyControl::ABORT){
-        //     // //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
-        //     // // //FailWaitingQueries(txn_id);
-        //     // // }
-        // }
-        // return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
-    } 
-    //c.release();
-    
+
 
     //Check if other replica supplied commit
     if(txn_info.has_commit_proof()){   
@@ -1176,6 +1181,29 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         }
         return;
     } 
+
+    //If not committed/aborted ==> Check if locally present.
+    //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
+    p1MetaDataMap::const_accessor c;
+    if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
+        c.release();
+         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        if(txn_info.has_p1()){
+             RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
+             return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+        }
+        // if(c->second.hasP1){
+        //     // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it?");
+        //     //if(txn_info.has_p1()) ForceMaterialization(c->second.result, txn_id, &txn_info.p1().txn()); //Try and materialize Transaction; the ongoing prepare may or may not materialize it itself.
+        //     // // if(c->second.result == proto::ConcurrencyControl::ABORT){
+        //     // //      //Mark all waiting queries as failed.  ==> Better: Just remove from snapshot.   NOTE: Nothing needs to be done to support this -- it simply won't be materialized and read.
+        //     // // //FailWaitingQueries(txn_id);
+        //     // // }
+        // }
+        // return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+    } 
+    //c.release();
+    
 
     //2) Check whether other replica supplies P1 -- If so, try to validate and prepare ourselves     
     //Otherwise: Validate ourselves.

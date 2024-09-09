@@ -154,6 +154,9 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += " --pequin_query_result_honest=%s" % str(config['replication_protocol_settings']['query_result_honest']).lower()
             if 'sync_messages' in config['replication_protocol_settings']:
                 client_command += " --pequin_sync_messages=%s" % str(config['replication_protocol_settings']['sync_messages']).lower()
+            
+            if 'retry_limit' in config['replication_protocol_settings']:
+                client_command += " --pequin_retry_limit %d" % config['replication_protocol_settings']['retry_limit']
 
             ##Eager exec settings
             if 'query_eager_exec' in config['replication_protocol_settings']:
@@ -522,6 +525,9 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += " --pequin_query_point_eager_exec=%s" % str(config['replication_protocol_settings']['query_point_eager_exec']).lower()
             if 'eager_plus_snapshot' in config['replication_protocol_settings']:
                 replica_command += " --pequin_eager_plus_snapshot=%s" % str(config['replication_protocol_settings']['eager_plus_snapshot']).lower()
+            if 'force_read_from_snapshot' in config['replication_protocol_settings']:
+                replica_command += " --pequin_force_read_from_snapshot=%s" % str(config['replication_protocol_settings']['force_read_from_snapshot']).lower()
+
             ## Read protocol settings
             if 'query_read_prepared' in config['replication_protocol_settings']:
                 replica_command += " --pequin_query_read_prepared=%s" % str(config['replication_protocol_settings']['query_read_prepared']).lower()

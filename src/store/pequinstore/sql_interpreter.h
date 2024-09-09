@@ -175,6 +175,10 @@ class SQLTransformer {
             return &TableRegistry.at(table_name);
         }
 
+        inline const QueryParameters* GetQueryParams() const {
+            return query_params;
+        }
+
         inline void NewTx(proto::Transaction *_txn){
             txn = _txn;
         }

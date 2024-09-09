@@ -63,6 +63,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
     bool IsImplicitPointRead(concurrency::TransactionContext *current_txn);
     void TryForceReadSetAddition(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &timestamp);
   void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
+  void RefineTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr);
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
 
 
@@ -151,6 +152,8 @@ class IndexScanExecutor : public AbstractScanExecutor {
   bool already_added_table_col_versions;
   bool first_execution;
   bool is_implicit_point_read_;
+
+  Timestamp lowest_snapshot_frontier;
 
   // TODO make predicate_ a unique_ptr
   // this is a hack that prevents memory leak

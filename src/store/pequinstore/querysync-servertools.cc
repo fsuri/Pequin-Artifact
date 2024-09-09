@@ -58,10 +58,10 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
-
-    struct timespec ts_start;
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    //FIXME: Remove
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
      if(TEST_READ_MATERIALIZED) TEST_READ_MATERIALIZED_f();
 
@@ -106,7 +106,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         }
     } 
     if(read_materialized){
-        Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
+        //Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
 
@@ -225,11 +225,11 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //// END DEBUG CODE        
     
     //FIXME: REMOVE
-    struct timespec ts_end;
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    auto duration = microseconds_end - microseconds_start;
-    if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = microseconds_end - microseconds_start;
+    // if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
     
    
     return serialized_result;

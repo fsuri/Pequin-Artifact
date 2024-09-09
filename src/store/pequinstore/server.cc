@@ -144,7 +144,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
-  Notice("Create Genesis Txn with digest: %d", BytesToHex(genesis_txn_dig, 16).c_str());
+  Notice("Create Genesis Txn with digest: %s", BytesToHex(genesis_txn_dig, 16).c_str());
   *proof->mutable_txn()->mutable_txndigest() = genesis_txn_dig;
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
@@ -1318,9 +1318,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
-  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
-      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
-      txn->timestamp().timestamp());
+  Notice("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp());
   proto::ConcurrencyControl::Result result;
   const proto::CommittedProof *committedProof = nullptr;
   const proto::Transaction *abstain_conflict = nullptr;
@@ -1415,7 +1413,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
 
 
 
-  Debug("Call HandleP1CB for txn %s with result %d", BytesToHex(txnDigest, 16).c_str(), result);
+  Notice("Call HandleP1CB for txn[%s][%lu:%lu] with result %d", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id(), result);
   if(result == proto::ConcurrencyControl::IGNORE) return;
 
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
@@ -1748,6 +1746,8 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     return;
   }
 
+  Notice("Phase2CB: [%s]", BytesToHex(*txnDigest, 16).c_str());
+
   auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
 
     p2MetaDataMap::accessor p;
@@ -1913,6 +1913,8 @@ void Server::HandleWriteback(const TransportAddress &remote,
 // Updates committed/aborted datastructures and key-value store accordingly
 // Garbage collects ongoing meta-data
 void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDigest, proto::Transaction *txn, void *valid) {
+
+  Notice("Writeback Txn[%s][%lu:%lu]", BytesToHex(*txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
 
   if(!valid){
     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
@@ -2200,6 +2202,11 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
+  Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  //TODO: Keep track of prepares. Make sure that within 20ms writeback arrives.
+  transport->Timer(1000, [this, ts, txnDigest](){
+      if(!committed.count(txnDigest) && !aborted.count(txnDigest)) Warning("Prepared Txn[%s][%lu:%lu] did not resolve within 1000ms", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  });
 
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?

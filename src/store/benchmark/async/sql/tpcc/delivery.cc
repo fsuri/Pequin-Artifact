@@ -73,7 +73,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
       return client.Commit(timeout);
     }
 
-    deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
+    deserialize(no_o_id, queryResult, 0, 2); //get third col of first row (there is only 1 row, this is a point read).
 
     statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
     Debug("OP: %s", statement.c_str());
@@ -96,6 +96,11 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
     client.Write(statement, timeout); //This can be async. 
 
   }
+
+  if(no_o_id <= 2100){
+    Panic("no_o_id = %lu", no_o_id);
+  }
+  
 
   // (3) Select the corresponding row from ORDER and extract the customer id. Update the carrier id of the order.
   //statement = fmt::format("SELECT c_id FROM \"order\" WHERE id = {} AND d_id = {} AND w_id = {};", no_o_id, d_id, w_id);

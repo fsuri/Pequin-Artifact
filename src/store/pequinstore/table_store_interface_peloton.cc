@@ -1004,9 +1004,9 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     auto statement = ParseAndPrepare(write_statement, tcop);
 
      //FIXME: REMOVE: JUST FOR TESTING
-   struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //  struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
@@ -1030,14 +1030,14 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
       Panic("Write failure");
 
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
   
-    //Should not take more than 1 ms (already generous) to parse and prepare.
-    auto duration = microseconds_end - microseconds_start;
-    if(duration > 1000){
-      Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
-    }
+    // //Should not take more than 1 ms (already generous) to parse and prepare.
+    // auto duration = microseconds_end - microseconds_start;
+    // if(duration > 1000){
+    //   Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
+    // }
   }
 
   // Execute Delete Statement
@@ -1214,9 +1214,9 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   auto statement = ParseAndPrepare(query_statement, tcop);
 
      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -1256,14 +1256,14 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
 
     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 2000){
-    Warning("ScanRead exceeded 2000us: %d us", duration); 
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration = microseconds_end - microseconds_start;
+  // if(duration > 2000){
+  //   Warning("ScanRead exceeded 2000us: %d us", duration); 
+  // }
 
   Debug("Finish Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   return std::move(res);

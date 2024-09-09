@@ -364,6 +364,8 @@ DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead 
 
 DEFINE_bool(pequin_eager_plus_snapshot, true, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
 
+DEFINE_bool(pequin_force_read_from_snapshot, false, "force the read to only read versions virtualized by the snapshot, and no newer committed versions");
+
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas");
 
@@ -795,10 +797,12 @@ int main(int argc, char **argv) {
                                                  0,
                                                  0,
                                                  0,
+                                                 -1,
                                                  FLAGS_pequin_snapshot_prepared_k,
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,
+                                                 FLAGS_pequin_force_read_from_snapshot,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,

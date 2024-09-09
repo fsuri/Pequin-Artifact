@@ -502,9 +502,10 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
     Panic("NOTE: All Tables and Indexed Columns must have a genesis version. Key in question: %s", table_key.c_str());  
     //Note: CreateTable() writes the genesis version for table and primary index. CreateIndex writes genesis version for Col Versions.
   }
-  if(materialize_from_snapshot){
-    
 
+  //WARNING: DEPRECATED  => We now "Refine" the materialize table version during execution. We pick as starting point simply the current highTs.
+  if(false && materialize_from_snapshot){
+    
     Debug("try to materialize committed TableVersion from ss");
     //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
     
@@ -538,7 +539,8 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
       mostRecentPrepared = FindPreparedVersion(table_key, ts, committed_exists, tsVal);
   }
 
-  if(materialize_from_snapshot){
+  //WARNING: DEPRECATED
+  if(false &&materialize_from_snapshot){
     //if we are materializing from snapshot, then the table version we are using should be the one in the snapshot, not the latest current.
     //TODO: Can definitely do this more efficiently (currently each loop here, loops through all preparedWrites -- though this is small)
     while(mostRecentPrepared){ //not yet found in ss, and still greater than committed version
@@ -562,35 +564,59 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
     UW_ASSERT(readSetMgr);
 
     if(mostRecentPrepared != nullptr){ //Read prepared
-      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
-      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+
+      //Update High TblVersion -- Monotonicity Watermark
+      HighTblVmap::accessor ht;
+      highTableVersions.insert(ht, table_name);
+      ht->second = std::max(ht->second, Timestamp(mostRecentPrepared->timestamp())); //Activate TblVersion only upon reading. Activate the highest read version from perspective of reader -> minimize unecessary write aborts
+
+      //Set the predicates read table version. Rather than setting tbl version to `mostRecentPrepared->timestamp()` (the max "read" version), set it to the high TblVersion. That is safe, and reduces the check window.
+      if(params.query_params.useSemanticCC){
+        TimestampMessage h_tsm;
+        ht->second.serialize(&h_tsm);
+        readSetMgr->SetPredicateTableVersion(h_tsm); //Add to current pred
+      }
+       // if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(mostRecentPrepared->timestamp()); //Add to current pred
+      // //readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp()); 
+      //   //Don't need Dep. Even if the Tx that wrote TblV aborts, we will still uphold the monotonicity (we never remove from highTableV)
+
+      ht.release();
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parallel CC check. The TS does not matter.
       //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
       if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, mostRecentPrepared->timestamp(), true); //is_table_col_version = true
-
-      HighTblVmap::accessor ht;
-      highTableVersions.insert(ht, table_name);
-      ht->second = std::max(ht->second, Timestamp(mostRecentPrepared->timestamp()));
-      ht.release();
     }
     else{ //Read committed
       TimestampMessage tsm;
       tsVal.first.serialize(&tsm);
-      if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred
+
+      //Update High TblVersion -- Monotonicity Watermark
+      HighTblVmap::accessor ht;
+      highTableVersions.insert(ht, table_name);
+      ht->second = std::max(ht->second, Timestamp(tsm));
+
+       //Set the predicates read table version. Rather than setting tbl version to `mostRecentPrepared->timestamp()` (the max "read" version), set it to the high TblVersion. That is safe, and reduces the check window.
+      if(params.query_params.useSemanticCC){
+        TimestampMessage h_tsm;
+        ht->second.serialize(&h_tsm);
+        readSetMgr->SetPredicateTableVersion(h_tsm); //Add to current pred
+      }
+
+      ht.release();
+
+      // //if materialize from snapshot:  //TODO: Ideally: pick ht->second. That creates a higher upper bound.
+      // if(params.query_params.useSemanticCC) readSetMgr->SetPredicateTableVersion(tsm); //Add to current pred 
 
        //Add Table to Read Set. Note: This is PURELY to have a read key in order to lock mutex for parellel CC check. The TS does not matter.
       //if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
       if(params.parallel_CCC) readSetMgr->AddToReadSet(table_key, tsm, true); // is_table_col_version = true
 
-      HighTblVmap::accessor ht;
-      highTableVersions.insert(ht, table_name);
-      ht->second = std::max(ht->second, Timestamp(tsm));
-      ht.release();
+
     }
   }
 
- if(add_to_snapshot){ //Creating Snapshot
+  //WARNING: THIS IS DEPRECATED. DO NOT USE. 
+ if(false && add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 
     //Use txnDigest from cache

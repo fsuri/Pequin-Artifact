@@ -138,7 +138,6 @@ Client::~Client()
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry) {
 
-      
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
   //only fail fresh transactions
@@ -721,10 +720,10 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
 
   stats.Increment("QuerySuccess", 1);
   //if it was a point query
-  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
-  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
-  else stats.Increment("Sync_successes", 1);
+  // if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
+  // //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  // else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
+  // else stats.Increment("Sync_successes", 1);
 
   stats.IncrementList("NumRetries", pendingQuery->version);
 
@@ -858,18 +857,22 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 
 void Client::RetryQuery(PendingQuery *pendingQuery){
 
+  if(params.query_params.retryLimit > -1 && pendingQuery->version >= params.query_params.retryLimit){
+    Warning("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version), params.query_params.retryLimit;
+    stats.Increment("Exceeded_Retry_Limit");
+    throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
+  }
   
   stats.Increment("QueryRetries", 1);
   //if it was a point query
   if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
   //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
   else if(pendingQuery->version == 0 && params.query_params.eagerExec && !params.query_params.eagerPlusSnapshot) stats.Increment("EagerExec_failures", 1);
-  else{
+  else{ //!eager OR eager ran with snapshot and failed
      if(pendingQuery->version == 0) stats.Increment("First_Sync_fail");
      stats.Increment("Sync_failures", 1);
   } 
   
-
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
@@ -1045,7 +1048,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 }
 
 void Client::Phase1(PendingRequest *req) {
-  Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
+  Notice("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
       BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
 
   UW_ASSERT(txn.involved_groups().size() > 0);
@@ -1488,7 +1491,7 @@ void Client::Writeback(PendingRequest *req) {
   }
 
   //total_writebacks++;
-  Debug("WRITEBACK[%lu:%lu] result %s", client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {

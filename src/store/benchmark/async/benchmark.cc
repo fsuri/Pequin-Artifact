@@ -428,6 +428,8 @@ DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas 
 
 DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
 
+DEFINE_int32(pequin_retry_limit, -1, "max number of retries before aborting Tx.");
+
 DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
 
 DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
@@ -1482,10 +1484,12 @@ int main(int argc, char **argv) {
                                                  mergeThreshold,
                                                  syncMessages,
                                                  resultQuorum,
+                                                 FLAGS_pequin_retry_limit,
                                                  FLAGS_pequin_snapshot_prepared_k,
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,
+                                                 false, //ForceReadFromSnapshot
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
                                                  FLAGS_pequin_query_optimistic_txid,

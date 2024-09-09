@@ -121,6 +121,12 @@ bool IndexScanExecutor::DInit() {
 
   is_metadata_table_ = table_->GetName().substr(0,3) == "pg_";
 
+
+  lowest_snapshot_frontier = Timestamp(UINT64_MAX); //smallest prepared version that we skip during snapshot materialization.  //Update continously during read. At the end of exec, update TblVersion
+  // Compute upper limit: So that in case the TblV is 0 (because we materialized nothing in snapshot) we pick something reasonable.
+  //Timestamp upper_bound; //current highTS? we know no newer writes can be admitted. So the only thing we need to care about is the "danger zone" of prepared Tx that we skipped over
+  //change how TblV is materialized from snapshot. Remove attempt to read from snapshot. Just pick min(lower_bound, upper_bound)
+
   // PAVLO (2017-01-05): This seems unnecessary and a waste of time
   if (table_ != nullptr) {
     full_column_ids_.resize(table_->GetSchema()->GetColumnCount());
@@ -268,6 +274,19 @@ void IndexScanExecutor::SetTableColVersions(concurrency::TransactionContext *cur
     }
   
   already_added_table_col_versions = true;
+}
+
+void IndexScanExecutor::RefineTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
+  //return;
+    //If we are in perform_read_on_snapshot mode: update TableVersion.
+    if(!current_txn->GetSnapshotRead()) return;
+
+    UW_ASSERT(current_txn->GetSqlInterpreter()); //should be set for Snapshot read
+    auto query_params = current_txn->GetSqlInterpreter()->GetQueryParams();
+   
+    //if(query_params->useSemanticCC) 
+    query_read_set_mgr->RefinePredicateTableVersion(lowest_snapshot_frontier, query_params->monotonicityGrace);
+    //TODO: Profile how badly we update this
 }
 
 //TODO: Only call this in primary index key..
@@ -428,6 +447,10 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   //On FIRST executor iteration: Set TableVersion and Set Predicate
   SetPredicate(current_txn, query_read_set_mgr); // NOTE: MUST add predicate before index scan component; in case index scan doesn't find anything, we still need pred.
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
+  //in case of read_from_snapshot:
+    //TODO: Change SetTableColVersion: don't loop to genesis, pick min(materialized in snapshot, currentHighTS) as starting point
+    //TODO: In case of snapshot. Also keep track of min prepared version we skipped over. (ignoring force mats)
+    //TODO: At the end of exec: adjust table version to account for ignored prepares
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -491,8 +514,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   #endif
 
   Debug("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
-   if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient scan. Sanity check!");
-  //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
+  //if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient PRIMARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
+ 
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
   //int cnt= 0;
@@ -500,6 +523,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     //std::cerr << "check row: " << cnt++ << std::endl;
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set);
   }
+
+  RefineTableColVersions(current_txn, query_read_set_mgr); //Refine TableVersion if reading from materialized snapshot
 
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());
 
@@ -647,6 +672,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     // NOTE: Similar read logic as seq_scan_executor
     auto const &timestamp = current_txn->GetBasilTimestamp();
     Debug("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
+    //if(timestamp.getID() == 0) Notice("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
     tile_group_header->GetSpinLatch(tuple_location.offset).Lock();
@@ -685,7 +711,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     size_t chain_length = 0;
     size_t num_iters = 0;
 
-    int max_num_reads = current_txn->IsPointRead()? 2 : 1;
+    int max_num_reads = current_txn->IsPointRead()? 2 : 1; 
     int num_reads = 0;
 
     //fprintf(stderr, "First tuple in row: Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu] \n", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
@@ -697,7 +723,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
-
+      
       if (timestamp >= tuple_timestamp || is_metadata_table_) {
         // Within range of timestamp
         bool read_curr_version = false;
@@ -705,10 +731,19 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
         UW_ASSERT(!is_metadata_table_ || read_curr_version);
         //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
-        if(read_curr_version && (!snapshot_only_mode || is_metadata_table_)){
+        if((read_curr_version && ++num_reads <= max_num_reads ) && (!snapshot_only_mode || is_metadata_table_)){
           //std::cerr << "num_reads: " << num_reads << std::endl;
-          UW_ASSERT(++num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
+          UW_ASSERT(num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
           EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
+        }
+      
+        //If we are in read_from_snapshot mode, and we skip a read (i.e. done = false), update the min_snapshot_frontier. Note: Ignore tuples that a force materialized (they are effectively invisible)
+        if(!done && current_txn->GetSnapshotRead()){ //bool perform_read_on_snapshot = true
+          UW_ASSERT(!found_committed && !found_prepared); // in read_on_snapshot mode done should be true as soon as found_prepared or found_committed becomes true.
+          if(!tile_group_header->GetMaterialize(tuple_location.offset)){
+              Timestamp const &skipped_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+              lowest_snapshot_frontier = std::min(lowest_snapshot_frontier, skipped_timestamp);
+          }
         }
       }
 
@@ -750,9 +785,12 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
     bool perform_point_read = current_txn->IsPointRead();
   
     bool perform_read_on_snapshot = current_txn->GetSnapshotRead();
+    //Force Read to only check from snapshot. UNSAFE: No way to know when to "stop"; TODO: Add bounding code: Skip over freshest commit for up to i iterations; if find nothing in snapshot, use freshest commit.
+    //if(perform_read_on_snapshot && current_txn->GetSqlInterpreter()->GetQueryParams()->forceReadFromSnapshot) perform_read = false; 
     auto snapshot_set = current_txn->GetSnapshotSet();
     UW_ASSERT(!perform_read_on_snapshot || perform_read); //if read on snapshot, must be performing read.
     UW_ASSERT(!perform_find_snapshot || !current_txn->IsPointRead()); //if finding snapshot, cant be a point read.
+    UW_ASSERT(!(perform_find_snapshot && perform_read_on_snapshot));
   
    bool write_mode = !perform_read && !perform_find_snapshot && !perform_read_on_snapshot; //If scanning as part of a write
 
@@ -779,6 +817,35 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
       Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Read Committed Timestamp: [%lu:%lu]", committed_timestamp.getTimestamp(), committed_timestamp.getID());
       if (perform_point_read) SetPointRead(current_txn, tile_group_header, tuple_location, committed_timestamp);
+
+
+      //Just for snapshot debugging purposes
+      if(false && perform_read_on_snapshot && snapshot_set->find(*txn_digest.get()) == snapshot_set->end()){
+          ContainerTuple<storage::TileGroup> row(tile_group.get(), tuple_location.offset);
+
+          std::vector<std::string> primary_key_cols;
+          for (auto const &col_idx : current_txn->GetTableRegistry()->at(table_->GetName()).primary_col_idx) {
+          //for (auto const &col_idx : primary_index_columns_) { //These are not the right primary key cols. They may be secondary index cols...
+            try{
+            auto const &val = row.GetValue(col_idx);
+          
+            UW_ASSERT(val.GetTypeId() != type::TypeId::DECIMAL); //FIXME: We need to get a non-decimal encoding. Results like 1.3e+12 are not useable by us. (or client needs to do this as well)
+            primary_key_cols.push_back(val.ToString());
+            Debug("Read set. Primary col %d has value: %s", col_idx, val.ToString().c_str());
+            //std::cerr << "primary col: " << col_idx << std::endl;
+            }
+            catch(...){Panic("Fail in Read");}
+          }
+
+          std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
+          Notice("Read Committed Timestamp instead of reading from Snapshot: key: %s [%lu:%lu]. txn_id: %s", encoded.c_str(), committed_timestamp.getTimestamp(), committed_timestamp.getID(), 
+            pequinstore::BytesToHex(*txn_digest, 16).c_str());
+
+          for(const auto &[tx_id, replica_list]: *snapshot_set){
+            Notice("Snapshot contains: %s",pequinstore::BytesToHex(tx_id, 16).c_str());
+          }
+      }
+
     } 
     else if(!found_prepared) { //tuple is prepared (and we waven't read a prepared one yet)     Note: Technically in write mode always read the prepare. In practice, loader will never come here?
   
@@ -856,6 +923,7 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
 
       Timestamp const &committed_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       ManageSnapshot(current_txn, tile_group_header, tuple_location, committed_timestamp, num_iters, true);
+      Debug("Add committed to Snapshot");
       done = true;
     } else {
       //Note: this check is technically redundant: FindSnapshot currently also always causes PerformRead to be triggered.
@@ -874,6 +942,10 @@ bool IndexScanExecutor::FindRightRowVersion(const Timestamp &timestamp, std::sha
          ManageSnapshot(current_txn, tile_group_header, tuple_location, prepared_timestamp, num_iters, false);
         //ManageSnapshot(tile_group_header, tuple_location, prepared_timestamp, snapshot_mgr);
         //num_iters++;
+        Debug("add prepared to snapshot. Num_iters: %d", num_iters);
+      }
+      else{
+        Debug("skip adding prepared to snapshot");
       }
 
       // We are done if we read k prepared versions
@@ -1244,6 +1316,8 @@ void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_
 
   snapshot_mgr->AddToLocalSnapshot(*txn_digest.get(), write_timestamp.getTimestamp(), write_timestamp.getID(), commit_or_prepare);
   num_iters++; //currently only count "readable" versions towards snapshotK. This is so that we read at lest one committed if there is >= k unreadable prepared
+
+  // if(num_iters > 0) Notice("Added more than 1 row key to snapshot!");
 }
 
 
@@ -2094,7 +2168,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // tuple_location_ptrs.shrink_to_fit();
  
   Debug("Secondary Index Scan on Table [%s]. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
-  if(tuple_location_ptrs.size() > 100) Warning("Potentially inefficient scan. Sanity check!");
+  // if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient SECONDARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
   
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");
   
@@ -2113,6 +2187,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
     CheckRow(*tuple_location_ptr, transaction_manager, current_txn, storage_manager, visible_tuple_locations, visible_tuple_set, true);
   }
+
+  RefineTableColVersions(current_txn, query_read_set_mgr); //Refine TableVersion if reading from materialized snapshot
 
   // // std::cerr << "Outside for loop" << std::endl;
   LOG_TRACE("Examined %d tuples from index %s", num_tuples_examined, index_->GetName().c_str());

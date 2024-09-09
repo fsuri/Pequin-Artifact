@@ -120,8 +120,11 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     // if(tw->second.rbegin() == tw->second.rend()) continue;
     // const Timestamp &highTS = tw->second.rbegin()->first; // == last TX TS
     
-    //NOTE: only comparing on the real time component currently.
-    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+    //NOTE: only comparing on the real time component currently. This makes the check a tad coarser/stricter.
+    // MUST convert to Real-time plane. TS plane is not linear
+    //NOTE: we are rounding TS to MS precision here (dropping US precision) This is fine because we do it everywhere; it just means this check is a bit coarser. (grace effectively up to 1ms bigger)
+    //if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+    if(TStoUS(txn.timestamp().timestamp()) + (params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace) * 1000 <= TStoUS(highTS.getTimestamp())) {
       Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
           BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
@@ -130,7 +133,8 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
 
       return false; //If beyond both grace periods: reject
     } 
-    if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
+    if(TStoUS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace * 1000 <= TStoUS(highTS.getTimestamp())) {   //us granularity
+    //if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) { //ms granularity
      non_monotonic_writes.insert(txn_digest); //If beyond first grace, consider it non-monotonic. 
     } 
   }
@@ -286,8 +290,11 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     if(curr_ts.getTimestamp() == pred.table_version().timestamp() && curr_ts.getID() == pred.table_version().id()) continue;
 
     //Bound how far we need to check by the READ Table/Col Version - grace. I.e. look at all writes s.t. read.TS >= write.TS write.TS > read.TableVersion - grace
-        //if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;   //this math is wrong!
-    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())) break; //bound iterations until read table version
+        //if(curr_ts.getTimestamp() + write_monotonicity_grace < pred.table_version().timestamp()) break;   //this math is wrong! MUST convert to MS plane. TS plane is not linear
+    //bound iterations until read table version
+    //if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())) break; //ms granularity
+    if(TStoUS(curr_ts.getTimestamp()) + (params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace) * 1000 < TStoUS(pred.table_version().timestamp())) break; //us granularity
+    
 
     Debug("TX_ts: [%lu:%lu]. Pred: [%s]: compare vs write TS[%lu:%lu]", txn_ts.getTimestamp(), txn_ts.getID(), pred.table_name().c_str(), itr->first.getTimestamp(), itr->first.getID());
     auto &[write_txn, commit_or_prepare] = itr->second;
@@ -296,7 +303,8 @@ proto::ConcurrencyControl::Result Server::CheckReadPred(const Timestamp &txn_ts,
     UW_ASSERT(write_txn->has_txndigest());
 
 
-    if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
+    //if(timeServer.TStoMS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace < timeServer.TStoMS(pred.table_version().timestamp())){
+    if(TStoUS(curr_ts.getTimestamp()) + params.query_params.monotonicityGrace * 1000 < TStoUS(pred.table_version().timestamp())){
       if(!non_monotonic_writes.count(write_txn->txndigest())) continue;
       //if past first grace: only check against non-monotonic (down to second grace)
     }; //bound iterations until read table version

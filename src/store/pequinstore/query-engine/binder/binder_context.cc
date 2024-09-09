@@ -192,9 +192,9 @@ void BinderContext::GenerateAllColumnExpressions(
     std::vector<std::unique_ptr<expression::AbstractExpression>> &exprs) {
 
       //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
    
 
   for (auto &entry : regular_table_alias_map_) {
@@ -228,14 +228,14 @@ void BinderContext::GenerateAllColumnExpressions(
   }
 
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-   auto duration = microseconds_end - microseconds_start;
-  if(duration > 50){
-    Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration);
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  //  auto duration = microseconds_end - microseconds_start;
+  // if(duration > 50){
+  //   Warning("GenerateAllColumnExpressions exceeded 50us: %d", duration);
+  // }
 
 }
 
