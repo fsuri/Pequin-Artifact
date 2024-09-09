@@ -1,0 +1,3 @@
+LIB-peloton := $(LIB-adr-p) $(LIB-binder-p) $(LIB-catalog-p) $(LIB-common-p) $(LIB-concurrency-p) $(LIB-executor-p) $(LIB-expression-p) $(LIB-function-p) \
+	$(LIB-gc-p) $(LIB-index-p) $(LIB-murmur-p) $(LIB-optimizer-p) $(LIB-parser-p) $(LIB-planner-p) $(LIB-settings-p) $(LIB-storage-p) $(LIB-threadpool-p) $(LIB-traffic-cop-p) \
+	$(LIB-type-p) $(LIB-trigger-p) $(LIB-util-p) $(LIB-statistics-p) $(LIB-trigger-p) $(LIB-tuning-p) #$(LIB-udf-p)

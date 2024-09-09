@@ -91,6 +91,9 @@ JAVA_HOME := /usr/lib/jvm/java-11-openjdk-amd64
 CFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm
 
+# Include peloton
+CFLAGS += -I store/pelotonstore/peloton
+
 # Additional flags
 PARANOID = 1
 ifneq ($(PARANOID),0)
@@ -212,6 +215,9 @@ include store/pg_SMRstore/Rules.mk
 
 include store/pequinstore/query-engine/Rules.mk
 include store/pequinstore/Rules.mk
+
+include store/pelotonstore/peloton/Rules.mk
+include store/pelotonstore/Rules.mk
 
 include store/Rules.mk
 include store/benchmark/Rules.mk
