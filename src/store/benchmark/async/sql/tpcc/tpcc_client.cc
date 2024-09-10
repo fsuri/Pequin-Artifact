@@ -60,6 +60,7 @@ TPCCSQLClient::TPCCSQLClient(bool run_sequential, SyncClient &client, Transport 
 TPCCSQLClient::~TPCCSQLClient() {
 }
 
+static int counter = 0;
 SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   uint32_t wid, did;
   std::mt19937 &gen = GetRand();
@@ -85,6 +86,19 @@ SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   uint32_t total = new_order_ratio + delivery_ratio + payment_ratio + order_status_ratio + stock_level_ratio;
   uint32_t ttype = std::uniform_int_distribution<uint32_t>(0, total - 1)(gen);
   uint32_t freq = 0;
+
+  //TEST
+  // counter++;
+  // if(counter < 3){
+  //   return new SQLStockLevel(GetTimeout(), wid, did, gen);
+  // }
+  // if(counter == 3){
+  //   return new SQLDelivery(GetTimeout(), wid, did, gen);
+  // }
+  // else{
+  //   Panic("stop test");
+  // }
+  //TEST
 
   if (static_w_id) {
     wid = w_id;

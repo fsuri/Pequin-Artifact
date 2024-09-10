@@ -418,6 +418,10 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
         //std::cerr << "In undo delete for purge" << std::endl;
         // Purge this tuple
+
+        // Set Purge flag. Note: In theory don't need to adjust any of the linked lists to remove purged versions, but we do it for read efficiency
+        Notice("Table[%s]. Purging [txn: %s]. [%lu:%lu]", table_name.c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), curr_pointer.block, curr_pointer.offset);
+        curr_tile_group_header->SetPurged(curr_pointer.offset, true);
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
@@ -443,7 +447,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
-           Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+          Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           next_tgh->GetSpinLatch(next_loc.offset).Lock();
           
@@ -456,12 +460,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           // pointer when we are updating it because we are holding the write lock. This update should success in its first trial.
           UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
-
+          
           next_tgh->GetSpinLatch(next_loc.offset).Unlock();
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
-           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
 
@@ -469,6 +473,22 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
           prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
+        else{
+          UW_ASSERT(next_loc.IsNull() && prev_loc.IsNull());  //Current tuple = head and tail of list
+          //Note: If the only item in the linked list is purged, then we just keep it as part of the linked list. Note: versions *are* marked purged.
+
+          // ItemPointer *index_entry_ptr = curr_tile_group_header->GetIndirection(curr_pointer.offset);
+          // COMPILER_MEMORY_FENCE;
+
+          // // Set the index header in an atomic way.
+          // // We do it atomically because we don't want any one to see a half-done pointer. In case of contention, no one can update this
+          // // pointer when we are updating it because we are holding the write lock. This update should success in its first trial.
+          // UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, ItemPointer(INVALID_OID, INVALID_OID));
+          // PELOTON_ASSERT(res == true);
+         
+          //Panic("No case");
+        }
+    
       }
       //Writing again. 
       else {

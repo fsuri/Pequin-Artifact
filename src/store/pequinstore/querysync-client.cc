@@ -27,8 +27,8 @@
 
 namespace pequinstore {
 
-static bool PRINT_SNAPSHOT_SET = false;
-static bool PRINT_SNAPSHOT_READ_SET = false;
+static bool PRINT_SNAPSHOT_SET = true;
+static bool PRINT_SNAPSHOT_READ_SET = true;
 static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
 
 //TODO: Add: Handle Query Fail
@@ -112,7 +112,7 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
             //--> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
                 //importantly however: byz client cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or it could've happened naturally (for a correct client too)
 
-    Debug("Invoked Retry QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
+    Notice("Invoked Retry QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
 
     //find pendingQuery from query_seq_num map.
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
@@ -418,7 +418,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //TESTING:
 
     stats->Increment("NumSyncs");
-    Debug("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
+    Notice("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
          
          //TEST: //FIXME: REMOVE
     if(PRINT_SNAPSHOT_SET){
@@ -496,7 +496,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     for (size_t i = 0; i < total_msg; ++i) {
         syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.
 
-        Notice("[group %i] Sending Query Sync Msg to replica %lu. Designated for reply? %d", group, group * config->n + GetNthClosestReplica(i), syncMsg.designated_for_reply());
+        Debug("[group %i] Sending Query Sync Msg to replica %lu. Designated for reply? %d", group, group * config->n + GetNthClosestReplica(i), syncMsg.designated_for_reply());
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
 
@@ -556,7 +556,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         return;
     }
 
-    Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+    Notice("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
 
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {

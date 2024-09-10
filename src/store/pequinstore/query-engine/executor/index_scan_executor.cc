@@ -723,8 +723,10 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
 
       auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
       Debug("Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID());
-      
-      if (timestamp >= tuple_timestamp || is_metadata_table_) {
+
+      bool readable_version = !tile_group_header->IsPurged(tuple_location.offset); //skip over purged versions.
+
+      if (readable_version && (timestamp >= tuple_timestamp || is_metadata_table_)) {
         // Within range of timestamp
         bool read_curr_version = false;
         done = FindRightRowVersion(timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared); 
@@ -739,8 +741,10 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
       
         //If we are in read_from_snapshot mode, and we skip a read (i.e. done = false), update the min_snapshot_frontier. Note: Ignore tuples that a force materialized (they are effectively invisible)
         if(!done && current_txn->GetSnapshotRead()){ //bool perform_read_on_snapshot = true
+          UW_ASSERT(!read_curr_version);
           UW_ASSERT(!found_committed && !found_prepared); // in read_on_snapshot mode done should be true as soon as found_prepared or found_committed becomes true.
           if(!tile_group_header->GetMaterialize(tuple_location.offset)){
+               Notice("Skipping [txn: %s]. [%lu:%lu]", pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str(), tuple_location.block, tuple_location.offset);
               Timestamp const &skipped_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
               lowest_snapshot_frontier = std::min(lowest_snapshot_frontier, skipped_timestamp);
           }

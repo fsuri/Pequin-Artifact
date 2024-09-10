@@ -1318,7 +1318,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
-  Notice("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp());
+  Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp());
   proto::ConcurrencyControl::Result result;
   const proto::CommittedProof *committedProof = nullptr;
   const proto::Transaction *abstain_conflict = nullptr;
@@ -1413,7 +1413,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
 
 
 
-  Notice("Call HandleP1CB for txn[%s][%lu:%lu] with result %d", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id(), result);
+  Debug("Call HandleP1CB for txn[%s][%lu:%lu] with result %d", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id(), result);
   if(result == proto::ConcurrencyControl::IGNORE) return;
 
   //Note: remote_original might be deleted if P1Meta is erased. In that case, must hold Buffer P1 accessor manually here.  Note: We currently don't delete P1Meta, so it won't happen; but it's still good to have.
@@ -1746,7 +1746,7 @@ void Server::HandlePhase2CB(TransportAddress *remote, proto::Phase2 *msg, const 
     return;
   }
 
-  Notice("Phase2CB: [%s]", BytesToHex(*txnDigest, 16).c_str());
+  Debug("Phase2CB: [%s]", BytesToHex(*txnDigest, 16).c_str());
 
   auto f = [this, remote, msg, txnDigest, sendCB = std::move(sendCB), phase2Reply, cleanCB = std::move(cleanCB), valid ]() mutable {
 
@@ -1914,7 +1914,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
 // Garbage collects ongoing meta-data
 void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDigest, proto::Transaction *txn, void *valid) {
 
-  Notice("Writeback Txn[%s][%lu:%lu]", BytesToHex(*txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
+  Debug("Writeback Txn[%s][%lu:%lu]", BytesToHex(*txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
 
   if(!valid){
     Panic("Writeback Validation should not fail for TX %s ", BytesToHex(*txnDigest, 16).c_str());
@@ -2202,11 +2202,11 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
-  //TODO: Keep track of prepares. Make sure that within 20ms writeback arrives.
-  transport->Timer(1000, [this, ts, txnDigest](){
-      if(!committed.count(txnDigest) && !aborted.count(txnDigest)) Warning("Prepared Txn[%s][%lu:%lu] did not resolve within 1000ms", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
-  });
+  // Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  // //TODO: Keep track of prepares. Make sure that within 20ms writeback arrives.
+  // transport->Timer(1000, [this, ts, txnDigest](){
+  //     if(!committed.count(txnDigest) && !aborted.count(txnDigest)) Warning("Prepared Txn[%s][%lu:%lu] did not resolve within 1000ms", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  // });
 
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
@@ -2579,9 +2579,25 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     prepared.erase(a);
 
     if(abort || hard){ //If abort or invalid TX: Remove any prepared writes; Note: ApplyWrites(commit) already updates all prepared values to committed.
-      for (const auto &[table_name, table_write] : txn->table_writes()){
-        table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
-      }
+      Notice("Purging txn: [%s]. Num tables: %d", BytesToHex(txnDigest, 16).c_str(), txn->table_writes_size());
+
+        if(ASYNC_WRITES){
+          auto f = [this, txn, ts, txnDigest](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
+            UW_ASSERT(txn);
+            for (const auto &[table_name, table_write] : txn->table_writes()){
+              table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
+            }
+            return (void*) true;
+          };
+          transport->DispatchTP_noCB(std::move(f));
+        }
+        else{
+          for (const auto &[table_name, table_write] : txn->table_writes()){
+            table_store->PurgeTableWrite(table_name, table_write, ts, txnDigest);
+          }
+        }
+
+     
     }
   }
   a.release();

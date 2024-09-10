@@ -62,7 +62,7 @@ TrueTime::GetTime()
     // uint64_t bot = timestamp & bot_mask;  //(((uint64_t) 1 << 20 - 1));  //bottom 20 bits               
     // if(ts_top != top || ts_bot != bot) Panic("ts_top: %lx different than merged_top: %lx; OR: ts_bot: %lx different than merged_bot: %lx", ts_top, top, ts_bot, bot);
 
-    Notice("Time: [%lu s][%lu us] -> TS: %lu", now.tv_sec,now.tv_usec,timestamp);
+    Debug("Time: [%lu s][%lu us] -> TS: %lu", now.tv_sec,now.tv_usec,timestamp);
     //fprintf(stderr, "Time: %lu %lu %lu \n", now.tv_sec,now.tv_usec,timestamp);
 
     return timestamp;

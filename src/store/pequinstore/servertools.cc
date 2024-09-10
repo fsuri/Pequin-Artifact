@@ -615,7 +615,7 @@ void Server::FindTableVersion(const std::string &table_name, const Timestamp &ts
     }
   }
 
-  //WARNING: THIS IS DEPRECATED. DO NOT USE. 
+  //WARNING: THIS IS DEPRECATED. DO NOT USE. We no longer track TableVersions as part of Snapshot
  if(false && add_to_snapshot){ //Creating Snapshot
     UW_ASSERT(snapshotMgr);
 

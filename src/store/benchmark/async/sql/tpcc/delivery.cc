@@ -55,6 +55,29 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
+  //BEGIN TEST
+  // client.Begin(timeout);
+
+  // statement = fmt::format("SELECT * FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, 1, 1);
+  // client.Query(statement, queryResult, timeout);
+  // Notice("Res size: %d", queryResult->size());
+
+  //   for(int i = 0; i < queryResult->size(); ++i){
+  //       std::unique_ptr<query_result::Row> row = (*queryResult)[i]; 
+  //       Notice("Checking row at index: %d", i);
+  //       // For col in col_updates update the columns specified by update_cols. Set value to update_values
+  //       for(int j=0; j<row->num_columns(); ++j){
+  //           const std::string &col = row->name(j);
+  //           std::unique_ptr<query_result::Field> field = (*row)[j];
+  //           const std::string &field_val = field->get();
+  //           Notice("  %s:  %s", col.c_str(), field_val.c_str());
+  //       }
+  //   }
+
+  // return client.Commit(timeout);
+  // //END TEST
+
+
   client.Begin(timeout);
   
 

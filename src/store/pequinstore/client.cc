@@ -181,7 +181,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     pendingWriteStatements.clear();
     point_read_cache.clear();
 
-    pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
+    ClearTxnQueries();
+    //pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
 
     //FIXME: Just for profiling.
   if(PROFILING_LAT){
@@ -858,9 +859,15 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 void Client::RetryQuery(PendingQuery *pendingQuery){
 
   if(params.query_params.retryLimit > -1 && pendingQuery->version >= params.query_params.retryLimit){
-    Warning("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version), params.query_params.retryLimit;
+    Panic("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
     stats.Increment("Exceeded_Retry_Limit");
-    throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
+    //throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
+
+    for (auto group : txn.involved_groups()) {
+      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
+    }
+
+    pendingQuery->qcb(REPLY_FAIL, nullptr);
   }
   
   stats.Increment("QueryRetries", 1);
@@ -1043,12 +1050,20 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
     Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
 
+
+    if(true){
+      Notice("Try Commit. Txn[%s][%lu:%lu]. PRINT WRITE SET", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &write: txn.write_set()){
+        Notice("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
+      }
+    }
+
     Phase1(req);
   });
 }
 
 void Client::Phase1(PendingRequest *req) {
-  Notice("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
+  Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
       BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
 
   UW_ASSERT(txn.involved_groups().size() > 0);
@@ -1491,6 +1506,7 @@ void Client::Writeback(PendingRequest *req) {
   }
 
   //total_writebacks++;
+  Debug("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 

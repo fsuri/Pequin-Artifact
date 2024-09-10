@@ -477,7 +477,7 @@ struct QueryReadSetMgr {
 
           if(is_table_col_ver){
             read->set_is_table_col_version(true);
-            //TS doesnt matter. Not used for CC, just for locking
+            //TS doesnt matter. Not used for CC, just for locking. Setting to 0 ensures that this read key does not affect Read Set hash
             read->mutable_readtime()->set_id(0); 
             read->mutable_readtime()->set_timestamp(0);
           }
@@ -578,7 +578,7 @@ struct QueryReadSetMgr {
 
                 //transform low_time to account for montonicity grace. 
                 //Logic: We are already checking everything between (curr_time - grace) up to TX.TS. So if low_time falls within curr_time-grace there is no need to update.
-                uint64_t low_us = TStoUS(low_time) + (monotonicityGrace * 1000) - 1; //-1us so we *check* against the lower_frontier bound as well.
+                uint64_t low_us = TStoUS(low_time);// + (monotonicityGrace * 1000) - 1; //-1us so we *check* against the lower_frontier bound as well.
                 low_time = UStoTS(low_us);
                 //Conversion test:
                 //uint64_t low_ref = UStoTS(TStoUS(low_time))
@@ -588,7 +588,7 @@ struct QueryReadSetMgr {
                 
                 if((low_time < curr_time) 
                     || (low_time == curr_time && lowest_snapshot_frontier.getID() < curr_table_version.id()) ){ //This is unecessary, since we anyways only compare at 
-                    Notice("Updating TblV from [%lu:%lu]->[%lu]. approx. MS Diff: %lu", curr_table_version.timestamp(), curr_table_version.id(), low_time, TStoMS(curr_time) - TStoMS(low_time));
+                    Notice("Updating TblV from [%lu:%lu]->[%lu:%lu]. approx. MS Diff: %lu", curr_table_version.timestamp(), curr_table_version.id(), low_time, lowest_snapshot_frontier.getID(), TStoMS(curr_time) - TStoMS(low_time));
                     current_pred.mutable_table_version()->set_timestamp(low_time); 
                     current_pred.mutable_table_version()->set_id(lowest_snapshot_frontier.getID());
                   

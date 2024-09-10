@@ -55,6 +55,7 @@ struct TupleHeader {
   bool materialize;
   Timestamp basil_timestamp;
   bool is_deleted = false;
+  bool is_purged = false;
 } __attribute__((aligned(64)));
 
 /**
@@ -242,6 +243,10 @@ public:
     return tuple_headers_[tuple_slot_id].is_deleted;
   }
 
+  inline bool IsPurged(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].is_purged;
+  }
+
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -325,6 +330,11 @@ public:
   // NEW: set whether is deleted
   inline void SetIsDeleted(const oid_t &tuple_slot_id, bool is_deleted) {
     tuple_headers_[tuple_slot_id].is_deleted = is_deleted;
+  }
+
+  // NEW: set whether is purged
+  inline void SetPurged(const oid_t &tuple_slot_id, bool purge) {
+    tuple_headers_[tuple_slot_id].is_purged = purge;
   }
 
   /*

@@ -102,7 +102,7 @@
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": true,
+		  "no_fallback": false,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -172,7 +172,7 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 20,
+  "client_experiment_length": 30,
   "client_ramp_down": 5,
   "client_ramp_up": 5,
   
