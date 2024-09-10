@@ -824,12 +824,13 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
 
   Debug("Purge helper: undo_delete %d, txn->GetUndoDelete() %d", undo_delete,
   txn->GetUndoDelete());
-  // std::cerr << "Undo delete in execute purge helper is " << undo_delete <<
-  // std::endl; std::cerr << "Txn get undo delete in execute purge helper is "
-  // << txn->GetUndoDelete() << std::endl; No read set manager for purge
+  std::cerr << "Undo delete in execute purge helper is " << undo_delete <<
+  std::endl; std::cerr << "Txn get undo delete in execute purge helper is "
+  << txn->GetUndoDelete() << std::endl; //No read set manager for purge
   txn->SetHasReadSetMgr(false);
   txn->SetIsPointRead(false);
   txn->SetHasSnapshotMgr(false);
+  //txn->SetCommitOrPrepare(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {

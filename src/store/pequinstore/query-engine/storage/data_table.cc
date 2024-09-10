@@ -416,11 +416,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
-        //std::cerr << "In undo delete for purge" << std::endl;
+        std::cerr << "In purge, undoing delete" << std::endl;
         // Purge this tuple
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+        
 
         // NEW: For purge set the tile group header locks
 
@@ -468,6 +469,18 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
 
           prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+        }
+
+        for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
+          auto index = GetIndex(index_itr);
+          if (index == nullptr)
+            continue;
+          auto index_schema = index->GetKeySchema();
+          auto indexed_columns = index_schema->GetIndexedColumns();
+          std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
+          ContainerTuple<storage::TileGroup> curr_tuple(curr_tile_group.get(), curr_pointer.offset);
+          key->SetFromTuple(curr_tuple, indexed_columns, index->GetPool());
+          index->DeleteEntry(key, &curr_pointer);
         }
       }
       //Writing again. 
