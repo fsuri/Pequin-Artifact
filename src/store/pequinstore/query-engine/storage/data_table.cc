@@ -416,7 +416,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
-        //std::cerr << "In undo delete for purge" << std::endl;
+        std::cerr << "In purge, undoing delete" << std::endl;
         // Purge this tuple
 
         // Set Purge flag. Note: In theory don't need to adjust any of the linked lists to remove purged versions, but we do it for read efficiency
@@ -425,6 +425,9 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+        
+        // Set Purge flag
+        curr_tile_group_header->SetPurge(curr_pointer.offset, true);
 
         // NEW: For purge set the tile group header locks
 
