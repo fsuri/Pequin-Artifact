@@ -1121,6 +1121,9 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
       if (current_txn->IsDeletion()) eval = true;  //Allow Deletions to read deleted rows. This is just for visibility... Technically, deletion should always work even if nothing exists.
       else{ eval = false;}
   }
+  else if (tile_group_header->GetPurge(tuple_location.offset)) {
+    eval = false;
+  }
   else if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
       LOG_TRACE("perform predicate evaluate");
       ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);

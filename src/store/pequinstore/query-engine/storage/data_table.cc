@@ -422,6 +422,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
         
+        // Set Purge flag
+        curr_tile_group_header->SetPurge(curr_pointer.offset, true);
 
         // NEW: For purge set the tile group header locks
 
@@ -471,17 +473,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
 
-        for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
-          auto index = GetIndex(index_itr);
-          if (index == nullptr)
-            continue;
-          auto index_schema = index->GetKeySchema();
-          auto indexed_columns = index_schema->GetIndexedColumns();
-          std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
-          ContainerTuple<storage::TileGroup> curr_tuple(curr_tile_group.get(), curr_pointer.offset);
-          key->SetFromTuple(curr_tuple, indexed_columns, index->GetPool());
-          index->DeleteEntry(key, &curr_pointer);
-        }
+        
       }
       //Writing again. 
       else {

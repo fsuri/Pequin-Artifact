@@ -55,6 +55,7 @@ struct TupleHeader {
   bool materialize;
   Timestamp basil_timestamp;
   bool is_deleted = false;
+  bool purge = false;
 } __attribute__((aligned(64)));
 
 /**
@@ -242,6 +243,10 @@ public:
     return tuple_headers_[tuple_slot_id].is_deleted;
   }
 
+  inline bool GetPurge(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].purge;
+  }
+
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -301,6 +306,13 @@ public:
                         std::shared_ptr<std::string> txn_dig) {
     tuple_headers_[tuple_slot_id].txn_dig = txn_dig;
   }
+
+  // NEW: set purge
+  inline void SetPurge(const oid_t &tuple_slot_id,
+                        bool purge) {
+    tuple_headers_[tuple_slot_id].purge = purge;
+  }
+
 
   // NEW: set commit proof
   inline void
