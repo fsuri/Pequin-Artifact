@@ -2202,7 +2202,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  // Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
+  Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
   // //TODO: Keep track of prepares. Make sure that within 20ms writeback arrives.
   // transport->Timer(1000, [this, ts, txnDigest](){
   //     if(!committed.count(txnDigest) && !aborted.count(txnDigest)) Warning("Prepared Txn[%s][%lu:%lu] did not resolve within 1000ms", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
@@ -2285,7 +2285,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   val.proof = proof;
 
   auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
-  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+  Notice("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
   proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
@@ -2314,6 +2314,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     val.proof = proof;
 
     committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+    Notice("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
     CommitToStore(proof, txn, txnDigest, ts, val);
 

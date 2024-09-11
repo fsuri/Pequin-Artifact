@@ -112,7 +112,7 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
             //--> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
                 //importantly however: byz client cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or it could've happened naturally (for a correct client too)
 
-    Notice("Invoked Retry QueryRequest [%lu] on ShardClient for group %d", query_seq_num, group);
+    Notice("Invoked Retry QueryRequest [%lu] on ShardClient for group %d. Query TS[%lu:%lu]", query_seq_num, group, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id());
 
     //find pendingQuery from query_seq_num map.
     auto itr_q = query_seq_num_mapping.find(query_seq_num);

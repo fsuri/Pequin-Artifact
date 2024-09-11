@@ -432,7 +432,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // NEW: For purge set the tile group header locks
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-           Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+           Notice("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
@@ -450,7 +450,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
-          Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+          Notice("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           next_tgh->GetSpinLatch(next_loc.offset).Lock();
           
@@ -468,7 +468,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
-           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+           Notice("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
 
@@ -477,6 +477,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
         else{
+          Notice("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           UW_ASSERT(next_loc.IsNull() && prev_loc.IsNull());  //Current tuple = head and tail of list
           //Note: If the only item in the linked list is purged, then we just keep it as part of the linked list. Note: versions *are* marked purged.
 

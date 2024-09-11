@@ -1118,6 +1118,8 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
     //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
   
+  UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); //purged versions should already be skipped
+
   bool eval = true;
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -2174,7 +2176,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // tuple_location_ptrs.resize(max_size);
   // tuple_location_ptrs.shrink_to_fit();
  
-  Debug("Secondary Index Scan on Table [%s]. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
+  Notice("Query[%lu:%lu]Secondary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
   // if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient SECONDARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
   
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");

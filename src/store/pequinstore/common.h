@@ -578,7 +578,7 @@ struct QueryReadSetMgr {
 
                 //transform low_time to account for montonicity grace. 
                 //Logic: We are already checking everything between (curr_time - grace) up to TX.TS. So if low_time falls within curr_time-grace there is no need to update.
-                uint64_t low_us = TStoUS(low_time);// + (monotonicityGrace * 1000) - 1; //-1us so we *check* against the lower_frontier bound as well.
+                uint64_t low_us = TStoUS(low_time) + (monotonicityGrace * 1000) - 1; //-1us so we *check* against the lower_frontier bound as well.
                 low_time = UStoTS(low_us);
                 //Conversion test:
                 //uint64_t low_ref = UStoTS(TStoUS(low_time))

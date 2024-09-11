@@ -310,7 +310,7 @@ public:
   // NEW: set purge
   inline void SetPurge(const oid_t &tuple_slot_id,
                         bool purge) {
-    tuple_headers_[tuple_slot_id].purge = purge;
+    tuple_headers_[tuple_slot_id].is_purged = purge;
   }
 
 

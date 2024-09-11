@@ -19,7 +19,8 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-    "_server_load_time": 90,
+   "_server_load_time": 90,
+   "_server_load_time": 17,
    "server_load_time": 26,
    "_server_load_time": 16,
    "_server_load_time": 22,
@@ -31,13 +32,13 @@
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 10,
+	  "tpcc_num_warehouses": 5,
 	  
-	  "tpcc_stock_level_ratio": 4,
-	  "tpcc_delivery_ratio": 4,
-	  "tpcc_order_status_ratio": 4,
-	  "tpcc_payment_ratio": 44,
-	  "tpcc_new_order_ratio": 44,
+	  "tpcc_stock_level_ratio": 0,
+	  "tpcc_delivery_ratio": 0,
+	  "tpcc_order_status_ratio": 24,
+	  "tpcc_payment_ratio": 22,
+	  "tpcc_new_order_ratio": 54,
 	  
 	  "tpcc_c_c_id": 0,
   	  "tpcc_c_c_last": 0,
@@ -121,7 +122,7 @@
 		  "query_result_honest": true,
 		  "sync_messages": "query-quorum",
 		  
-		  "retry_limit": 2,
+		  "retry_limit": 1,
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
 		  "query_point_eager_exec": false,
@@ -152,7 +153,7 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [30]
+    [40]
   ],
   "client_processes_per_client_node": [
     [8]
