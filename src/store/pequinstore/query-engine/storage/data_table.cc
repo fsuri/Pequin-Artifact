@@ -597,7 +597,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       /** Insert this tuple into secondary index. Note that since this is an "update", the primary index will already have a tuple
        * with the same primary index cols
       */
-     int index_count = GetIndexCount();
+      int index_count = GetIndexCount();
       for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
         auto index = GetIndex(index_itr);
         if (index == nullptr)
@@ -610,7 +610,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         switch (index->GetIndexType()) {
         case IndexConstraintType::DEFAULT:
         default:
-          index->InsertEntry(key.get(), *index_entry_ptr);
+          index->InsertEntry(key.get(), curr_tile_group_header->GetIndirection(curr_pointer.offset));
           break;
         }
       }
