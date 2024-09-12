@@ -593,6 +593,28 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       // ItemPointer *old_location;
       /*auto result = InsertTuple(tuple, location, transaction, old_location,
                                 index_entry_ptr, check_fk);*/
+      
+      /** Insert this tuple into secondary index. Note that since this is an "update", the primary index will already have a tuple
+       * with the same primary index cols
+      */
+     int index_count = GetIndexCount();
+      for (int index_itr = index_count - 1; index_itr >= 0; --index_itr) {
+        auto index = GetIndex(index_itr);
+        if (index == nullptr)
+          continue;
+        auto index_schema = index->GetKeySchema();
+        auto indexed_columns = index_schema->GetIndexedColumns();
+        std::unique_ptr<storage::Tuple> key(new storage::Tuple(index_schema, true));
+        key->SetFromTuple(tuple, indexed_columns, index->GetPool());
+
+        switch (index->GetIndexType()) {
+        case IndexConstraintType::DEFAULT:
+        default:
+          index->InsertEntry(key.get(), *index_entry_ptr);
+          break;
+        }
+      }
+    
       bool result = false;
       old_location = check;
       IncreaseTupleCount(1);
