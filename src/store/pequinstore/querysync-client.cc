@@ -27,8 +27,8 @@
 
 namespace pequinstore {
 
-static bool PRINT_SNAPSHOT_SET = true;
-static bool PRINT_SNAPSHOT_READ_SET = true;
+static bool PRINT_SNAPSHOT_SET = false;
+static bool PRINT_SNAPSHOT_READ_SET = false;
 static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
 
 //TODO: Add: Handle Query Fail
@@ -418,7 +418,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //TESTING:
 
     stats->Increment("NumSyncs");
-    Notice("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
+    Debug("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
          
          //TEST: //FIXME: REMOVE
     if(PRINT_SNAPSHOT_SET){

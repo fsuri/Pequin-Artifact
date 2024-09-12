@@ -1071,11 +1071,11 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
      //check if locally committed; if not, check cert and apply
         
-    Notice("Received supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
+    Debug("Received supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
 
     auto itr = committed.find(txn_id);
     if(!TEST_SYNC && itr != committed.end()){
-        Notice("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         //UpdateWaitingQueries(txn_id);   //Note: Already called in Commit function --> Guarantees that queries wake up as soon as Commit happens, not once Supply happens
         //(RESOLVED) Cornercase: But: Couldve been added to commit only after checking for presence but before being added to WaitingTxn --> thus must wake again. 
         return;
@@ -1087,7 +1087,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     auto itr2 = aborted.find(txn_id);
     if(itr2 != aborted.end()){
-           Notice("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
+            Debug("Already have aborted tx-id: %s", BytesToHex(txn_id, 16).c_str());
         //Don't need to wait on this txn (Abort call UpdatedWaitingQueries)
         //UpdateWaitingQueries(txn_id); 
                 // Alternatively: Could Mark all waiting queries as doomed. FailWaitingQueries(txn_id);
@@ -1130,7 +1130,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     //Check if other replica supplied commit
     if(txn_info.has_commit_proof()){   
          //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
-        Notice("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         proto::CommittedProof *proof = txn_info.release_commit_proof();
 
         bool valid;

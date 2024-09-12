@@ -307,13 +307,7 @@ public:
     tuple_headers_[tuple_slot_id].txn_dig = txn_dig;
   }
 
-  // NEW: set purge
-  inline void SetPurge(const oid_t &tuple_slot_id,
-                        bool purge) {
-    tuple_headers_[tuple_slot_id].is_purged = purge;
-  }
-
-
+  
   // NEW: set commit proof
   inline void
   SetCommittedProof(const oid_t &tuple_slot_id,

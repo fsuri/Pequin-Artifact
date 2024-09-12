@@ -425,9 +425,6 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
         
-        // Set Purge flag
-        curr_tile_group_header->SetPurge(curr_pointer.offset, true);
-
         // NEW: For purge set the tile group header locks
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
