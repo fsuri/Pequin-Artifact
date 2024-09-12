@@ -55,17 +55,6 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  //TEST
-  // client.Begin(timeout);
-
-  // int rand = std::rand();
-  // query = fmt::format("UPDATE {} SET d_next_o_id = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, rand, 1, 1);
-  // client.Write(query, queryResult, timeout);
-
-  // return client.Commit(timeout);
-
-  //
-
   client.Begin(timeout);
 
   // (1) Select the specified row from District and extract the Next Order Id
