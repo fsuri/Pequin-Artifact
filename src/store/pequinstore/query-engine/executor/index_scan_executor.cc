@@ -1118,8 +1118,10 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
     //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
   
-  UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); //purged versions should already be skipped
-
+  //UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); //purged versions should already be skipped
+  if (tile_group_header->IsPurged(tuple_location.offset)) {
+    return;
+  }
   bool eval = true;
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
