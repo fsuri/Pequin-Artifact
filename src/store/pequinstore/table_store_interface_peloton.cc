@@ -1118,7 +1118,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   if (purge_statement.empty())
     return; // Nothing to undo.
 
-  Notice("Txn:[%s]. Table[%s] Purge statement: %s", BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), purge_statement.c_str());
+  // Notice("Txn:[%s]. Table[%s] Purge statement: %s", BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), purge_statement.c_str());
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
@@ -1139,9 +1139,9 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   GetResult(status, tcop, counter);
 
   if (status == peloton::ResultType::SUCCESS)
-    Notice("Purge successful");
+    Debug("Purge successful");
   else
-    Warning("Purge failure/Nothing to purge");
+    Debug("Purge failure/Nothing to purge");
     // Panic("Purge failure");
   //}
 

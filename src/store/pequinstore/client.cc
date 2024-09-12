@@ -1051,7 +1051,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
 
 
-    if(true){
+    if(false){
       Notice("Try Commit. Txn[%s][%lu:%lu]. PRINT WRITE SET", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
       for(auto &write: txn.write_set()){
         Notice("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
@@ -1507,7 +1507,7 @@ void Client::Writeback(PendingRequest *req) {
 
   //total_writebacks++;
   Debug("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
-  Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  //Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {

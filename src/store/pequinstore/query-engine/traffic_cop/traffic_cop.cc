@@ -1863,7 +1863,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
         statement->SetPlanTree(plan);
         statement->SetNeedsReplan(true);
       }
-      Notice("Purge statement. Txn[%s] undo_delete: %d", pequinstore::BytesToHex(*txn_dig, 16).c_str(), undo_delete);
+      Debug("Purge statement. Txn[%s] undo_delete: %d", pequinstore::BytesToHex(*txn_dig, 16).c_str(), undo_delete);
       // std::cerr << "Undo delete in execute purge statement is " <<
       // undo_delete << std::endl;
       ExecutePurgeHelper(statement->GetPlanTree(), params, result,

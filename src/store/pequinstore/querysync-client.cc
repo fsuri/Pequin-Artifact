@@ -556,7 +556,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         return;
     }
 
-    Notice("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+    Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
 
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {

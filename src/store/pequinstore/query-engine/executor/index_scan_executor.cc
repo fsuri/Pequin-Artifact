@@ -744,7 +744,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
           UW_ASSERT(!read_curr_version);
           UW_ASSERT(!found_committed && !found_prepared); // in read_on_snapshot mode done should be true as soon as found_prepared or found_committed becomes true.
           if(!tile_group_header->GetMaterialize(tuple_location.offset)){
-               Notice("Skipping [txn: %s]. [%lu:%lu]", pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str(), tuple_location.block, tuple_location.offset);
+              Debug("Skipping [txn: %s]. [%lu:%lu]", pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str(), tuple_location.block, tuple_location.offset);
               Timestamp const &skipped_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
               lowest_snapshot_frontier = std::min(lowest_snapshot_frontier, skipped_timestamp);
           }
@@ -1120,8 +1120,11 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
   
   //UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); //purged versions should already be skipped
   if (tile_group_header->IsPurged(tuple_location.offset)) {
+    //It is possible that between CheckedRow and Eval Read the version was purged. In that case, its better to ignore it (since reading it guarantees abort)
+    Warning("Should have skipped purged version at tuple[%lu:%lu]. From txn:[%s]", tuple_location.block, tuple_location.offset, pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str());
     return;
   }
+
   bool eval = true;
 
   if (tile_group_header->IsDeleted(tuple_location.offset)) {
@@ -1129,9 +1132,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
       if (current_txn->IsDeletion()) eval = true;  //Allow Deletions to read deleted rows. This is just for visibility... Technically, deletion should always work even if nothing exists.
       else{ eval = false;}
   }
-  // else if (tile_group_header->GetPurge(tuple_location.offset)) {
-  //   eval = false;
-  // }
+ 
   else if (predicate_ != nullptr) { // if having predicate (WHERE clause), then perform evaluation.
       LOG_TRACE("perform predicate evaluate");
       ContainerTuple<storage::TileGroup> tuple(tile_group.get(), tuple_location.offset);
@@ -2178,7 +2179,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   // tuple_location_ptrs.resize(max_size);
   // tuple_location_ptrs.shrink_to_fit();
  
-  Notice("Query[%lu:%lu]Secondary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
+  Debug("Query[%lu:%lu]Secondary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
   // if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient SECONDARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
   
   //if(tuple_location_ptrs.size() > 150) Panic("doing full scan");

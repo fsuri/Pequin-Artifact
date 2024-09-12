@@ -2202,11 +2202,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   o.release(); //Relase only at the end, so that Prepare and Clean in parallel for the same TX are atomic.
 
-  Notice("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
-  // //TODO: Keep track of prepares. Make sure that within 20ms writeback arrives.
-  // transport->Timer(1000, [this, ts, txnDigest](){
-  //     if(!committed.count(txnDigest) && !aborted.count(txnDigest)) Warning("Prepared Txn[%s][%lu:%lu] did not resolve within 1000ms", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
-  // });
+  Debug("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
@@ -2285,7 +2281,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   val.proof = proof;
 
   auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
-  Notice("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+  Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
   proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
@@ -2314,7 +2310,7 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     val.proof = proof;
 
     committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
-    Notice("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+    Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
     CommitToStore(proof, txn, txnDigest, ts, val);
 
@@ -2580,7 +2576,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     prepared.erase(a);
 
     if(abort || hard){ //If abort or invalid TX: Remove any prepared writes; Note: ApplyWrites(commit) already updates all prepared values to committed.
-      Notice("Purging txn: [%s]. Num tables: %d", BytesToHex(txnDigest, 16).c_str(), txn->table_writes_size());
+      Debug("Purging txn: [%s]. Num tables: %d", BytesToHex(txnDigest, 16).c_str(), txn->table_writes_size());
 
         if(ASYNC_WRITES){
           auto f = [this, txn, ts, txnDigest](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?

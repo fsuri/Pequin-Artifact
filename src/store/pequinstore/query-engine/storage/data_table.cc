@@ -416,11 +416,10 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       /** TODO: Add check to make sure it's prepared */
       if (transaction->GetUndoDelete() && is_prepared) {
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
-        std::cerr << "In purge, undoing delete" << std::endl;
         // Purge this tuple
 
         // Set Purge flag. Note: In theory don't need to adjust any of the linked lists to remove purged versions, but we do it for read efficiency
-        Notice("Table[%s]. Purging [txn: %s]. [%lu:%lu]", table_name.c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), curr_pointer.block, curr_pointer.offset);
+        Debug("Table[%s]. Purging [txn: %s]. [%lu:%lu]", table_name.c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), curr_pointer.block, curr_pointer.offset);
         curr_tile_group_header->SetPurged(curr_pointer.offset, true);
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
@@ -432,7 +431,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // NEW: For purge set the tile group header locks
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-           Notice("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+          Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
           //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
@@ -450,7 +449,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
-          Notice("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+          Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           next_tgh->GetSpinLatch(next_loc.offset).Lock();
           
@@ -468,7 +467,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
-           Notice("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+          Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
 
@@ -477,7 +476,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
         else{
-          Notice("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+          Debug("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           UW_ASSERT(next_loc.IsNull() && prev_loc.IsNull());  //Current tuple = head and tail of list
           //Note: If the only item in the linked list is purged, then we just keep it as part of the linked list. Note: versions *are* marked purged.
 
