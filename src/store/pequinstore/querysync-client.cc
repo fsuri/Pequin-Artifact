@@ -431,7 +431,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
             }
         }
         for(auto &[tx, replica_list] : pendingQuery->merged_ss.merged_txns()){
-            Notice("MergedSS contains TX_id: %s", BytesToHex(tx, 256).c_str());
+            Notice("MergedSS contains TX_id: %s", BytesToHex(tx, 16).c_str());
             for(auto &replica: replica_list.replicas()){
                 Notice("   Replica list has replica: %d", replica);
             }
