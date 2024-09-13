@@ -465,7 +465,15 @@ void Client::Query(const std::string &query, query_callback qcb,
       }
     } 
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
-
+    else{
+      auto itr = scan_read_cache.find(query);
+      if(itr != scan_read_cache.end()){
+        Debug("Supply scan query result from cache! (Query seq: %d). Query: %s", query_seq_num, query.c_str());
+        auto res = new sql::QueryResultProtoWrapper(itr->second);
+        qcb(REPLY_OK, res);
+        return;
+      }
+    }
 
     //std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
       // Contact the appropriate shard to get the value.
@@ -747,9 +755,18 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     }
   }
 
+
+  if(!q_result->empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
+     Debug("Caching result for query: %s", pendingQuery->queryMsg.query_cmd().c_str());
+        //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+      if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos){
+            scan_read_cache[pendingQuery->queryMsg.query_cmd()] = pendingQuery->result;  
+      }
+  }
+
   //Optional Result Caching... Turn the result into individual point results. 
   //Cache result for future point updates. This can help optimize common point Select + point Update patterns.
-  if(!q_result->empty() && !pendingQuery->table_name.empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
+  if(false && !q_result->empty() && !pendingQuery->table_name.empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
       ColRegistry *col_registry;
       try{
         col_registry = &sql_interpreter.GetTableRegistry()->at(pendingQuery->table_name);

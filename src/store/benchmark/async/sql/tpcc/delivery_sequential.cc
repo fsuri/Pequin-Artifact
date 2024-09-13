@@ -119,16 +119,39 @@ transaction_status_t SQLDeliverySequential::Execute(SyncClient &client) {
 
   //TODO: We already know the ORDER_Lines to touch from the order id? Could just loop over o_row.ol_cnt and do point accesses.
 
-  // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
-  statement = fmt::format("UPDATE {} SET ol_delivery_d = {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
+  //Duplicate Scan version
+  // // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
+  // statement = fmt::format("UPDATE {} SET ol_delivery_d = {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id);
+  // client.Write(statement, queryResult, timeout); //This can be async.
+
+  //     //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
+  // statement = fmt::format("SELECT SUM(ol_amount) FROM {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);
+  // client.Query(statement, queryResult, timeout);
+  // int total_amount;
+  // deserialize(total_amount, queryResult);
+  // Debug("Total Amount: %i", total_amount);
+
+
+   // (4) Select all rows in ORDER-LINE that match the order, and update delivery dates. Retrieve total amount (sum)
+  statement = fmt::format("SELECT * FROM {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);  //=> Pesto client will cache this result
+  client.Query(statement, queryResult, timeout, true); //cache result
+
+  statement = fmt::format("UPDATE {} SET ol_delivery_d = {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, ol_delivery_d, no_o_id, d_id, w_id); //=> Pesto client will do recon-read from cache
+  Debug("OP: %s", statement.c_str());
   client.Write(statement, queryResult, timeout); //This can be async.
 
-      //Note: Ideally Pesto does not Scan twice, but Caches the result set to perform the update (TODO: To make use of that, we'd have to not do the 2 statements in parallel)
-  statement = fmt::format("SELECT SUM(ol_amount) FROM {} WHERE ol_o_id = {} AND ol_d_id = {} AND ol_w_id = {};", ORDER_LINE_TABLE, no_o_id, d_id, w_id);
-  client.Query(statement, queryResult, timeout);
-  int total_amount;
-  deserialize(total_amount, queryResult);
+  int total_amount = 0;
+  //for result in result
+  Debug("Result size: %d", queryResult->size());
+  for(int i = 0; i < queryResult->size(); ++i){
+    OrderLineRow olr;
+    deserialize(olr, queryResult, i);
+    Debug("Olr amount: %i", olr.get_amount());
+    total_amount += olr.get_amount();
+  }
   Debug("Total Amount: %i", total_amount);
+
+
 
   // (5) Update the balance and delivery count of the respective customer (that issued the order)
   Debug("Customer: %u", c_id);

@@ -43,7 +43,7 @@
 
 
  
-  "client_abort_backoff": 2,
+  "client_abort_backoff": 5,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
   "client_max_backoff": 250,
