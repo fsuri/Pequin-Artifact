@@ -736,7 +736,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
         if((read_curr_version && ++num_reads <= max_num_reads ) && (!snapshot_only_mode || is_metadata_table_)){
           //std::cerr << "num_reads: " << num_reads << std::endl;
           UW_ASSERT(num_reads <= max_num_reads); //Assert we are not reading more than 1 for scans, and no more than 2 for point
-          EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
+          EvalRead(tile_group, tile_group_header, tuple_location, visible_tuple_locations, current_txn, visible_tuple_set, use_secondary_index);  //TODO: might be more elegant to move this into FindRightRowVersion
         }
       
         //If we are in read_from_snapshot mode, and we skip a read (i.e. done = false), update the min_snapshot_frontier. Note: Ignore tuples that a force materialized (they are effectively invisible)
@@ -1115,13 +1115,18 @@ bool IndexScanExecutor::FindRightRowVersion_Old(const Timestamp &timestamp, std:
 }
 
 void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-    std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index){
+    std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, std::set<ItemPointer> &visible_tuple_set, bool use_secondary_index){
     //Eval should be called on the latest readable version. Note: For point reads we will call this up to twice (for prepared & committed)
   
   //UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); //purged versions should already be skipped
   if (tile_group_header->IsPurged(tuple_location.offset)) {
     //It is possible that between CheckedRow and Eval Read the version was purged. In that case, its better to ignore it (since reading it guarantees abort)
     Warning("Should have skipped purged version at tuple[%lu:%lu]. From txn:[%s]", tuple_location.block, tuple_location.offset, pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str());
+    return;
+  }
+
+  if (visible_tuple_set.find(tuple_location) != visible_tuple_set.end()) {
+    Debug("Duplicate detected, skipping");
     return;
   }
 
@@ -1164,7 +1169,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
   // Add the tuple to the visible tuple vector
   if(eval) {  
     visible_tuple_locations.push_back(tuple_location);
-    //visible_tuple_set.insert(tuple_location);
+    visible_tuple_set.insert(tuple_location);
 
    
    if(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet || is_implicit_point_read_) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn);
