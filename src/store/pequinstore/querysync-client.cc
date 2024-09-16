@@ -27,8 +27,8 @@
 
 namespace pequinstore {
 
-static bool PRINT_SNAPSHOT_SET = false;
-static bool PRINT_SNAPSHOT_READ_SET = false;
+static bool PRINT_SNAPSHOT_SET = true;
+static bool PRINT_SNAPSHOT_READ_SET = true;
 static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
 
 //TODO: Add: Handle Query Fail
@@ -254,7 +254,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
-  Debug("[group %i] Sent Query Request [seq:ver] [%lu : %lu] \n", group, pendingQuery->query_seq_num, pendingQuery->retry_version);
+  Notice("[group %i] Sent Query Request [seq:ver] [%lu : %lu] TS[%lu:%lu]\n", group, pendingQuery->query_seq_num, pendingQuery->retry_version, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id());
 }
 
 
@@ -421,7 +421,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     Debug("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
          
          //TEST: //FIXME: REMOVE
-    if(PRINT_SNAPSHOT_SET){
+    if(PRINT_SNAPSHOT_SET && pendingQuery->retry_version >= 1){
            Debug("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
     // if(pendingQuery->retry_version > 0){
         for(auto &[ts, replica_list] : pendingQuery->merged_ss.merged_ts()){
@@ -556,7 +556,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         return;
     }
 
-    Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+    Notice("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
 
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {
@@ -612,7 +612,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         Debug("Result: %lu", std::hash<std::string>{}(replica_result->query_result()));
 
         if(PRINT_SNAPSHOT_READ_SET){
-        if(pendingQuery->snapshot_mode){
+        if(pendingQuery->snapshot_mode && pendingQuery->retry_version >= 1){
             //TESTING:
             Notice("TESTING Read set:");
             for(auto &read: replica_result->query_read_set().read_set()){
@@ -648,6 +648,49 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
             //
         }
         }
+
+        //TESTING: DEBUGGING
+        bool DEBUG_DUP = true;
+        if(DEBUG_DUP){
+            //Check for duplicates:
+            auto &rs = replica_result->query_read_set().read_set();
+            for(int i = 0; i < rs.size()-1; ++i){
+                if(rs[i].key() == rs[i+1].key() && rs[i].key()[0]!='8'){ //don't check duplicate stock
+                    Notice("Read set contains duplicate");
+                    for(auto &rd: rs){
+                        Notice("   [%s (%lu:%lu)]", rd.key().c_str(), rd.readtime().timestamp(), rd.readtime().id());
+                    }
+                    Panic("Duplicate read: [%s (%lu:%lu)], [%s (%lu:%lu)]", rs[i].key().c_str(), rs[i].readtime().timestamp(), rs[i].readtime().id(), rs[i+1].key().c_str(), rs[i+1].readtime().timestamp(), rs[i+1].readtime().id());
+                }
+            }
+
+            auto &read_set_map = pendingQuery->result_read_set[replica_result->query_result()];
+            read_set_map[validated_result_hash] = replica_result->query_read_set();
+            if(read_set_map.size() > 1){
+                //Check for difference between two read sets.
+
+                proto::ReadSet rs_1;
+                proto::ReadSet rs_2; 
+                bool first = true;
+                for(auto &[hash, rs_l] : read_set_map){
+                    if(first){ 
+                        rs_1 = rs_l;
+                        first = false;
+                        continue;
+                    }
+                    rs_2 = rs_l;
+                }
+                Notice("Rs1 size: %d. Rs2 size: %d", rs_1.read_set_size(), rs_2.read_set_size());
+                for(int i = 0; rs_1.read_set_size(); ++i){
+                    if(rs_1.read_set()[i].key() != rs_2.read_set()[i].key()){
+                        Panic("Different read: [%s (%lu:%lu)], [%s (%lu:%lu)]", rs_1.read_set()[i].key().c_str(), rs_2.read_set()[i].key().c_str());
+                    }
+                }
+
+                Panic("Two matching results with different read sets.");
+            }
+        }
+        //END
 
 
         Result_mgr &result_mgr = pendingQuery->result_freq[validated_result_hash][replica_result->query_result()]; //[validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result

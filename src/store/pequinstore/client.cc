@@ -1065,10 +1065,10 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     req->timeout = timeout; //20000UL; //timeout;
     stats.IncrementList("txn_groups", txn.involved_groups().size());
 
-    Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
+    Notice("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
 
 
-    if(false){
+    if(true){
       Notice("Try Commit. Txn[%s][%lu:%lu]. PRINT WRITE SET", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
       for(auto &write: txn.write_set()){
         Notice("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);

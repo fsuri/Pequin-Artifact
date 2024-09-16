@@ -456,6 +456,8 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   std::vector<ItemPointer *> tuple_location_ptrs;
 
+  Notice("Curr pred: %s", predicate_->GetInfo().c_str());
+
   // Grab info from plan node
   bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
 
@@ -513,7 +515,9 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     int num_tuples_examined = 0;
   #endif
 
-  Debug("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
+  //Notice("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
+  Notice("Query[%lu:%lu]Primary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
+  
   //if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient PRIMARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
  
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
@@ -640,7 +644,7 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
 
     const Timestamp &time = tile_group_header->GetBasilTimestamp(tuple_location.offset);
     std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
-    Debug("encoded read set key is: %s. Version: [%lu: %lu]", encoded.c_str(), time.getTimestamp(), time.getID());
+    Notice("Tuple location[%lu:%lu] encoded read set key is: %s. Version: [%lu: %lu]",tuple_location.block, tuple_location.offset, encoded.c_str(), time.getTimestamp(), time.getID());
 
     //if(current_txn->is_limit) Notice("Next key that is read for limit txn: %s", encoded.c_str());
 
@@ -1125,8 +1129,8 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
     return;
   }
 
-  if (visible_tuple_set.find(tuple_location) != visible_tuple_set.end()) {
-    Debug("Duplicate detected, skipping");
+  if (visible_tuple_set.count(tuple_location)) {
+    Warning("Duplicate detected, skipping");
     return;
   }
 
@@ -1179,7 +1183,7 @@ void IndexScanExecutor::EvalRead(std::shared_ptr<storage::TileGroup> tile_group,
   if(current_txn->IsPointRead()) RefinePointRead(current_txn, tile_group_header, tuple_location, eval);
   
 
-  //UW_ASSERT(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet);
+  UW_ASSERT(catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet);
   //FOR NOW ONLY PICK ACTIVE READ SET. USE THIS LINE FOR COMPLETE RS: 
   if(!catalog::Catalog::GetInstance()->GetQueryParams()->useActiveReadSet) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.
   //if(!USE_ACTIVE_READ_SET) ManageReadSet(tuple_location, tile_group, tile_group_header, current_txn); //Note: For primary index they'll always be the same.

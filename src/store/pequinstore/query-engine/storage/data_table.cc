@@ -372,7 +372,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       exists = false;
       // return INVALID_ITEMPOINTER;
     }
-    //Debug("Wrote to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
+    //if(transaction->GetBasilTimestamp().getTimestamp() > 0) Notice("Inserted tuple[%s] to tile-group-header:offset [%lu:%lu]", tuple->GetInfo().c_str(), location.block, location.offset); //don't print during load time
     //latch.Unlock();
     return location; //*old_location;
 
@@ -405,7 +405,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     //If TX tries to write to a tuple that it previously wrote itself (i.e. prepared)
     //Distinguish whether we are trying to rollback a prepare, or upgrade it to commit.
     if (ts == transaction->GetBasilTimestamp()) {
-      Debug("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16), transaction->GetCommitOrPrepare());
+      Notice("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), transaction->GetCommitOrPrepare());
       // std::cerr << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
       //  std::cerr << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
      
@@ -428,7 +428,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // NEW: For purge set the tile group header locks
 
         if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-          Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
+          Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           //std::cerr << "Updating both pointers" << std::endl;
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
@@ -522,7 +522,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         }
 
         if (should_upgrade && same_columns) {
-          Debug("Upgrading tuple[%d:%d] from prepared to committed", curr_pointer.block, curr_pointer.offset);
+          Notice("Upgrading tuple[%d:%d] from prepared to committed", curr_pointer.block, curr_pointer.offset);
           const pequinstore::proto::CommittedProof *proof =  transaction->GetCommittedProof();
           UW_ASSERT(proof);
           auto proof_ts = Timestamp(proof->txn().timestamp());
@@ -546,7 +546,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           // Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
 
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) {
-            Debug("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+            Notice("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
                   pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
                   same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
                   pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
@@ -554,7 +554,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
             //Panic("Tried to prepare twice or commit twice for same TX: %s", );
           }
           else{
-            Debug("Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+            Notice("Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
                   pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
                   same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
                   pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
@@ -581,7 +581,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       //     auto val = tuple->GetValue(col_idx);
       //     Debug("Write col %d. Value: %s", col_idx, val.ToString().c_str());  
       // }
-      Debug("Inserting %s Tuple at location [%lu:%lu] with TS: [%lu:%lu]",transaction->GetCommitOrPrepare()? "commit" : "prepare",
+      if(transaction->GetBasilTimestamp().getTimestamp() > 0)  Notice("Inserting %s Tuple at location [%lu:%lu] with TS: [%lu:%lu]",transaction->GetCommitOrPrepare()? "commit" : "prepare",
           location.block, location.offset, transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID());
       
       //TEST-END

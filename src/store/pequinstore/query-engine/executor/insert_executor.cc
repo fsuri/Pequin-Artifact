@@ -110,13 +110,19 @@ bool InsertExecutor::DExecute() {
 
     std::unique_ptr<storage::Tuple> tuple(new storage::Tuple(target_table_schema, true));
 
+   
+    int cnt = 0;
     // Go over the logical tile
     for (oid_t tuple_id : *logical_tile) {
+      cnt++;
       ContainerTuple<LogicalTile> cur_tuple(logical_tile.get(), tuple_id);
+
+      // if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
 
       // Materialize the logical tile tuple
       for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
         type::Value val = (cur_tuple.GetValue(column_itr));
+        //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("  Val: %s", val.ToString().c_str());
         tuple->SetValue(column_itr, val, executor_pool);
       }
 
@@ -138,6 +144,7 @@ bool InsertExecutor::DExecute() {
 
       executor_context_->num_processed += 1; // insert one
     }
+    if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("logical tile size: %d", cnt);
 
     // execute after-insert-statement triggers and
     // record on-commit-insert-statement triggers into current transaction
@@ -184,6 +191,7 @@ bool InsertExecutor::DExecute() {
       tuple = storage_tuple.get();
     }
 
+     if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Bulk Insert count: %d", bulk_insert_count);
     // Bulk Insert Mode
     for (oid_t insert_itr = 0; insert_itr < bulk_insert_count; insert_itr++) {
       // if we are doing a bulk insert from values not project_info
@@ -194,11 +202,15 @@ bool InsertExecutor::DExecute() {
         if (tuple == nullptr) {
           storage_tuple.reset(new storage::Tuple(schema, true));
 
+
+          //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
+
           // read from values
           uint32_t num_columns = schema->GetColumnCount();
           for (uint32_t col_id = 0; col_id < num_columns; col_id++) {
             try{
               auto value = node.GetValue(col_id + insert_itr * num_columns);
+              //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("   Val: %s", value.ToString().c_str());
               storage_tuple->SetValue(col_id, value, executor_pool);
             }
             catch(...){
