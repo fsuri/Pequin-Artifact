@@ -705,22 +705,31 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
     bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
-  auto &curr_state = GetCurrentTxnState();
+  //auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
-  if (!tcop_txn_state_.empty()) {
-    // std::cerr << "Write helper use of existing txn" << std::endl;
-    txn = curr_state.first;
-  } else {
-    // std::cerr << "Write helper create new txn" << std::endl;
-    //  No active txn, single-statement txn
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  // if (!tcop_txn_state_.empty()) {
+  //   // std::cerr << "Write helper use of existing txn" << std::endl;
+  //   Panic("Write helper uses existing txn");
+  //   txn = curr_state.first;
+  // } else {
+  //   // std::cerr << "Write helper create new txn" << std::endl;
+  //   //  No active txn, single-statement txn
+  //   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  //   // new txn, reset result status
+  //   curr_state.second = ResultType::SUCCESS;
+  //   single_statement_txn_ = true;
+  //   txn = txn_manager.BeginTransaction(thread_id);
+  //   tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  // }
+
+   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+   auto &curr_state = GetDefaultTxnState();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
     single_statement_txn_ = true;
     txn = txn_manager.BeginTransaction(thread_id);
-    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
-  }
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
@@ -1918,14 +1927,12 @@ ResultType TrafficCop::ExecuteWriteStatement(
       // The statement may be out of date
       // It needs to be replan
       if (statement->GetNeedsReplan()) {
+        Panic("Need replan");
         // TODO(Tianyi) Move Statement Replan into Statement's method
         // to increase coherence
-        auto bind_node_visitor = binder::BindNodeVisitor(
-            tcop_txn_state_.top().first, default_database_name_);
-        bind_node_visitor.BindNameToNode(
-            statement->GetStmtParseTreeList()->GetStatement(0));
-        auto plan = optimizer_->BuildPelotonPlanTree(
-            statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+        auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);
+        bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
+        auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
         statement->SetPlanTree(plan);
         statement->SetNeedsReplan(true);
       }

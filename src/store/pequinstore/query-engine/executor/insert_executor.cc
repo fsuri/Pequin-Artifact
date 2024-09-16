@@ -196,6 +196,7 @@ bool InsertExecutor::DExecute() {
     for (oid_t insert_itr = 0; insert_itr < bulk_insert_count; insert_itr++) {
       // if we are doing a bulk insert from values not project_info
 
+      UW_ASSERT(!project_info);
       if (!project_info) {
         tuple = node.GetTuple(insert_itr);
 
@@ -203,7 +204,7 @@ bool InsertExecutor::DExecute() {
           storage_tuple.reset(new storage::Tuple(schema, true));
 
 
-          //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
+          if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
 
           // read from values
           uint32_t num_columns = schema->GetColumnCount();
@@ -233,6 +234,7 @@ bool InsertExecutor::DExecute() {
  
       /*ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
+       if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Calling InsertTuple. Cnt: %d", insert_itr);
       ItemPointer old_location = ItemPointer(0, 0);
       ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, result, is_duplicate, old_location, &index_entry_ptr);
 
