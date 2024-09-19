@@ -127,6 +127,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     client.Query(statement, timeout);
     client.Wait(results);
     int namecnt = results[2]->size();
+    if(namecnt==0) Warning("No customers in [w:%d, d:%d] with last name %s", c_w_id, c_d_id, c_last.c_str());
     int idx = (namecnt + 1) / 2; //round up
     if (idx == namecnt) idx = namecnt - 1;
     deserialize(c_row, results[2], idx);
@@ -175,11 +176,16 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
     new_data = new_data.substr(std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
+  UW_ASSERT(c_d_id == c_row.get_d_id());
+  UW_ASSERT(c_w_id == c_row.get_w_id());
+  UW_ASSERT(c_id == c_row.get_id());
+
   statement = fmt::format("UPDATE {} SET c_balance = {}, c_ytd_payment = {}, c_payment_cnt = {}, c_data = '{}' "
             "WHERE c_id = {} AND c_d_id = {} AND c_w_id = {};", CUSTOMER_TABLE,
             c_row.get_balance(), c_row.get_ytd_payment(), c_row.get_payment_cnt(), c_row.get_data(), 
             c_row.get_id(), c_row.get_d_id(), c_row.get_w_id());
   client.Write(statement, timeout);  
+  //TODO: If we included *all* customer info, could make this a blind write.
 
   // (5) Create History entry.
   // statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
@@ -194,7 +200,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   UW_ASSERT(results[0]->has_rows_affected());
   UW_ASSERT(results[1]->has_rows_affected());
   if(!results[2]->has_rows_affected()){
-    Panic("Should not happen. C_id: %s. By last name? %d", c_row.get_id(), c_by_last_name); //Note: If it was by last name, then the Update statement re-performs the read.
+    Panic("Should not happen. W_id: %d. D_id: %d C_id: %d. By last name? %d. Last name: %s", c_w_id, c_d_id, c_row.get_id(), c_by_last_name, c_last.c_str()); //Note: If it was by last name, then the Update statement re-performs the read.
                                                                                             //Customers are never deleted, so this should not be possible 
   }
   UW_ASSERT(results[2]->has_rows_affected());

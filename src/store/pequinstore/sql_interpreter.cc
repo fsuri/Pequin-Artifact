@@ -479,6 +479,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                                                                                     //Alternatively, would select only the columns required by the Values; and pass the primary columns in separately.
     //             write_cont: for (column = value) statement, create TableWrite with primary column encoded key, column_list, and column_values (or direct inputs)
 
+
+    //DEBUG TEST//REMOVE FIXME:
+    bool is_customer_update = write_statement.find("UPDATE customer SET c_balance") != std::string::npos;
+
+
     std::string table_name;
     std::map<std::string_view, Col_Update> col_updates;
     std::string_view where_cond;
@@ -556,12 +561,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
                                         
     
-    write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
+    write_continuation = [this, wcb, table_name, col_updates, is_customer_update](int status, query_result::QueryResult* result) mutable {
 
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Performing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
         if(result->empty()){
+            if(is_customer_update) Warning("Recon read for Customer Read returned no result");
             Debug("No rows to update");
             result->set_rows_affected(result->size()); 
             wcb(REPLY_OK, result);
@@ -723,6 +729,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         Debug("Completed Write with %lu rows written", result->size());
         //std::cerr << "Completed Write with " << result->size() << " row(s) written" << std::endl;
         result->set_rows_affected(result->size()); 
+        if(is_customer_update) UW_ASSERT(result->rows_affected() == 1);
         wcb(REPLY_OK, result);
         
     };

@@ -456,7 +456,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   std::vector<ItemPointer *> tuple_location_ptrs;
 
-  Notice("Curr pred: %s", predicate_->GetInfo().c_str());
+  //Notice("Curr pred: %s", predicate_->GetInfo().c_str());
 
   // Grab info from plan node
   bool acquire_owner = GetPlanNode<planner::AbstractScan>().IsForUpdate();
@@ -515,8 +515,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     int num_tuples_examined = 0;
   #endif
 
-  //Notice("Primary Index Scan on Table: %s. Number of rows to check: %d", table_->GetName().c_str(), tuple_location_ptrs.size());
-  Notice("Query[%lu:%lu]Primary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
+  Debug("Query[%lu:%lu]Primary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
   
   //if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient PRIMARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
  
@@ -644,17 +643,18 @@ void IndexScanExecutor::ManageReadSet(ItemPointer &tuple_location, std::shared_p
 
     const Timestamp &time = tile_group_header->GetBasilTimestamp(tuple_location.offset);
     std::string &&encoded = EncodeTableRow(table_->GetName(), primary_key_cols);
-    Notice("Tuple location[%lu:%lu] encoded read set key is: %s. Version: [%lu: %lu]",tuple_location.block, tuple_location.offset, encoded.c_str(), time.getTimestamp(), time.getID());
+    Debug("Tuple location[%lu:%lu] encoded read set key is: %s. Version: [%lu: %lu]",tuple_location.block, tuple_location.offset, encoded.c_str(), time.getTimestamp(), time.getID());
 
     //if(current_txn->is_limit) Notice("Next key that is read for limit txn: %s", encoded.c_str());
 
-    query_read_set_mgr->AddToReadSet(std::move(encoded), time);
-
     //If prepared: Additionally set Dependency
     if (!tile_group_header->GetCommitOrPrepare(tuple_location.offset)) {
+      //Notice("Adding Dep: %s. Tuple location[%lu:%lu] encoded read set key is: %s. Version: [%lu: %lu]", pequinstore::BytesToHex(*tile_group_header->GetTxnDig(tuple_location.offset), 16).c_str(), tuple_location.block, tuple_location.offset, encoded.c_str(), time.getTimestamp(), time.getID());
       if (tile_group_header->GetTxnDig(tuple_location.offset) == nullptr) Panic("Dep Digest is null");
       query_read_set_mgr->AddToDepSet(*tile_group_header->GetTxnDig(tuple_location.offset), time);
     }
+
+    query_read_set_mgr->AddToReadSet(std::move(encoded), time);
   }
 }
 

@@ -992,13 +992,10 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   if (!write_statement.empty()) {
     this_shard_has_writes = true;
 
-    Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
-
+    //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
     Debug("Write statement: %s", write_statement.substr(0, 1000).c_str());
-    Debug("Commit or prepare is %d", commit_or_prepare);
-
-    Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
-    // Notice("Commit or prepare is %d", commit_or_prepare);
+    Debug("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
+  
     
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);

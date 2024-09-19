@@ -335,6 +335,34 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
   return location;
 }
 
+void DataTable::SetPequinMetaData(ItemPointer &location, concurrency::TransactionContext *current_txn){
+
+  oid_t tile_group_id = location.block;
+  oid_t tuple_id = location.offset;
+
+  auto tile_group = this->GetTileGroupById(tile_group_id);
+  auto tile_group_header = tile_group->GetHeader();
+
+  //Set meta data for the new tuple (at location tuple_id)
+ 
+  auto ts = current_txn->GetBasilTimestamp();
+  tile_group_header->SetBasilTimestamp(tuple_id, ts);
+
+  tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
+
+  const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
+  if (ts.getTimestamp() > 0 && current_txn->GetCommitOrPrepare()) {
+    UW_ASSERT(proof);
+    /*auto ts1 = Timestamp(proof->txn().timestamp());
+    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());*/
+  }
+  tile_group_header->SetCommittedProof(tuple_id, proof);
+
+  tile_group_header->SetCommitOrPrepare(tuple_id, current_txn->GetCommitOrPrepare());
+
+  tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
+}
+
 ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    concurrency::TransactionContext *transaction,
                                    bool &exists, bool &is_duplicate,
@@ -343,6 +371,17 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
                                    bool check_fk) {
 
   //if(transaction->GetCommitOrPrepare()) UW_ASSERT(transaction->GetCommittedProof()); //This doesn't play nice for CreateTable
+
+  //Brutal impact on write speed. Disable setting this during loading?
+  //std::lock_guard<std::mutex> guard(atomic_index); 
+  if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.lock(); //disable for loading
+
+  // auto lockScope = (transaction->GetTxnDig() == nullptr) ? 
+  //                          std::unique_lock<std::mutex>() 
+  //                        : std::unique_lock<std::mutex>(atomic_index);
+
+  //take read lock around check if in index
+  //while holding lock still. take a different write lock if true. take a different read lock if false.
 
   ItemPointer check = CheckIfInIndex(tuple, transaction);
 
@@ -357,6 +396,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       Debug("Invalid write to tile-group-header:offset [%lu:%lu]", location.block, location.offset);
       return INVALID_ITEMPOINTER;
     }
+    SetPequinMetaData(location, transaction);
 
     // auto tile_group = this->GetTileGroupById(location.block);
     // auto tile_group_header = tile_group->GetHeader();
@@ -374,11 +414,24 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     }
     //if(transaction->GetBasilTimestamp().getTimestamp() > 0) Notice("Inserted tuple[%s] to tile-group-header:offset [%lu:%lu]", tuple->GetInfo().c_str(), location.block, location.offset); //don't print during load time
     //latch.Unlock();
+
+
+    // if(location.block == 10099 && location.offset == 189) Notice("[CPU:%d] 1-Writing to tuple [10099:189]. Prepare or Commit: %d", sched_getcpu() ,transaction->GetCommitOrPrepare());
+    //  if(transaction->GetTxnDig() &&   pequinstore::BytesToHex(*transaction->GetTxnDig(),16) == "00000000000000007c01000000000000") Notice("[CPU:%d] 1-Writing to tuple [%lu:%lu]. Prepare or Commit: %d.", 
+    //         sched_getcpu() , location.block, location.offset, transaction->GetCommitOrPrepare());
+
+
+    if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0)  atomic_index.unlock();
+
     return location; //*old_location;
 
   }
   //If there is a version linked list: Find right position to insert.
   else {
+
+    // if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
+    //TODO: In theory we should also be taking some sort of latch/mutex the linked list, so that it doesn't change while we are reading from it.
+   
     auto tile_group = this->GetTileGroupById(check.block);
     auto tile_group_header = tile_group->GetHeader();
 
@@ -402,12 +455,20 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     }
     //Debug("Trying to write to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
 
+    //  ItemPointer location = curr_pointer;
+    //  if(location.block == 10099 && location.offset == 189) Notice("[CPU:%d] 2-Writing to tuple [10099:189]. Prepare or Commit: %d", sched_getcpu(), transaction->GetCommitOrPrepare());
+    // if(pequinstore::BytesToHex(*transaction->GetTxnDig(),16) == "00000000000000007c01000000000000") Notice("[CPU:%d]  2-Writing to tuple [%lu:%lu]. Prepare or Commit: %d.", 
+    //         sched_getcpu(), location.block, location.offset, transaction->GetCommitOrPrepare());
+
     //If TX tries to write to a tuple that it previously wrote itself (i.e. prepared)
     //Distinguish whether we are trying to rollback a prepare, or upgrade it to commit.
     if (ts == transaction->GetBasilTimestamp()) {
-      Notice("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), transaction->GetCommitOrPrepare());
-      // std::cerr << "IN INSERT TUPLE Txn: " << pequinstore::BytesToHex(*transaction->GetTxnDig(), 16) << std::endl;
-      //  std::cerr << "IN INSERT TUPLE Txn: Commit Or Prepare:" << transaction->GetCommitOrPrepare() << std::endl;
+      Debug("In INSERT TUPLE. txn: %s. Commit (or prepare) ? %d", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), transaction->GetCommitOrPrepare());
+
+      // if(pequinstore::BytesToHex(*transaction->GetTxnDig(),16) == "00000000000000007c01000000000000") Notice("[CPU:%d] 3-Writing to tuple [%lu:%lu]. Prepare or Commit: %d. Duplicate! %s", 
+      //       sched_getcpu(), location.block, location.offset, transaction->GetCommitOrPrepare(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+      // if(location.block == 10099 && location.offset == 189) Notice("[CPU:%d] 3-Writing to tuple [10099:189]. Prepare or Commit: %d. Duplicate! %s",
+      //       sched_getcpu(), transaction->GetCommitOrPrepare(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
      
       // std::cerr << "Duplicate" << std::endl;
       is_duplicate = true;
@@ -522,7 +583,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         }
 
         if (should_upgrade && same_columns) {
-          Notice("Upgrading tuple[%d:%d] from prepared to committed", curr_pointer.block, curr_pointer.offset);
+          Debug("Upgrading tuple[%d:%d] from prepared to committed", curr_pointer.block, curr_pointer.offset);
           const pequinstore::proto::CommittedProof *proof =  transaction->GetCommittedProof();
           UW_ASSERT(proof);
           auto proof_ts = Timestamp(proof->txn().timestamp());
@@ -554,8 +615,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
             //Panic("Tried to prepare twice or commit twice for same TX: %s", );
           }
           else{
-            Notice("Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
-                  pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
+            Debug("[CPU:%d] Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+                 sched_getcpu(),  pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
                   same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
                   pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
                   curr_pointer.block, curr_pointer.offset);
@@ -566,6 +627,13 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     } else {
       Debug("Data table performing update");
       //std::cerr << "Data table performing update" << std::endl;
+
+      // if(pequinstore::BytesToHex(*transaction->GetTxnDig(),16) == "00000000000000007c01000000000000") Notice("[CPU:%d] 4-Writing to tuple [%lu:%lu]. Prepare or Commit: %d. First write! %s", 
+      //       sched_getcpu(), location.block, location.offset, transaction->GetCommitOrPrepare(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+     
+      // if(location.block == 10099 && location.offset == 189) Notice("[CPU:%d]  4-Writing to tuple [10099:189]. Prepare or Commit: %d. First write! %s", 
+      //       sched_getcpu(), transaction->GetCommitOrPrepare(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+     
       is_duplicate = false;
 
       ItemPointer location = GetEmptyTupleSlot(tuple);
@@ -575,14 +643,16 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         return INVALID_ITEMPOINTER;
       }
 
+      SetPequinMetaData(location, transaction);
+
       //TEST VALUES WRITTEN
       // std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
       // for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
       //     auto val = tuple->GetValue(col_idx);
       //     Debug("Write col %d. Value: %s", col_idx, val.ToString().c_str());  
       // }
-      if(transaction->GetBasilTimestamp().getTimestamp() > 0)  Notice("Inserting %s Tuple at location [%lu:%lu] with TS: [%lu:%lu]",transaction->GetCommitOrPrepare()? "commit" : "prepare",
-          location.block, location.offset, transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID());
+      // if(transaction->GetBasilTimestamp().getTimestamp() > 0)  Notice("Inserting %s Tuple at location [%lu:%lu] with TS: [%lu:%lu]",transaction->GetCommitOrPrepare()? "commit" : "prepare",
+      //     location.block, location.offset, transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID());
       
       //TEST-END
 
@@ -624,11 +694,16 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         // return INVALID_ITEMPOINTER;
       }
       //latch.Unlock();
+
+      if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
       return location;
     }
 
+    if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
     //latch.Unlock();
   }
+
+ 
 
   return ItemPointer(0, 0);
 }
@@ -775,19 +850,16 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
                                 ItemPointer &old_location) {
   int index_count = GetIndexCount();
 
-  size_t active_indirection_array_id =
-      number_of_tuples_ % active_indirection_array_count_;
+  size_t active_indirection_array_id = number_of_tuples_ % active_indirection_array_count_;
 
   size_t indirection_offset = INVALID_INDIRECTION_OFFSET;
 
   while (true) {
-    auto active_indirection_array =
-        active_indirection_arrays_[active_indirection_array_id];
+    auto active_indirection_array = active_indirection_arrays_[active_indirection_array_id];
     indirection_offset = active_indirection_array->AllocateIndirection();
 
     if (indirection_offset != INVALID_INDIRECTION_OFFSET) {
-      *index_entry_ptr =
-          active_indirection_array->GetIndirectionByOffset(indirection_offset);
+      *index_entry_ptr = active_indirection_array->GetIndirectionByOffset(indirection_offset);
       break;
     }
   }
@@ -799,12 +871,9 @@ bool DataTable::InsertInIndexes(const AbstractTuple *tuple,
     AddDefaultIndirectionArray(active_indirection_array_id);
   }
 
-  auto &transaction_manager =
-      concurrency::TransactionManagerFactory::GetInstance();
+  auto &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
 
-  std::function<bool(const void *)> fn =
-      std::bind(&concurrency::TransactionManager::IsOccupied,
-                &transaction_manager, transaction, std::placeholders::_1);
+  std::function<bool(const void *)> fn = std::bind(&concurrency::TransactionManager::IsOccupied, &transaction_manager, transaction, std::placeholders::_1);
 
   // Since this is NOT protected by a lock, concurrent insert may happen.
   bool res = true;

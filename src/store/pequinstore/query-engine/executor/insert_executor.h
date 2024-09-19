@@ -41,6 +41,8 @@ class InsertExecutor : public AbstractExecutor {
   bool InsertFirstVersion(concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, ItemPointer &location, ItemPointer *index_entry_ptr);
   bool InsertNewVersion(const planner::ProjectInfo *project_info, storage::DataTable *target_table, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
                         ItemPointer &location, ItemPointer &old_location, ItemPointer *index_entry_ptr);
+  bool InsertNewVersionOLD(const planner::ProjectInfo *project_info, storage::DataTable *target_table, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
+                        ItemPointer &location, ItemPointer &old_location, ItemPointer *index_entry_ptr);
 
  private:
   bool done_ = false;

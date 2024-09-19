@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <queue>
 #include <set>
 
@@ -99,6 +100,11 @@ public:
             const peloton::LayoutType layout_type = peloton::LayoutType::ROW);
 
   ~DataTable();
+
+   //===--------------------------------------------------------------------===//
+  // Pequin modifiers
+  //===--------------------------------------------------------------------===//
+  void SetPequinMetaData(ItemPointer &location, concurrency::TransactionContext *current_txn);
 
   //===--------------------------------------------------------------------===//
   // TUPLE OPERATIONS
@@ -388,6 +394,15 @@ private:
   //===--------------------------------------------------------------------===//
   // MEMBERS
   //===--------------------------------------------------------------------===//
+
+  std::mutex atomic_index; 
+  //Ideally we'd have an atomic check: is_in_index. 
+  //if false, immediately set to true
+  //depending on return result: 
+  //if true: take write lock on index: this is creating tuple version (new start of linked list)
+  //if false: take read lock on index: find the linked list version. => then take latch for linked list header.
+  // std::shared_mutex check_index;
+  // std::shared_mutex modify_index;
 
   size_t active_tilegroup_count_;
   // size_t active_indirection_array_count_;

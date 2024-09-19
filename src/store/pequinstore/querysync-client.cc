@@ -112,7 +112,7 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
             //--> replicas may have different read sets --> some may prepare and some may abort. (Thats ok, indistinguishable from correct one failing tx.)
                 //importantly however: byz client cannot fail sync on purpose ==> will either be detectable (equiv syncMsg or Query), or it could've happened naturally (for a correct client too)
 
-    Notice("Invoked Retry QueryRequest [%lu] on ShardClient for group %d. Query TS[%lu:%lu]", query_seq_num, group, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id());
+    Notice("Invoked Retry QueryRequest [%lu] on ShardClient for group %d. Query TS[%lu:%lu]. Query: %s", query_seq_num, group, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id(), queryMsg.query_cmd().c_str());
 
     //find pendingQuery from query_seq_num map.
     auto itr_q = query_seq_num_mapping.find(query_seq_num);
@@ -254,7 +254,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), queryReq);
   }
 
-  Notice("[group %i] Sent Query Request [seq:ver] [%lu : %lu] TS[%lu:%lu]\n", group, pendingQuery->query_seq_num, pendingQuery->retry_version, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id());
+  Debug("[group %i] Sent Query Request [seq:ver] [%lu : %lu] TS[%lu:%lu]: %s", group, pendingQuery->query_seq_num, pendingQuery->retry_version, queryMsg.timestamp().timestamp(), queryMsg.timestamp().id(), queryMsg.query_cmd().c_str());
 }
 
 
@@ -556,7 +556,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         return;
     }
 
-    Notice("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
+    Debug("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
 
     //3) check whether replica in group.
     if (!IsReplicaInGroup(replica_result->replica_id(), group, config)) {
@@ -599,6 +599,9 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //     }
         try {
             std::sort(replica_result->mutable_query_read_set()->mutable_read_set()->begin(), replica_result->mutable_query_read_set()->mutable_read_set()->end(), sortReadSetByKey); 
+            //erase duplicates: Technically not necessary.
+            replica_result->mutable_query_read_set()->mutable_read_set()->erase(std::unique(replica_result->mutable_query_read_set()->mutable_read_set()->begin(), 
+                            replica_result->mutable_query_read_set()->mutable_read_set()->end(), equalReadMsg), replica_result->mutable_query_read_set()->mutable_read_set()->end());  //erases all but last appearance
             //Note: Only necessary because we use repeated field; Not necessary if we used ordered map
         }
         catch(...){
@@ -650,8 +653,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         }
 
         //TESTING: DEBUGGING
-        bool DEBUG_DUP = true;
+        bool DEBUG_DUP = false;
         if(DEBUG_DUP){
+            for(auto &dep: replica_result->query_read_set().deps()){
+                Notice("Dep on Tx: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+            }
             //Check for duplicates:
             auto &rs = replica_result->query_read_set().read_set();
             for(int i = 0; i < rs.size()-1; ++i){
@@ -681,13 +687,27 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                     rs_2 = rs_l;
                 }
                 Notice("Rs1 size: %d. Rs2 size: %d", rs_1.read_set_size(), rs_2.read_set_size());
-                for(int i = 0; rs_1.read_set_size(); ++i){
-                    if(rs_1.read_set()[i].key() != rs_2.read_set()[i].key()){
-                        Panic("Different read: [%s (%lu:%lu)], [%s (%lu:%lu)]", rs_1.read_set()[i].key().c_str(), rs_2.read_set()[i].key().c_str());
+                int min_size = std::min(rs_1.read_set_size(), rs_2.read_set_size());
+                for(int i = 0; i < min_size; ++i){
+                    const auto &r1 = rs_1.read_set()[i];
+                    const auto &r2 = rs_2.read_set()[i];
+                    if(r1.key() != r2.key()){
+                        Warning("Different read: [%s (%lu:%lu)], [%s (%lu:%lu)]", r1.key().c_str(), r1.readtime().timestamp(), r1.readtime().id(), r2.key().c_str(), r2.readtime().timestamp(), r2.readtime().id());
                     }
                 }
+                
+                //Manually print the read sets.
+                 Warning("RS1");
+                for(auto &rd: rs_1.read_set()){
+                    Notice("   [%s (%lu:%lu)]", rd.key().c_str(), rd.readtime().timestamp(), rd.readtime().id());
+                }
+                    Warning("RS2");
+                for(auto &rd: rs_2.read_set()){
+                    Notice("   [%s (%lu:%lu)]", rd.key().c_str(), rd.readtime().timestamp(), rd.readtime().id());
+                }
+            
 
-                Panic("Two matching results with different read sets.");
+                Panic("Two matching results with different read sets. Sanity check!");
             }
         }
         //END
