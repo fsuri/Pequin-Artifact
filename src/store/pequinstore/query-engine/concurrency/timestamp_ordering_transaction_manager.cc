@@ -495,8 +495,8 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   // Notice("Core[%d] GET Index_entry_ptr (POST SET) [%p: %lu %lu].", sched_getcpu(), get_index_entry_ptr2, get_index_entry_ptr2->block, get_index_entry_ptr2->offset);
   // UW_ASSERT(*index_entry_ptr == *get_index_entry_ptr2);
   
-  ItemPointer curr_pointer;
-  peloton::storage::TileGroupHeader *curr_tile_group_header; 
+  ItemPointer head_pointer;
+  peloton::storage::TileGroupHeader *head_tile_group_header; 
   Timestamp head_ts;
 
   bool have_lock_on_curr_head = false;
@@ -507,38 +507,43 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     auto index_tile_group_header = storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
     head_ts = index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
     // std::cerr << "index entry not null" << std::endl;
-    curr_pointer = *index_entry_ptr;
-    curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+    head_pointer = *index_entry_ptr;
+    head_tile_group_header = storage_manager->GetTileGroup(head_pointer.block)->GetHeader();
 
-    Notice("Core[%d] New_loc: [%lu %lu]. Old_loc: [%lu %lu]. Curr pointer [%lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
-            sched_getcpu(),
-            new_location.block, new_location.offset,
-            old_location.block, old_location.offset,
-            curr_pointer.block, curr_pointer.offset, 
-            index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset,
-            (curr_pointer == *index_entry_ptr));
+    // Notice("Core[%d] New_loc: [%lu %lu]. Old_loc: [%lu %lu]. Curr pointer [%lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+    //         sched_getcpu(),
+    //         new_location.block, new_location.offset,
+    //         old_location.block, old_location.offset,
+    //         curr_pointer.block, curr_pointer.offset, 
+    //         index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset,
+    //         (curr_pointer == *index_entry_ptr));
     
-   // break;
-    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock(); //TODO: change code to TryLock
     //break;
+    head_tile_group_header->GetSpinLatch(head_pointer.offset).Lock(); //TODO: change code to TryLock
+    
 
-    index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset);
+    index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset); //TODO: Should be able to remove line
 
     //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
-    if(!(curr_pointer == *index_entry_ptr)){
+    if(!(head_pointer == *index_entry_ptr)){
 
         Notice("Core[%d] Not equal: Curr pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
           sched_getcpu(),
-          &curr_pointer, curr_pointer.block, curr_pointer.offset, 
+          &head_pointer, head_pointer.block, head_pointer.offset, 
           index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset,
-          (curr_pointer == *index_entry_ptr));
-      curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
+          (head_pointer == *index_entry_ptr));
+      head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
       
       continue;
     }
     
     break;
+    //have_lock_on_curr_head =true;
   }
+
+
+  ItemPointer curr_pointer = head_pointer;
+  peloton::storage::TileGroupHeader *curr_tile_group_header = head_tile_group_header; 
     
    
     // //take lock on curr header
@@ -635,7 +640,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     // new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
     // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
 
-  //curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
+  head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
   
 }
 
