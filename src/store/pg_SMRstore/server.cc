@@ -36,7 +36,7 @@
 namespace pg_SMRstore {
 
 static bool TEST_DUMMY_RESULT = false;
-const uint64_t number_of_threads = 8;
+const uint64_t number_of_threads = 16;
 
 using namespace std;
 
@@ -60,9 +60,11 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
  
-  connection_string = "host=/users/fs435/tmp-pgdata/socket/ user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
+  connection_string = "host=/users/shir/tmp-pgdata/socket/ user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
   //connection_string = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect via TCP using localhost loopback device
  
+  Notice("Connection string: %s", connection_string.c_str());
+
   connectionPool = tao::pq::connection_pool::create(connection_string);
 
   Notice("PostgreSQL serverside client-proxy created! Server Id: %d", idx);
@@ -155,7 +157,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     delete req;
 
     // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
-    tp->Timer(0, std::bind(ecb, results));
+    tp->IssueCB(std::bind(ecb, results), (void*) true);
   
     return (void*) true;
   };
@@ -434,10 +436,10 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
       const tao::pq::result sql_res = tx->execute(query);
     
       Debug("Finished Exec");
-  
       sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
       reply->set_status(REPLY_OK);
       reply->set_sql_res(res_builder->get_result()->SerializeAsString());
+      delete res_builder;
     }
     
   } 
@@ -645,22 +647,14 @@ sql::QueryResultProtoBuilder* Server::createResult(const tao::pq::result &sql_re
   } else {
     for(int i = 0; i < sql_res.columns(); i++) {
       res_builder->add_column(sql_res.name(i));
-      //std::cout << sql_res.name(i) << std::endl;
+      // std::cerr << sql_res.name(i) << std::endl;
     }
-    // After loop over rows and add them using add_row method
-    // for(const auto& row : sql_res) {
-    //   res_builder->add_row(std::begin(row), std::end(row));
-    // }
-    // for(auto it = std::begin(sql_res); it != std::end(sql_res); ++it) {
-      
-    // }
     Debug("res size: %d", sql_res.size());
     for( const auto& row : sql_res ) {
       RowProto *new_row = res_builder->new_row();
       for( const auto& field : row ) {
         std::string field_str = field.as<std::string>();
         res_builder->AddToRow(new_row,field_str);
-        //std::cout << field_str << std::endl;
       }
     }
   }
@@ -746,16 +740,18 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
   Debug("Load Table data: %s", table_name.c_str());
   // std::cerr<<"Shir: Load Table data\n";
   std::string copy_table_statement = fmt::format("COPY {0} FROM '{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
-  std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
-  t1.detach();
+  this->exec_statement(copy_table_statement); 
+  // std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
+  // t1.detach();
 }
 
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
   Debug("Load %lu Table rows for: %s", row_segment->size(), table_name.c_str());
   // std::cerr<< "Shir: Load Table rows!\n";
   std::string sql_statement = this->GenerateLoadStatement(table_name,*row_segment,0);
-  std::thread t1([this, sql_statement]() { this->exec_statement(sql_statement); });
-  t1.detach();
+  this->exec_statement(sql_statement);
+  // std::thread t1([this, sql_statement]() { this->exec_statement(sql_statement); });
+  // t1.detach();
   // Shir();
 }
 

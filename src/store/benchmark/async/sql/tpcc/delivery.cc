@@ -73,7 +73,7 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
       return client.Commit(timeout);
     }
 
-    deserialize(no_o_id, queryResult, 0, 0); //get first col of first row (there is only 1 row, this is a point read).
+    deserialize(no_o_id, queryResult, 0, 2); //get first col of first row (there is only 1 row, this is a point read).
 
     statement = fmt::format("UPDATE {} SET eno_o_id = eno_o_id + 1 WHERE eno_w_id = {} AND eno_d_id = {};", EARLIEST_NEW_ORDER_TABLE, w_id, d_id);
     Debug("OP: %s", statement.c_str());

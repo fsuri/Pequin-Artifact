@@ -30,13 +30,29 @@ setting_system() {
     # su - $USER -c "echo \"ALTER SYSTEM SET max_parallel_workers = 16;\" | psql"
     
     su - $USER -c "echo \"ALTER SYSTEM SET work_mem = '4GB';\" | psql"
-    su - $USER -c "echo \"ALTER SYSTEM SET shared_buffers='15GB';\" | psql"
+    su - $USER -c "echo \"ALTER SYSTEM SET shared_buffers='30GB';\" | psql"
+    su - $USER -c "echo \"ALTER SYSTEM SET effective_cache_size = '4GB';\" |psql"
+
     
     su - $USER -c "echo \"ALTER SYSTEM SET effective_io_concurrency = 8;\" |psql"
     #NOTE: If trying to use 'on' then must set some huge tables in linux
     # echo 10475 | sudo tee /proc/sys/vm/nr_hugetables
     su - $USER -c "echo \"ALTER SYSTEM SET huge_pages = 'try';\" | psql"
     su - $USER -c "echo \"ALTER SYSTEM SET max_locks_per_transaction = 1024;\" | psql"
+
+    # su - $USER -c "echo \"ALTER SYSTEM SET synchronous_commit = 'remote_write';\" | psql"
+
+
+    sudo sed -i '$a\host    all             all              0.0.0.0/0                       md5' /etc/postgresql/12/pgdata/pg_hba.conf
+    d_line=$(sudo cat /etc/postgresql/12/pgdata/pg_hba.conf | grep -n  "IPv4 local" | cut -d: -f1)
+    d_line=$(expr $d_line + 1)
+    sudo sed -i "${d_line}d" /etc/postgresql/12/pgdata/pg_hba.conf
+
+    cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen
+    m_line=$(cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen | cut -d: -f1)
+    sudo sed -i "${m_line}s/localhost/*/g" /etc/postgresql/12/pgdata/postgresql.conf
+    sudo sed -i "${m_line}s/#/""/" /etc/postgresql/12/pgdata/postgresql.conf
+    cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen
 
     echo "Restart Postgres"
     sudo systemctl restart postgresql
@@ -53,6 +69,7 @@ setting_db() {
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d $dbname"
+    su - $USER -c "echo \"ALTER DATABASE $dbname SET lock_timeout = 100 ;\" | psql -d $dbname"
 }
 
 unistall_flag=false
@@ -219,8 +236,8 @@ else
 
 fi
 
-sudo cp /usr/local/etc/postgresql_copy.conf /etc/postgresql/12/pgdata/postgresql.conf
-sudo cp /usr/local/etc/pg_hba_copy.conf /etc/postgresql/12/pgdata/pg_hba.conf
+# sudo cp /usr/local/etc/postgresql_copy.conf /etc/postgresql/12/pgdata/postgresql.conf
+# sudo cp /usr/local/etc/pg_hba_copy.conf /etc/postgresql/12/pgdata/pg_hba.conf
 
 
 #state where to run this scrit from

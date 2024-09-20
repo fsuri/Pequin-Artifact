@@ -122,6 +122,7 @@ public:
 private:
     int TimerInternal(struct timeval &tv, timer_callback_t cb);
     std::shared_mutex mtx;
+    std::shared_mutex timer_mtx;
     struct TCPTransportTimerInfo
     {
         TCPTransport *transport;

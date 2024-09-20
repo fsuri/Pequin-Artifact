@@ -21,7 +21,7 @@ done
 
 
 #Upload script to servers
-parallel "rsync -v -r -e ssh ../pg_setup/postgres_service.sh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us:/users/${USER}/" ::: ${arr_servers[@]} 
+parallel "rsync -v -r -e ssh ./scripts/postgres_service.sh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us:/users/${USER}/" ::: ${arr_servers[@]} 
 parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -r;' " ::: ${arr_servers[@]} 
 parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -n 1;' " ::: ${arr_servers[@]} 
 

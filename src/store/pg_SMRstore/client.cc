@@ -66,7 +66,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
 
   //Test connecting directly.
   if(TEST_DIRECT_PG_CONNECTION){
-    std::string connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
+    std::string connection_str = "host=us-east-1-0.pg-smr.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
     Notice("Connection string: %s", connection_str.c_str());
     connection = tao::pq::connection::create(connection_str);
     //connectionPool = tao::pq::connection_pool::create(connection_str);

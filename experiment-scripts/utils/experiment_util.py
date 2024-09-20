@@ -324,9 +324,9 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             
             ## set-up dbs for pg-smr
             if config['replication_protocol'] == 'pg-smr':
-                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r > /dev/null 2>&1;'
+                cmd7 = 'sudo /users/shir/postgres_service.sh -r > /dev/null 2>&1;'
                 # # Creating a single db per machine
-                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1 > /dev/null 2>&1;'
+                cmd8 = 'sudo /users/shir/postgres_service.sh -n 1 > /dev/null 2>&1;'
                 cmd11 = 'sudo pg_ctlcluster 12 pgdata stop;'
                 cmd12 = 'sudo pg_ctlcluster 12 pgdata start;'
                 #cmd13 = 'echo \"Finished PG setup\";'

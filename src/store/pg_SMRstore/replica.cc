@@ -42,6 +42,7 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
       fake_SMR(fake_SMR), dummyTO(dummyTO), SMR_mode(SMR_mode) {
     
   Notice("SMR_mode: %d", SMR_mode);
+  Notice("EbatchSize: %d", EbatchSize);
   UW_ASSERT(SMR_mode < 3);
 
   if(SMR_mode == 1){
@@ -108,9 +109,12 @@ void Replica::bubbleCB(uint64_t currProposedCounter){
   }
  
   //Start Timer again
-  transport->Timer(dummyTO, [this,pc](){
+  transport->TimerMicro(dummyTO, [this,pc](){
     this->bubbleCB(pc); 
   });
+  // transport->Timer(dummyTO, [this,pc](){
+//     this->bubbleCB(pc); 
+//   });
 }
 
 void Replica::proposeBubble(){
@@ -123,17 +127,14 @@ void Replica::proposeBubble(){
   // Debug("Bubble %s size is:  %d and capacity is: %d",dummy_digest.c_str(),dummy_digest.length(),dummy_digest.capacity());
   Debug("Proposing Bubble %s ",dummy_digest.c_str());
 
-  proto::PackedMessage bubblePackedMsg;
-  bubblePackedMsg.set_msg("dummy");
-  bubblePackedMsg.set_type("dummy");
-
-  auto execb_bubble = [this, dummy_digest, bubblePackedMsg](const std::string &digest_paramm, uint32_t seqnumm) {
-    auto f = [this, dummy_digest, bubblePackedMsg, digest_paramm, seqnumm](){
+  auto execb_bubble = [this, dummy_digest](const std::string &digest_paramm, uint32_t seqnumm) {
+    auto f = [this, dummy_digest, digest_paramm, seqnumm](){
       Debug("Adding %s to pending executions in seqnum %d",dummy_digest.c_str(),seqnumm);
-      requests[dummy_digest] = bubblePackedMsg;
+      const std::pair<std::string, std::string> msg_pair("dummy", "dummy");
+      unpacked_requests[dummy_digest] = msg_pair;
       replyAddrs[dummy_digest] = nullptr;
       pendingExecutions[seqnumm] = dummy_digest;
-      executeSlots();
+      executeSlots_unpacked();
       return (void*) true;
     };
     transport->DispatchTP_main(f);
@@ -166,22 +167,33 @@ void Replica::ReceiveMessage(const TransportAddress &remote, const string &type,
 
   else if(type == sql_rpc_template.GetTypeName() || type == try_commit_template.GetTypeName() || type == user_abort_template.GetTypeName()){
     Debug("Handle no Packed");
-    HandleRequest_noPacked(remote, type, data);
+    // HandleRequest_noPacked(remote, type, data);
+    if (SMR_mode == 0){
+      HandleRequest_noPacked(remote, type, data);
+    }
+    else{
+      HandleRequest_noPacked_shir(remote, type, data);
+    }
   }
 
   
   else if (type == recvrequest.GetTypeName()) {
     if(SMR_mode == 0){ //TEST_WITHOUT_HOTSTUFF){ //If no SMR enabled, then just execute directly.
-       recvrequest.ParseFromString(data);
+      //  recvrequest.ParseFromString(data);
+        Debug("Handle no HS");
        HandleRequest_noHS(remote, recvrequest);
       return;
     }
     else if(SMR_mode == 1){ //This path will be invoked for Hotstuff
-      recvrequest.ParseFromString(data);
+      // recvrequest.ParseFromString(data);
+      auto digest2 = recvrequest.digest();
+      Debug("Shir:");
+      DebugHash(digest2);
+
       HandleRequest(remote, recvrequest);
     }
     else if(SMR_mode == 2){ //This path will be invoked if it comes from BFTSmart
-       recvrequest.ParseFromString(data);
+      //  recvrequest.ParseFromString(data);
    
       uint64_t client_id = recvrequest.client_id();
       std::unique_lock lock(client_cache_mutex);
@@ -256,6 +268,7 @@ void Replica::RW_TEST(){
 
 
     app->Execute(sql_rpc.GetTypeName(), sql_rpc.SerializeAsString());
+    // app->Execute(sql_rpc.GetTypeName(), "");
       
     proto::TryCommit try_commit;
     try_commit.set_req_id(req);
@@ -264,6 +277,7 @@ void Replica::RW_TEST(){
 
   
     app->Execute(try_commit.GetTypeName(), try_commit.SerializeAsString());
+    // app->Execute(try_commit.GetTypeName(), "");
   }
 }
 
@@ -441,7 +455,87 @@ void Replica::HandleRequest_noPacked(const TransportAddress &remote, const std::
     return (void*) true;
   };
   Debug("Dispatching to main");
-  transport->DispatchTP_main(f);
+  f();
+  // transport->DispatchTP_main(f);
+}
+
+
+
+void Replica::HandleRequest_noPacked_shir(const TransportAddress &remote, const std::string &type, const std::string &data){
+  Debug("Handling request message");
+
+  const std::string digest = crypto::Hash(data);
+  DebugHash(digest);
+
+  //Do not process duplicates.   (Shir: make sure it's needed still)
+  if (requests_dup.count(digest)) return;
+  requests_dup.insert(digest);
+  //if we didn't find the request digest in the map. I.e this is the first time handling this request
+  Debug("new request: %s with digest: %s", type, digest);
+  stats->Increment("handle_new_count",1);
+
+  TransportAddress* clientAddr = remote.clone(); //The return address to reply to
+  // const std::pair<std::string, std::string> msg_pair(type, data);
+
+
+
+
+    struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+    
+  //Create a callback that will be called once the Request has been ordered by Hotstuff
+  std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, clientAddr, type, data,exec_start_us](const std::string &digest_param, uint32_t seqnum) {
+    
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+      Notice("Time at HotStuff : %lu us", exec_end_us - exec_start_us);
+
+
+      Debug("Creating and sending callback");
+
+      //The execb callback will be called from some thread that HS is running => we dispatch it back to our main processing thread (to guarantee sequential processing)
+      auto f = [this, digest, digest_param, clientAddr, type, data, seqnum](){
+          Debug("Callback: %d, %lu", idx, seqnum);  // This is called once per server
+          stats->Increment("hotstuffpg_exec_callback",1);
+
+          // prepare data structures for executeSlots()
+          assert(digest == digest_param);
+          
+          // const std::pair<std::string, std::string> msg_pair(type, data);
+          unpacked_requests[digest] = std::make_pair(std::move(type), std::move(data));
+          replyAddrs[digest] = clientAddr; // replyAddress is the address of the client wo sent this request, so we can answer him
+
+          Debug("Adding to pending executions");
+          pendingExecutions[seqnum] = digest;
+          executeSlots_unpacked();
+          return (void*) true;
+      };
+
+      Debug("Dispatching to main");
+      transport->DispatchTP_main(f);
+  };
+
+
+  Debug("Proposing execb");
+  DebugHash(digest);
+  hotstuffpg_interface->propose(digest, execb);
+  proposedCounter++;
+  Debug("Execb proposed");
+
+
+  //Start Timer for dummy TX upon receiving the first Request
+  if (this->firstReceive){
+    this->firstReceive=false;
+    Debug("Starting dummies Timer");
+    transport->Timer(0, [this, pc = proposedCounter](){
+      this->bubbleCB(pc);
+    });
+  }
+  
+
 }
 
 //Receive Client Requests and Route them via HS first.
@@ -548,6 +642,46 @@ void Replica::executeSlots() {
   Debug("No more new sequenced requests");
 }
 
+
+void Replica::executeSlots_unpacked() {
+  Debug("Next exec seq num: %lu", execSeqNum);
+
+  //Try to execute all of the available sequenced log prefix
+  while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { 
+    Debug("executing seq num: %lu ", execSeqNum);
+ 
+    const string &digest = pendingExecutions[execSeqNum];
+    execSeqNum++;
+
+    auto itr = unpacked_requests.find(digest);
+    UW_ASSERT(itr != unpacked_requests.end());
+  
+    // std::pair<std::string, std::string> &msg_pair=itr->second;
+    auto [type, data] = itr->second;
+
+    if (type=="dummy"){
+      //Skip Dummy Requests
+      stats->Increment("exec_dummy",1);
+      continue;
+    }
+
+    stats->Increment("exec_request",1);
+
+    //If we are using the more performant fake SMR mode -> then prepare a callback to be called by the execution threads on the server upon completion of the request
+    if(fake_SMR) {
+      auto cb = [this, digest](const std::vector<::google::protobuf::Message*> &replies){
+        ProcessReplies(digest, replies);
+      };
+      app->Execute_Callback(type, data, cb);
+    } else {
+      Panic("Syncronous version is not supported");
+    }
+  }
+  
+  
+  Debug("No more new sequenced requests");
+}
+
 void Replica::ProcessReplies(const std::string &digest, const std::vector<::google::protobuf::Message*> &replies){
   std::unique_lock lock(batchMutex); //ensure mutual exclusion when accessing EBatch
   for (const auto& reply : replies) {
@@ -570,6 +704,9 @@ void Replica::ProcessReplies(const std::string &digest, const std::vector<::goog
     //Add to EBatch
     EpendingBatchedMessages.push_back(reply);
     EpendingBatchedDigs.push_back(digest);
+    Debug("Shir: pushed reply to eBatch for digest");
+    DebugHash(digest);
+
     //If EBatch is full, cancel timer and process the batch
     if (EpendingBatchedMessages.size() >= EbatchSize) {
       Debug("EBatch is full, sending");
@@ -625,6 +762,7 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
       proto::PackedMessage packedMsg;
       *packedMsg.mutable_msg() = EpendingBatchedMessages_[i]->SerializeAsString();
       *packedMsg.mutable_type() = EpendingBatchedMessages_[i]->GetTypeName();
+      // The line inside the assert is necessary
       UW_ASSERT(packedMsg.SerializeToString(EsignedMessages_[i].mutable_packed_msg()));
       messageStrs.push_back(EsignedMessages_[i].mutable_packed_msg());
     }
