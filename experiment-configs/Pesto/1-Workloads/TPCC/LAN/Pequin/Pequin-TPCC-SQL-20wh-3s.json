@@ -19,7 +19,7 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 22,
+   "server_load_time": 24,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
@@ -146,13 +146,13 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
    "client_total": [
-    [70]
+    [70, 70, 70, 70, 70, 70]
   ],
   "client_processes_per_client_node": [
-    [8 ]
+    [8, 8, 8, 8, 8, 8 ]
   ],
   "client_threads_per_process": [
-    [1]
+    [1, 1, 1, 1, 1, 1]
   ],
 
 

@@ -107,6 +107,15 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     } 
     if(read_materialized){
         //Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
+        if(query_md->retry_version > 0){
+            for(auto const &[tx, _]: query_md->merged_ss_msg->merged_txns()){
+                materializedMap::const_accessor mat;
+                bool found = materialized.find(mat, tx);
+                mat.release();
+                if(!found) Panic("Tx[%s] has not been successfully materialized before starting exec");
+            }
+        }
+
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
 

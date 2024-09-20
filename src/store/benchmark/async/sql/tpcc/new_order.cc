@@ -183,7 +183,10 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       ItemRow i_row;
       deserialize(i_row, results[ol_number]);
       Debug("    Item Name: %s", i_row.get_name().c_str());
-      UW_ASSERT(i_row.get_price() > 0);
+      if(i_row.get_price() <= 0){
+        Warning("Item row has price: %d", i_row.get_price());
+        Panic("Invalid item row");
+      }
 
       StockRow s_row;
       deserialize(s_row, results[ol_number + ol_cnt]);

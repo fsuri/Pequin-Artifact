@@ -438,9 +438,38 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
     // if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
     //TODO: In theory we should also be taking some sort of latch/mutex the linked list, so that it doesn't change while we are reading from it.
-   
+
+
+
     auto tile_group = this->GetTileGroupById(check.block);
     auto tile_group_header = tile_group->GetHeader();
+
+    ////// Find the current linked list header (atomically)
+
+    ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(check.offset);
+    UW_ASSERT(index_entry_ptr);
+    ItemPointer head_pointer;
+    peloton::storage::TileGroupHeader *head_tile_group_header; 
+    while(true){
+      head_pointer = *index_entry_ptr;
+      head_tile_group_header = this->GetTileGroupById(head_pointer.block)->GetHeader();
+    
+      head_tile_group_header->GetSpinLatch(head_pointer.offset).Lock(); //TODO: change code to TryLock
+    
+      //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
+      if(!(head_pointer == *index_entry_ptr)){
+          // Notice("Core[%d] Not equal: Head pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+          //   sched_getcpu(), &head_pointer, head_pointer.block, head_pointer.offset, index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, (head_pointer == *index_entry_ptr));
+        head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
+        
+        continue;
+      }
+      
+      break;
+    }
+
+   ///
+   
 
     // auto &latch = tile_group_header->GetSpinLatch(0); //take a lock on this tile group?
     // latch.Lock();
@@ -501,22 +530,22 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
           
-          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
-          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          // prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+          // next_tgh->GetSpinLatch(next_loc.offset).Lock();
           
           //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
           
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
 
-          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
-          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+          // prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+          // next_tgh->GetSpinLatch(next_loc.offset).Unlock();
 
         } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
           //std::cerr << "Updating head pointer" << std::endl;
           Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          next_tgh->GetSpinLatch(next_loc.offset).Lock();
+          //next_tgh->GetSpinLatch(next_loc.offset).Lock();
           
           next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
@@ -528,17 +557,17 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
           
-          next_tgh->GetSpinLatch(next_loc.offset).Unlock();
+          //next_tgh->GetSpinLatch(next_loc.offset).Unlock();
 
         } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
           //std::cerr << "Updating prev pointer" << std::endl;
           Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
-          prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
+          //prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
 
           prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
 
-          prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+          //prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
         }
         else{
           Debug("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
@@ -694,10 +723,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       }
       //latch.Unlock();
 
+      head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
       if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
       return location;
     }
 
+    head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
     if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
     //latch.Unlock();
   }

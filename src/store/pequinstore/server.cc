@@ -1928,8 +1928,6 @@ void Server::WritebackCallback(proto::Writeback *msg, const std::string *txnDige
   auto f = [this, msg, txnDigest, txn, valid]() mutable {
       Debug("WRITEBACK Callback[%s] being called", BytesToHex(*txnDigest, 16).c_str());
 
-      if(BytesToHex(*txnDigest, 16) == "00000000000000007c01000000000000") Notice("Receive WB Txn[%s]. Core: %d", BytesToHex(*txnDigest, 16).c_str(), sched_getcpu());
-
       ///////////////////////////// Below: Only executed by MainThread
       // tbb::concurrent_hash_map<std::string, std::mutex>::accessor z;
       // completing.insert(z, *txnDigest);
@@ -2206,13 +2204,10 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   Debug("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
-  if(BytesToHex(txnDigest, 16) == "00000000000000007c01000000000000") Notice("Vote Prepare Txn[%s][%lu:%lu]. Core: %d", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID(), sched_getcpu());
-
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
       UW_ASSERT(ongoingTxn);
-       if(BytesToHex(txnDigest, 16) == "00000000000000007c01000000000000") Notice("Prepare Txn[%s][%lu:%lu]. Core: %d", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID(), sched_getcpu());
-
+    
       std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false);
     
       //Apply TableVersion 
@@ -2448,7 +2443,6 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
 
   if(ASYNC_WRITES){
     auto f = [this, val, txn, ts, txnDigest]() mutable {   //not very safe: Need to rely on fact that txn won't be deleted (should never be, since it is part of proof)
-      if(BytesToHex(txnDigest, 16) == "00000000000000007c01000000000000") Notice("Commit Txn[%s][%lu:%lu]. Core: %d", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID(), sched_getcpu());
       std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*txn, ts, txnDigest, val.proof);
     
        //Apply TableVersion 

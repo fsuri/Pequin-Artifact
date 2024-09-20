@@ -35,6 +35,16 @@ SyncClient::~SyncClient() {
 }
 
 void SyncClient::Begin(uint32_t timeout) {
+
+  try{
+    std::vector<std::unique_ptr<const query_result::QueryResult>> throw_away_values;
+    Wait(throw_away_values);
+    asyncWait();
+  }
+  catch(...){
+    //Do nothing.
+  }
+ 
   //Confirm that all promises have been cleared -- i.e. no ongoing operations.
   UW_ASSERT(getPromises.empty());
   UW_ASSERT(queryPromises.empty());
