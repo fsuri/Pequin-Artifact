@@ -177,9 +177,9 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 60,
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
   
   "default_remote_shell": "bash",
   

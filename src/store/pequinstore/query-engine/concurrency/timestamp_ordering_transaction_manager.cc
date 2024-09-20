@@ -469,13 +469,32 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
   // Debug("Setting new ts to [%lu:%lu]", ts.getTimestamp(), ts.getID());
 
+  // Notice("Core[%d] New_loc: [%p: %lu %lu]. Old_loc: [%p: %lu %lu].", 
+  //           sched_getcpu(),
+  //           &new_location, new_location.block, new_location.offset,
+  //           &old_location, old_location.block, old_location.offset);
+
   ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
-  new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
+  UW_ASSERT(index_entry_ptr);
+  // Notice("Core[%d] Index_entry_ptr [%p: %lu %lu].", sched_getcpu(), index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset);
+
+  // ItemPointer *get_index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset);
+  // Notice("Core[%d] Get Index_entry_ptr (PRE SET) [%p: %lu %lu].", sched_getcpu(), get_index_entry_ptr, get_index_entry_ptr->block, get_index_entry_ptr->offset);
+
+
+  new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);   //TODO: FIXME: Why is this different. 
+  //1) Where is it originally set,
+  //2) why does set indirection not override it?
+
+
     //curr_tile_group_header->SetIndirection(curr_pointer.offset, index_entry_ptr);
 
   //if (index_entry_ptr != nullptr) {
-  UW_ASSERT(index_entry_ptr);
-
+ 
+  // ItemPointer *get_index_entry_ptr2 = new_tile_group_header->GetIndirection(new_location.offset);
+  // Notice("Core[%d] GET Index_entry_ptr (POST SET) [%p: %lu %lu].", sched_getcpu(), get_index_entry_ptr2, get_index_entry_ptr2->block, get_index_entry_ptr2->offset);
+  // UW_ASSERT(*index_entry_ptr == *get_index_entry_ptr2);
+  
   ItemPointer curr_pointer;
   peloton::storage::TileGroupHeader *curr_tile_group_header; 
   Timestamp head_ts;
@@ -490,13 +509,29 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     // std::cerr << "index entry not null" << std::endl;
     curr_pointer = *index_entry_ptr;
     curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
-    
-    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock();
 
-    index_entry_ptr = tile_group_header->GetIndirection(new_location.offset);
+    Notice("Core[%d] New_loc: [%lu %lu]. Old_loc: [%lu %lu]. Curr pointer [%lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+            sched_getcpu(),
+            new_location.block, new_location.offset,
+            old_location.block, old_location.offset,
+            curr_pointer.block, curr_pointer.offset, 
+            index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset,
+            (curr_pointer == *index_entry_ptr));
+    
+   // break;
+    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock(); //TODO: change code to TryLock
+    //break;
+
+    index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset);
 
     //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
     if(!(curr_pointer == *index_entry_ptr)){
+
+        Notice("Core[%d] Not equal: Curr pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+          sched_getcpu(),
+          &curr_pointer, curr_pointer.block, curr_pointer.offset, 
+          index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset,
+          (curr_pointer == *index_entry_ptr));
       curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
       
       continue;
@@ -559,7 +594,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     
     else { //tuple is going at end of linked list
       if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
-        UW_ASSERT(new_ts == curr_ts);
+        UW_ASSERT(new_ts == curr_ts); //TODO: FIXME: This case should, in theory (under proper atomicity), be impossible. TODO: make logic atomic so that duplicates are not written.
 
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
         auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
@@ -582,7 +617,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
     //If new tuple has become head => update index entry pointer
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >  head_ts) {
-      Debug("Updating the head pointer of linked list");
+      Notice("[Core: %d] Updating the head pointer of linked list. From [%p: %lu %lu] -> [%p: %lu %lu]", sched_getcpu(), index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, &new_location, new_location.block, new_location.offset);
       COMPILER_MEMORY_FENCE;
 
       // Set the index header in an atomic way.
@@ -600,7 +635,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     // new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
     // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
 
-  curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
+  //curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
   
 }
 

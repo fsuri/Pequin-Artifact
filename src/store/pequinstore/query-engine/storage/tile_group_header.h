@@ -285,7 +285,13 @@ public:
 
   inline void SetIndirection(const oid_t &tuple_slot_id,
                              ItemPointer *indirection) const {
+    //if(indirection) Notice("Core[%d] Set Index_entry_ptr [%p: %lu %lu].", sched_getcpu(), indirection, indirection->block, indirection->offset);
     tuple_headers_[tuple_slot_id].indirection = indirection;
+
+    // if(indirection){
+    // auto *test = tuple_headers_[tuple_slot_id].indirection;
+    // Notice("Core[%d] Get Index_entry_ptr [%p: %lu %lu].", sched_getcpu(), test, test->block, test->offset);
+    // }
   }
 
   inline bool SetAtomicTransactionId(const oid_t &tuple_slot_id,

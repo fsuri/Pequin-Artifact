@@ -348,7 +348,14 @@ void DataTable::SetPequinMetaData(ItemPointer &location, concurrency::Transactio
   auto ts = current_txn->GetBasilTimestamp();
   tile_group_header->SetBasilTimestamp(tuple_id, ts);
 
+  if(ts.getTimestamp()>0) UW_ASSERT(current_txn->GetTxnDig());
   tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
+
+  if (current_txn->GetUndoDelete()){ //if Txn is Aborted: Add a row but mark it as purged (unreadable). This is necessary in case a prepare of the row arrives "later"
+    tile_group_header->SetPurged(tuple_id, true);
+    tile_group_header->SetCommitOrPrepare(tuple_id, true); //must be "committed" (it's "aborted", but its final)
+    return;
+  }
 
   const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
   if (ts.getTimestamp() > 0 && current_txn->GetCommitOrPrepare()) {
@@ -474,7 +481,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       is_duplicate = true;
       bool is_prepared = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset);
 
-      /** TODO: Add check to make sure it's prepared */
+      //If current version is prepared => purge it
       if (transaction->GetUndoDelete() && is_prepared) {
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
         // Purge this tuple
@@ -551,7 +558,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         }
     
       }
-      //Writing again. 
+      //Writing again.  (either current version is prepared => and we upgrade to committed. Or current version is committed => and nothing should happen)
       else {
 
         bool same_columns = true;
@@ -572,9 +579,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
 
           if (val1.ToString() != val2.ToString()) {
             // tile_group->SetValue(val2, curr_pointer.offset, col_idx);
+            Notice("Different column[%d]: [%s] -> [%s]", col_idx, val1.ToString().c_str(), val2.ToString().c_str());
             same_columns = false;
           }
         }
+        if(!same_columns) Panic("Columns don't match. Is upgrade? %d", should_upgrade);
+        UW_ASSERT(same_columns); //TODO: remove same_columns check? Should always be the case..
 
         // For snapshotting upgrade from materialize to commit
         if (curr_tile_group_header->GetMaterialize(curr_pointer.offset) && !transaction->GetForceMaterialize()) {
@@ -593,19 +603,8 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
           curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
           
           Debug("Wrote commit proof for tuple: [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
-        } else {
-          // std::cerr << "Should upgrade is " << should_upgrade << std::endl;
-          // std::cerr << "Current tuple is: " << (curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset)? "committed" : "prepared") << std::endl;
-          // std::cerr << "Transaction is " << (transaction->GetCommitOrPrepare()? "committing" : "preparing") << std::endl;
-          // std::cerr << "Same columns is " << same_columns << std::endl;
-          // std::cerr << "Timestamp is " << ts.getTimestamp() << ", " << ts.getID() << std::endl;
-          // std::cerr << "Txn timestamp is " << transaction->GetBasilTimestamp().getTimestamp() << ", " << transaction->GetBasilTimestamp().getID() << std::endl;
-
-          // std::cerr << "Current tuple txn is: " << pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16) << std::endl;
-          // std::cerr << "Current txn is: " << pequinstore::BytesToHex(*transaction->GetTxnDig(),16) << std::endl;
-          
-          // Debug("Duplicate access to tile-group-header:offset [%lu:%lu]", curr_pointer.block, curr_pointer.offset);
-
+        } else { // if prepare comes after commit; or if we prepare twice/commit twice  => Do nothing.
+   
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) {
             Notice("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
                   pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),

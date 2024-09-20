@@ -1328,9 +1328,14 @@ void IndexScanExecutor::ManageSnapshot(concurrency::TransactionContext *current_
   if(is_metadata_table_) return;
 
   UW_ASSERT(!tile_group_header->GetMaterialize(tuple_location.offset)); // not force mat
+  UW_ASSERT(!tile_group_header->IsPurged(tuple_location.offset)); // not purged
 
   Debug("Manage Snapshot. Add TS [%lu:%lu]", write_timestamp.getTimestamp(), write_timestamp.getID());
   auto txn_digest = tile_group_header->GetTxnDig(tuple_location.offset);
+
+  if(!txn_digest){
+    Panic("Tuple location[%lu:%lu] of TS [%lu:%lu] has no txn_digest", tuple_location.block, tuple_location.offset, write_timestamp.getTimestamp(), write_timestamp.getID());
+  }
   UW_ASSERT(txn_digest);
 
   auto snapshot_mgr = current_txn->GetSnapshotMgr();
