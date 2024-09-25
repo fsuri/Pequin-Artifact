@@ -68,6 +68,8 @@ public:
    */
   ~TransactionContext() = default;
 
+  bool is_customer_read = false;
+
 private:
   void Init(const size_t thread_id, const IsolationLevelType isolation,
             const cid_t &read_id) {

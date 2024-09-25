@@ -27,6 +27,7 @@
 #include "../storage/abstract_table.h"
 #include "../storage/indirection_array.h"
 #include "../storage/layout.h"
+#include "../storage/tile_group_header.h"
 // #include "../trigger/trigger.h"
 
 //===--------------------------------------------------------------------===//
@@ -106,11 +107,17 @@ public:
   //===--------------------------------------------------------------------===//
   void SetPequinMetaData(ItemPointer &location, concurrency::TransactionContext *current_txn);
 
+  bool CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header,
+                                 ItemPointer *index_entry_ptr, ItemPointer &check, concurrency::TransactionContext *transaction);
+    void PurgeRowVersion(ItemPointer *index_entry_ptr, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction);
+    void UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, 
+                                  ItemPointer &curr_pointer, concurrency::TransactionContext *transaction, const Timestamp &ts);
+
   //===--------------------------------------------------------------------===//
   // TUPLE OPERATIONS
   //===--------------------------------------------------------------------===//
   // insert an empty version in table. designed for delete operation.
-  ItemPointer InsertEmptyVersion();
+  ItemPointer InsertEmptyVersion(concurrency::TransactionContext *current_txn);
 
   // these two functions are designed for reducing memory allocation by
   // performing in-place update.
@@ -327,8 +334,9 @@ public:
 
   size_t active_indirection_array_count_;
 
-  std::vector<std::shared_ptr<storage::IndirectionArray>>
-      active_indirection_arrays_;
+  std::vector<std::shared_ptr<storage::IndirectionArray>> active_indirection_arrays_;
+
+  std::array<std::mutex, 32> active_indirection_mutexes_;
 
 protected:
   //===--------------------------------------------------------------------===//

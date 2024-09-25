@@ -56,6 +56,7 @@ struct TupleHeader {
   Timestamp basil_timestamp;
   bool is_deleted = false;
   bool is_purged = false;
+  size_t indirection_offset = 0;
 } __attribute__((aligned(64)));
 
 /**
@@ -176,6 +177,14 @@ public:
   //===--------------------------------------------------------------------===//
   // MVCC utilities
   //===--------------------------------------------------------------------===//
+
+  inline size_t GetIndirectionOffset(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].indirection_offset;
+  }
+
+  inline void SetIndirectionOffset(const oid_t &tuple_slot_id, size_t indirection_offset) {
+    tuple_headers_[tuple_slot_id].indirection_offset = indirection_offset;
+  }
 
   // Getters
   inline const TileGroup *GetTileGroup() const {

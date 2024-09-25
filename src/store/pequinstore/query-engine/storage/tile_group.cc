@@ -318,6 +318,8 @@ oid_t TileGroup::InsertTupleFromCheckpoint(oid_t tuple_slot_id,
 
 type::Value TileGroup::GetValue(oid_t tuple_id, oid_t column_id) {
   if (!(tuple_id < GetNextTupleSlot())) {
+    Warning("Invalid tuple slot. Table_name: %s. Tuple id: %d. Next tuple slot: %d Total num slots per tile group: %d. Num allocated tuples tgh: %d."
+             " Next tuple slot tgh: %d. Tile group id: %d", table->GetName(), tuple_id, num_tuple_slots_, tile_group_header->num_tuple_slots, tile_group_header->num_tuple_slots, tile_group_id);
     std::cerr << "Tuple id is " << tuple_id << ". Next tuple slot is " << GetNextTupleSlot() << std::endl;
     std::cerr << "Total num slots per tile group is " << num_tuple_slots_ << std::endl;
     std::cerr << "Num allocated tuples tgh is " << tile_group_header->num_tuple_slots << std::endl;

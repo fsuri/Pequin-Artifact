@@ -481,52 +481,36 @@ void TimestampOrderingTransactionManager::PerformUpdate(
  
   
   //Find the current linked list header (atomically)
-  ItemPointer head_pointer;
-  peloton::storage::TileGroupHeader *head_tile_group_header; 
-  Timestamp head_ts;
-
-  while(true){
-
-    // auto index_tile_group_header = storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
-    // head_ts = index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
-    // std::cerr << "index entry not null" << std::endl;
-    head_pointer = *index_entry_ptr;
-    head_tile_group_header = storage_manager->GetTileGroup(head_pointer.block)->GetHeader();
-    head_ts = head_tile_group_header->GetBasilTimestamp(head_pointer.offset);
-
-    head_tile_group_header->GetSpinLatch(head_pointer.offset).Lock(); //TODO: change code to TryLock
-    
-    //index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset); //TODO: Should be able to remove line
-
-    //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
-    if(!(head_pointer == *index_entry_ptr)){
-        // Notice("Core[%d] Not equal: Head pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
-        //   sched_getcpu(), &head_pointer, head_pointer.block, head_pointer.offset, index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, (head_pointer == *index_entry_ptr));
-      head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
-      
-      continue;
-    }
-    
-    break;
-  }
-
-
-  ItemPointer curr_pointer = head_pointer;
-  peloton::storage::TileGroupHeader *curr_tile_group_header = head_tile_group_header; 
-    
+  // ItemPointer head_pointer;
+  // peloton::storage::TileGroupHeader *head_tile_group_header; 
+  // while(true){
+  //   head_pointer = *index_entry_ptr;
+  //   head_tile_group_header = storage_manager->GetTileGroup(head_pointer.block)->GetHeader();
    
-    // //take lock on curr header
-    // once you have the lock: check if indirection ptr still == header. if not release lock, and check indirection ptr again.
-    // once you have header locked, keep it locked.  Do your thing.  When you're done,  atomically set indirection pointer. release lock
-    //if you want to insert not to head, could release lock.
-    //TODO: Also need to take locks around your current position. Don't need this.
-    //purger also needs to have the lock.
-
+  //   head_tile_group_header->GetSpinLatch(head_pointer.offset).Lock(); //TODO: change code to TryLock
     
+  //   //index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset); //TODO: Should be able to remove line
+
+  //   //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
+  //   if(!(head_pointer == *index_entry_ptr)){
+  //       // Notice("Core[%d] Not equal: Head pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+  //       //   sched_getcpu(), &head_pointer, head_pointer.block, head_pointer.offset, index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, (head_pointer == *index_entry_ptr));
+  //     head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock(); 
+  //     continue;
+  //   }
+  //   break;
+  // }
+
+
+    ItemPointer curr_pointer = *index_entry_ptr;
+    peloton::storage::TileGroupHeader *curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
     //Find the right location to insert in linked list.
 
-    auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+   
     auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
+    auto head_ts = curr_ts;
+    auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+
   
     while (new_ts < curr_ts) {
       // Update current pointer and the associated header
@@ -544,42 +528,66 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     
     Debug("Curr ts is [%lu:%lu]. New ts is [%lu:%lu]", curr_ts.getTimestamp() ,curr_ts.getID(), new_ts.getTimestamp(),new_ts.getID());
 
-    //Check a) Curr_ts has a next ptr => insert curr tuple inbetween
-            //If not, new_tuple becomes next, and new tuple becomes head
-
-    //Case b) Curr_ts has a prev_ptr  => insert curr tuple inbetween
-          //If not, new_tuple becomes next, and new tuple empty
-
-    if (new_ts > curr_ts) {
-      if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
-        //std::cerr << "In the if case" << std::endl;
-        auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
-        auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
-        prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
-        new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
-      }
-
-      // std::cerr << "If case" << std::endl;
-      curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
-      new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
-
-    
-    } 
-    
-    else { //tuple is going at end of linked list
-      if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
-        UW_ASSERT(new_ts == curr_ts); //TODO: FIXME: This case should, in theory (under proper atomicity), be impossible. 
-                                      //However, currently it is possible since we 1) check for dupliates in data table, then release lock, and then 2) insert here while holding lock.
-
-        auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-        auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
-        next_tile_group_header->SetPrevItemPointer(next_loc.offset, new_location);
-        new_tile_group_header->SetNextItemPointer(new_location.offset, next_loc);
-      }
-
-      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+    //Note: In theory we should hold a mutex during read time too, to make sure all re-links are observed atomically. 
+    //However, I think we can get away with simply linking in a safe order: Link new tuple links before changing existing tuple links. Change prev before next.
+    //
+    if(new_ts < curr_ts){ //Curr was tail => add us to right
       new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
+      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
     }
+    else if(new_ts > curr_ts || (new_ts == curr_ts && current_txn->GetCommitOrPrepare())){ // Add us to left
+
+        new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
+
+        //if curr node is head
+        bool is_head = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull();
+
+        if(is_head){ //if curr node is head
+          curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+        }
+        else{  //need to link to parent as well.
+          auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+          auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
+      
+          new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
+          curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+          prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);  //link next ptr from existing linked list last.
+        }
+    }
+    else{
+      UW_ASSERT(new_ts == curr_ts); //Do nothing. Must be a prepare/force-mat, ignore.
+    }
+
+    // if (new_ts > curr_ts) {
+    //   if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
+    //     //std::cerr << "In the if case" << std::endl;
+    //     auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+    //     auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
+    //     prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
+    //     new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
+    //   }
+
+    //   // std::cerr << "If case" << std::endl;
+    //   curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+    //   new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
+
+    
+    // } 
+    
+    // else { //tuple is going at end of linked list
+    //   if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
+    //     UW_ASSERT(new_ts == curr_ts); //TODO: FIXME: This case should, in theory (under proper atomicity), be impossible. 
+    //                                   //However, currently it is possible since we 1) check for dupliates in data table, then release lock, and then 2) insert here while holding lock.
+
+    //     auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+    //     auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
+    //     next_tile_group_header->SetPrevItemPointer(next_loc.offset, new_location);
+    //     new_tile_group_header->SetNextItemPointer(new_location.offset, next_loc);
+    //   }
+
+    //   curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+    //   new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
+    // }
     
     //Peloton internal, probably fine to remove
     new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
@@ -610,7 +618,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     // new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
     // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
 
-  head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
+  //head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
   
 }
 

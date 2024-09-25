@@ -317,13 +317,20 @@ bool InsertExecutor::InsertNewVersion(const planner::ProjectInfo *project_info, 
       ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
       // std::cerr << "After getting indirection" << std::endl;
       if (indirection == nullptr) {
-        // std::cerr << "Indirection pointer is null" << std::endl;
+        Panic("Indirection pointer is null");
       }
 
       new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
     
+      // Set the indirection offset
+      size_t indirection_offset = tile_group_header->GetIndirectionOffset(old_location.offset);
+      new_tile_group->GetHeader()->SetIndirectionOffset(new_location.offset, indirection_offset);
+      std::mutex &m = target_table->active_indirection_mutexes_[indirection_offset % 32];
+      m.lock();
 
       transaction_manager.PerformUpdate(current_txn, old_location, new_location);
+      
+      m.unlock();
 
        bool install_res = target_table->InstallVersion(&new_tuple_one, &(project_info->GetTargetList()), current_txn, indirection);
 

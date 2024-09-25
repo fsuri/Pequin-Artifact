@@ -543,6 +543,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 // serialized form) as well as a commitProof (note, the read set is implicit)
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
+
+  //Debugging //FIXME: REMOVE
+  bool is_customer_read = query_statement.find("customer") != std::string::npos;
+  
   
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
@@ -593,7 +597,7 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)
   auto status = tcop->ExecutePointReadStatement(statement, param_values, unamed, result_format, result, ts,
-      this->can_read_prepared, &committed_timestamp, &committedProof, &prepared_timestamp, &txn_dig, write);
+      this->can_read_prepared, &committed_timestamp, &committedProof, &prepared_timestamp, &txn_dig, write, is_customer_read);
 
   // GetResult(status);
   GetResult(status, tcop, counter);
@@ -633,6 +637,12 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   }
 
   TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig, status, tuple_descriptor, result);
+
+  if(is_customer_read){
+    if(!write->has_committed_value()){
+      Panic("Point read to customer has no committed value. Has prep?: %d: %s", write->has_prepared_value(), query_statement.c_str());
+    }
+  }
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);

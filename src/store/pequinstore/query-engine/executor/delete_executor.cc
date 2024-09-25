@@ -141,6 +141,8 @@ bool DeleteExecutor::DExecute() {
       return false;
     }
 
+
+
     bool is_owner = transaction_manager.IsOwner(current_txn, tile_group_header, physical_tuple_id);
     bool is_written = transaction_manager.IsWritten(current_txn, tile_group_header, physical_tuple_id);
     // if the current transaction is the creator of this version.
@@ -229,7 +231,7 @@ bool DeleteExecutor::DExecute() {
               */
 
         // if it is the latest version and not locked by other threads, then  insert an empty version.
-        ItemPointer new_location = target_table_->InsertEmptyVersion();
+        ItemPointer new_location = target_table_->InsertEmptyVersion(current_txn);
 
         Debug("Delete executor New tuple location[%d:%d]", new_location.block, new_location.offset);
         //std::cerr << "Delete executor New location tuple id is block " << new_location.block << " and offset " << new_location.offset << std::endl;

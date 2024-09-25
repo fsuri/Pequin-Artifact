@@ -192,7 +192,7 @@ public:
       Timestamp *committed_timestamp,
       const pequinstore::proto::CommittedProof **commit_proof,
       Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-      pequinstore::proto::Write *write, size_t thread_id = 0);
+      pequinstore::proto::Write *write, bool is_customer_read = false, size_t thread_id = 0);
 
   //////////////////////////////// HELPERS /////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
@@ -294,7 +294,7 @@ public:
       Timestamp *committed_timestamp,
       const pequinstore::proto::CommittedProof **commit_proof,
       Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-      pequinstore::proto::Write *write, size_t thread_id = 0);
+      pequinstore::proto::Write *write, size_t thread_id = 0, bool is_customer_read = false);
 
   // Prepare a statement using the parse tree
   std::shared_ptr<Statement>

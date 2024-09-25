@@ -839,7 +839,7 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
   txn->SetHasReadSetMgr(false);
   txn->SetIsPointRead(false);
   txn->SetHasSnapshotMgr(false);
-  //txn->SetCommitOrPrepare(false);
+  txn->SetCommitOrPrepare(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -924,7 +924,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-    pequinstore::proto::Write *write, size_t thread_id) {
+    pequinstore::proto::Write *write, size_t thread_id, bool is_customer_read) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -939,6 +939,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     txn = txn_manager.BeginTransaction(thread_id);
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
+
+  txn->is_customer_read = is_customer_read;
 
   txn->SetReadOnly(); //THIS IS A READ QUERY
 
@@ -1963,7 +1965,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-    pequinstore::proto::Write *write, size_t thread_id) {
+    pequinstore::proto::Write *write, bool is_customer_read, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -2012,7 +2014,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
       ExecutePointReadHelper(statement->GetPlanTree(), params, result,
                              result_format, basil_timestamp, predicate,
                              committed_timestamp, commit_proof,
-                             prepared_timestamp, txn_dig, write, thread_id);
+                             prepared_timestamp, txn_dig, write, thread_id, is_customer_read);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {

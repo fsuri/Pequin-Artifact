@@ -1132,15 +1132,13 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
       // saving abort sigs in req->eqvAbortSigsGrouped
       auto itr_abort = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr_abort != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d. Saving in eqvAbortSigsGrouped",
-          itr_abort->second.sigs_size(), group);
+      Debug("Have %d ABSTAIN replies from group %d. Saving in eqvAbortSigsGrouped", itr_abort->second.sigs_size(), group);
       (*req->eqvAbortSigsGrouped.mutable_grouped_sigs())[group] = itr_abort->second;
       req->slowAbortGroup = group;
       // saving commit sigs in req->p1ReplySigsGrouped
       auto itr_commit = sigs.find(proto::ConcurrencyControl::COMMIT);
       UW_ASSERT(itr_commit != sigs.end());
-      Debug("Have %d COMMIT replies from group %d.", itr_commit->second.sigs_size(),
-          group);
+      Debug("Have %d COMMIT replies from group %d.", itr_commit->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr_commit->second;
 
     }
@@ -1148,30 +1146,30 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
     else if(decision == proto::ABORT && fast && !conflict_flag){
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),  group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->fastAbortGroup = group;
     } else if (decision == proto::ABORT && !fast) {
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->slowAbortGroup = group;
     } else if (decision == proto::COMMIT) {
       auto itr = sigs.find(proto::ConcurrencyControl::COMMIT);
-      // if(itr == sigs.end()){
-      //   if(fb){
-      //     std::cerr << "abort on fallback path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
-      //   }
-      //   if(!fb){
-      //     std::cerr << "abort on normal path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
-      //   }
-      // }
+      if(itr == sigs.end()){
+        for(auto [res, b]: sigs){
+          Notice("Res[%d] has %d sigs", res, b.sigs_size());
+        }
+        if(fb){
+          std::cerr << "abort on fallback path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+        }
+        if(!fb){
+          std::cerr << "abort on normal path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+        }
+      }
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d COMMIT replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d COMMIT replies from group %d.", itr->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
     }
   }
@@ -1913,6 +1911,7 @@ void Client::RelayP1TimeoutCallback(uint64_t reqId){
   for(auto p1_pair : itr->second->RelayP1s){
     Debug("Starting Phase1FB from FB buffer for dependent txnId: %d", reqId);
     //itr->second->req_FB_instances.insert(p1_pair.first); //XXX mark connection between reqId and FB instance
+    if(FB_instances.find(p1_pair.first) != FB_instances.end()) continue;
     Phase1FB(p1_pair.first, reqId, p1_pair.second);
   }
   //
@@ -1958,6 +1957,7 @@ void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnD
 
 
 void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto::Phase1 *p1){  //passes callbacks
+  if(FB_instances.find(txnDigest) != FB_instances.end()) return;
 
   Debug("Started Phase1FB for txn: %s, for dependent ID: %d", BytesToHex(txnDigest, 16).c_str(), conflict_id);
 
@@ -1987,6 +1987,7 @@ void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto:
 }
 
 void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest, const std::string &dependent_txnDigest, proto::Phase1 *p1){
+   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
 
   Debug("Starting Phase1FB for deeper depth. Original conflict id: %d, Dependent txnDigest: %s, txnDigest of tx causing the stall %s", conflict_id, BytesToHex(dependent_txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str());
 
@@ -2143,8 +2144,7 @@ void Client::Phase1FBcallbackA(uint64_t conflict_id, std::string txnDigest, int6
   PendingRequest* req = FB_instances[txnDigest];
 
   if (req->startedPhase2 || req->startedWriteback) {
-    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback"
-        " response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
+    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
     return;
   }
 

@@ -773,6 +773,40 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
       
     }
 
+    if(current_txn->is_customer_read){
+        if(!found_committed){
+          Warning("Point read to customer didn't find committed. Looped through %d tuples. Print out all tuples in linked list. Query TS: [%lu:%lu]", chain_length, timestamp.getTimestamp(), timestamp.getID());
+          //Loop again from start loc and print more. 
+          //TODO: Fix start point.
+          
+            tuple_location = *head;
+            tile_group_header = head_tile_group_header;
+           
+            while(true){
+              ++chain_length;
+
+              auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+             
+              bool readable_version = !tile_group_header->IsPurged(tuple_location.offset); //skip over purged versions.
+
+              Warning("Looking at Tuple at location [%lu:%lu] with TS: [%lu:%lu]. Readable? %d. Committed: %d", tuple_location.block, tuple_location.offset, tuple_timestamp.getTimestamp(), tuple_timestamp.getID(), 
+                      readable_version, tile_group_header->GetCommitOrPrepare(tuple_location.offset));
+             
+              ItemPointer old_item = tuple_location;
+              tuple_location = tile_group_header->GetNextItemPointer(old_item.offset);
+              if (tuple_location.IsNull()) {
+                break;
+              }
+              tile_group = storage_manager->GetTileGroup(tuple_location.block);
+              tile_group_header = tile_group->GetHeader();
+
+            }
+          Panic("Point read to customer failed");
+        }
+
+        UW_ASSERT(found_committed); // point reads to customer table MUST find a committed value.. genesis.
+    } 
+
     LOG_TRACE("Traverse length: %d\n", (int)chain_length);
 }
 
@@ -2121,6 +2155,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   Debug("Inside Secondary Scan");
 
    auto current_txn = executor_context_->GetTransaction();
+
+   UW_ASSERT(!current_txn->is_customer_read);// Should only be true for point read to customer.
 
    //if(current_txn->is_limit) Notice("Starting Scan (Secondary)");
 

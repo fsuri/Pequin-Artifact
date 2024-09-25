@@ -134,7 +134,7 @@ struct asyncVerification{
   asyncVerification(uint32_t _quorumSize, mainThreadCallback mcb, int groupTotals,
     proto::CommitDecision _decision, Transport* tp) :  quorumSize(_quorumSize),
     mcb(mcb), groupTotals(groupTotals), decision(_decision),
-    terminate(false), callback(true), tp(tp) { 
+    terminate(false), callback(true), tp(tp), num_skips(0), num_jobs(0) { 
         groupCounts.empty();
     }
   ~asyncVerification() { deleteMessages();}
@@ -161,7 +161,9 @@ struct asyncVerification{
   //proto::Transaction *txn;
   //std::set<int> groupsVerified;
 
-  int deletable;
+  uint32_t num_skips;
+  uint32_t num_jobs;
+  uint32_t deletable;
   bool terminate;
   bool callback;
 };

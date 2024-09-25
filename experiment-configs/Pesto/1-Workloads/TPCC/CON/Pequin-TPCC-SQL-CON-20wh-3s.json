@@ -10,8 +10,8 @@
   ],
   "replication_protocol": ["pequin"],
   "client_protocol_mode": ["pequin"],
-  "num_shards": [2],
-  "num_groups": [2],
+  "num_shards": [3],
+  "num_groups": [3],
   
   "benchmark_type": "sql_bench",  
   
@@ -19,7 +19,7 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 28,
+   "server_load_time": 24,
   
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
@@ -114,7 +114,7 @@
 		  "query_result_honest": true,
 		  "sync_messages": "query-quorum",
 		  
-		  "retry_limit": 3,
+		  "retry_limit": 2,
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
 		  "query_point_eager_exec": false,
@@ -139,33 +139,31 @@
       
     }
   ],
-  "experiment_name": "pequin",
+  "experiment_name": "pequin-wan",
   "codebase_name": "indicus",
 
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
-  
    "_client_total": [
-    [50, 50, 55, 55, 55, 60, 60]
+    [70, 70, 70, 70, 70, 70]
   ],
   "_client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8 ]
   ],
   "_client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1]
   ],
-
 
 
   "client_total": [
-    [1, 10, 20, 30, 40, 45, 50, 55, 60]
+    [1, 25, 30, 40, 45, 50, 55, 60, 65, 70, 80, 90]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
   ],
 
   "client_nodes_per_server": 1,
@@ -193,103 +191,41 @@
   "project_name": "pequin-pg0",
   
   "fault_tolerance": 1,
-  
-
-  
-   "server_names": [
+    
+     "server_names": [
    
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
-    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
-    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2"] 
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "us-east-2-0", "us-east-2-1", "us-east-2-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "us-west-2-0", "us-west-2-1", "us-west-2-2", "eu-west-1-0", "eu-west-1-1", "eu-west-1-2", "eu-west-2-0", "eu-west-2-1", "eu-west-2-2"] 
 	
   ],
   
    "server_regions": [
    
     {
-      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
-      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
-        "ap-northeast-1-2"],
-      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"]
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2", "us-east-2-0", "us-east-2-1", "us-east-2-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2", "eu-west-2-0", "eu-west-2-1", "eu-west-2-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2", "us-west-2-0", "us-west-2-1", "us-west-2-2"]
     }
   ],
 
-  
-  "_server_names": [
-   
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
-    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
-    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "eu-central-1-0", "eu-central-1-1", "eu-central-1-2", "ap-southeast-2-0",
-    "ap-southeast-2-1", "ap-southeast-2-2"] 
-	
-  ],
-
-  "_server_regions": [
-   
-    {
-      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
-      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
-        "ap-northeast-1-2"],
-      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"],
-"eu-central-1": ["eu-central-1-0", "eu-central-1-1", "eu-central-1-2"],
-      "ap-southeast-2": ["ap-southeast-2-0", "ap-southeast-2-1", "ap-southeast-2-2"]
-    }
-  ],
-
-
-  "region_rtt_latencies": {
+   "region_rtt_latencies": {
     "us-east-1": {
       "us-east-1": 0,
-      "eu-west-1": 73,
-      "ap-northeast-1": 160,
       "us-west-1": 63,
-      "eu-central-1": 87,
-      "ap-southeast-2": 199 
-    },
-    "eu-west-1": {
-      "us-east-1": 73,
-      "eu-west-1": 0,
-      "ap-northeast-1": 220,
-      "us-west-1": 145,
-      "eu-central-1": 26,
-      "ap-southeast-2":  255
-    },
-    "ap-northeast-1": {
-      "us-east-1": 160,
-      "eu-west-1": 220,
-      "ap-northeast-1": 0,
-      "us-west-1": 115,
-      "eu-central-1": 243,
-      "ap-southeast-2": 106
+      "eu-west-1": 68
     },
     "us-west-1": {
       "us-east-1": 63,
-      "eu-west-1": 145,
-      "ap-northeast-1": 115,
       "us-west-1": 0,
-      "eu-central-1": 148,
-      "ap-southeast-2": 139
+      "eu-west-1": 22
     },
-    "eu-central-1": {
-      "us-east-1": 87,
-      "eu-west-1": 26,
-      "ap-northeast-1": 243,
-      "us-west-1": 148,
-      "eu-central-1": 0,
-      "ap-southeast-2": 177
-    },
-    "ap-southeast-2": {
-      "us-east-1": 199,
-      "eu-west-1": 255,
-      "ap-northeast-1": 106,
-      "us-west-1": 139,
-      "eu-central-1": 177,
-      "ap-southeast-2": 0
+    "eu-west-1": {
+      "us-east-1": 68,
+      "us-west-1": 22,
+      "eu-west-1": 0
     }
   },
-  "server_emulate_wan": false,
+  "server_emulate_wan": true,
+  
   
   
   "plots": [

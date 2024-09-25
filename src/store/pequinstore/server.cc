@@ -1318,6 +1318,32 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
+  //If have ooMSG. Ignore P1, and just process ooMsg. Note: Typically shouldn't happen with TPCC, but it is possible that moodycamel queue is not Fifo
+  ooMap::accessor oo;
+  bool has_oo = ooMessages.find(oo, txnDigest);
+  if(has_oo){
+      auto &ooMsg = oo->second;
+      if(!params.signClientProposals) txn = msg.release_txn(); //Only release it here so that we can forward complete P1 message without making any wasteful copies
+      AddOngoing(txnDigest, txn);
+      if(ooMsg.mode == 1){
+        Notice("Handle oo P2");
+        HandlePhase2(*ooMsg.remoteCopy, *ooMsg.p2);
+        if(!(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))) FreePhase2message(ooMsg.p2);    //If we are not using dispatch. Free msg.
+      }
+      else if(ooMsg.mode == 2){
+        Notice("Handle oo WB");
+        HandleWriteback(*ooMsg.remoteCopy, *ooMsg.wb);
+        if(!(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))) FreeWBmessage(ooMsg.wb);    //If we are not using dispatch. Free msg.
+      }
+      else{
+        Panic("oo mode must be 1 or 2");
+      }
+      delete ooMsg.remoteCopy;
+      ooMessages.erase(oo);
+      return;
+  }
+  oo.release();
+
   Debug("PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp());
   proto::ConcurrencyControl::Result result;
   const proto::CommittedProof *committedProof = nullptr;
@@ -1625,6 +1651,7 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
       p->second.original_address = remote.clone();
       p.release();
       SendPhase2Reply(&msg, phase2Reply, std::move(sendCB));
+      return;
       //TransportAddress *remoteCopy2 = remote.clone();
       //HandlePhase2CB(remoteCopy2, &msg, txnDigest, sendCB, phase2Reply, cleanCB, (void*) true);
   }
@@ -1636,12 +1663,14 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
       phase2Reply->mutable_p2_decision()->set_decision(proto::COMMIT);
       phase2Reply->mutable_p2_decision()->set_view(0);
       SendPhase2Reply(&msg, phase2Reply, std::move(sendCB));
+      return;
   }
   else if(aborted.find(*txnDigest) != aborted.end()){
       p.release();
       phase2Reply->mutable_p2_decision()->set_decision(proto::ABORT);
       phase2Reply->mutable_p2_decision()->set_view(0);
       SendPhase2Reply(&msg, phase2Reply, std::move(sendCB));
+      return;
   }
   //first time receiving p2 message:
   else{
@@ -1695,8 +1724,23 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
                RegisterTxTS(*txnDigest, txn);
             }
             else{
-              Debug("PHASE2[%s] message does not contain txn, but have not seen"
-                  " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
+              Debug("PHASE2[%s] message does not contain txn, but have not seen txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
+
+              ooMap::accessor oo;
+              ooMessages.insert(oo, msg.txn_digest());
+              auto &ooMsg = oo->second;
+              if(ooMsg.mode > 0) return; //already have a P2 or WB waiting.
+              ooMsg.mode = 1;
+              ooMsg.remoteCopy = remoteCopy;
+              if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+                ooMsg.p2 = &msg;
+              }
+              else{
+                ooMsg.p2 = new proto::Phase2(msg);
+              }
+              oo.release();
+              return;
+
               //std::cerr << "Aborting for txn: " << BytesToHex(msg.txn_digest(), 16) << std::endl;
               if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
                   FreePhase2message(&msg); //const_cast<proto::Phase2&>(msg));
@@ -1706,10 +1750,23 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
               // else if(fallback.count(msg.txn_digest()) > 0){ std::cerr << "was added on ExecP1 FB" << std::endl;}
               // else{ std::cerr << "have not seen p1" << std::endl;}
               // waiting.insert(msg.txn_digest());
-              //transport->Timer(10000, [this](){Panic("Fail in P2");});
+              auto txnDig = *txnDigest;
+              transport->Timer(1000, [this, txnDig](){
+                 Warning("Checking whether P1 has arrived since.");
+                 ongoingMap::const_accessor o;
+                 bool hasOngoing = ongoing.find(o, txnDig);
+                 o.release();
+                 bool hadOngoing = ongoingErased.count(txnDig);
+                 if(!hasOngoing && !hadOngoing) Panic("Received P1 after P2."); //If this doesn't print = we never received.
+              });
+              transport->Timer(2000, [this](){
+                Panic("Had no txn at time of P2.");
+              });
               //Panic("Cannot validate p2 because server does not have tx for this reqId");
-              Warning("Cannot validate p2 because server does not have tx for this reqId");
-              Panic("This should not be happening with TCP");
+
+              bool had_ongoing = ongoingErased.count(txnDig);
+              Warning("Cannot validate p2 because server does not have tx for this reqId. Had Ongoing erased? %d", had_ongoing);
+              //Panic("This should not be happening with TCP");
               //std::cerr << "Cannot validate p2 because do not have tx for special id: " << msg.req_id() << std::endl;
               return;
             }
@@ -1877,7 +1934,31 @@ void Server::HandleWriteback(const TransportAddress &remote,
         Debug("Writeback[%s] message does not contain txn, but have not seen"
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
-        //Panic("When using TCP the tx should always be ongoing before doing WB");
+
+         ooMap::accessor oo;
+        ooMessages.insert(oo, msg.txn_digest());
+        auto &ooMsg = oo->second;
+        if(ooMsg.mode == 2) return; //already have a WB waiting.
+        if(ooMsg.mode == 1){
+          //don't write new remote. Free old.
+            FreePhase2message(ooMsg.p2); 
+        }
+        else{
+           ooMsg.remoteCopy = remote.clone();
+        }
+        ooMsg.mode = 2;
+       
+        if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+          ooMsg.wb = &msg;
+        }
+        else{
+          ooMsg.wb = new proto::Writeback(msg);
+        }
+        oo.release();
+        return;
+
+
+        Panic("When using TCP the tx should always be ongoing before doing WB");
         if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
           FreeWBmessage(&msg);
         }
@@ -2541,7 +2622,10 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
     //delete o->second.txn; //Not safe to delete txn because another thread could be using it concurrently... //FIXME: Fix this leak at some point --> Threads must either hold ongoing while operating on tx, or manage own object.
     aborted.insert(txnDigest); //No need to call abort -- A hard clean indicates an invalid tx, and no honest replica would have voted for it --> thus there can be no dependents and dependencies.
   } 
-  if(is_ongoing) ongoing.erase(o); //Note: Erasing here implicitly releases accessor o. => Note: Don't think holding o matters here, all that matters is that ongoing is erased before (or atomically) with prepared
+  if(is_ongoing){
+    //ongoingErased.insert(txnDigest);
+    ongoing.erase(o); //Note: Erasing here implicitly releases accessor o. => Note: Don't think holding o matters here, all that matters is that ongoing is erased before (or atomically) with prepared
+  } 
   
 
   preparedMap::accessor a;
