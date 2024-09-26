@@ -594,6 +594,10 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   Timestamp prepared_timestamp;         // TODO: Change into write subparts.
   std::shared_ptr<std::string> txn_dig(nullptr); // prepared dependency
 
+   
+  //Notice("Query: %s", query_statement.c_str());
+  
+
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)
   auto status = tcop->ExecutePointReadStatement(statement, param_values, unamed, result_format, result, ts,
@@ -1232,6 +1236,8 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
   counter->store(1);
 
+  //Notice("Query: %s", query_statement.c_str());
+
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
@@ -1239,6 +1245,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   //     this->record_table_version, this->can_read_prepared);
 
   GetResult(status, tcop, counter);
+
 
   // Transform PelotonResult into ProtoResult
   std::string &&res(TransformResult(status, statement, result));

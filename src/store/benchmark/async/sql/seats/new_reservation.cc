@@ -140,7 +140,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
     int64_t seats_left; 
     //If flight info not found => Abort
     if (results[0]->empty()) {
-        Notice("Invalid Flight ID %ld", f_id);
         Debug("Invalid Flight ID %ld", f_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -149,7 +148,6 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         results[0]->at(0)->get(0, &airline_id);
         results[0]->at(0)->get(1, &seats_left);
         if (seats_left <= 0) {
-            Notice("No more seats left on flight %ld", f_id);
             Debug("No more seats left on flight %ld", f_id);
             client.Abort(timeout);
             return ABORTED_USER;
@@ -160,20 +158,17 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
         // int r_id;
         // deserialize(r_id, results[1], 0, 0);
         //Panic("Seat should be empty? %d", r_id);
-        Notice("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         Debug("Seat %ld on flight %ld is already reserved", seatnum, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     } 
     //If customer already has a seat => abort
     if (!results[2]->empty()) {
-        Notice("Customer %ld already has a seat", c_id);
         Debug("Customer %ld already has a seat", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
     if (results[3]->empty()) {
-        Notice("No Customer with id %ld", c_id);
         Debug("No Customer with id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -231,11 +226,11 @@ transaction_status_t SQLNewReservation::Execute(SyncClient &client) {
 
     //Requeue reservation to play with later
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
-        std::cerr << "NEW_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        Debug("NEW_RES: PUSH TO DELETE Q. r_id: %d, c_id: %d, flight_id: %d", r_id, c_id, flight.flight_id);
         profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
-         std::cerr << "NEW_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        Debug("NEW_RES: PUSH TO UPDATE Q. r_id: %d, c_id: %d, flight_id: %d", r_id, c_id, flight.flight_id);
         profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 

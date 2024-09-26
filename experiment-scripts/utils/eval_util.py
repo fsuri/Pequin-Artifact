@@ -456,6 +456,12 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         total_attempted_failures = stats['failure_attempts']
     stats['tx_attempted_failure_percentage'] = total_attempted_failures/stats['attempts']
 
+    stats['read_write_ratio'] = 1
+    if 'total_writes' in stats:
+        total_ops = stats['total_writes'] + stats['total_reads']
+        stats['read_write_ratio_nr'] = (stats['total_reads'] - stats['total_recon_reads']) / (total_ops - stats['total_recon_reads'])
+        stats['read_write_ratio'] = stats['total_reads'] / total_ops
+
     #Record the ratio of Point Reads to Queries (invoked only - not counting retries). This also counts Recon-Reads
     if 'PointQueryAttempts' in stats:
         if 'QueryAttempts' in stats:

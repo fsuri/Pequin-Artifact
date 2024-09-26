@@ -170,12 +170,12 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   // (4.5) Additionally: If credit = BC: Retrieve customer data and modify it
   if (c_row.get_credit() == "BC") {
     std::stringstream ss;
-    ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << ","
-             << w_id << "," << h_amount;
+    ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << "," << w_id << "," << h_amount;
     std::string new_data = ss.str() +  c_row.get_data();
-    new_data = new_data.substr(std::min(new_data.size(), 500UL));
+    new_data = new_data.substr(0, std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
+ 
   UW_ASSERT(c_d_id == c_row.get_d_id());
   UW_ASSERT(c_w_id == c_row.get_w_id());
   UW_ASSERT(c_id == c_row.get_id());

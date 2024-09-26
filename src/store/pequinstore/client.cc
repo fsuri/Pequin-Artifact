@@ -295,7 +295,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb,
 void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write){ //blind_write: default false, must be explicit application choice to skip.
 
-    
+    stats.Increment("total_writes");
     //////////////////
     // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
     //TODO: parse write statement into table, column list, values_list, and read condition
@@ -346,6 +346,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     }
     else{
       Debug("Issuing re-con Query");
+      stats.Increment("total_recon_reads");
       Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
       //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
       //TODO: add a field for "is_point" (for Inserts we already know!)
@@ -404,6 +405,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
+  stats.Increment("total_reads");
   
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 

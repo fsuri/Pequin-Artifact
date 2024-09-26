@@ -15,33 +15,21 @@
   
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "tpcc-sql",
-  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
+  "benchmark_name": "seats-sql",
+  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
   
-   "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 160 with 20 wh + ASAN":false,
-   "_server_load_time": 160,
-   "server_load_time": 47,
   
-  "_TPCC_SQL_ARGS_" :0,
-  	  "_note: parititoner is unused currently": 0,
-	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 20,
-	  
-	  "tpcc_stock_level_ratio": 4,
-	  "tpcc_delivery_ratio": 4,
-	  "tpcc_order_status_ratio": 4,
-	  "tpcc_payment_ratio": 44,
-	  "tpcc_new_order_ratio": 44,
-	  
-	  "tpcc_c_c_id": 0,
-  	  "tpcc_c_c_last": 0,
+   "server_load_time": 7,
+  
+   "_SEATS_SQL_ARGS_" :0,
+  	  "scale_factor": 1,
 
 
  
-  "client_abort_backoff": 5,
+  "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
-  "client_max_backoff": 500,
+  "client_max_backoff": 250,
   "client_rand_sleep": 2,
   "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
   "client_message_timeout": 10000,
@@ -69,7 +57,7 @@
 		 
 		  "signature_type": 4,
 		  "sig_batch": 1,
-		  	"sig_batch_timeout": 10,
+		  	"sig_batch_timeout": 1,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -131,8 +119,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 50,
-		  "non_monotonicity_grace": 100,
+		  "monotonicity_grace": 5,
+		  "non_monotonicity_grace": 20,
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -146,29 +134,20 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
-   "_client_total": [
-    [1]
-  ],
-  "_client_processes_per_client_node": [
-    [1]
-  ],
-  "_client_threads_per_process": [
-    [1]
-  ],
-  
-  
-   "client_total": [
-    [40, 40, 40]
+
+  "client_total": [
+    [1, 5, 10, 15]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8]
+    [8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 2, 3]
+    [1, 1, 1, 1]
   ],
+
   
   "_client_total": [
-    [1, 10, 30, 40, 50, 60, 70]
+    [1, 5, 10, 15, 20, 25, 30]
   ],
   "_client_processes_per_client_node": [
     [8, 8, 8, 8, 8, 8, 8]
@@ -188,9 +167,9 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 60,
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
   
   "default_remote_shell": "bash",
   
@@ -203,42 +182,128 @@
   
   "fault_tolerance": 1,
   
-   "server_names": [
+  "_server_names": [
+   
+    ["us-east-1-0"] 
+	
+  ],
+
+  "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0"]
+    }
+  ],
+  
+  "server_names": [
    
     ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
     "eu-west-1-1", "eu-west-1-2"] 
 	
   ],
 
- 
- "server_regions": [
+  "server_regions": [
    
     {
-      "us-east-1": ["us-east-1-0", "us-east-1-1"],
-      "us-west-1": ["us-east-1-2", "eu-west-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1"]
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
     }
   ],
   
+   "_server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2"] 
+	
+  ],
+  
+   "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
+      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
+        "ap-northeast-1-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"]
+    }
+  ],
 
-   "region_rtt_latencies": {
+  
+  "_server_names": [
+   
+    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
+    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
+    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "eu-central-1-0", "eu-central-1-1", "eu-central-1-2", "ap-southeast-2-0",
+    "ap-southeast-2-1", "ap-southeast-2-2"] 
+	
+  ],
+
+  "_server_regions": [
+   
+    {
+      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
+      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
+        "ap-northeast-1-2"],
+      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"],
+"eu-central-1": ["eu-central-1-0", "eu-central-1-1", "eu-central-1-2"],
+      "ap-southeast-2": ["ap-southeast-2-0", "ap-southeast-2-1", "ap-southeast-2-2"]
+    }
+  ],
+
+
+  "region_rtt_latencies": {
     "us-east-1": {
       "us-east-1": 0,
+      "eu-west-1": 73,
+      "ap-northeast-1": 160,
       "us-west-1": 63,
-      "eu-west-1": 68
+      "eu-central-1": 87,
+      "ap-southeast-2": 199 
+    },
+    "eu-west-1": {
+      "us-east-1": 73,
+      "eu-west-1": 0,
+      "ap-northeast-1": 220,
+      "us-west-1": 145,
+      "eu-central-1": 26,
+      "ap-southeast-2":  255
+    },
+    "ap-northeast-1": {
+      "us-east-1": 160,
+      "eu-west-1": 220,
+      "ap-northeast-1": 0,
+      "us-west-1": 115,
+      "eu-central-1": 243,
+      "ap-southeast-2": 106
     },
     "us-west-1": {
       "us-east-1": 63,
+      "eu-west-1": 145,
+      "ap-northeast-1": 115,
       "us-west-1": 0,
-      "eu-west-1": 22
+      "eu-central-1": 148,
+      "ap-southeast-2": 139
     },
-    "eu-west-1": {
-      "us-east-1": 68,
-      "us-west-1": 22,
-      "eu-west-1": 0
+    "eu-central-1": {
+      "us-east-1": 87,
+      "eu-west-1": 26,
+      "ap-northeast-1": 243,
+      "us-west-1": 148,
+      "eu-central-1": 0,
+      "ap-southeast-2": 177
+    },
+    "ap-southeast-2": {
+      "us-east-1": 199,
+      "eu-west-1": 255,
+      "ap-northeast-1": 106,
+      "us-west-1": 139,
+      "eu-central-1": 177,
+      "ap-southeast-2": 0
     }
   },
-  "server_emulate_wan": true,
+  "server_emulate_wan": false,
   
   
   "plots": [

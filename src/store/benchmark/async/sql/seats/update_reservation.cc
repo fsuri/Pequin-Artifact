@@ -55,13 +55,11 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     client.Wait(results); //execute the two reads in parallel
 
     if (!results[0]->empty()) {
-        Notice("Seat %ld is already reserved on flight %ld!", seatnum, f_id);
         Debug("Seat %ld is already reserved on flight %ld!", seatnum, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
     if (results[1]->empty()) {
-        Notice("Customer %ld does not have an existing reservation flight %ld", c_id, f_id);
         Debug("Customer %ld does not have an existing reservation flight %ld", c_id, f_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -88,11 +86,11 @@ transaction_status_t SQLUpdateReservation::Execute(SyncClient &client) {
     seats[curr_seat-1] = 0;      //unset old seat
 
     if (std::uniform_int_distribution<int>(1, 100)(*gen_) < PROB_Q_DELETE_RESERVATION){
-         std::cerr << "UPDATE_RES: PUSH TO DELETE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        Debug("UPDATE_RES: PUSH TO DELETE Q. r_id: %d, c_id: %d, flight_id: %d", r_id, c_id, flight.flight_id);
         profile.delete_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
     else{
-         std::cerr << "UPDATE_RES: PUSH TO UPDATE Q. r_id: " << r_id <<". c_id: " << c_id << ". flight_id: " << flight.flight_id << std::endl;
+        Debug("UPDATE_RES: PUSH TO UPDATE Q. r_id: %d, c_id: %d, flight_id: %d", r_id, c_id, flight.flight_id);
         profile.update_reservations.push(SEATSReservation(r_id, c_id, flight, seatnum));
     }
 

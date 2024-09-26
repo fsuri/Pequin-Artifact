@@ -2201,7 +2201,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
 
   if (tuple_location_ptrs.size() == 0) {
     LOG_TRACE("no tuple is retrieved from index.");
-    Warning(" Found no matching rows in table: %s", table_->GetName().c_str());
+    Debug(" Found no matching rows in table: %s", table_->GetName().c_str());
     return false;
   }
 

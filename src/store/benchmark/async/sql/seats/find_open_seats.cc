@@ -34,8 +34,7 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
                         "FROM {} WHERE f_id = {}", FLIGHT_TABLE, f_id.flight_id);
     client.Query(query, queryResult, timeout);
     if (queryResult->empty()) { 
-        Notice("No flight with id % exists.", f_id.flight_id);
-        Debug("no flight with that id exists");
+        Debug("No flight with id % exists.", f_id.flight_id);
         client.Abort(timeout);
         return ABORTED_USER;
     }
@@ -108,9 +107,9 @@ transaction_status_t SQLFindOpenSeats::Execute(SyncClient &client) {
 
     open_seats_str += fmt::format("] are available on flight {} for price {}", f_id.flight_id, _seat_price);
     reserved_seats_str += fmt::format("] are unavailable on flight {}", f_id.flight_id);
-    Debug("%s", open_seats_str);
-    fprintf(stderr, "Available: %s\n", open_seats_str.c_str());
-    fprintf(stderr, "Unavailable: %s\n", reserved_seats_str.c_str());
+   
+    Debug("Available: %s\n", open_seats_str.c_str());
+    Debug("Unavailable: %s\n", reserved_seats_str.c_str());
 
     return result;
 }
