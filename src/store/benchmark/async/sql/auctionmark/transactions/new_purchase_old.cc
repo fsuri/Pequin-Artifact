@@ -71,29 +71,75 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
 
-  //NOTE: Item max bid MUST exist, otherwise we wouldn't have selected this item for Purchase  => See "new_purchase_old.cc" that includes a benchbase hack that seems unecessary
+  //HACK Check whether we have an ITEM_MAX_BID record. 
+  //If not, we read via ITEM_BID only.
+  //Alternatively: If not, we'll insert one  //TODO: We must cache this in order to be able to read from it.
 
-  // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
-  std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, ib_buyer_id, u_balance "
-                                      "FROM {}, {}, {}, {} "
-                                      "WHERE i_id = '{}' AND i_u_id = '{}' "
-                                      "AND imb_i_id = '{}' AND imb_u_id = '{}' " //added redundancies for better scan choice...
-                                      //"AND imb_i_id = i_id AND imb_u_id = i_u_id "
-                                      "AND imb_ib_id = ib_id "
-                                      "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
-                                      //"AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
-                                      "AND ib_buyer_id = u_id "
-                                      "AND ib_id = ib_id "
-                                      "AND u_id = u_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
-                                      TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
-                                      item_id, seller_id, item_id, seller_id, item_id, seller_id);
-                                      //This query should do Primary index scan for Item, ItemMaxBid
-                                      //After that, it should be able to do primary index scan on ItemBid and UserAcct via NestedLoop join
-                                      // //The only unknown are: ib_id and u_id
-  client.Query(getItemInfo, queryResult, timeout);
+  std::string getItemMaxBid = fmt::format("SELECT imb_ib_id FROM {} WHERE imb_i_id = '{}' AND imb_u_id = '{}'", TABLE_ITEM_MAX_BID, item_id, seller_id);
+  client.Query(getItemMaxBid, queryResult, timeout);
+  UW_ASSERT(queryResult.empty());
+  
  
+  int max_bid;
+  deserialize(max_bid, queryResult);
+
+  //Check whether the item is already purchased? In that case we don't want to retry the TX...
+  std::string getItemPurchase = fmt::format("SELECT * FROM {} WHERE ip_id = {} AND ip_ib_id = {} AND ip_ib_i_id = '{}' AND ip_ib_u_id = '{}'", 
+                                          TABLE_ITEM_PURCHASE, ip_id, max_bid, item_id, seller_id);
+  client.Query(getItemPurchase, timeout);
+
+  if(queryResult.empty()){
+      Panic("This branch should not be taken?");
+      std::string getMaxBid = fmt::format("SELECT ib_id FROM {} WHERE ib_i_id = '{}' AND ib_u_id = '{}' ORDER BY ib_bid DESC LIMIT 1", TABLE_ITEM_BID, item_id, seller_id);
+      client.Query(getMaxBid, queryResult, timeout);
+      uint64_t bid_id;
+      deserialize(bid_id, queryResult);
+
+      std::string insertItemMaxBid = fmt::format("INSERT INTO {} (imb_i_id, imb_u_id, imb_ib_id, imb_ib_i_id, imb_ib_u_id, imb_created, imb_updated) "
+                                                  "VALUES ('{}', '{}', {}, '{}', '{}', {}, {})", TABLE_ITEM_MAX_BID, item_id, seller_id, bid_id, item_id, seller_id, current_time, current_time);
+      client.Write(insertItemMaxBid, timeout, true); 
+
+    
+      //Read Without TABLE_ITEM_MAX_BID
+       std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, ib_buyer_id, u_balance "
+                                        "FROM {}, {}, {} "
+                                        "WHERE i_id = '{}' AND i_u_id = '{}' "
+                                          "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
+                                          "AND ib_i_id = i_id AND ib_u_id = i_u_id "
+                                          "AND ib_buyer_id = u_id "
+                                          "AND ib_id = ib_id "
+                                          "AND u_id = u_id",  //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
+                                          TABLE_ITEM, TABLE_ITEM_BID, TABLE_USERACCT,
+                                          item_id, seller_id, item_id, seller_id);
+      client.Query(getItemInfo, queryResult, timeout);
+      client.asyncWait();
+  }
+  else{
+    // Get the ITEM_MAX_BID record so that we know what we need to process. At this point we should always have an ITEM_MAX_BID record
+    std::string getItemInfo = fmt::format("SELECT i_num_bids, i_current_price, i_end_date, ib_id, ib_buyer_id, u_balance "
+                                        "FROM {}, {}, {}, {} "
+                                        "WHERE i_id = '{}' AND i_u_id = '{}' "
+                                        "AND imb_i_id = '{}' AND imb_u_id = '{}' " //added redundancies for better scan choice...
+                                        //"AND imb_i_id = i_id AND imb_u_id = i_u_id "
+                                        "AND imb_ib_id = ib_id "
+                                        "AND ib_i_id = '{}' AND ib_u_id = '{}' "  // because imb_ib_i_id == imb_i_d and imb_ib_u_id = imb_u_id.
+                                        //"AND imb_ib_i_id = ib_i_id AND imb_ib_u_id = ib_u_id "
+                                        "AND ib_buyer_id = u_id "
+                                        "AND ib_id = ib_id "
+                                        "AND u_id = u_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
+                                        TABLE_ITEM, TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, TABLE_USERACCT,
+                                        item_id, seller_id, item_id, seller_id, item_id, seller_id);
+                                        //This query should do Primary index scan for Item, ItemMaxBid
+                                        //After that, it should be able to do primary index scan on ItemBid and UserAcct via NestedLoop join
+                                        // //The only unknown are: ib_id and u_id
+    client.Query(getItemInfo, queryResult, timeout);
+  }
+
+  client.Wait(results);
+
   if(queryResult->empty()){
-    Panic("No ITEM_MAX_BID is available record for item");
+    std::cerr << "NO MAX BID" << std::endl;
+    Debug("No ITEM_MAX_BID is available record for item");
     client.Abort(timeout);
     return ABORTED_USER;
   }
@@ -106,9 +152,29 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
     return ABORTED_USER;
   }
 
+  //TODO: Confirm opacity. // print read set of both reads. Try to see if there is a write inbetween.
+  if(iir.ib_id != max_bid) Warning("iir.ib_id = %d. max_bid = %d", iir.ib_id, max_bid); //Might not be true, we don't guarantee Opacity
+  //UW_ASSERT(iir.ib_id == max_bid);
+  //std::string getBuyerInfo = fmt::format("SELECT u_id, u_balance FROM {} WHERE u_id = {}", TABLE_USER_ACCT, seller_id);
+
+  // Set item_purchase_id
+
+ 
+  //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
+  if(!results[0]->empty()){
+    std::cerr << "ALREADY PURCHASED" << std::endl;
+    Debug("Item has already been purchased");
+    //Update the cache
+    ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
+    ItemId itemId = profile.processItemRecord(item_rec);
+
+    client.Abort(timeout);
+    return ABORTED_USER;
+  }
+
   std::string insertPurchase = fmt::format("INSERT INTO {} (ip_ib_i_id, ip_ib_u_id, ip_id, ip_ib_id, ip_date) "
                                             "VALUES ('{}', '{}', {}, {}, {}) ", TABLE_ITEM_PURCHASE, item_id, seller_id, ip_id, iir.ib_id, current_time);
-  client.Write(insertPurchase, timeout);
+  client.Write(insertPurchase, timeout, true, true); //blind-write because we already read to check for duplicates.  //Note: Could alternatively remove the read, and just do a non-blind insert here.
 
   // Update item status to close
   std::string updateItem = fmt::format("UPDATE {} SET i_status = {}, i_updated = {} WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, ItemStatus::CLOSED, current_time, item_id, seller_id);
@@ -143,18 +209,6 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   }
 
   client.asyncWait();
-  client.Wait(results);
-
-  //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE ISSUED THE PURCHASE.) In this case: update cache and pick a different TX.
-  if(!results[0]->has_rows_affected()){ //If purchase fails.
-    Notice("Item has already been purchased");
-    //Update the cache
-    ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
-    ItemId itemId = profile.processItemRecord(item_rec);
-
-    client.Abort(timeout);
-    return ABORTED_USER;
-  }
 
 
   Debug("COMMIT");

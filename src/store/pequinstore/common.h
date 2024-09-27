@@ -432,6 +432,12 @@ inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage
     return lhs.key() < rhs.key(); 
 }
 
+inline static bool sortWriteSetByKey_no_dup(const WriteMessage &lhs, const WriteMessage &rhs) { 
+    UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
+    return lhs.key() < rhs.key(); 
+}
+
+
 inline static bool sortDepSet(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
     return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() ? lhs.involved_group() < rhs.involved_group() : lhs.write().prepared_txn_digest() < rhs.write().prepared_txn_digest()) ; 
 }

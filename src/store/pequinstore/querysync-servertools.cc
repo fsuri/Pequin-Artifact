@@ -202,13 +202,13 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
                 }
             }
 
-
             if(PRINT_READ_SET){
+                Notice("Query[%lu:%lu] read set.", query_md->ts.getTimestamp(), query_md->ts.getID());
                 for(auto &read : queryReadSetMgr.read_set->read_set()){
-                    Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                   Notice("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
                 }
                 for(auto &dep : queryReadSetMgr.read_set->deps()){
-                    Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+                    Notice("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
                 }
             }
 

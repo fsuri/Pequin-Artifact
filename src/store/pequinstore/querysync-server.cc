@@ -216,7 +216,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
-        Notice("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        Debug("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
         if(query->retry_version()>1) Warning("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
@@ -300,12 +300,6 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
 void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
 
-    //FIXME: REMOVE
-    // struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    // Warning("START PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
-
     Timestamp ts(query->timestamp()); 
 
     Debug("PointQuery[%lu:%lu] (client_id, query_seq) %s.", query->client_id(), query->query_seq_num(), query->query_cmd().c_str());
@@ -332,6 +326,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     // uint64_t microseconds_end2 = ts_end2.tv_sec * 1000 * 1000 + ts_end2.tv_nsec / 1000;
     // auto duration2 = microseconds_end2 - microseconds_start;
     // Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
+    
 
     table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
    
@@ -340,18 +335,12 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
     } 
 
+    // Notice("Query[%lu:%lu] read set. committed[%lu:%lu], prepared[%lu][%lu]", ts.getTimestamp(), ts.getID(), 
+    //             write->committed_timestamp().timestamp(), write->committed_timestamp().id(),
+    //             write->prepared_timestamp().timestamp(), write->prepared_timestamp().timestamp());
+    
     if(TEST_QUERY) TEST_QUERY_f(write, pointQueryReply);
 
-    ////////////
-    //FIXME: REMOVE
-    // struct timespec ts_end;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    // auto duration = microseconds_end - microseconds_start;
-    // Warning("PointQuery exec duration: %d us.[%lu:%lu]", duration,  query->client_id(), query->query_seq_num());
-    // if(duration > 10000) Warning("PointQuery took more than 10ms");
-
-    ////////////
     delete query;
     
 

@@ -79,7 +79,7 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   } 
 
   ItemRow ir;
-  deserialize(ir, queryResult);
+  deserialize(ir, results[0]);
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);

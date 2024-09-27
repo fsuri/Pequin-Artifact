@@ -166,15 +166,16 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     Latency_Start(&executeLatency);
     client_seq_num++;
-    //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
-    Debug("BEGIN [%lu]", client_seq_num);
-
+  
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
     // Optimistically choose a read timestamp for all reads in this transaction
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
+
+      //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
+    Notice("BEGIN [%lu]. TS[%lu:%lu]", client_seq_num, txn.timestamp().timestamp(), txn.timestamp().id());
 
     sql_interpreter.NewTx(&txn);
 
@@ -1075,6 +1076,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       for(auto &write: txn.write_set()){
         Notice("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 0);
       }
+
+      Notice("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &read: txn.read_set()){
+        Notice("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
+      }
     }
 
     Phase1(req);
@@ -1524,7 +1530,7 @@ void Client::Writeback(PendingRequest *req) {
 
   //total_writebacks++;
   Debug("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
-  //Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {

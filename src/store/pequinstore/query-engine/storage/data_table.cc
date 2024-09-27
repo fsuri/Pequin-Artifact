@@ -550,7 +550,22 @@ void DataTable::UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::
             same_columns = false;
           }
         }
-        if(!same_columns) Panic("Columns don't match. Is upgrade? %d", should_upgrade);
+        if(!same_columns){
+          Notice("Column values of existing tuple (TS[%lu:%lu])", curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset).getTimestamp(), curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset).getID());
+          for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+            auto val1 = curr_tile_group->GetValue(curr_pointer.offset, col_idx);
+            Notice("column[%d]: [%s]", col_idx, val1.ToString().c_str());
+          }
+          Notice("Column values of new tuple (TS[%lu:%lu])", ts.getTimestamp(), ts.getID());
+          for (uint32_t col_idx = 0; col_idx < schema->GetColumnCount(); col_idx++) {
+            auto val2 = tuple->GetValue(col_idx);
+            Notice("column[%d]: [%s]", col_idx, val2.ToString().c_str());
+          }
+
+          Panic("Columns of TX[%s] (TS:[%lu:%lu]) don't match. Is upgrade? %d. Curr tuple status: %d. New tuple status: %d", 
+              pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), ts.getTimestamp(), ts.getID(), should_upgrade,
+              curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare());
+        } 
         UW_ASSERT(same_columns); //TODO: remove same_columns check? Should always be the case..
 
         // For snapshotting upgrade from materialize to commit

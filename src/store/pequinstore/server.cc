@@ -2236,6 +2236,8 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
       //TODO: Insert into table as well.
     }
+
+    //Notice("Preparing key:[%s]. Ts[%lu:%lu]", write.key().c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
   }
 
   //TODO: Improve Precision for Multi-shard TXs.
@@ -2479,6 +2481,8 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     if (!IsKeyOwned(write.key())) {
       continue;
     }
+
+    //Notice("Commit key:[%s]. Ts[%lu:%lu]", write.key().c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
 
     Debug("COMMIT[%lu,%lu] Committing write for key %s.", txn->client_id(), txn->client_seq_num(), write.key().c_str());
     

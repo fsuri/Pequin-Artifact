@@ -420,6 +420,8 @@ namespace auctionmark
       item_info.set_status(new_status);
     }
 
+    fprintf(stderr, "Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d", items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
+
     return new_status;
   }
 
