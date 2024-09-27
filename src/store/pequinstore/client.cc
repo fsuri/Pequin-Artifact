@@ -1530,7 +1530,7 @@ void Client::Writeback(PendingRequest *req) {
 
   //total_writebacks++;
   Debug("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
-  Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  //Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {

@@ -475,9 +475,9 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     profile.users_per_item_count[num_items]++;   //increment value freq by 1 count.
   }
 
-  // for(auto &[item, users]: profile.users_per_item_count){
-  //   std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
-  // }
+  for(auto &[item, users]: profile.users_per_item_count){
+    std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
+  }
 
   UserIdGenerator idGenerator(profile.users_per_item_count, FLAGS_client_total);
 
@@ -668,9 +668,9 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   assert(itemInfo.get_status() == ItemStatus::OPEN || itemInfo.get_status() == ItemStatus::CLOSED);
   profile.add_item_to_proper_queue(itemInfo, true);
 
-   if(itemInfo.get_status() == ItemStatus::OPEN) num_open_items++;
-   if(itemInfo.get_status() == ItemStatus::ENDING_SOON) num_ending_soon_items++;
-    if(itemInfo.get_status() == ItemStatus::WAITING_FOR_PURCHASE) num_waiting_for_purchase_items++;
+  if(itemInfo.get_status() == ItemStatus::OPEN) num_open_items++;
+  if(itemInfo.get_status() == ItemStatus::ENDING_SOON) num_ending_soon_items++;
+  if(itemInfo.get_status() == ItemStatus::WAITING_FOR_PURCHASE) num_waiting_for_purchase_items++;
   if(itemInfo.get_status() == ItemStatus::CLOSED) num_closed_items++;
 
   //   if(itemInfo.get_status() == ItemStatus::WAITING_FOR_PURCHASE){

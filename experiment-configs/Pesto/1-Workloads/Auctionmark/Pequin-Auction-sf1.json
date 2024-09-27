@@ -19,7 +19,7 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-auctionmark-tables-schema.json",
   
    "_server_load_time": 15,
-   "server_load_time": 7,
+   "server_load_time": 8,
   
    "_AUCTIONMARK_SQL_ARGS_" :0,
   	  "scale_factor": 1,
@@ -135,24 +135,24 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
 
-  "client_total": [
+  "_client_total": [
     [30]
   ],
-  "client_processes_per_client_node": [
+  "_client_processes_per_client_node": [
     [8]
   ],
-  "client_threads_per_process": [
+  "_client_threads_per_process": [
     [1]
   ],
 
-  "_client_total": [
-    [1, 5, 10, 15, 20, 25, 30]
+  "client_total": [
+    [1, 5, 10, 15, 20, 25, 30, 35]
   ],
-  "_client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8]
+  "client_processes_per_client_node": [
+    [8, 8, 8, 8, 8, 8, 8, 8]
   ],
-  "_client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1]
+  "client_threads_per_process": [
+    [1, 1, 1, 1, 1, 1, 1, 1]
   ],
 
   "client_nodes_per_server": 1,

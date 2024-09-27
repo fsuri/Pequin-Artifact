@@ -318,7 +318,7 @@ namespace auctionmark
    
     if (item_info.has_current_price())
     {
-      if (items.size() < ITEM_ID_CACHE_SIZE)
+      if (is_loader || items.size() < ITEM_ID_CACHE_SIZE)
       {
         items.push_back(item_info);
 
@@ -405,22 +405,22 @@ namespace auctionmark
       switch (new_status)
       {
       case ItemStatus::OPEN:
-        add_item(items_available, item_info);
+        add_item(items_available, item_info, is_loader);
         break;
       case ItemStatus::ENDING_SOON:
-        add_item(items_ending_soon, item_info);
+        add_item(items_ending_soon, item_info, is_loader);
         break;
       case ItemStatus::WAITING_FOR_PURCHASE:
-        add_item(items_waiting_for_purchase, item_info);
+        add_item(items_waiting_for_purchase, item_info, is_loader);
         break;
       case ItemStatus::CLOSED:
-        add_item(items_completed, item_info);
+        add_item(items_completed, item_info, is_loader);
         break;
       }
       item_info.set_status(new_status);
     }
 
-    fprintf(stderr, "Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d", items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
+    //fprintf(stderr, "Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d", items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
 
     return new_status;
   }
@@ -592,6 +592,9 @@ namespace auctionmark
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile() {
+    fprintf(stderr, "Saving to profile. Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d\n", 
+            items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
+
     std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
     std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
     std::ofstream profile_save_file;
@@ -653,6 +656,7 @@ namespace auctionmark
       for (int i = 0; i < ITEM_SETS_NUM; i++) {
         auto &list = *all_item_sets[i];
         std::shuffle(list.begin(), list.end(), gen);
+        list.resize(ITEM_ID_CACHE_SIZE);
     }
   }
 

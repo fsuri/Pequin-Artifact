@@ -1207,6 +1207,9 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
 
 std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k) {
   
+ //if(query_statement.find("item, item_max_bid, item_bid, useracct") != std::string::npos) Notice("Executing Giga join: %s", query_statement.c_str());
+  //Notice("Executing query: %s", query_statement.c_str());
+
   //Perform EagerRead + FindSnapshot in one go
   Debug("Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 

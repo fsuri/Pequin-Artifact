@@ -142,9 +142,9 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     queryResult = std::move(results[i]);
     // std::cerr << "res size: " << res->size() << std::endl;
     deserialize(gag_name, queryResult, 0, 0);
-    std::cerr <<"gagname: " << gag_name << std::endl;
+    //std::cerr <<"gagname: " << gag_name << std::endl;
     deserialize(gav_name, queryResult, 0, 1);
-     std::cerr <<"gavname: " << gav_name << std::endl;
+    // std::cerr <<"gavname: " << gav_name << std::endl;
     description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
   }      
   offset += gag_ids.size();
