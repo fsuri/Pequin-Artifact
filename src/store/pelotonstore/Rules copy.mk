@@ -7,6 +7,7 @@ PROTOS += $(addprefix $(d), pbft-proto.proto server-proto.proto)
 # HotStuff static libraries
 LIB-hotstuff-pg-interface := store/hotstuffstore/libhotstuff/examples/libindicus_interface.a store/hotstuffstore/libhotstuff/salticidae/libsalticidae.a store/hotstuffstore/libhotstuff/libhotstuff.a store/hotstuffstore/libhotstuff/secp256k1/.libs/libsecp256k1.a
 
+
 LIB-pbft-batched-sigs := $(LIB-crypto) $(o)pbft_batched_sigs.o 
 
 LIB-hotstuff-pg-store := $(o)common.o $(o)replica.o $(o)server.o \
@@ -14,6 +15,13 @@ LIB-hotstuff-pg-store := $(o)common.o $(o)replica.o $(o)server.o \
 	$(o)client.o $(LIB-crypto) $(LIB-pbft-batched-sigs) $(LIB-configuration) $(LIB-store-common) \
 	$(LIB-transport) $(LIB-store-backend) $(LIB-hotstuff-pg-interface)
 
-LIB-peloton := $(LIB-adr-p) $(LIB-binder-p) $(LIB-catalog-p) $(LIB-common-p) $(LIB-concurrency-p) $(LIB-executor-p) $(LIB-expression-p) $(LIB-function-p) \
-	$(LIB-gc-p) $(LIB-index-p) $(LIB-murmur-p) $(LIB-optimizer-p) $(LIB-parser-p) $(LIB-planner-p) $(LIB-settings-p) $(LIB-storage-p) $(LIB-threadpool-p) $(LIB-traffic-cop-p) \
-	$(LIB-type-p) $(LIB-trigger-p) $(LIB-util-p) $(LIB-statistics-p) $(LIB-trigger-p) $(LIB-tuning-p) #$(LIB-udf-p)
+# LIB-pbft-client := $(LIB-udptransport) \
+# 	$(LIB-store-frontend) $(LIB-store-common) $(o)pbft-proto.o \
+# 	$(o)client.o $(LIB-bft-tapir-config) \
+# 	$(LIB-crypto)
+
+#$(d)testserver: $(LIB-pbft-store) $(LIB-udptransport) $(o)testreplica.o
+#$(d)testclient: $(LIB-pbft-store) $(LIB-udptransport) $(o)testclient.o
+
+#BINS += $(d)testserver
+#BINS += $(d)testclient

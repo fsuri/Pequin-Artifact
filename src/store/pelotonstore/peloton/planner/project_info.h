@@ -82,7 +82,7 @@ class ProjectInfo {
                 const AbstractTuple *tuple2,
                 executor::ExecutorContext *econtext) const;
 
-  std::string Debug() const;
+  std::string Deb1ug() const;
 
   std::unique_ptr<const ProjectInfo> Copy() const {
     std::vector<Target> new_target_list;

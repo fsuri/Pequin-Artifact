@@ -190,11 +190,14 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
     task_callback_(task_callback_arg_);
   };
 
-  auto &pool = threadpool::MonoQueuePool::GetInstance();
+  /*auto &pool = threadpool::MonoQueuePool::GetInstance();
   pool.SubmitTask([plan, txn, &params, &result_format, on_complete] {
     executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
                                         on_complete);
-  });
+  });*/
+
+  executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
+                                        on_complete);
 
   is_queuing_ = true;
 

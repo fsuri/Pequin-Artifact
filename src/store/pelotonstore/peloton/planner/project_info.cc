@@ -161,7 +161,7 @@ void ProjectInfo::PartitionInputs(
   }
 }
 
-std::string ProjectInfo::Debug() const {
+std::string ProjectInfo::Deb1ug() const {
   std::ostringstream buffer;
   buffer << "Target List: < DEST_column_id , expression >\n";
   for (auto &target : target_list_) {
