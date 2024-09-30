@@ -389,6 +389,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
 
         if(TEST_MATERIALIZE_FORCE) TEST_MATERIALIZE_FORCE_f(txn, tx_id);
      
+       Debug("Txn part of snapshot is locally present, but not materialized (might be abstain, or still in process of preparing). Register force mat[%s]!", BytesToHex(tx_id, 16).c_str());
         RegisterForceMaterialization(tx_id, txn); 
     }
 
@@ -510,9 +511,12 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
 bool Server::RegisterForceMaterialization(const std::string &txnDigest, const proto::Transaction *txn){
  //Note: This is called if a Tx is ongoing but not committed/aborted & it is not yet materialized. (ongoing indicates that it has or will TryPrepare)
 
+  Debug("Register ForceMaterialize Txn[%s]!", BytesToHex(txnDigest, 16).c_str());
+
   p1MetaDataMap::accessor c;
   p1MetaData.insert(c, txnDigest); 
-  if(c->second.hasP1){  //if already has a p1 result => ForceMat
+  if(c->second.hasP1 && !c->second.alreadyForceMaterialized){  //if already has a p1 result => ForceMat
+    c->second.alreadyForceMaterialized = true; //avoid forceMat twice.
     Debug("Txn[%s] hasP1 result. Attempting force materialization.", BytesToHex(txnDigest, 16).c_str());
     ForceMaterialization(c->second.result, txnDigest, txn); //Note: This only force materializes if the result is abstain (i.e. if it's not materialized yet)
     return false;

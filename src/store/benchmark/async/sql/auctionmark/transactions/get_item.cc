@@ -38,7 +38,7 @@ GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
     // UW_ASSERT(itemInfo_opt.has_value());
 
     ItemInfo itemInfo = *profile.get_random_available_item();
-    std::cerr << "ItemInfo: " << itemInfo.get_item_id().to_string() << std::endl;
+    Debug("ItemInfo: %s", itemInfo.get_item_id().to_string().c_str());
     item_id = itemInfo.get_item_id().encode();
     seller_id = itemInfo.get_seller_id().encode();
 

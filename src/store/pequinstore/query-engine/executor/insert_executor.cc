@@ -254,15 +254,27 @@ bool InsertExecutor::DExecute() {
 
       bool is_purge = current_txn->GetUndoDelete();
 
-      //If inserting a NEW row version. (if there is already a row version exists yet)
-      if (!result && !is_duplicate && !is_purge) {
-      
+      if(is_duplicate){
+        //do nothing. We are updating it in data table.
+      }
+      //Note: If version is "purged", but its the first occurence of the row, still write it.
+      else if(result){ //== first version
+        InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
+      }
+      else{
         InsertNewVersion(project_info, target_table, transaction_manager, current_txn, location, old_location, index_entry_ptr);
       }
-      //  //If inserting a NEW row version, and it is the first version of the row
-      else if (!is_duplicate && !is_purge) {
-          InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
-      }
+
+
+      // //If inserting a NEW row version. (if there is already a row version exists yet)
+      // if (!result && !is_duplicate && !is_purge) {
+      
+      //   InsertNewVersion(project_info, target_table, transaction_manager, current_txn, location, old_location, index_entry_ptr);
+      // }
+      // //  //If inserting a NEW row version, and it is the first version of the row
+      // else if (!is_duplicate && !is_purge) {
+      //     InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
+      // }
 
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);

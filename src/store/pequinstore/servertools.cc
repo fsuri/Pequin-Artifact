@@ -1237,7 +1237,13 @@ bool Server::BufferP1Result(p1MetaDataMap::accessor &c, proto::ConcurrencyContro
       }
     }
 
-    if(!forceMaterialize) {
+    //Simplify this code...
+    if(forceMaterialize){ //if trying to ForceMat, check if we've already previously forceMat
+        if(c->second.alreadyForceMaterialized) forceMaterialize = false;
+        c->second.alreadyForceMaterialized = true;
+        c->second.forceMaterialize = false;
+    }
+    else if(!forceMaterialize) { //if not trying to ForceMat, check if forceMat was registered.
       forceMaterialize = c->second.forceMaterialize;
       c->second.forceMaterialize = false; // Only forceMat once.
     }

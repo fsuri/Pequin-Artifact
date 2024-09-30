@@ -679,12 +679,16 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     //if(timestamp.getID() == 0) Notice("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
-    tile_group_header->GetSpinLatch(tuple_location.offset).Lock();
+    tile_group_header->GetSpinLatch(tuple_location.offset).Lock(); //TODO//FIXME: This latch is useless. 
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
+
+    //Note for Primary index scan: Since we are not holding a lock during reads, the tuple_location might not be the head even for primary index scan. We are simply "correcting" to the header if possible.
+    //For Secondary index scan it is natural that the tuple location is not necessarily the head.
 
     if (head == nullptr) {
       std::cerr << "Head is null and location of curr tuple is (" << tuple_location.block << ", " << tuple_location.offset << ")" << std::endl;
-      Warning("head of linked list is null");
+      if(!(*head == tuple_location)) Panic("Head of linked list == nullptr; but current tuple location isnt. How is this possible");
+      Panic("Head of linked list == nullptr...");
       return;
     }
 

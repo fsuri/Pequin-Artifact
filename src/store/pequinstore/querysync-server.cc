@@ -1060,7 +1060,7 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
      //check if locally committed; if not, check cert and apply
         
-    Debug("Received supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
+    Notice("Received supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
 
     auto itr = committed.find(txn_id);
     if(!TEST_SYNC && itr != committed.end()){
@@ -1086,7 +1086,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     //Check if other replica had aborted (If so, exclude this tx from snapshot; Alternatively could fail sync eagerly, but that seems unecessary)
     if(txn_info.abort()){ 
-        Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
+        Notice("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
         UW_ASSERT(txn_info.has_abort_proof());
         // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
 
@@ -1161,11 +1161,12 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
                 }
                 //Note: Mcb will be called on network thread --> dispatch to worker again.
                 auto f = [this, txn_id, proof]() mutable{
-                     Debug("Committing proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+                    Notice("Via supply: Committing proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+                    if(committed.find(txn_id) != committed.end()) return (void*) true; //duplicate, do nothing. TODO: Forward to all interested clients and empty it?
                     CommitWithProof(txn_id, proof);
                     return (void*) true;
                 };
-                transport->DispatchTP_noCB(std::move(f));
+                transport->DispatchTP_noCB(std::move(f));  //Technically Commit Callback should go onto mainthread, but its probably fine either way.
                 return (void*) true;
             };
             asyncValidateCommittedProof(*proof, &txn_id, keyManager, &config, verifier, std::move(mcb), transport, params.multiThreading, params.batchVerification);
@@ -1178,7 +1179,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     p1MetaDataMap::const_accessor c;
     if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
         c.release();
-         Debug("Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        Debug("Via sync. Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         if(txn_info.has_p1()){
              RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
              return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
@@ -1202,7 +1203,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         // Handle incoming p1 as a normal P1 and Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
            
          Debug("Received Phase1 message");
-         Debug("Trying to prepare tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+        Notice("Via sync: Trying to prepare tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
     
         proto::Phase1 *p1 = txn_info.release_p1();
 
@@ -1246,7 +1247,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             //if(params.signClientProposals) *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
             *txn->mutable_txndigest() = txn_dig; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
-            Debug("ProcessProposal via Sync. Txn: %s", BytesToHex(txn_dig, 16).c_str());
+            Debug("[CPU:%d] ProcessProposal via Sync. Txn: %s", sched_getcpu(), BytesToHex(txn_dig, 16).c_str());
             const TCPTransportAddress *dummy_remote = new TCPTransportAddress(sockaddr_in()); //must allocate because ProcessProposal binds ref...
             ProcessProposal(*p1, *dummy_remote, txn, txn_dig, true, true); //Set gossip to true ==> No reply; set forceMaterialize to true   (Shouldn't be necessary anymore with the RegisterForce logic)                    
             if((!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC)) && (!params.multiThreading || !params.signClientProposals)){
@@ -1258,6 +1259,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         };
 
         if(!params.query_params.parallel_queries || !params.mainThreadDispatching){  //TODO: Realistically: Always running with multiThreading now. Just configure parallel_queries?
+            Panic("wrong branch");
             //If !parallel_queries.  ==> both Query and P1 follow the same dispatch rules (either both on network or both on main)
             //if parallel_queries && !mainThreadDispatching  => parallel_queries has no effect. Thus both Query and P1 follow same dispatch rules (depends on dispatchMessageReceive)
             f();

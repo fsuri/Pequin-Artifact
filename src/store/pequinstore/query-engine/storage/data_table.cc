@@ -588,8 +588,9 @@ void DataTable::UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::
         } else { // if prepare comes after commit; or if we prepare twice/commit twice  => Do nothing.
    
           if(curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) == transaction->GetCommitOrPrepare() ) {
-            Notice("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
+            Notice("Tried to prepare twice or commit twice for same TX. Try Upgrade [txn: %s]. Should upgrade? %d. Current commit/prepare state: %d. Txn state: %d. Curr ForceMat? %d. Tx ForceMat? %d. Same columns? %d. TS[%lu:%lu]. TXN-TS[%lu:%lu]. Dig[%s]. TXN-Dig[%s]. tile-group-header:offset [%lu:%lu]", 
                   pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), should_upgrade, curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset), transaction->GetCommitOrPrepare(),
+                  curr_tile_group_header->GetMaterialize(curr_pointer.offset), transaction->GetForceMaterialize(),
                   same_columns, ts.getTimestamp(), ts.getID(), transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(),
                   pequinstore::BytesToHex(*curr_tile_group_header->GetTxnDig(curr_pointer.offset),16).c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(),16).c_str(),
                   curr_pointer.block, curr_pointer.offset);
@@ -643,14 +644,13 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     // ItemPointer *old_location;
     auto result = InsertTuple(tuple, location, transaction, old_location, index_entry_ptr, check_fk);
     if (result == false) {
-      Debug("InsertTuple result false");
+      Panic("InsertTuple result false");
       //  check_fk = false;
       exists = false;  //TODO: Always set false.
       // return INVALID_ITEMPOINTER;
     }
     //if(transaction->GetBasilTimestamp().getTimestamp() > 0) Notice("Inserted tuple[%s] to tile-group-header:offset [%lu:%lu]", tuple->GetInfo().c_str(), location.block, location.offset); //don't print during load time
    
-
     if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0)  atomic_index.unlock();
 
     return location; //*old_location;
@@ -658,6 +658,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
   }
   //If there is a version linked list: Find right position to insert.
   else {
+    exists = false;
   // if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) atomic_index.unlock();
 
     auto tile_group = this->GetTileGroupById(check.block);

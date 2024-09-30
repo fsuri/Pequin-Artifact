@@ -568,11 +568,14 @@ SQLTransformer *sql_interpreter;
 ///////////////
 
   inline size_t GetNthClosestReplica(size_t idx) const {
+    size_t replica_idx;
     if (pingReplicas && GetOrderedReplicas().size() > 0) {
-      return GetOrderedReplicas()[idx];
+      replica_idx = GetOrderedReplicas()[idx];
     } else {
-      return closestReplicas[idx];
+      replica_idx = closestReplicas[idx];
     }
+    UW_ASSERT(replica_idx < config->n);
+    return replica_idx;
   }
 
   Stats *stats;

@@ -699,6 +699,7 @@ namespace auctionmark
       configure_initial(client_id);
      
     } else {
+      assert(false);
       copy_profile(client_id, *AuctionMarkProfile::cached_profile);
     }
   }

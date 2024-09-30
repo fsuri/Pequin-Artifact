@@ -175,7 +175,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_id(client_id);
 
       //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
-    Notice("BEGIN [%lu]. TS[%lu:%lu]", client_seq_num, txn.timestamp().timestamp(), txn.timestamp().id());
+    Debug("BEGIN [%lu]. TS[%lu:%lu]", client_seq_num, txn.timestamp().timestamp(), txn.timestamp().id());
 
     sql_interpreter.NewTx(&txn);
 

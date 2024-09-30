@@ -2364,7 +2364,7 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   Value val;
   val.proof = proof;
 
-  auto committedItr = committed.insert(std::make_pair(txnDigest, proof));
+  auto [committedItr, first] = committed.insert(std::make_pair(txnDigest, proof));
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
 
@@ -2457,7 +2457,8 @@ void Server::UpdateCommittedReads(proto::Transaction *txn, const std::string &tx
 void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn, const std::string &txnDigest, Timestamp &ts, Value &val){
   std::vector<const std::string*> table_and_col_versions; 
 
-  if(ts.getTimestamp() <= 10000) Panic("Trying to Commit TX TS [%lu:%lu]", ts.getTimestamp(), ts.getID());
+  Debug("Commit Tx[%s] Ts[%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
+
 
   UpdateCommittedReads(txn, txnDigest, ts, proof);
 

@@ -562,6 +562,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         //could have a list of interested clients.
 
         bool forceMaterialize;
+        bool alreadyForceMaterialized;
       };
       typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
     p1MetaDataMap p1MetaData;

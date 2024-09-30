@@ -98,7 +98,18 @@ public:
         //mtx.unlock();
 
         auto kv = replicaAddresses[cfg][groupIdx].find(replicaIdx);
-        UW_ASSERT(kv != replicaAddresses[cfg][groupIdx].end());
+        //UW_ASSERT(kv != replicaAddresses[cfg][groupIdx].end());
+        if(kv == replicaAddresses[cfg][groupIdx].end()){
+            for(auto &[grp, repl]: replicaAddresses[cfg]){
+        
+                    Notice("G[%d]", grp);
+                    for(auto &[r, _]: repl){
+                        Notice("  R[%d]", r);
+                    }
+            
+            }
+            Panic("replicaIdx: %d. groupIdx: %d", replicaIdx, groupIdx);
+        }
 
         return SendMessageInternal(src, kv->second, m);
     }
