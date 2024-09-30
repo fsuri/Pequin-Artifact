@@ -809,20 +809,28 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig, bool undo_delete, size_t thread_id) {
-  auto &curr_state = GetCurrentTxnState();
+  //auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
-  if (!tcop_txn_state_.empty()) {
-    txn = curr_state.first;
-  } else {
-    // No active txn, single-statement txn
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  // if (!tcop_txn_state_.empty()) {
+  //   txn = curr_state.first;
+  // } else {
+  //   // No active txn, single-statement txn
+  //   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  //   // new txn, reset result status
+  //   curr_state.second = ResultType::SUCCESS;
+  //   single_statement_txn_ = true;
+  //   txn = txn_manager.BeginTransaction(thread_id);
+  //   tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  // }
+
+   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+   auto &curr_state = GetDefaultTxnState();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
     single_statement_txn_ = true;
     txn = txn_manager.BeginTransaction(thread_id);
-    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
-  }
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);

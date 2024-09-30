@@ -27,6 +27,7 @@ namespace auctionmark
     gen.seed(client_id);
     //std::cerr << "Constructing AuctionMarkProfile" << std::endl;
 
+    //initialize_user_id_generator(client_id);
     user_id_generator = std::nullopt;
 
     random_initial_price = Zipf(gen, ITEM_INITIAL_PRICE_MIN, ITEM_INITIAL_PRICE_MAX, ITEM_INITIAL_PRICE_SIGMA);
@@ -156,7 +157,6 @@ namespace auctionmark
       initialize_user_id_generator(client_id);
     }
 
-
     std::optional<UserId> user_id = std::nullopt;
     int tries = 1000;
     int num_users = user_id_generator->get_total_users() - 1;
@@ -181,7 +181,6 @@ namespace auctionmark
      
     
       if (!user_id.has_value()){
-        //std::cerr << "didn't find val" << std::endl;
         continue;
       }
 
@@ -595,6 +594,16 @@ namespace auctionmark
     fprintf(stderr, "Saving to profile. Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d\n", 
             items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
 
+    // //TEST
+    // initialize_user_id_generator(4);
+    // for(int i = 0; i < 10; ++i){
+    // std::vector<UserId> exclude = {};
+    
+    //  UserId user = get_random_user_id(0, 4, exclude);
+    //  fprintf(stderr, "Random user: %s\n", user.to_string().c_str());
+    // }
+    // //TEST
+
     std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
     std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
     std::ofstream profile_save_file;
@@ -639,6 +648,7 @@ namespace auctionmark
         }
       }
       std::shuffle(list.begin(), list.end(), gen);
+      list.resize(ITEM_ID_CACHE_SIZE);
     }
 
     for (ItemCommentResponse cr : other.pending_comment_responses) {
@@ -657,7 +667,11 @@ namespace auctionmark
         auto &list = *all_item_sets[i];
         std::shuffle(list.begin(), list.end(), gen);
         list.resize(ITEM_ID_CACHE_SIZE);
+        assert(list.size() <= ITEM_ID_CACHE_SIZE);
     }
+    // for(auto &item: items_available){
+    //   fprintf(stderr, "item: %s. user: %s. \n", item.get_item_id().to_string().c_str(), item.get_seller_id().to_string().c_str());
+    // }
   }
 
   void AuctionMarkProfile::load_profile(const std::string &profile_file_path, int client_id) {
@@ -679,11 +693,11 @@ namespace auctionmark
       }
       profile_save_file.close();
 
-      AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
-      AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
+      //Note: Disable Caching profile. Otherwise multiple threads of same client might share same cache?
+      // AuctionMarkProfile::cached_profile = new AuctionMarkProfile(client_id, num_clients, scale_factor);
+      // AuctionMarkProfile::cached_profile->copy_profile(client_id, *this);
       configure_initial(client_id);
-      // AuctionMarkProfile::cached_profile->set_and_get_client_start_time();
-      // AuctionMarkProfile::cached_profile->update_and_get_current_time();
+     
     } else {
       copy_profile(client_id, *AuctionMarkProfile::cached_profile);
     }

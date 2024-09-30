@@ -475,8 +475,23 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
     profile.users_per_item_count[num_items]++;   //increment value freq by 1 count.
   }
 
+  uint64_t item_total = 0;
+  
   for(auto &[item, users]: profile.users_per_item_count){
+    item_total += (item * users);
+   
     std::cerr << "item_cnt: " << item << " --> " << users << std::endl;
+  }
+  std::cerr << std::endl << "item total: " << item_total << std::endl;
+
+  uint64_t item_sum = 0;
+  uint64_t user_sum = 0;
+  for(auto &[item, users]: profile.users_per_item_count){
+    item_sum += (item * users);
+    user_sum += users;
+    double user_frac = (double) user_sum / (double) num_users;
+    double item_frac = (double) item_sum / (double) item_total;
+    fprintf(stderr, "%d users hold %d items. Frac: %.4f %.2f\n", user_sum, item_sum, user_frac, item_frac);
   }
 
   UserIdGenerator idGenerator(profile.users_per_item_count, FLAGS_client_total);
@@ -547,16 +562,18 @@ static int num_waiting_for_purchase_items = 0;
 static int num_closed_items = 0;
 
 std::vector<LoaderItemInfo> GenerateItemTableData(TableWriter &writer, AuctionMarkProfile &profile, std::vector<UserId> &user_ids){
- 
+  std::cerr << "Generate Item Table" << std::endl;
 
   std::vector<LoaderItemInfo> items;
 
-  int tableSize = 0;
+  uint64_t tableSize = 0;
   // for(int i = 0; i < profile.users_per_item_count.size(); ++i){
   //   tableSize += i * profile.users_per_item_count[i];
   // }
   for(auto &[item_cnt, users]: profile.users_per_item_count){
+    //std::cerr << "item_cnt: " << item_cnt << " --> " << users << std::endl;
     tableSize += item_cnt * users;
+    //std::cerr << "curr_table_size: " << tableSize << std::endl;
   }
 
   
