@@ -119,8 +119,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 10,
-		  "non_monotonicity_grace": 30,
+		  "monotonicity_grace": 30,
+		  "non_monotonicity_grace": 80,
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
