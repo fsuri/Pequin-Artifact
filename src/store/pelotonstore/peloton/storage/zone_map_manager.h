@@ -4,7 +4,7 @@
 //
 // zone_map_manager.h
 //
-// Identification: src/include/storage/zone_map_manager.h
+// Identification: src/include/../storage/zone_map_manager.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <sstream>
 
-#include "common/macros.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

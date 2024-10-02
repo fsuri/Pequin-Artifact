@@ -13,8 +13,8 @@
 #pragma once
 
 #include <memory>
-#include "brain/util/eigen_util.h"
-#include "brain/util/tf_session_entity/tf_session_entity_io.h"
+#include "brain/../util/eigen_util.h"
+#include "brain/../util/tf_session_entity/tf_session_entity_io.h"
 
 namespace peloton_peloton {
 namespace brain {

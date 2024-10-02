@@ -4,24 +4,24 @@
 //
 // stats_calculator.cpp
 //
-// Identification: src/optimizer/stats_calculator.cpp
+// Identification: src/../../optimizer/stats_calculator.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/stats_calculator.h"
+#include "../../optimizer/stats/stats_calculator.h"
 
 #include <cmath>
 
-#include "catalog/table_catalog.h"
-#include "expression/expression_util.h"
-#include "expression/tuple_value_expression.h"
-#include "optimizer/memo.h"
-#include "optimizer/stats/column_stats.h"
-#include "optimizer/stats/table_stats.h"
-#include "optimizer/stats/selectivity.h"
-#include "optimizer/stats/stats_storage.h"
+#include "../../catalog/table_catalog.h"
+#include "../../expression/expression_util.h"
+#include "../../expression/tuple_value_expression.h"
+#include "../../optimizer/memo.h"
+#include "../../optimizer/stats/column_stats.h"
+#include "../../optimizer/stats/table_stats.h"
+#include "../../optimizer/stats/selectivity.h"
+#include "../../optimizer/stats/stats_storage.h"
 
 namespace peloton_peloton {
 namespace optimizer {

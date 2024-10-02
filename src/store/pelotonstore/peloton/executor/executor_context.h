@@ -4,7 +4,7 @@
 //
 // executor_context.h
 //
-// Identification: src/include/executor/executor_context.h
+// Identification: src/include/../executor/executor_context.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,8 +13,8 @@
 #pragma once
 
 //#include "codegen/query_parameters.h"
-#include "type/ephemeral_pool.h"
-#include "type/value.h"
+#include "../type/ephemeral_pool.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 
@@ -23,7 +23,7 @@ class TransactionContext;
 }  // namespace concurrency
 
 namespace storage {
-class StorageManager;
+class storagemanager;
 }  // namespace storage
 
 namespace executor {
@@ -53,7 +53,7 @@ class ExecutorContext {
   const std::vector<type::Value> &GetParamValues() const;
 
   /// Return the storage manager for the database
-  storage::StorageManager &GetStorageManager() const;
+  storage::storagemanager &Getstoragemanager() const;
 
   /// Return the query parameters
   //codegen::QueryParameters &GetParams();
@@ -101,7 +101,7 @@ class ExecutorContext {
   //codegen::QueryParameters parameters_;
   std::vector<type::Value> parameters_;
   // The storage manager instance
-  storage::StorageManager *storage_manager_;
+  storage::storagemanager *storage_manager_;
   // Temporary memory pool for allocations done during execution
   type::EphemeralPool pool_;
   // Container for all states of all thread participating in this execution

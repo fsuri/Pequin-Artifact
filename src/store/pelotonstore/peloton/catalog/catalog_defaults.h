@@ -4,14 +4,14 @@
 //
 // catalog_defaults.h
 //
-// Identification: src/include/catalog/catalog_defaults.h
+// Identification: src/include/../catalog/catalog_defaults.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace catalog {

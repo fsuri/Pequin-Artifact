@@ -4,7 +4,7 @@
 //
 // binder_context.h
 //
-// Identification: src/include/binder/binder_context.h
+// Identification: src/include/../binder/binder_context.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,8 +13,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "catalog/catalog.h"
-#include "common/internal_types.h"
+#include "../catalog/catalog.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

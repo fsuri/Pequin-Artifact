@@ -4,14 +4,14 @@
 //
 // rule.h
 //
-// Identification: src/optimizer/rule.cpp
+// Identification: src/../optimizer/rule.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/rule_impls.h"
-#include "optimizer/group_expression.h"
+#include "../optimizer/rule_impls.h"
+#include "../optimizer/group_expression.h"
 
 namespace peloton_peloton {
 namespace optimizer {

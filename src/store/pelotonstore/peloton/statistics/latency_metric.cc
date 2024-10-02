@@ -4,7 +4,7 @@
 //
 // latency_metric.cpp
 //
-// Identification: src/statistics/latency_metric.cpp
+// Identification: src/../statistics/latency_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #include <algorithm>
 
-#include "statistics/latency_metric.h"
-#include "common/macros.h"
+#include "../statistics/latency_metric.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace stats {

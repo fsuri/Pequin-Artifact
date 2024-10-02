@@ -4,19 +4,19 @@
 //
 // operator_to_plan_transformer.cpp
 //
-// Identification: src/optimizer/operator_to_plan_transformer.cpp
+// Identification: src/../optimizer/operator_to_plan_transformer.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/expression_util.h"
-#include "optimizer/input_column_deriver.h"
-#include "optimizer/memo.h"
-#include "optimizer/operator_expression.h"
-#include "optimizer/operators.h"
-#include "optimizer/properties.h"
-#include "storage/data_table.h"
+#include "../expression/expression_util.h"
+#include "../optimizer/input_column_deriver.h"
+#include "../optimizer/memo.h"
+#include "../optimizer/operator_expression.h"
+#include "../optimizer/operators.h"
+#include "../optimizer/properties.h"
+#include "../storage/data_table.h"
 
 using std::vector;
 using std::make_pair;

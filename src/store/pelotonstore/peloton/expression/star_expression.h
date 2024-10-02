@@ -4,7 +4,7 @@
 //
 // star_expression.h
 //
-// Identification: src/include/expression/star_expression.h
+// Identification: src/include/../expression/star_expression.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include "expression/abstract_expression.h"
+#include "../expression/abstract_expression.h"
 
 #include <string>
 
-#include "common/sql_node_visitor.h"
-#include "type/value_factory.h"
+#include "../common/sql_node_visitor.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace expression {

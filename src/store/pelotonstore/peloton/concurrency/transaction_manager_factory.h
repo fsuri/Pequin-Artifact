@@ -4,7 +4,7 @@
 //
 // transaction_manager_factory.h
 //
-// Identification: src/include/concurrency/transaction_manager_factory.h
+// Identification: src/include/../concurrency/transaction_manager_factory.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "concurrency/timestamp_ordering_transaction_manager.h"
+#include "../concurrency/timestamp_ordering_transaction_manager.h"
 
 namespace peloton_peloton {
 namespace concurrency {

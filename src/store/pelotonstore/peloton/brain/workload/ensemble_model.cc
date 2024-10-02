@@ -12,7 +12,7 @@
 
 #include "brain/workload/ensemble_model.h"
 #include <numeric>
-#include "brain/util/model_util.h"
+#include "brain/../util/model_util.h"
 
 namespace peloton_peloton {
 namespace brain {

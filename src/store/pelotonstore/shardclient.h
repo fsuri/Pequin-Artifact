@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef _HOTSTUFF_PG_SHARDCLIENT_H_
-#define _HOTSTUFF_PG_SHARDCLIENT_H_
+#ifndef _PELOTON_SHARDCLIENT_H_
+#define _PELOTON_SHARDCLIENT_H_
 
 #include "lib/keymanager.h"
 #include "lib/assert.h"
@@ -169,6 +169,6 @@ class ShardClient : public TransportReceiver {
   Stats* stats;
 };
 
-} // namespace pg_SMRstore
+} // namespace pelotonstore
 
 #endif /* _INDICUS_SHARDCLIENT_H_ */

@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "logging/checkpoint_manager.h"
-#include "logging/logical_checkpoint_manager.h"
+#include "../logging/checkpoint_manager.h"
+#include "../logging/logical_checkpoint_manager.h"
 
 namespace peloton_peloton {
 namespace logging {

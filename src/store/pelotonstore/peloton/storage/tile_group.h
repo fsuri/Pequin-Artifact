@@ -4,7 +4,7 @@
 //
 // tile_group.h
 //
-// Identification: src/include/storage/tile_group.h
+// Identification: src/include/../storage/tile_group.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,13 +18,13 @@
 #include <mutex>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "common/item_pointer.h"
-#include "common/printable.h"
-#include "planner/project_info.h"
-#include "storage/layout.h"
-#include "type/abstract_pool.h"
-#include "type/value.h"
+#include "../common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/printable.h"
+#include "../planner/project_info.h"
+#include "../storage/layout.h"
+#include "../type/abstract_pool.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

@@ -4,14 +4,14 @@
 //
 // star_expression.cpp
 //
-// Identification: src/expression/star_expression.cpp
+// Identification: src/../expression/star_expression.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/star_expression.h"
-#include "util/string_util.h"
+#include "../expression/star_expression.h"
+#include "../util/string_util.h"
 #include <sstream>
 
 namespace peloton_peloton {

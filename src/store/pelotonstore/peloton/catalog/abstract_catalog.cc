@@ -4,43 +4,43 @@
 //
 // abstract_catalog.cpp
 //
-// Identification: src/catalog/abstract_catalog.cpp
+// Identification: src/../catalog/abstract_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/abstract_catalog.h"
+#include "../catalog/abstract_catalog.h"
 
-#include "common/statement.h"
+#include "../common/statement.h"
 
-#include "catalog/catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/table_catalog.h"
+#include "../catalog/catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/table_catalog.h"
 
-#include "index/index_factory.h"
-#include "optimizer/optimizer.h"
-#include "parser/postgresparser.h"
+#include "../index/index_factory.h"
+#include "../optimizer/optimizer.h"
+#include "../parser/postgresparser.h"
 
-#include "planner/create_plan.h"
-#include "planner/delete_plan.h"
-#include "planner/index_scan_plan.h"
-#include "planner/insert_plan.h"
-#include "planner/seq_scan_plan.h"
+#include "../planner/create_plan.h"
+#include "../planner/delete_plan.h"
+#include "../planner/index_scan_plan.h"
+#include "../planner/insert_plan.h"
+#include "../planner/seq_scan_plan.h"
 
-#include "executor/executor_context.h"
-#include "executor/create_executor.h"
-#include "executor/delete_executor.h"
-#include "executor/index_scan_executor.h"
-#include "executor/insert_executor.h"
-#include "executor/plan_executor.h"
-#include "executor/seq_scan_executor.h"
-#include "executor/update_executor.h"
-#include "expression/constant_value_expression.h"
+#include "../executor/executor_context.h"
+#include "../executor/create_executor.h"
+#include "../executor/delete_executor.h"
+#include "../executor/index_scan_executor.h"
+#include "../executor/insert_executor.h"
+#include "../executor/plan_executor.h"
+#include "../executor/seq_scan_executor.h"
+#include "../executor/update_executor.h"
+#include "../expression/constant_value_expression.h"
 
-#include "storage/database.h"
-#include "storage/storage_manager.h"
-#include "storage/table_factory.h"
+#include "../storage/database.h"
+#include "../storage/storage_manager.h"
+#include "../storage/table_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {
@@ -82,7 +82,7 @@ AbstractCatalog::AbstractCatalog(concurrency::TransactionContext *txn,
 
   // set catalog_table_
   try {
-    catalog_table_ = storage::StorageManager::GetInstance()->GetTableWithOid(
+    catalog_table_ = storage::storagemanager::GetInstance()->GetTableWithOid(
         catalog_table_object->GetDatabaseOid(),
         catalog_table_object->GetTableOid());
     // set database_oid

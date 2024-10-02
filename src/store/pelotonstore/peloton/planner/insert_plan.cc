@@ -4,19 +4,19 @@
 //
 // insert_plan.cpp
 //
-// Identification: src/planner/insert_plan.cpp
+// Identification: src/../planner/insert_plan.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/insert_plan.h"
+#include "../planner/insert_plan.h"
 
-#include "catalog/catalog.h"
-#include "expression/constant_value_expression.h"
-#include "storage/data_table.h"
-#include "type/ephemeral_pool.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../expression/constant_value_expression.h"
+#include "../storage/data_table.h"
+#include "../type/ephemeral_pool.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace planner {

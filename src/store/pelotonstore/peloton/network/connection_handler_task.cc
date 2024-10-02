@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "network/connection_handler_task.h"
-#include "network/connection_handle.h"
-#include "network/network_io_wrapper_factory.h"
+#include "../network/connection_handler_task.h"
+#include "../network/connection_handle.h"
+#include "../network/network_io_wrapper_factory.h"
 
 namespace peloton_peloton {
 namespace network {

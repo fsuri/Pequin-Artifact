@@ -4,7 +4,7 @@
 //
 // utility.cpp
 //
-// Identification: src/include/common/utility.h
+// Identification: src/include/../../common/utility.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <string.h>
 #include <errno.h>
 
-#include "common/logger.h"
-#include "common/utility.h"
+#include "../common/logger.h"
+#include "../common/utility.h"
 #if __APPLE__
 extern "C"{
 #include <sys/cdefs.h>

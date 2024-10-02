@@ -4,7 +4,7 @@
 //
 // subquery_expression.h
 //
-// Identification: src/include/expression/subquery_expression.h
+// Identification: src/include/../expression/subquery_expression.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,15 +12,15 @@
 
 #pragma once
 
-#include "expression/abstract_expression.h"
+#include "../expression/abstract_expression.h"
 
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/sql_node_visitor.h"
-#include "common/exception.h"
-#include "planner/binding_context.h"
-#include "parser/select_statement.h"
-#include "type/value_factory.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/sql_node_visitor.h"
+#include "../common/exception.h"
+#include "../planner/binding_context.h"
+#include "../parser/select_statement.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace expression {

@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <string>
 
-#include "parser/pg_query.h"
+#include "../parser/pg_query.h"
 
 namespace peloton_peloton {
 namespace brain {

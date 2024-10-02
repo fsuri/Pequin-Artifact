@@ -12,9 +12,9 @@
 
 #include "brain/query_logger.h"
 
-#include "catalog/query_history_catalog.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/transaction_manager_factory.h"
+#include "../catalog/query_history_catalog.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/transaction_manager_factory.h"
 
 namespace peloton_peloton {
 namespace brain {

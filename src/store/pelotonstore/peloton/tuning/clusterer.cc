@@ -16,10 +16,10 @@
 #include <iostream>
 #include <map>
 
-#include "tuning/clusterer.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "util/string_util.h"
+#include "../tuning/clusterer.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace tuning {

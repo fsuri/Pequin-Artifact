@@ -4,15 +4,15 @@
 //
 // index_metric.cpp
 //
-// Identification: src/statistics/index_metric.cpp
+// Identification: src/../statistics/index_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/index_metric.h"
-#include "storage/storage_manager.h"
-#include "index/index.h"
+#include "../statistics/index_metric.h"
+#include "../storage/storage_manager.h"
+#include "../index/index.h"
 
 namespace peloton_peloton {
 namespace stats {
@@ -25,7 +25,7 @@ IndexMetric::IndexMetric(MetricType type, oid_t database_id, oid_t table_id,
       index_id_(index_id) {
   index_name_ = "";
   try {
-    auto index = storage::StorageManager::GetInstance()->GetIndexWithOid(
+    auto index = storage::storagemanager::GetInstance()->GetIndexWithOid(
         database_id, table_id, index_id);
     index_name_ = index->GetName();
     for (auto& ch : index_name_) {

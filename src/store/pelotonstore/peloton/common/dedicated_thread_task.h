@@ -4,7 +4,7 @@
 //
 // dedicated_thread_task.h
 //
-// Identification: src/include/common/dedicated_thread_task.h
+// Identification: src/include/../../common/dedicated_thread_task.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

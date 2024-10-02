@@ -12,13 +12,13 @@
 
 #include <fstream>
 #include <memory>
-#include "common/utility.h"
+#include "../common/utility.h"
 #include "event2/thread.h"
 
-#include "common/dedicated_thread_registry.h"
-#include "network/peloton_rpc_handler_task.h"
-#include "network/peloton_server.h"
-#include "settings/settings_manager.h"
+#include "../common/dedicated_thread_registry.h"
+#include "../network/peloton_rpc_handler_task.h"
+#include "../network/peloton_server.h"
+#include "../settings/settings_manager.h"
 
 #include "peloton_config.h"
 

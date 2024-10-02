@@ -4,7 +4,7 @@
 //
 // pg_query.h
 //
-// Identification: src/include/parser/pg_query.h
+// Identification: src/include/../parser/pg_query.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //

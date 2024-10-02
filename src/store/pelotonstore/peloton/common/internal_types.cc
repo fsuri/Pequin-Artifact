@@ -4,7 +4,7 @@
 //
 // internal_types.cpp
 //
-// Identification: src/common/internal_types.cpp
+// Identification: src/../../common/internal_types.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,13 +14,13 @@
 #include <cstring>
 #include <sstream>
 
-#include "common/exception.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "parser/sql_statement.h"
-#include "parser/statements.h"
-#include "util/string_util.h"
+#include "../common/exception.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../parser/sql_statement.h"
+#include "../parser/statements.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 

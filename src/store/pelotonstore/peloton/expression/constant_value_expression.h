@@ -4,7 +4,7 @@
 //
 // constant_value_expression.h
 //
-// Identification: src/include/expression/constant_value_expression.h
+// Identification: src/include/../expression/constant_value_expression.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "type/value.h"
-#include "util/hash_util.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../type/value.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 namespace expression {

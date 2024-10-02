@@ -4,22 +4,22 @@
 //
 // zone_map_manager.cpp
 //
-// Identification: src/storage/zone_map_manager.cpp
+// Identification: src/../storage/zone_map_manager.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/zone_map_manager.h"
+#include "../storage/zone_map_manager.h"
 
-#include "catalog/catalog.h"
-#include "catalog/zone_map_catalog.h"
-#include "catalog/database_catalog.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "storage/storage_manager.h"
-#include "storage/data_table.h"
-#include "type/ephemeral_pool.h"
+#include "../catalog/catalog.h"
+#include "../catalog/zone_map_catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../storage/storage_manager.h"
+#include "../storage/data_table.h"
+#include "../type/ephemeral_pool.h"
 
 namespace peloton_peloton {
 namespace storage {

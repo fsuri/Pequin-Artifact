@@ -4,7 +4,7 @@
 //
 // singleton.h
 //
-// Identification: src/include/common/singleton.h
+// Identification: src/include/../../common/singleton.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #pragma once
 
 //#include "codegen/codegen.h"
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 

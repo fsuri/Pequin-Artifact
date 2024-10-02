@@ -4,7 +4,7 @@
 //
 // indirection_array.h
 //
-// Identification: src/include/storage/indirection_array.h
+// Identification: src/include/../storage/indirection_array.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

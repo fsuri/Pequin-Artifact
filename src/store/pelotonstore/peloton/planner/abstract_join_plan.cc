@@ -4,13 +4,13 @@
 //
 // abstract_plan.cpp
 //
-// Identification: src/planner/abstract_join_plan.cpp
+// Identification: src/../planner/abstract_join_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/abstract_join_plan.h"
+#include "../planner/abstract_join_plan.h"
 
 #include <numeric>
 

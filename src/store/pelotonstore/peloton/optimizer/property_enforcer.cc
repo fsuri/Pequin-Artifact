@@ -4,17 +4,17 @@
 //
 // property_enforcer.cpp
 //
-// Identification: src/optimizer/property_enforcer.cpp
+// Identification: src/../optimizer/property_enforcer.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/property_enforcer.h"
-#include "optimizer/operators.h"
-#include "optimizer/property.h"
-#include "optimizer/properties.h"
-#include "expression/expression_util.h"
+#include "../optimizer/property_enforcer.h"
+#include "../optimizer/operators.h"
+#include "../optimizer/property.h"
+#include "../optimizer/properties.h"
+#include "../expression/expression_util.h"
 
 namespace peloton_peloton {
 namespace optimizer {

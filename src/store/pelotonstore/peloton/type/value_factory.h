@@ -4,7 +4,7 @@
 //
 // value_factory.h
 //
-// Identification: src/include/type/value_factory.h
+// Identification: src/include/../type/value_factory.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,14 +15,14 @@
 #include <algorithm>
 #include <stdexcept>
 
-#include "common/macros.h"
-#include "type/boolean_type.h"
-#include "type/decimal_type.h"
-#include "type/numeric_type.h"
-#include "type/serializer.h"
-#include "type/timestamp_type.h"
-#include "type/varlen_type.h"
-#include "util/string_util.h"
+#include "../common/macros.h"
+#include "../type/boolean_type.h"
+#include "../type/decimal_type.h"
+#include "../type/numeric_type.h"
+#include "../type/serializer.h"
+#include "../type/timestamp_type.h"
+#include "../type/varlen_type.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -4,13 +4,13 @@
 //
 // abstract_metric.cpp
 //
-// Identification: src/statistics/abstract_metric.cpp
+// Identification: src/../statistics/abstract_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/abstract_metric.h"
+#include "../statistics/abstract_metric.h"
 
 namespace peloton_peloton {
 namespace stats {

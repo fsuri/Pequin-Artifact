@@ -12,13 +12,13 @@
 
 #include "udf/ast_nodes.h"
 
-#include "catalog/catalog.h"
+#include "../catalog/catalog.h"
 /*#include "codegen/function_builder.h"
 #include "codegen/lang/if.h"*/
-//#include "codegen/type/type.h"
+//#include "codegen/../type/type.h"
 //#include "codegen/value.h"
-#include "type/type.h"
-#include "type/value.h"
+#include "../type/type.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace udf {

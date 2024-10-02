@@ -12,20 +12,20 @@
 
 #include <gflags/gflags.h>
 
-#include "type/type_id.h"
-#include "catalog/settings_catalog.h"
-#include "common/exception.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "settings/settings_manager.h"
-#include "type/ephemeral_pool.h"
-#include "type/value_factory.h"
-#include "util/stringbox_util.h"
+#include "../type/type_id.h"
+#include "../catalog/settings_catalog.h"
+#include "../common/exception.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../settings/settings_manager.h"
+#include "../type/ephemeral_pool.h"
+#include "../type/value_factory.h"
+#include "../util/stringbox_util.h"
 
 // This will expand to define all the settings defined in settings.h
 // using GFlag's DEFINE_...() macro. See settings_macro.h.
 #define __SETTING_GFLAGS_DEFINE__
-#include "settings/settings_macro.h"
-#include "settings/settings.h"
+#include "../settings/settings_macro.h"
+#include "../settings/settings.h"
 #undef __SETTING_GFLAGS_DEFINE__
 
 namespace peloton_peloton {
@@ -206,8 +206,8 @@ SettingsManager::SettingsManager() {
 // This will expand to invoke SettingsManager::DefineSetting on
 // all of the settings defined in settings.h. See settings_macro.h.
 #define __SETTING_DEFINE__
-#include "settings/settings_macro.h"
-#include "settings/settings.h"
+#include "../settings/settings_macro.h"
+#include "../settings/settings.h"
 #undef __SETTING_DEFINE__
 }
 

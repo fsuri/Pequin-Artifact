@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "network/network_io_wrappers.h"
+#include "../network/network_io_wrappers.h"
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <openssl/err.h>
 #include <sys/file.h>
-#include "network/peloton_server.h"
+#include "../network/peloton_server.h"
 
 namespace peloton_peloton {
 namespace network {

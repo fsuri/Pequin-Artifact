@@ -4,7 +4,7 @@
 //
 // tuple_sampler.h
 //
-// Identification: src/include/optimizer/tuple_sampler.h
+// Identification: src/include/../../optimizer/tuple_sampler.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/internal_types.h"
-#include "type/ephemeral_pool.h"
-#include "common/item_pointer.h"
-#include "catalog/schema.h"
+#include "../../common/internal_types.h"
+#include "../../type/ephemeral_pool.h"
+#include "../../common/item_pointer.h"
+#include "../../catalog/schema.h"
 
 #define DEFAULT_SAMPLE_SIZE 100
 

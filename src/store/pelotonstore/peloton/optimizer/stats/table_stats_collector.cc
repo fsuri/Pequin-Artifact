@@ -4,21 +4,21 @@
 //
 // table_stats_collector.cpp
 //
-// Identification: src/optimizer/stats/table_stats_collector.cpp
+// Identification: src/../../optimizer/stats/table_stats_collector.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/table_stats_collector.h"
+#include "../../optimizer/stats/table_stats_collector.h"
 
 #include <memory>
 
-#include "common/macros.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_header.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../../common/macros.h"
+#include "../../storage/tile_group.h"
+#include "../../storage/tile_group_header.h"
+#include "../../common/internal_types.h"
+#include "../../type/value.h"
 
 namespace peloton_peloton {
 namespace optimizer {

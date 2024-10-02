@@ -4,7 +4,7 @@
 //
 // abstract_catalog.h
 //
-// Identification: src/include/catalog/abstract_catalog.h
+// Identification: src/include/../catalog/abstract_catalog.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <atomic>
 
-#include "catalog/catalog_defaults.h"
-#include "catalog/schema.h"
+#include "../catalog/catalog_defaults.h"
+#include "../catalog/schema.h"
 
 namespace peloton_peloton {
 

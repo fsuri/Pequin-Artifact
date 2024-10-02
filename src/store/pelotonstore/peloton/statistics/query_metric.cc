@@ -4,17 +4,17 @@
 //
 // table_metric.cpp
 //
-// Identification: src/statistics/table_metric.cpp
+// Identification: src/../statistics/table_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/macros.h"
-#include "common/logger.h"
-#include "statistics/query_metric.h"
-#include "catalog/catalog.h"
-#include "storage/data_table.h"
+#include "../common/macros.h"
+#include "../common/logger.h"
+#include "../statistics/query_metric.h"
+#include "../catalog/catalog.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace stats {

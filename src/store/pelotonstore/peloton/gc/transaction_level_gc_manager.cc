@@ -10,26 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "gc/transaction_level_gc_manager.h"
+#include "../gc/transaction_level_gc_manager.h"
 
-#include "brain/query_logger.h"
-#include "catalog/manager.h"
-#include "common/container_tuple.h"
-#include "concurrency/epoch_manager_factory.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "index/index.h"
-#include "settings/settings_manager.h"
-#include "storage/database.h"
-#include "storage/storage_manager.h"
-#include "storage/tile_group.h"
-#include "storage/tuple.h"
-#include "threadpool/mono_queue_pool.h"
+#include "../brain/query_logger.h"
+#include "../catalog/manager.h"
+#include "../common/container_tuple.h"
+#include "../concurrency/epoch_manager_factory.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../index/index.h"
+#include "../settings/settings_manager.h"
+#include "../storage/database.h"
+#include "../storage/storage_manager.h"
+#include "../storage/tile_group.h"
+#include "../storage/tuple.h"
+#include "../threadpool/mono_queue_pool.h"
 
 namespace peloton_peloton {
 namespace gc {
 
 bool TransactionLevelGCManager::ResetTuple(const ItemPointer &location) {
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_group = storage_manager->GetTileGroup(location.block).get();
 
   auto tile_group_header = tile_group->GetHeader();
@@ -214,7 +214,7 @@ int TransactionLevelGCManager::Reclaim(const int &thread_id,
 void TransactionLevelGCManager::AddToRecycleMap(
     concurrency::TransactionContext *txn_ctx) {
   for (auto &entry : *(txn_ctx->GetGCSetPtr().get())) {
-    auto storage_manager = storage::StorageManager::GetInstance();
+    auto storage_manager = storage::storagemanager::GetInstance();
     auto tile_group = storage_manager->GetTileGroup(entry.first);
 
     // During the resetting, a table may be deconstructed because of the DROP
@@ -252,7 +252,7 @@ void TransactionLevelGCManager::AddToRecycleMap(
     }
   }
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   for (auto &entry : *(txn_ctx->GetGCObjectSetPtr().get())) {
     oid_t database_oid = std::get<0>(entry);
     oid_t table_oid = std::get<1>(entry);
@@ -261,7 +261,7 @@ void TransactionLevelGCManager::AddToRecycleMap(
     auto database = storage_manager->GetDatabaseWithOid(database_oid);
     PELOTON_ASSERT(database != nullptr);
     if (table_oid == INVALID_OID) {
-      storage_manager->RemoveDatabaseFromStorageManager(database_oid);
+      storage_manager->RemoveDatabaseFromstoragemanager(database_oid);
       continue;
     }
     auto table = database->GetTableWithOid(table_oid);
@@ -335,7 +335,7 @@ void TransactionLevelGCManager::UnlinkVersion(const ItemPointer location,
                                               GCVersionType type) {
   // get indirection from the indirection array.
   auto tile_group =
-      storage::StorageManager::GetInstance()->GetTileGroup(location.block);
+      storage::storagemanager::GetInstance()->GetTileGroup(location.block);
 
   // if the corresponding tile group is deconstructed,
   // then do nothing.
@@ -344,7 +344,7 @@ void TransactionLevelGCManager::UnlinkVersion(const ItemPointer location,
   }
 
   auto tile_group_header =
-      storage::StorageManager::GetInstance()->GetTileGroup(location.block)->GetHeader();
+      storage::storagemanager::GetInstance()->GetTileGroup(location.block)->GetHeader();
 
   ItemPointer *indirection = tile_group_header->GetIndirection(location.offset);
 

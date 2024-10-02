@@ -4,24 +4,24 @@
 //
 // index_catalog.cpp
 //
-// Identification: src/catalog/index_catalog.cpp
+// Identification: src/../catalog/index_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Index Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/index_catalog.h"
+#include "../catalog/index_catalog.h"
 
 #include <sstream>
 
-#include "catalog/catalog.h"
-#include "catalog/system_catalogs.h"
-#include "concurrency/transaction_context.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "storage/database.h"
-#include "storage/tuple.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../concurrency/transaction_context.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../storage/database.h"
+#include "../storage/tuple.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

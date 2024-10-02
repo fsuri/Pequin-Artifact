@@ -4,15 +4,15 @@
 //
 // projection_plan.cpp
 //
-// Identification: src/planner/projection_plan.cpp
+// Identification: src/../planner/projection_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/projection_plan.h"
+#include "../planner/projection_plan.h"
 
-#include "common/logger.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace planner {

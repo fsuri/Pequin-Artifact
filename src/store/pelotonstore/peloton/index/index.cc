@@ -3,21 +3,21 @@
 //
 // index.cpp
 //
-// Identification: src/index/index.cpp
+// Identification: src/../index/index.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/index.h"
+#include "../index/index.h"
 
 #include <sstream>
 
-#include "catalog/manager.h"
-#include "catalog/schema.h"
-#include "index/scan_optimizer.h"
-#include "settings/settings_manager.h"
-#include "type/ephemeral_pool.h"
+#include "../catalog/manager.h"
+#include "../catalog/schema.h"
+#include "../index/scan_optimizer.h"
+#include "../settings/settings_manager.h"
+#include "../type/ephemeral_pool.h"
 
 namespace peloton_peloton {
 namespace index {

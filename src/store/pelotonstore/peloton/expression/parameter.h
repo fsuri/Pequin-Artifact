@@ -4,7 +4,7 @@
 //
 // parameter.h
 //
-// Identification: src/include/expression/parameter.h
+// Identification: src/include/../expression/parameter.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "type/type.h"
+#include "../type/type.h"
 
 namespace peloton_peloton {
 namespace expression {

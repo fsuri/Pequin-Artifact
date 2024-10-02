@@ -5,7 +5,7 @@
 // tf_session_entity_io.h
 //
 // Identification:
-// src/include/brain/util/tf_session_entity/tf_session_entity_io.h
+// src/include/brain/../util/tf_session_entity/tf_session_entity_io.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -19,8 +19,8 @@
 #include <iostream>
 #include <type_traits>
 #include <vector>
-#include "common/logger.h"
-#include "common/macros.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
 
 #define TFSEIO_BASE_TEMPLATE_ARGUMENTS template <typename N>
 #define TFSEIO_BASE_TYPE TfSessionEntityIOBase<N>

@@ -4,7 +4,7 @@
 //
 // zone_map_catalog.h
 //
-// Identification: src/include/catalog/zone_map_catalog.h
+// Identification: src/include/../catalog/zone_map_catalog.h
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 
 #include <map>
 
-#include "catalog/abstract_catalog.h"
+#include "../catalog/abstract_catalog.h"
 
 #define ZONE_MAP_CATALOG_NAME "zone_map"
 

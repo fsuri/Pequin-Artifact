@@ -4,18 +4,18 @@
 //
 // hash_set_op_executor.cpp
 //
-// Identification: src/executor/hash_set_op_executor.cpp
+// Identification: src/../executor/hash_set_op_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/logger.h"
-#include "type/value.h"
-#include "executor/logical_tile.h"
-#include "executor/hash_set_op_executor.h"
+#include "../common/logger.h"
+#include "../type/value.h"
+#include "../executor/logical_tile.h"
+#include "../executor/hash_set_op_executor.h"
 
-#include "planner/set_op_plan.h"
+#include "../planner/set_op_plan.h"
 
 namespace peloton_peloton {
 namespace executor {

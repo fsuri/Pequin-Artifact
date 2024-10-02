@@ -4,7 +4,7 @@
 //
 // trigger.h
 //
-// Identification: src/include/trigger/trigger.h
+// Identification: src/include/../trigger/trigger.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -16,12 +16,12 @@
 
 #include <boost/algorithm/string/join.hpp>
 
-#include "common/logger.h"
-#include "expression/abstract_expression.h"
-#include "planner/create_plan.h"
-#include "storage/tuple.h"
-#include "common/internal_types.h"
-#include "parser/pg_trigger.h"
+#include "../common/logger.h"
+#include "../expression/abstract_expression.h"
+#include "../planner/create_plan.h"
+#include "../storage/tuple.h"
+#include "../common/internal_types.h"
+#include "../parser/pg_trigger.h"
 
 namespace peloton_peloton {
 

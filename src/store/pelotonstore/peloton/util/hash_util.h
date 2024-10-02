@@ -4,7 +4,7 @@
 //
 // hash_util.h
 //
-// Identification: src/include/util/hash_util.h
+// Identification: src/include/../util/hash_util.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //

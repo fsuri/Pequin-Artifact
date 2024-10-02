@@ -4,18 +4,18 @@
 //
 // selectivity.cpp
 //
-// Identification: src/optimizer/stats/selectivity.cpp
+// Identification: src/../../optimizer/stats/selectivity.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/selectivity.h"
+#include "../../optimizer/stats/selectivity.h"
 
-#include "catalog/table_catalog.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "function/string_functions.h"
+#include "../../catalog/table_catalog.h"
+#include "../../concurrency/transaction_manager_factory.h"
+#include "../../executor/executor_context.h"
+#include "../../function/string_functions.h"
 
 namespace peloton_peloton {
 namespace optimizer {

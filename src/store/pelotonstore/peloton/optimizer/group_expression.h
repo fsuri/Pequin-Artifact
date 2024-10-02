@@ -4,7 +4,7 @@
 //
 // group_expression.h
 //
-// Identification: src/include/optimizer/group_expression.h
+// Identification: src/include/../optimizer/group_expression.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include "optimizer/operator_node.h"
-#include "optimizer/stats/stats.h"
-#include "optimizer/util.h"
-#include "optimizer/property_set.h"
-#include "common/internal_types.h"
+#include "../optimizer/operator_node.h"
+#include "../optimizer/stats/stats.h"
+#include "../optimizer/util.h"
+#include "../optimizer/property_set.h"
+#include "../common/internal_types.h"
 
 #include <map>
 #include <tuple>

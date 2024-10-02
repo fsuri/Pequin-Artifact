@@ -4,7 +4,7 @@
 //
 // type.h
 //
-// Identification: src/backend/type/type.h
+// Identification: src/backend/../type/type.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -16,9 +16,9 @@
 #include <string>
 #include <functional>
 
-#include "type/serializeio.h"
-#include "type/type_id.h"
-#include "common/internal_types.h"
+#include "../type/serializeio.h"
+#include "../type/type_id.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace type {

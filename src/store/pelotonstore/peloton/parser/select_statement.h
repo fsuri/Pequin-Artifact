@@ -4,7 +4,7 @@
 //
 // statement_select.h
 //
-// Identification: src/include/parser/statement_select.h
+// Identification: src/include/../parser/statement_select.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "parser/sql_statement.h"
-#include "parser/table_ref.h"
-#include "util/string_util.h"
+#include "../common/sql_node_visitor.h"
+#include "../parser/sql_statement.h"
+#include "../parser/table_ref.h"
+#include "../util/string_util.h"
 #include <vector>
 
 namespace peloton_peloton {

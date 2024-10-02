@@ -4,7 +4,7 @@
 //
 // materialization_executor.h
 //
-// Identification: src/include/executor/materialization_executor.h
+// Identification: src/include/../executor/materialization_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "executor/abstract_executor.h"
+#include "../common/internal_types.h"
+#include "../executor/abstract_executor.h"
 
 namespace peloton_peloton {
 

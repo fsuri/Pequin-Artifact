@@ -4,7 +4,7 @@
 //
 // order_by_executor.cpp
 //
-// Identification: src/executor/order_by_executor.cpp
+// Identification: src/../executor/order_by_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,14 +12,14 @@
 
 #include <algorithm>
 
-#include "common/logger.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "executor/order_by_executor.h"
-#include "executor/executor_context.h"
+#include "../common/logger.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../executor/order_by_executor.h"
+#include "../executor/executor_context.h"
 
-#include "planner/order_by_plan.h"
-#include "storage/tile.h"
+#include "../planner/order_by_plan.h"
+#include "../storage/tile.h"
 
 namespace peloton_peloton {
 namespace executor {

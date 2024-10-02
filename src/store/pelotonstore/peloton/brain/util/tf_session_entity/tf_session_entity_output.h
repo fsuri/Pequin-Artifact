@@ -5,7 +5,7 @@
 // tf_session_entity_output.h
 //
 // Identification:
-// src/include/brain/util/tf_session_entity/tf_session_entity_output.h
+// src/include/brain/../util/tf_session_entity/tf_session_entity_output.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

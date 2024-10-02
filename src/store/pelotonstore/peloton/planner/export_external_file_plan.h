@@ -4,7 +4,7 @@
 //
 // export_external_file_plan.h
 //
-// Identification: src/include/planner/export_external_file_plan.h
+// Identification: src/include/../planner/export_external_file_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,7 +16,7 @@
 #include <vector>
 #include <string>
 
-#include "planner/abstract_plan.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 namespace planner {

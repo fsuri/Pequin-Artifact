@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "settings/settings_manager.h"
-#include "threadpool/worker_pool.h"
+#include "../settings/settings_manager.h"
+#include "../threadpool/worker_pool.h"
 
 namespace peloton_peloton {
 namespace threadpool {

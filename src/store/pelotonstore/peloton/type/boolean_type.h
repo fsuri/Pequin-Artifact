@@ -4,7 +4,7 @@
 //
 // boolean_value.h
 //
-// Identification: src/backend/common/boolean_value.h
+// Identification: src/backend/../common/boolean_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/exception.h"
-#include "type/type.h"
-#include "type/value.h"
+#include "../common/exception.h"
+#include "../type/type.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -5,13 +5,13 @@
 //
 // bwtree.cpp
 //
-// Identification: src/index/bwtree.cpp
+// Identification: src/../index/bwtree.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/bwtree.h"
+#include "../index/bwtree.h"
 
 #ifdef BWTREE_PELOTON
 namespace peloton_peloton {
@@ -30,6 +30,6 @@ thread_local int BwTreeBase::gc_id = -1;
 
 std::atomic<size_t> BwTreeBase::total_thread_num{0UL};
 
-}  // End index/bwtree namespace
+}  // End ../index/bwtree namespace
 }  // End peloton/wangziqi2013 namespace
 

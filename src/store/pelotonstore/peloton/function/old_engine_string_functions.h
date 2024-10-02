@@ -4,7 +4,7 @@
 //
 // old_engine_string_functions.h
 //
-// Identification: src/include/function/old_engine_string_functions.h
+// Identification: src/include/../function/old_engine_string_functions.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <vector>
 
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace function {

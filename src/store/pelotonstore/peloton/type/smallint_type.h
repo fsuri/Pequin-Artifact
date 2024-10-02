@@ -4,7 +4,7 @@
 //
 // integer_parent_type.h
 //
-// Identification: src/backend/common/numeric_value.h
+// Identification: src/backend/../common/numeric_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "type/integer_parent_type.h"
+#include "../type/integer_parent_type.h"
 
 namespace peloton_peloton {
 namespace type {

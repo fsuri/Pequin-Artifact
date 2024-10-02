@@ -4,7 +4,7 @@
 //
 // generic_key.h
 //
-// Identification: src/include/index/generic_key.h
+// Identification: src/include/../index/generic_key.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <sstream>
 
-#include "type/type_util.h"
+#include "../type/type_util.h"
 
 namespace peloton_peloton {
 namespace index {

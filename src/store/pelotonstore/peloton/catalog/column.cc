@@ -4,17 +4,17 @@
 //
 // column.cpp
 //
-// Identification: src/catalog/column.cpp
+// Identification: src/../catalog/column.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/column.h"
+#include "../catalog/column.h"
 
 #include <sstream>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace catalog {

@@ -4,13 +4,13 @@
 //
 // constant_value_expression.cpp
 //
-// Identification: src/expression/constant_value_expression.cpp
+// Identification: src/../expression/constant_value_expression.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/constant_value_expression.h"
+#include "../expression/constant_value_expression.h"
 
 namespace peloton_peloton {
 namespace expression {

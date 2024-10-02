@@ -4,7 +4,7 @@
 //
 // database.cpp
 //
-// Identification: src/storage/database.cpp
+// Identification: src/../storage/database.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,12 +13,12 @@
 #include <sstream>
 
 //#include "codegen/query_cache.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "gc/gc_manager_factory.h"
-#include "index/index.h"
-#include "storage/database.h"
-#include "storage/table_factory.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../gc/gc_manager_factory.h"
+#include "../index/index.h"
+#include "../storage/database.h"
+#include "../storage/table_factory.h"
 
 namespace peloton_peloton {
 namespace storage {

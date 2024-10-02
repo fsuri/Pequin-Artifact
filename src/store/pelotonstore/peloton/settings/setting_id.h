@@ -18,8 +18,8 @@ namespace settings {
 
 enum class SettingId {
   #define __SETTING_ENUM__
-  #include "settings/settings_macro.h"
-  #include "settings/settings.h"
+  #include "../settings/settings_macro.h"
+  #include "../settings/settings.h"
   #undef __SETTING_ENUM__
 };
 

@@ -4,20 +4,20 @@
 //
 // csv_scanner.cpp
 //
-// Identification: src/codegen/util/csv_scanner.cpp
+// Identification: src/codegen/../util/csv_scanner.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "util/csv_scanner.h"
+#include "../util/csv_scanner.h"
 
 #include <boost/filesystem.hpp>
 
-#include "common/exception.h"
-#include "executor/executor_context.h"
-#include "type/abstract_pool.h"
-#include "util/string_util.h"
+#include "../common/exception.h"
+#include "../executor/executor_context.h"
+#include "../type/abstract_pool.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace codegen {

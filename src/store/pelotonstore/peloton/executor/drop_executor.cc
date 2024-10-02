@@ -4,20 +4,20 @@
 //
 // drop_executor.cpp
 //
-// Identification: src/executor/drop_executor.cpp
+// Identification: src/../executor/drop_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/drop_executor.h"
+#include "../executor/drop_executor.h"
 
-#include "catalog/catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/system_catalogs.h"
-#include "common/logger.h"
-#include "common/statement_cache_manager.h"
-#include "executor/executor_context.h"
+#include "../catalog/catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../common/logger.h"
+#include "../common/statement_cache_manager.h"
+#include "../executor/executor_context.h"
 
 namespace peloton_peloton {
 namespace executor {

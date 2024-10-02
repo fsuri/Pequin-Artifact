@@ -4,13 +4,13 @@
 //
 // processor_metric.cpp
 //
-// Identification: src/statistics/processor_metric.cpp
+// Identification: src/../statistics/processor_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/processor_metric.h"
+#include "../statistics/processor_metric.h"
 
 #ifndef RUSAGE_THREAD
 

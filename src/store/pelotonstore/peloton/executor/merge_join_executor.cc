@@ -4,18 +4,18 @@
 //
 // merge_join_executor.cpp
 //
-// Identification: src/executor/merge_join_executor.cpp
+// Identification: src/../executor/merge_join_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "executor/logical_tile_factory.h"
-#include "executor/merge_join_executor.h"
-#include "expression/abstract_expression.h"
-#include "common/container_tuple.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../executor/logical_tile_factory.h"
+#include "../executor/merge_join_executor.h"
+#include "../expression/abstract_expression.h"
+#include "../common/container_tuple.h"
 
 namespace peloton_peloton {
 namespace executor {

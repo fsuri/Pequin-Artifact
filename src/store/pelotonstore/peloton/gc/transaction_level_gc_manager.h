@@ -18,14 +18,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/init.h"
-#include "common/logger.h"
-#include "common/thread_pool.h"
-#include "concurrency/transaction_context.h"
-#include "gc/gc_manager.h"
-#include "common/internal_types.h"
+#include "../common/init.h"
+#include "../common/logger.h"
+#include "../common/thread_pool.h"
+#include "../concurrency/transaction_context.h"
+#include "../gc/gc_manager.h"
+#include "../common/internal_types.h"
 
-#include "common/container/lock_free_queue.h"
+#include "../common/container/lock_free_queue.h"
 
 namespace peloton_peloton {
 namespace gc {

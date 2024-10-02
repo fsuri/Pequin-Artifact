@@ -4,7 +4,7 @@
 //
 // bwtree.h
 //
-// Identification: src/include/index/bwtree.h
+// Identification: src/include/../index/bwtree.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -53,7 +53,7 @@
 
 #ifdef BWTREE_PELOTON
 
-#include "index/index.h"
+#include "../index/index.h"
 
 #endif
 
@@ -9080,7 +9080,7 @@ class BwTree : public BwTreeBase {
 
 };  // class BwTree
 
-}  // End index/bwtree namespace
+}  // End ../index/bwtree namespace
 }  // End peloton/wangziqi2013 namespace
 
 #endif

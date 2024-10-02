@@ -4,13 +4,13 @@
 //
 // conjunction_expression.cpp
 //
-// Identification: src/expression/conjunction_expression.cpp
+// Identification: src/../expression/conjunction_expression.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/conjunction_expression.h"
+#include "../expression/conjunction_expression.h"
 
 namespace peloton_peloton {
 namespace expression {

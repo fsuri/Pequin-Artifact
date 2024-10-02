@@ -4,7 +4,7 @@
 //
 // language_catalog.h
 //
-// Identification: src/include/catalog/language_catalog.h
+// Identification: src/include/../catalog/language_catalog.h
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "catalog/abstract_catalog.h"
+#include "../catalog/abstract_catalog.h"
 
 #define LANGUAGE_CATALOG_NAME "pg_language"
 

@@ -4,7 +4,7 @@
 //
 // count_min_sketch.h
 //
-// Identification: src/include/optimizer/stats/count_min_sketch.h
+// Identification: src/include/../../optimizer/stats/count_min_sketch.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -19,8 +19,8 @@
 #include <cstring>
 #include <vector>
 
-#include "common/logger.h"
-#include "murmur3/MurmurHash3.h"
+#include "../../common/logger.h"
+#include "../../murmur3/MurmurHash3.h"
 
 namespace peloton_peloton {
 namespace optimizer {

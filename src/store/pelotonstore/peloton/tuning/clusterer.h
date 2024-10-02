@@ -16,10 +16,10 @@
 #include <vector>
 #include <map>
 
-#include "common/printable.h"
+#include "../common/printable.h"
 #include "sample.h"
-#include "common/printable.h"
-#include "common/internal_types.h"
+#include "../common/printable.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace tuning {

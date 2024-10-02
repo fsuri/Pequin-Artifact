@@ -4,22 +4,22 @@
 //
 // projection_executor.cpp
 //
-// Identification: src/executor/projection_executor.cpp
+// Identification: src/../executor/projection_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/projection_executor.h"
+#include "../executor/projection_executor.h"
 
-#include "planner/projection_plan.h"
-#include "common/logger.h"
-#include "common/internal_types.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "common/container_tuple.h"
-#include "storage/tile.h"
-#include "storage/data_table.h"
+#include "../planner/projection_plan.h"
+#include "../common/logger.h"
+#include "../common/internal_types.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../common/container_tuple.h"
+#include "../storage/tile.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace executor {

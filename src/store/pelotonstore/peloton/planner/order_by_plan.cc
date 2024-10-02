@@ -4,7 +4,7 @@
 //
 // order_by_plan.cpp
 //
-// Identification: src/planner/order_by_plan.cpp
+// Identification: src/../planner/order_by_plan.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include "planner/order_by_plan.h"
+#include "../planner/order_by_plan.h"
 
 namespace peloton_peloton {
 namespace planner {

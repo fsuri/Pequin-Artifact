@@ -4,7 +4,7 @@
 //
 // table_factory.h
 //
-// Identification: src/include/storage/table_factory.h
+// Identification: src/include/../storage/table_factory.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 
 #include <string>
 
-#include "catalog/manager.h"
-#include "common/internal_types.h"
-#include "storage/data_table.h"
-#include "storage/temp_table.h"
+#include "../catalog/manager.h"
+#include "../common/internal_types.h"
+#include "../storage/data_table.h"
+#include "../storage/temp_table.h"
 
 namespace peloton_peloton {
 namespace storage {

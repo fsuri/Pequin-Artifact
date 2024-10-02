@@ -18,13 +18,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/cache.h"
-#include "common/internal_types.h"
-#include "common/portal.h"
-#include "common/statement.h"
-#include "common/statement_cache.h"
+#include "../common/cache.h"
+#include "../common/internal_types.h"
+#include "../common/portal.h"
+#include "../common/statement.h"
+#include "../common/statement_cache.h"
 #include "protocol_handler.h"
-#include "traffic_cop/traffic_cop.h"
+#include "../traffic_cop/traffic_cop.h"
 
 // Packet content macros
 #define NULL_CONTENT_SIZE (-1)

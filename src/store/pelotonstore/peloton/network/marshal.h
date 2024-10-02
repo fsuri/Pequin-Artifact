@@ -17,10 +17,10 @@
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "network/network_state.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../network/network_state.h"
 
 #define BUFFER_INIT_SIZE 100
 

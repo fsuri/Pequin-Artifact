@@ -4,15 +4,15 @@
 //
 // notifiable_task.cpp
 //
-// Identification: src/common/notifiable_task.cpp
+// Identification: src/../../common/notifiable_task.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/notifiable_task.h"
-#include "common/logger.h"
-#include "common/event_util.h"
+#include "../common/notifiable_task.h"
+#include "../common/logger.h"
+#include "../common/event_util.h"
 #include <cstring>
 
 namespace peloton_peloton {

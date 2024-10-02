@@ -4,15 +4,15 @@
 //
 // comparison_expression.cpp
 //
-// Identification: /peloton/src/expression/comparison_expression.cpp
+// Identification: /peloton/src/../expression/comparison_expression.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/comparison_expression.h"
+#include "../expression/comparison_expression.h"
 
-#include "type/value_factory.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace expression {

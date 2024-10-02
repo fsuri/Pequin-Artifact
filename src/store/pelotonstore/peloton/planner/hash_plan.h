@@ -4,7 +4,7 @@
 //
 // hash_plan.h
 //
-// Identification: src/include/planner/hash_plan.h
+// Identification: src/include/../planner/hash_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,8 +13,8 @@
 #pragma once
 
 #include "abstract_plan.h"
-#include "expression/abstract_expression.h"
-#include "common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

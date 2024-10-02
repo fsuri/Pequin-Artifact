@@ -4,21 +4,21 @@
 //
 // array_value.h
 //
-// Identification: src/backend/common/array_value.cpp
+// Identification: src/backend/../common/array_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/value.h"
-#include "type/array_type.h"
+#include "../type/value.h"
+#include "../type/array_type.h"
 
-#include "type/boolean_type.h"
-#include "type/decimal_type.h"
-#include "type/numeric_type.h"
-#include "type/timestamp_type.h"
-#include "type/type.h"
-#include "type/varlen_type.h"
+#include "../type/boolean_type.h"
+#include "../type/decimal_type.h"
+#include "../type/numeric_type.h"
+#include "../type/timestamp_type.h"
+#include "../type/type.h"
+#include "../type/varlen_type.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -4,7 +4,7 @@
 //
 // optimizer.h
 //
-// Identification: src/include/optimizer/optimizer.h
+// Identification: src/include/../optimizer/optimizer.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 
 #include <memory>
 
-#include "optimizer/abstract_optimizer.h"
-#include "optimizer/cost_model/abstract_cost_model.h"
-#include "optimizer/property_set.h"
-#include "optimizer/optimizer_metadata.h"
+#include "../optimizer/abstract_optimizer.h"
+#include "../optimizer/cost_model/abstract_cost_model.h"
+#include "../optimizer/property_set.h"
+#include "../optimizer/optimizer_metadata.h"
 
 namespace peloton_peloton {
 

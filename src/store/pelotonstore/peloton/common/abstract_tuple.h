@@ -4,7 +4,7 @@
 //
 // abstract_tuple.h
 //
-// Identification: src/include/common/abstract_tuple.h
+// Identification: src/include/../../common/abstract_tuple.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/printable.h"
+#include "../common/printable.h"
 #include "internal_types.h"
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

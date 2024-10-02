@@ -4,18 +4,18 @@
 //
 // table_factory.cpp
 //
-// Identification: src/storage/table_factory.cpp
+// Identification: src/../storage/table_factory.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/table_factory.h"
+#include "../storage/table_factory.h"
 
-#include "common/exception.h"
-#include "storage/data_table.h"
-#include "storage/storage_manager.h"
-#include "storage/temp_table.h"
+#include "../common/exception.h"
+#include "../storage/data_table.h"
+#include "../storage/storage_manager.h"
+#include "../storage/temp_table.h"
 
 
 namespace peloton_peloton {
@@ -42,7 +42,7 @@ TempTable *TableFactory::GetTempTable(catalog::Schema *schema,
 }
 
 bool TableFactory::DropDataTable(oid_t database_oid, oid_t table_oid) {
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   try {
     DataTable *table = (DataTable *)storage_manager->GetTableWithOid(
         database_oid, table_oid);

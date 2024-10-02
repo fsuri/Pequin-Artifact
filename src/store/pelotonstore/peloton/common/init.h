@@ -4,7 +4,7 @@
 //
 // init.h
 //
-// Identification: src/include/common/init.h
+// Identification: src/include/../../common/init.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

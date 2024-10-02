@@ -4,7 +4,7 @@
 //
 // value.h
 //
-// Identification: src/backend/type/value.h
+// Identification: src/backend/../type/value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,15 +15,15 @@
 #include <cstdint>
 #include <vector>
 
-#include "common/exception.h"
-#include "common/macros.h"
-#include "common/printable.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
+#include "../common/printable.h"
 
-#include "type/limits.h"
-#include "type/serializeio.h"
-#include "type/type.h"
+#include "../type/limits.h"
+#include "../type/serializeio.h"
+#include "../type/type.h"
 
-#include "util/string_util.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace type {

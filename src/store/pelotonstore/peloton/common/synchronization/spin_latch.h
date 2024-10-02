@@ -4,7 +4,7 @@
 //
 // spin_latch.h
 //
-// Identification: src/include/common/synchronization/spin_latch.h
+// Identification: src/include/../../common/synchronization/spin_latch.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <atomic>
 
-#include "common/platform.h"
-#include "common/macros.h"
+#include "../../common/platform.h"
+#include "../../common/macros.h"
 
 //===--------------------------------------------------------------------===//
 // Cheap & Easy Spin Latch

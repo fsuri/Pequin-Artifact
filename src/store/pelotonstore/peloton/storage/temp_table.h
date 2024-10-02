@@ -4,7 +4,7 @@
 //
 // temp_table.h
 //
-// Identification: /peloton/src/include/storage/temp_table.h
+// Identification: /peloton/src/include/../storage/temp_table.h
 //
 // Copyright (c) 2015, 2016 Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "storage/abstract_table.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../storage/abstract_table.h"
 
 namespace peloton_peloton {
 

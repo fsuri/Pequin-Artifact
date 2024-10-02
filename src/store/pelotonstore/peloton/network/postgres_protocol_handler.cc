@@ -14,22 +14,22 @@
 #include <cstdio>
 #include <unordered_map>
 
-#include "common/cache.h"
-#include "common/internal_types.h"
-#include "common/macros.h"
-#include "common/portal.h"
-#include "expression/expression_util.h"
-#include "network/marshal.h"
-#include "network/peloton_server.h"
-#include "network/postgres_protocol_handler.h"
-#include "parser/postgresparser.h"
-#include "parser/statements.h"
-#include "planner/plan_util.h"
-#include "settings/settings_manager.h"
-#include "traffic_cop/traffic_cop.h"
-#include "type/value.h"
-#include "type/value_factory.h"
-#include "util/string_util.h"
+#include "../common/cache.h"
+#include "../common/internal_types.h"
+#include "../common/macros.h"
+#include "../common/portal.h"
+#include "../expression/expression_util.h"
+#include "../network/marshal.h"
+#include "../network/peloton_server.h"
+#include "../network/postgres_protocol_handler.h"
+#include "../parser/postgresparser.h"
+#include "../parser/statements.h"
+#include "../planner/plan_util.h"
+#include "../settings/settings_manager.h"
+#include "../traffic_cop/traffic_cop.h"
+#include "../type/value.h"
+#include "../type/value_factory.h"
+#include "../util/string_util.h"
 
 #define SSL_MESSAGE_VERNO 80877103
 #define PROTO_MAJOR_VERSION(x) ((x) >> 16)

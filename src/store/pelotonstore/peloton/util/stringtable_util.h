@@ -4,7 +4,7 @@
 //
 // stringtable_util.h
 //
-// Identification: /src/include/common/stringtable_util.h
+// Identification: /src/include/../common/stringtable_util.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "util/string_util.h"
+#include "../util/string_util.h"
 
 #include <iomanip>
 #include <sstream>

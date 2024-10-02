@@ -4,18 +4,18 @@
 //
 // string_functions.cpp
 //
-// Identification: src/function/string_functions.cpp
+// Identification: src/../function/string_functions.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "function/string_functions.h"
+#include "../function/string_functions.h"
 
-#include "common/macros.h"
-#include "executor/executor_context.h"
-#include "type/type_util.h"
-#include "type/abstract_pool.h"
+#include "../common/macros.h"
+#include "../executor/executor_context.h"
+#include "../type/type_util.h"
+#include "../type/abstract_pool.h"
 
 namespace peloton_peloton {
 namespace function {

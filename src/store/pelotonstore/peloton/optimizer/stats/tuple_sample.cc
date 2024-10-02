@@ -4,13 +4,13 @@
 //
 // tuple_sample.cpp
 //
-// Identification: src/optimizer/tuple_sample.cpp
+// Identification: src/../../optimizer/tuple_sample.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/tuple_sample.h"
+#include "../../optimizer/stats/tuple_sample.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -4,17 +4,17 @@
 //
 // child_stats_deriver.cpp
 //
-// Identification: src/optimizer/child_stats_deriver.cpp
+// Identification: src/../../optimizer/child_stats_deriver.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/child_stats_deriver.h"
+#include "../../optimizer/stats/child_stats_deriver.h"
 
-#include "expression/expression_util.h"
-#include "expression/tuple_value_expression.h"
-#include "optimizer/memo.h"
+#include "../../expression/expression_util.h"
+#include "../../expression/tuple_value_expression.h"
+#include "../../optimizer/memo.h"
 
 namespace peloton_peloton {
 namespace optimizer {

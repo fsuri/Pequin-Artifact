@@ -4,17 +4,17 @@
 //
 // abstract_executor.cpp
 //
-// Identification: src/executor/abstract_executor.cpp
+// Identification: src/../executor/abstract_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/value.h"
-#include "common/logger.h"
-#include "executor/abstract_executor.h"
-#include "executor/executor_context.h"
-#include "planner/abstract_plan.h"
+#include "../type/value.h"
+#include "../common/logger.h"
+#include "../executor/abstract_executor.h"
+#include "../executor/executor_context.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 namespace executor {

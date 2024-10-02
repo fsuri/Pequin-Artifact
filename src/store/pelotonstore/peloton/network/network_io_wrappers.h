@@ -15,9 +15,9 @@
 #include <openssl/ssl.h>
 #include <memory>
 #include <utility>
-#include "common/exception.h"
-#include "common/utility.h"
-#include "network/marshal.h"
+#include "../common/exception.h"
+#include "../common/utility.h"
+#include "../network/marshal.h"
 
 namespace peloton_peloton {
 namespace network {

@@ -4,7 +4,7 @@
 //
 // abstract_join_executor.h
 //
-// Identification: src/include/executor/abstract_join_executor.h
+// Identification: src/include/../executor/abstract_join_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -15,9 +15,9 @@
 #include <vector>
 #include <unordered_set>
 
-#include "catalog/schema.h"
-#include "executor/abstract_executor.h"
-#include "planner/project_info.h"
+#include "../catalog/schema.h"
+#include "../executor/abstract_executor.h"
+#include "../planner/project_info.h"
 
 namespace peloton_peloton {
 namespace executor {

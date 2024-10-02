@@ -4,7 +4,7 @@
 //
 // statement_cache_manager.h
 //
-// Identification: src/include/common/statement_cache_manager.h
+// Identification: src/include/../../common/statement_cache_manager.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "common/statement_cache.h"
+#include "../common/statement_cache.h"
 #include "container/cuckoo_map.h"
 
 namespace peloton_peloton {

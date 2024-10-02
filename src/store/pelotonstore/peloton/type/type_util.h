@@ -5,7 +5,7 @@
 //
 // type_util.h
 //
-// Identification: /peloton/src/include/type/type_util.h
+// Identification: /peloton/src/include/../type/type_util.h
 //
 // Copyright (c) 2015, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 
 #include <string.h>
 
-#include "common/logger.h"
-#include "type/type.h"
+#include "../common/logger.h"
+#include "../type/type.h"
 
 namespace peloton_peloton {
 namespace type {

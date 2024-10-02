@@ -4,7 +4,7 @@
 //
 // dedicated_thread_registry.h
 //
-// Identification: src/include/common/dedicated_thread_registry.h
+// Identification: src/include/../../common/dedicated_thread_registry.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,9 +15,9 @@
 #include <unordered_map>
 #include <vector>
 #include <thread>
-#include "common/macros.h"
-#include "common/dedicated_thread_task.h"
-#include "common/dedicated_thread_owner.h"
+#include "../common/macros.h"
+#include "../common/dedicated_thread_task.h"
+#include "../common/dedicated_thread_owner.h"
 
 namespace peloton_peloton {
 

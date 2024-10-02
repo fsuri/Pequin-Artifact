@@ -4,7 +4,7 @@
 //
 // hyperloglog.h
 //
-// Identification: src/include/optimizer/stats/hyperloglog.h
+// Identification: src/include/../../optimizer/stats/hyperloglog.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,10 +17,10 @@
 
 #include <count/hll.h>
 
-#include "type/value.h"
-#include "common/macros.h"
-#include "common/logger.h"
-#include "optimizer/stats/stats_util.h"
+#include "../../type/value.h"
+#include "../../common/macros.h"
+#include "../../common/logger.h"
+#include "../../optimizer/stats/stats_util.h"
 
 namespace peloton_peloton {
 namespace optimizer {

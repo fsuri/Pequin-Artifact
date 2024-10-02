@@ -4,7 +4,7 @@
 //
 // abstract_join_plan.h
 //
-// Identification: src/include/planner/abstract_join_plan.h
+// Identification: src/include/../planner/abstract_join_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,10 +18,10 @@
 #include <vector>
 
 #include "abstract_plan.h"
-#include "expression/abstract_expression.h"
-#include "planner/attribute_info.h"
-#include "planner/project_info.h"
-#include "common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../planner/attribute_info.h"
+#include "../planner/project_info.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {

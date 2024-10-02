@@ -4,13 +4,13 @@
 //
 // centralized_epoch_manager.cpp
 //
-// Identification: src/concurrency/centralized_epoch_manager.cpp
+// Identification: src/../concurrency/centralized_epoch_manager.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "concurrency/decentralized_epoch_manager.h"
+#include "../concurrency/decentralized_epoch_manager.h"
 
 
 namespace peloton_peloton {

@@ -4,7 +4,7 @@
 //
 // delete_statement.h
 //
-// Identification: src/include/parser/delete_statement.h
+// Identification: src/include/../parser/delete_statement.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include "common/logger.h"
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "parser/sql_statement.h"
-#include "parser/table_ref.h"
+#include "../common/logger.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../parser/sql_statement.h"
+#include "../parser/table_ref.h"
 
 namespace peloton_peloton {
 namespace parser {

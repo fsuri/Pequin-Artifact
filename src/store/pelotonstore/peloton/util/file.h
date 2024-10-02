@@ -4,7 +4,7 @@
 //
 // file.h
 //
-// Identification: src/include/util/file.h
+// Identification: src/include/../util/file.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,7 +16,7 @@
 #include <memory>
 #include <string>
 
-#include "common/exception.h"
+#include "../common/exception.h"
 
 namespace peloton_peloton {
 namespace util {

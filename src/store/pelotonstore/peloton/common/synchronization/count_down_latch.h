@@ -4,7 +4,7 @@
 //
 // count_down_latch.h
 //
-// Identification: src/include/common/synchronization/count_down_latch.h
+// Identification: src/include/../../common/synchronization/count_down_latch.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,7 +16,7 @@
 #include <mutex>
 #include <chrono>
 
-#include "common/macros.h"
+#include "../../common/macros.h"
 
 namespace peloton_peloton {
 namespace common {

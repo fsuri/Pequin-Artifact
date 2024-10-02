@@ -4,20 +4,20 @@
 //
 // tuple_sampler.cpp
 //
-// Identification: src/optimizer/tuple_sampler.cpp
+// Identification: src/../../optimizer/tuple_sampler.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/tuple_sampler.h"
+#include "../../optimizer/stats/tuple_sampler.h"
 #include <cinttypes>
 
-#include "storage/data_table.h"
-#include "storage/tile.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
+#include "../../storage/data_table.h"
+#include "../../storage/tile.h"
+#include "../../storage/tile_group.h"
+#include "../../storage/tile_group_header.h"
+#include "../../storage/tuple.h"
 
 namespace peloton_peloton {
 namespace optimizer {

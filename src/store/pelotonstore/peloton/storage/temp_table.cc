@@ -4,22 +4,22 @@
 //
 // temp_table.cpp
 //
-// Identification: /peloton/src/storage/temp_table.cpp
+// Identification: /peloton/src/../storage/temp_table.cpp
 //
 // Copyright (c) 2015, 2016 Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/temp_table.h"
+#include "../storage/temp_table.h"
 
 #include <sstream>
 
-#include "catalog/schema.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
+#include "../catalog/schema.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../storage/tile_group.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tuple.h"
 
 namespace peloton_peloton {
 namespace storage {

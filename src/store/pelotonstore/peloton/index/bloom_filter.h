@@ -4,7 +4,7 @@
 //
 // bwtree.h
 //
-// Identification: src/index/bwtree.h
+// Identification: src/../index/bwtree.h
 //
 // Copyright (c) 2015, Carnegie Mellon University Database Group
 //

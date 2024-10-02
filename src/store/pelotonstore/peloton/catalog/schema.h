@@ -4,7 +4,7 @@
 //
 // schema.h
 //
-// Identification: src/include/catalog/schema.h
+// Identification: src/include/../catalog/schema.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,10 +13,10 @@
 #pragma once
 
 #include <memory>
-#include "catalog/column.h"
-#include "catalog/constraint.h"
-#include "common/printable.h"
-#include "type/type.h"
+#include "../catalog/column.h"
+#include "../catalog/constraint.h"
+#include "../common/printable.h"
+#include "../type/type.h"
 #include "boost/algorithm/string.hpp"
 
 namespace peloton_peloton {

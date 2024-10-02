@@ -4,7 +4,7 @@
 //
 // plan_generator.h
 //
-// Identification: src/include/optimizer/plan_generator.h
+// Identification: src/include/../optimizer/plan_generator.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/operator_visitor.h"
+#include "../optimizer/operator_visitor.h"
 
 namespace peloton_peloton {
 

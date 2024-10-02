@@ -62,7 +62,7 @@
 #include <string>
 #include <tuple>
 
-#include "lib/concurrentqueue/concurrentqueue.h"
+#include "tbb/concurrent_unordered_map.h"
 #include <fmt/core.h>
 #include <fmt/ranges.h>
 
@@ -73,14 +73,17 @@ class TableStore {
         TableStore(int num_threads = 0);
         virtual ~TableStore();
 
-        // Execute a statement directly on the Table backend, no questions asked, no
-        // output
-        void ExecRaw(const std::string &sql_statement, bool skip_cache = true);
+        // Execute a statement as single statement transaction, no output
+        void ExecSingle(const std::string &sql_statement, bool skip_cache = false);
 
-        std::string ExecRawResult(const std::string &sql_statement, peloton_peloton::ResultType &result_status, bool skip_cache = true);
+        // Execute a statement that is part of the clients ongoing transaction
+        std::string ExecTransactional(const std::string &sql_statement, uint64_t client_id, uint64_t tx_id, peloton_peloton::ResultType &result_status, std::string &error_msg, bool skip_cache = true);
 
-        //void LoadTable(const std::string &load_statement, const std::string &txn_digest, const Timestamp &ts, const proto::CommittedProof *committedProof) override;
+        void Begin(uint64_t client_id, uint64_t tx_id);
 
+        peloton_peloton::ResultType Commit(uint64_t client_id, uint64_t tx_id);
+           
+        void Abort(uint64_t client_id, uint64_t tx_id);
         
     private:
         void Init(int num_threads);
@@ -97,11 +100,9 @@ class TableStore {
 		std::atomic_int counter_;
         bool is_recycled_version_;
 
-        //std::vector<peloton::tcop::TrafficCop*> traffic_cops;
-        moodycamel::ConcurrentQueue<std::pair<peloton_peloton::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
-
-        std::pair<peloton_peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
-        void ReleaseTrafficCop(std::pair<peloton_peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
+    
+        tbb::concurrent_unordered_map<uint64_t, std::pair<peloton_peloton::tcop::TrafficCop*, std::atomic_int*>> client_cop; //map from client_id to traffic cop. 
+        //Invariant: Client finishes its Txns sequentially. If not, need traffic cop per Transaction.
 
         int num_threads;
         std::vector<std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
@@ -109,7 +110,7 @@ class TableStore {
 
         std::shared_ptr<peloton_peloton::Statement> ParseAndPrepare(const std::string &query_statement, peloton_peloton::tcop::TrafficCop *tcop, bool skip_cache = false);
 
-        void GetResult(peloton_peloton::ResultType &status, peloton_peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
+        void GetResult(peloton_peloton::ResultType &status, uint64_t &rows_affected, peloton_peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
 
         //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
         std::string TransformResult(peloton_peloton::ResultType &status, std::shared_ptr<peloton_peloton::Statement> statement, std::vector<peloton_peloton::ResultValue> &result);

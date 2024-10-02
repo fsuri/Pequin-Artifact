@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "logging/log_manager_factory.h"
+#include "../logging/log_manager_factory.h"
 
 namespace peloton_peloton {
 namespace logging {

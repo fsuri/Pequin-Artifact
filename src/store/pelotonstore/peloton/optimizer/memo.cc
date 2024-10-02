@@ -4,16 +4,16 @@
 //
 // memo.cpp
 //
-// Identification: src/optimizer/memo.cpp
+// Identification: src/../optimizer/memo.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/group_expression.h"
-#include "optimizer/memo.h"
-#include "optimizer/operators.h"
-#include "optimizer/stats/stats_calculator.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/memo.h"
+#include "../optimizer/operators.h"
+#include "../optimizer/stats/stats_calculator.h"
 
 namespace peloton_peloton {
 namespace optimizer {

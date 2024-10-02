@@ -4,16 +4,16 @@
 //
 // tile_group_iterator.cpp
 //
-// Identification: src/storage/tile_group_iterator.cpp
+// Identification: src/../storage/tile_group_iterator.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
 
-#include "storage/tile_group_iterator.h"
-#include "storage/data_table.h"
-#include "storage/tile_group.h"
+#include "../storage/tile_group_iterator.h"
+#include "../storage/data_table.h"
+#include "../storage/tile_group.h"
 
 namespace peloton_peloton {
 namespace storage {

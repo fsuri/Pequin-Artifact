@@ -4,27 +4,27 @@
 //
 // insert_executor.cpp
 //
-// Identification: src/executor/insert_executor.cpp
+// Identification: src/../executor/insert_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/insert_executor.h"
+#include "../executor/insert_executor.h"
 
-#include "catalog/manager.h"
-#include "common/logger.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/logical_tile.h"
-#include "executor/executor_context.h"
-#include "common/container_tuple.h"
-#include "planner/insert_plan.h"
-#include "storage/data_table.h"
-#include "storage/tuple_iterator.h"
-#include "trigger/trigger.h"
-#include "storage/tuple.h"
-#include "catalog/catalog.h"
-#include "catalog/trigger_catalog.h"
+#include "../catalog/manager.h"
+#include "../common/logger.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/logical_tile.h"
+#include "../executor/executor_context.h"
+#include "../common/container_tuple.h"
+#include "../planner/insert_plan.h"
+#include "../storage/data_table.h"
+#include "../storage/tuple_iterator.h"
+#include "../trigger/trigger.h"
+#include "../storage/tuple.h"
+#include "../catalog/catalog.h"
+#include "../catalog/trigger_catalog.h"
 
 namespace peloton_peloton {
 namespace executor {

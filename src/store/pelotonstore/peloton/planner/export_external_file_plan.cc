@@ -4,17 +4,17 @@
 //
 // export_external_file_plan.cpp
 //
-// Identification: src/planner/export_external_file_plan.cpp
+// Identification: src/../planner/export_external_file_plan.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/export_external_file_plan.h"
+#include "../planner/export_external_file_plan.h"
 
-#include "common/macros.h"
-#include "util/hash_util.h"
-#include "util/string_util.h"
+#include "../common/macros.h"
+#include "../util/hash_util.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace planner {

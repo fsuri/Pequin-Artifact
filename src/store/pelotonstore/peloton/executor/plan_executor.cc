@@ -4,24 +4,24 @@
 //
 // plan_executor.cpp
 //
-// Identification: src/executor/plan_executor.cpp
+// Identification: src/../executor/plan_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/plan_executor.h"
+#include "../executor/plan_executor.h"
 
 /*#include "codegen/buffering_consumer.h"
 #include "codegen/query.h"
 #include "codegen/query_cache.h"
 #include "codegen/query_compiler.h"*/
-#include "common/logger.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "executor/executors.h"
-#include "settings/settings_manager.h"
-#include "storage/tuple_iterator.h"
+#include "../common/logger.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/executor_context.h"
+#include "../executor/executors.h"
+#include "../settings/settings_manager.h"
+#include "../storage/tuple_iterator.h"
 
 namespace peloton_peloton {
 namespace executor {

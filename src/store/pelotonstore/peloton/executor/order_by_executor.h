@@ -4,7 +4,7 @@
 //
 // order_by_executor.h
 //
-// Identification: src/include/executor/order_by_executor.h
+// Identification: src/include/../executor/order_by_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/internal_types.h"
-#include "executor/abstract_executor.h"
-#include "storage/tuple.h"
+#include "../common/internal_types.h"
+#include "../executor/abstract_executor.h"
+#include "../storage/tuple.h"
 
 namespace peloton_peloton {
 namespace executor {

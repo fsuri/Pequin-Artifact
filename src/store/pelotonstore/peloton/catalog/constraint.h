@@ -4,7 +4,7 @@
 //
 // constraint.h
 //
-// Identification: src/include/catalog/constraint.h
+// Identification: src/include/../catalog/constraint.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,9 +17,9 @@
 #include <utility>
 #include <vector>
 
-#include "common/printable.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../common/printable.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace catalog {

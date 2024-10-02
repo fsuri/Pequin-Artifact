@@ -4,18 +4,18 @@
 //
 // abstract_plan.cpp
 //
-// Identification: src/planner/abstract_plan.cpp
+// Identification: src/../planner/abstract_plan.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/abstract_plan.h"
+#include "../planner/abstract_plan.h"
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "expression/expression_util.h"
-#include "util/hash_util.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../expression/expression_util.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 namespace planner {

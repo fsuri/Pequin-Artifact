@@ -4,7 +4,7 @@
 //
 // query_to_operator_transformer.cpp
 //
-// Identification: src/optimizer/query_to_operator_transformer.cpp
+// Identification: src/../optimizer/query_to_operator_transformer.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,17 +12,17 @@
 
 #include <cmath>
 
-#include "catalog/column_catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/table_catalog.h"
-#include "expression/expression_util.h"
-#include "expression/subquery_expression.h"
-#include "optimizer/operator_expression.h"
-#include "optimizer/operators.h"
-#include "optimizer/query_node_visitor.h"
-#include "optimizer/query_to_operator_transformer.h"
-#include "parser/statements.h"
-#include "settings/settings_manager.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../expression/expression_util.h"
+#include "../expression/subquery_expression.h"
+#include "../optimizer/operator_expression.h"
+#include "../optimizer/operators.h"
+#include "../optimizer/query_node_visitor.h"
+#include "../optimizer/query_to_operator_transformer.h"
+#include "../parser/statements.h"
+#include "../settings/settings_manager.h"
 
 using std::vector;
 using std::shared_ptr;

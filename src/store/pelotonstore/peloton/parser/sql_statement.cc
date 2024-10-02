@@ -4,7 +4,7 @@
 //
 // sql_statement.cpp
 //
-// Identification: src/parser/sql_statement.cpp
+// Identification: src/../parser/sql_statement.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,15 +17,15 @@
  *
  * Copyright(c) 2015, CMU
  *
- * /n-store/src/parser/sql_statement.cpp
+ * /n-store/src/../parser/sql_statement.cpp
  *
  *-------------------------------------------------------------------------
  */
 
 #include <sstream>
 
-#include "parser/sql_statement.h"
-#include "util/string_util.h"
+#include "../parser/sql_statement.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace parser {

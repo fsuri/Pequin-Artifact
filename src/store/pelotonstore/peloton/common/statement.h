@@ -4,7 +4,7 @@
 //
 // statement.h
 //
-// Identification: src/include/common/statement.h
+// Identification: src/include/../../common/statement.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -17,9 +17,9 @@
 #include <string>
 #include <vector>
 
-#include "common/printable.h"
+#include "../common/printable.h"
 #include "internal_types.h"
-#include "parser/sql_statement.h"
+#include "../parser/sql_statement.h"
 
 namespace peloton_peloton {
 

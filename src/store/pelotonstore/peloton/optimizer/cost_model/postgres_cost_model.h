@@ -4,7 +4,7 @@
 //
 // postgres_cost_calculator.h
 //
-// Identification: src/include/optimizer/postgres_cost_calculator.h
+// Identification: src/include/../../optimizer/postgres_cost_calculator.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,13 +13,13 @@
 
 #pragma once
 
-#include "optimizer/cost_model/abstract_cost_model.h"
-#include "expression/tuple_value_expression.h"
-#include "catalog/table_catalog.h"
-#include "optimizer/memo.h"
-#include "optimizer/operators.h"
-#include "optimizer/stats/stats_storage.h"
-#include "optimizer/stats/table_stats.h"
+#include "abstract_cost_model.h"
+#include "../../expression/tuple_value_expression.h"
+#include "../../catalog/table_catalog.h"
+#include "../../optimizer/memo.h"
+#include "../../optimizer/operators.h"
+#include "../../optimizer/stats/stats_storage.h"
+#include "../../optimizer/stats/table_stats.h"
 
 // TODO: This is not fully reflective of the postgres cost model. Currently we
 // are attempting

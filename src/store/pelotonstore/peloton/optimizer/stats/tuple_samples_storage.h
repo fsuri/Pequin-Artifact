@@ -4,7 +4,7 @@
 //
 // tuple_samples_storage.h
 //
-// Identification: src/include/optimizer/stats/tuple_samples_storage.h
+// Identification: src/include/../../optimizer/stats/tuple_samples_storage.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <sstream>
 
-#include "common/macros.h"
-#include "common/internal_types.h"
-#include "type/value_factory.h"
+#include "../../common/macros.h"
+#include "../../common/internal_types.h"
+#include "../../type/value_factory.h"
 
 #define SAMPLE_COUNT_PER_TABLE 100
 

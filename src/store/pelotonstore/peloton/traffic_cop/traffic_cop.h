@@ -19,14 +19,14 @@
 // Libevent 2.0
 #include "event.h"
 
-#include "catalog/column.h"
-#include "common/internal_types.h"
-#include "common/portal.h"
-#include "common/statement.h"
-#include "executor/plan_executor.h"
-#include "optimizer/abstract_optimizer.h"
-#include "parser/sql_statement.h"
-#include "type/type.h"
+#include "../catalog/column.h"
+#include "../common/internal_types.h"
+#include "../common/portal.h"
+#include "../common/statement.h"
+#include "../executor/plan_executor.h"
+#include "../optimizer/abstract_optimizer.h"
+#include "../parser/sql_statement.h"
+#include "../type/type.h"
 
 namespace peloton_peloton {
 
@@ -98,7 +98,11 @@ class TrafficCop {
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
 
+  ResultType BeginQueryHelper(size_t thread_id);
+  
   ResultType CommitQueryHelper();
+   
+  ResultType AbortQueryHelper();
 
   void ExecuteStatementPlanGetResult();
 
@@ -187,9 +191,6 @@ class TrafficCop {
 
   TcopTxnState &GetCurrentTxnState();
 
-  ResultType BeginQueryHelper(size_t thread_id);
-
-  ResultType AbortQueryHelper();
 
   // Get all data tables from a TableRef.
   // For multi-way join

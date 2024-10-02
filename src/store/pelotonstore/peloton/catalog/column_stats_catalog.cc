@@ -4,19 +4,19 @@
 //
 // column_stats_catalog.cpp
 //
-// Identification: src/catalog/column_stats_catalog.cpp
+// Identification: src/../catalog/column_stats_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/column_stats_catalog.h"
+#include "../catalog/column_stats_catalog.h"
 
-#include "catalog/catalog.h"
-#include "executor/logical_tile.h"
-#include "optimizer/stats/column_stats_collector.h"
-#include "storage/data_table.h"
-#include "storage/tuple.h"
+#include "../catalog/catalog.h"
+#include "../executor/logical_tile.h"
+#include "../optimizer/stats/column_stats_collector.h"
+#include "../storage/data_table.h"
+#include "../storage/tuple.h"
 
 namespace peloton_peloton {
 namespace catalog {

@@ -4,19 +4,19 @@
 //
 // varlen_value.h
 //
-// Identification: src/backend/common/varlen_value.cpp
+// Identification: src/backend/../common/varlen_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/varlen_type.h"
+#include "../type/varlen_type.h"
 
 #include <boost/functional/hash_fwd.hpp>
-#include "type/boolean_type.h"
-#include "type/type_util.h"
-#include "type/value_factory.h"
-#include "type/abstract_pool.h"
+#include "../type/boolean_type.h"
+#include "../type/type_util.h"
+#include "../type/value_factory.h"
+#include "../type/abstract_pool.h"
 
 namespace peloton_peloton {
 namespace type {

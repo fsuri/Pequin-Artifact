@@ -13,8 +13,8 @@
 #pragma once
 #include "capnp/ez-rpc.h"
 #include "capnp/message.h"
-#include "common/dedicated_thread_task.h"
-#include "common/logger.h"
+#include "../common/dedicated_thread_task.h"
+#include "../common/logger.h"
 #include "kj/debug.h"
 #include "peloton/capnp/peloton_service.capnp.h"
 

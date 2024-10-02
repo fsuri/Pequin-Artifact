@@ -4,40 +4,40 @@
 //
 // plan_generator.cpp
 //
-// Identification: src/optimizer/plan_generator.cpp
+// Identification: src/../optimizer/plan_generator.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/plan_generator.h"
+#include "../optimizer/plan_generator.h"
 
-#include "catalog/column_catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/table_catalog.h"
-//#include "codegen/type/type.h"
-#include "type/type.h"
-#include "concurrency/transaction_context.h"
-#include "expression/expression_util.h"
-#include "optimizer/operator_expression.h"
-#include "optimizer/properties.h"
-#include "planner/aggregate_plan.h"
-#include "planner/csv_scan_plan.h"
-#include "planner/delete_plan.h"
-#include "planner/export_external_file_plan.h"
-#include "planner/hash_join_plan.h"
-#include "planner/hash_plan.h"
-#include "planner/index_scan_plan.h"
-#include "planner/insert_plan.h"
-#include "planner/limit_plan.h"
-#include "planner/nested_loop_join_plan.h"
-#include "planner/order_by_plan.h"
-#include "planner/projection_plan.h"
-#include "planner/seq_scan_plan.h"
-#include "planner/update_plan.h"
-#include "settings/settings_manager.h"
-#include "storage/data_table.h"
-#include "storage/storage_manager.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/table_catalog.h"
+//#include "codegen/../type/type.h"
+#include "../type/type.h"
+#include "../concurrency/transaction_context.h"
+#include "../expression/expression_util.h"
+#include "../optimizer/operator_expression.h"
+#include "../optimizer/properties.h"
+#include "../planner/aggregate_plan.h"
+#include "../planner/csv_scan_plan.h"
+#include "../planner/delete_plan.h"
+#include "../planner/export_external_file_plan.h"
+#include "../planner/hash_join_plan.h"
+#include "../planner/hash_plan.h"
+#include "../planner/index_scan_plan.h"
+#include "../planner/insert_plan.h"
+#include "../planner/limit_plan.h"
+#include "../planner/nested_loop_join_plan.h"
+#include "../planner/order_by_plan.h"
+#include "../planner/projection_plan.h"
+#include "../planner/seq_scan_plan.h"
+#include "../planner/update_plan.h"
+#include "../settings/settings_manager.h"
+#include "../storage/data_table.h"
+#include "../storage/storage_manager.h"
 
 using std::vector;
 using std::make_pair;
@@ -90,7 +90,7 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
       op->table_alias, op->table_);
 
   // Pull out the raw table from storage
-  auto *data_table = storage::StorageManager::GetInstance()->GetTableWithOid(
+  auto *data_table = storage::storagemanager::GetInstance()->GetTableWithOid(
       op->table_->GetDatabaseOid(), op->table_->GetTableOid());
 
   // Check if we should do a parallel scan
@@ -128,7 +128,7 @@ void PlanGenerator::Visit(const PhysicalIndexScan *op) {
       op->index_id, op->key_column_id_list, op->expr_type_list, op->value_list,
       runtime_keys);
   output_plan_.reset(new planner::IndexScanPlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
+      storage::storagemanager::GetInstance()->GetTableWithOid(
           op->table_->GetDatabaseOid(), op->table_->GetTableOid()),
       predicate.release(), column_ids, index_scan_desc, false));
 }
@@ -345,7 +345,7 @@ void PlanGenerator::Visit(const PhysicalOuterHashJoin *) {}
 
 void PlanGenerator::Visit(const PhysicalInsert *op) {
   unique_ptr<planner::AbstractPlan> insert_plan(new planner::InsertPlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
+      storage::storagemanager::GetInstance()->GetTableWithOid(
           op->target_table->GetDatabaseOid(), op->target_table->GetTableOid()),
       op->columns, op->values));
   output_plan_ = move(insert_plan);
@@ -353,7 +353,7 @@ void PlanGenerator::Visit(const PhysicalInsert *op) {
 
 void PlanGenerator::Visit(const PhysicalInsertSelect *op) {
   unique_ptr<planner::AbstractPlan> insert_plan(new planner::InsertPlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
+      storage::storagemanager::GetInstance()->GetTableWithOid(
           op->target_table->GetDatabaseOid(),
           op->target_table->GetTableOid())));
   // Add child
@@ -363,7 +363,7 @@ void PlanGenerator::Visit(const PhysicalInsertSelect *op) {
 
 void PlanGenerator::Visit(const PhysicalDelete *op) {
   unique_ptr<planner::AbstractPlan> delete_plan(new planner::DeletePlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
+      storage::storagemanager::GetInstance()->GetTableWithOid(
           op->target_table->GetDatabaseOid(),
           op->target_table->GetTableOid())));
 
@@ -408,7 +408,7 @@ void PlanGenerator::Visit(const PhysicalUpdate *op) {
       new planner::ProjectInfo(move(tl), move(dml)));
 
   unique_ptr<planner::AbstractPlan> update_plan(new planner::UpdatePlan(
-      storage::StorageManager::GetInstance()->GetTableWithOid(
+      storage::storagemanager::GetInstance()->GetTableWithOid(
           op->target_table->GetDatabaseOid(), op->target_table->GetTableOid()),
       move(proj_info)));
   update_plan->AddChild(move(children_plans_[0]));

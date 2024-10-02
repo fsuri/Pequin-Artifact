@@ -4,7 +4,7 @@
 //
 // group.h
 //
-// Identification: src/include/optimizer/group.h
+// Identification: src/include/../optimizer/group.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,11 +15,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "optimizer/group_expression.h"
-#include "optimizer/operator_node.h"
-#include "optimizer/property.h"
-#include "optimizer/property_set.h"
-#include "optimizer/stats/column_stats.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/operator_node.h"
+#include "../optimizer/property.h"
+#include "../optimizer/property_set.h"
+#include "../optimizer/stats/column_stats.h"
 
 namespace peloton_peloton {
 namespace optimizer {

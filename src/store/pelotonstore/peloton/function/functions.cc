@@ -4,13 +4,13 @@
 //
 // functions.cpp
 //
-// Identification: src/function/functions.cpp
+// Identification: src/../function/functions.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "function/functions.h"
+#include "../function/functions.h"
 
 //#include "codegen/code_context.h"
 //#include "codegen/value.h"

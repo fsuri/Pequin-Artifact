@@ -4,25 +4,25 @@
 //
 // bind_node_visitor.cpp
 //
-// Identification: src/binder/bind_node_visitor.cpp
+// Identification: src/../binder/bind_node_visitor.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "binder/bind_node_visitor.h"
-#include "catalog/catalog.h"
-#include "expression/expression_util.h"
-#include "expression/star_expression.h"
-#include "type/type_id.h"
+#include "../binder/bind_node_visitor.h"
+#include "../catalog/catalog.h"
+#include "../expression/expression_util.h"
+#include "../expression/star_expression.h"
+#include "../type/type_id.h"
 
-#include "expression/aggregate_expression.h"
-#include "expression/case_expression.h"
-#include "expression/function_expression.h"
-#include "expression/operator_expression.h"
-#include "expression/star_expression.h"
-#include "expression/subquery_expression.h"
-#include "expression/tuple_value_expression.h"
+#include "../expression/aggregate_expression.h"
+#include "../expression/case_expression.h"
+#include "../expression/function_expression.h"
+#include "../expression/operator_expression.h"
+#include "../expression/star_expression.h"
+#include "../expression/subquery_expression.h"
+#include "../expression/tuple_value_expression.h"
 
 namespace peloton_peloton {
 namespace binder {

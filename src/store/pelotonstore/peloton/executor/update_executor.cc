@@ -4,25 +4,25 @@
 //
 // update_executor.cpp
 //
-// Identification: src/executor/update_executor.cpp
+// Identification: src/../executor/update_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/update_executor.h"
-#include "planner/update_plan.h"
-#include "common/logger.h"
-#include "catalog/manager.h"
-#include "executor/logical_tile.h"
-#include "executor/executor_context.h"
-#include "common/container_tuple.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "storage/data_table.h"
-#include "storage/tile_group_header.h"
-#include "storage/tile.h"
-#include "storage/storage_manager.h"
+#include "../executor/update_executor.h"
+#include "../planner/update_plan.h"
+#include "../common/logger.h"
+#include "../catalog/manager.h"
+#include "../executor/logical_tile.h"
+#include "../executor/executor_context.h"
+#include "../common/container_tuple.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../storage/data_table.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tile.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton_peloton {
 namespace executor {
@@ -201,7 +201,7 @@ bool UpdateExecutor::DExecute() {
     if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
       old_location = *(tile_group_header->GetIndirection(physical_tuple_id));
 
-      auto storage_manager = storage::StorageManager::GetInstance();
+      auto storage_manager = storage::storagemanager::GetInstance();
       tile_group = storage_manager->GetTileGroup(old_location.block).get();
       tile_group_header = tile_group->GetHeader();
 
@@ -320,7 +320,7 @@ bool UpdateExecutor::DExecute() {
           // acquire a version slot from the table.
           ItemPointer new_location = target_table_->AcquireVersion();
 
-          auto storage_manager = storage::StorageManager::GetInstance();
+          auto storage_manager = storage::storagemanager::GetInstance();
           auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
 
           ContainerTuple<storage::TileGroup> new_tuple(new_tile_group.get(),

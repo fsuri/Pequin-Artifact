@@ -4,7 +4,7 @@
 //
 // optimizer.cpp
 //
-// Identification: src/optimizer/optimizer.cpp
+// Identification: src/../optimizer/optimizer.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,40 +12,40 @@
 
 #include <memory>
 
-#include "optimizer/optimizer.h"
+#include "../optimizer/optimizer.h"
 
-#include "catalog/column_catalog.h"
-#include "catalog/manager.h"
-#include "catalog/table_catalog.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/manager.h"
+#include "../catalog/table_catalog.h"
 
-#include "common/exception.h"
+#include "../common/exception.h"
 
-#include "optimizer/cost_model/default_cost_model.h"
-#include "optimizer/cost_model/postgres_cost_model.h"
-#include "optimizer/cost_model/trivial_cost_model.h"
-#include "optimizer/binding.h"
-#include "optimizer/input_column_deriver.h"
-#include "optimizer/operator_visitor.h"
-#include "optimizer/optimize_context.h"
-#include "optimizer/optimizer_task_pool.h"
-#include "optimizer/plan_generator.h"
-#include "optimizer/properties.h"
-#include "optimizer/property_enforcer.h"
-#include "optimizer/query_to_operator_transformer.h"
-#include "optimizer/rule.h"
-#include "optimizer/rule_impls.h"
-#include "parser/create_statement.h"
+#include "../optimizer/cost_model/default_cost_model.h"
+#include "../optimizer/cost_model/postgres_cost_model.h"
+#include "../optimizer/cost_model/trivial_cost_model.h"
+#include "../optimizer/binding.h"
+#include "../optimizer/input_column_deriver.h"
+#include "../optimizer/operator_visitor.h"
+#include "../optimizer/optimize_context.h"
+#include "../optimizer/optimizer_task_pool.h"
+#include "../optimizer/plan_generator.h"
+#include "../optimizer/properties.h"
+#include "../optimizer/property_enforcer.h"
+#include "../optimizer/query_to_operator_transformer.h"
+#include "../optimizer/rule.h"
+#include "../optimizer/rule_impls.h"
+#include "../parser/create_statement.h"
 
-#include "planner/analyze_plan.h"
-#include "planner/create_function_plan.h"
-#include "planner/create_plan.h"
-#include "planner/drop_plan.h"
-#include "planner/order_by_plan.h"
-#include "planner/populate_index_plan.h"
-#include "planner/projection_plan.h"
-#include "planner/seq_scan_plan.h"
+#include "../planner/analyze_plan.h"
+#include "../planner/create_function_plan.h"
+#include "../planner/create_plan.h"
+#include "../planner/drop_plan.h"
+#include "../planner/order_by_plan.h"
+#include "../planner/populate_index_plan.h"
+#include "../planner/projection_plan.h"
+#include "../planner/seq_scan_plan.h"
 
-#include "storage/data_table.h"
+#include "../storage/data_table.h"
 
 using std::vector;
 using std::unordered_map;

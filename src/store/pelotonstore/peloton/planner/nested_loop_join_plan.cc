@@ -4,7 +4,7 @@
 //
 // nested_loop_join_plan.cpp
 //
-// Identification: /peloton/src/planner/nested_loop_join_plan.cpp
+// Identification: /peloton/src/../planner/nested_loop_join_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #include <memory>
 #include <vector>
 
-#include "planner/nested_loop_join_plan.h"
+#include "../planner/nested_loop_join_plan.h"
 
 namespace peloton_peloton {
 namespace planner {

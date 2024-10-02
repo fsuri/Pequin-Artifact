@@ -18,7 +18,7 @@
 #include <thread>
 #include <vector>
 
-#include "common/container/lock_free_queue.h"
+#include "../common/container/lock_free_queue.h"
 
 namespace peloton_peloton {
 namespace threadpool {

@@ -4,7 +4,7 @@
 //
 // analyze_executor.h
 //
-// Identification: src/include/executor/analyze_executor.h
+// Identification: src/include/../executor/analyze_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "executor/abstract_executor.h"
-#include "planner/analyze_plan.h"
+#include "../executor/abstract_executor.h"
+#include "../planner/analyze_plan.h"
 
 namespace peloton_peloton {
 

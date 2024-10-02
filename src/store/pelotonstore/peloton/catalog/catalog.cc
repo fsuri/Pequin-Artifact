@@ -4,41 +4,41 @@
 //
 // catalog.cpp
 //
-// Identification: src/catalog/catalog.cpp
+// Identification: src/../catalog/catalog.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/catalog.h"
+#include "../catalog/catalog.h"
 
-#include "catalog/column_catalog.h"
-#include "catalog/constraint_catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/database_metrics_catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/index_metrics_catalog.h"
-#include "catalog/language_catalog.h"
-#include "catalog/layout_catalog.h"
-#include "catalog/proc_catalog.h"
-#include "catalog/query_history_catalog.h"
-#include "catalog/query_metrics_catalog.h"
-#include "catalog/settings_catalog.h"
-#include "catalog/system_catalogs.h"
-#include "catalog/table_catalog.h"
-#include "catalog/table_metrics_catalog.h"
-#include "catalog/trigger_catalog.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/constraint_catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/database_metrics_catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/index_metrics_catalog.h"
+#include "../catalog/language_catalog.h"
+#include "../catalog/layout_catalog.h"
+#include "../catalog/proc_catalog.h"
+#include "../catalog/query_history_catalog.h"
+#include "../catalog/query_metrics_catalog.h"
+#include "../catalog/settings_catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../catalog/table_catalog.h"
+#include "../catalog/table_metrics_catalog.h"
+#include "../catalog/trigger_catalog.h"
 //#include "codegen/code_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "function/date_functions.h"
-#include "function/numeric_functions.h"
-#include "function/old_engine_string_functions.h"
-#include "function/timestamp_functions.h"
-#include "index/index_factory.h"
-#include "settings/settings_manager.h"
-#include "storage/storage_manager.h"
-#include "storage/table_factory.h"
-#include "type/ephemeral_pool.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../function/date_functions.h"
+#include "../function/numeric_functions.h"
+#include "../function/old_engine_string_functions.h"
+#include "../function/timestamp_functions.h"
+#include "../index/index_factory.h"
+#include "../settings/settings_manager.h"
+#include "../storage/storage_manager.h"
+#include "../storage/table_factory.h"
+#include "../type/ephemeral_pool.h"
 
 namespace peloton_peloton {
 namespace catalog {
@@ -59,11 +59,11 @@ Catalog::Catalog() : pool_(new type::EphemeralPool()) {
   // Begin transaction for catalog initialization
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   // Create peloton database
   auto peloton = new storage::Database(CATALOG_DATABASE_OID);
   peloton->setDBName(CATALOG_DATABASE_NAME);
-  storage_manager->AddDatabaseToStorageManager(peloton);
+  storage_manager->AddDatabaseTostoragemanager(peloton);
 
   // Create catalog tables
   DatabaseCatalog::GetInstance(txn, peloton, pool_.get());
@@ -381,7 +381,7 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
         database_name);
 
   auto pg_database = DatabaseCatalog::GetInstance(nullptr, nullptr, nullptr);
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   // Check if a database with the same name exists
   auto database_object =
       pg_database->GetDatabaseCatalogEntry(txn, database_name);
@@ -397,7 +397,7 @@ ResultType Catalog::CreateDatabase(concurrency::TransactionContext *txn,
   database->setDBName(database_name);
   {
     std::lock_guard<std::mutex> lock(catalog_mutex);
-    storage_manager->AddDatabaseToStorageManager(database);
+    storage_manager->AddDatabaseTostoragemanager(database);
   }
   // put database object into rw_object_set
   txn->RecordCreate(database_oid, INVALID_OID, INVALID_OID);
@@ -501,7 +501,7 @@ ResultType Catalog::CreateTable(concurrency::TransactionContext *txn,
     throw CatalogException("Table: " + schema_name + "." + table_name +
         " already exists");
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto database =
       storage_manager->GetDatabaseWithOid(database_object->GetDatabaseOid());
 
@@ -682,7 +682,7 @@ ResultType Catalog::CreateIndex(concurrency::TransactionContext *txn,
       throw CatalogException("Index " + index_name + " already exists in" +
           database_object->GetDatabaseName());
   }
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto database = storage_manager->GetDatabaseWithOid(database_oid);
   auto table = database->GetTableWithOid(table_oid);
   auto schema = table->GetSchema();
@@ -727,7 +727,7 @@ std::shared_ptr<const storage::Layout> Catalog::CreateLayout(concurrency::Transa
                                                              oid_t database_oid,
                                                              oid_t table_oid,
                                                              const column_map_type &column_map) {
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto database = storage_manager->GetDatabaseWithOid(database_oid);
   auto table = database->GetTableWithOid(table_oid);
 
@@ -755,7 +755,7 @@ std::shared_ptr<const storage::Layout> Catalog::CreateDefaultLayout(concurrency:
   auto new_layout = CreateLayout(txn, database_oid, table_oid, column_map);
   // If the layout creation was successful, set it as the default
   if (new_layout != nullptr) {
-    auto storage_manager = storage::StorageManager::GetInstance();
+    auto storage_manager = storage::storagemanager::GetInstance();
     auto database = storage_manager->GetDatabaseWithOid(database_oid);
     auto table = database->GetTableWithOid(table_oid);
     table->SetDefaultLayout(new_layout);
@@ -786,7 +786,7 @@ ResultType Catalog::SetNotNullConstraint(concurrency::TransactionContext *txn,
   auto table_object = catalog_map_[database_oid]
                                    ->GetTableCatalog()
                                    ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
   auto column = schema->GetColumn(column_id);
@@ -833,7 +833,7 @@ ResultType Catalog::SetDefaultConstraint(concurrency::TransactionContext *txn,
                                          const type::Value &default_value) {
   auto table_object = catalog_map_[database_oid]->GetTableCatalog()
                                                 ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
   auto column = schema->GetColumn(column_id);
@@ -887,7 +887,7 @@ ResultType Catalog::AddPrimaryKeyConstraint(concurrency::TransactionContext *txn
   auto table_object =
       catalog_map_[database_oid]->GetTableCatalog()
                                 ->GetTableCatalogEntry(txn,table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
 
@@ -953,7 +953,7 @@ ResultType Catalog::AddUniqueConstraint(concurrency::TransactionContext *txn,
   auto table_object =
       catalog_map_[database_oid]->GetTableCatalog()
                                 ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
 
@@ -1021,7 +1021,7 @@ ResultType Catalog::AddForeignKeyConstraint(concurrency::TransactionContext *txn
                                             const std::string &constraint_name) {
   auto pg_constraint = catalog_map_[database_oid]->GetConstraintCatalog();
   auto constraint_oid = pg_constraint->GetNextOid();
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto src_table =
       storage_manager->GetTableWithOid(database_oid, src_table_oid);
   auto sink_table =
@@ -1104,7 +1104,7 @@ ResultType Catalog::AddCheckConstraint(concurrency::TransactionContext *txn,
   auto table_object =
       catalog_map_[database_oid]->GetTableCatalog()
                                 ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
 
@@ -1159,7 +1159,7 @@ ResultType Catalog::DropDatabaseWithOid(concurrency::TransactionContext *txn,
   if (txn == nullptr)
     throw CatalogException("Do not have transaction to drop database " +
         std::to_string(database_oid));
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   // Drop actual tables in the database
   auto database_object =
       DatabaseCatalog::GetInstance(nullptr,
@@ -1285,7 +1285,7 @@ ResultType Catalog::DropTable(concurrency::TransactionContext *txn,
                               oid_t database_oid,
                               oid_t table_oid) {
   LOG_TRACE("Dropping table %d from database %d", database_oid, table_oid);
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto database = storage_manager->GetDatabaseWithOid(database_oid);
   auto database_object =
       DatabaseCatalog::GetInstance(nullptr,
@@ -1356,7 +1356,7 @@ ResultType Catalog::DropIndex(concurrency::TransactionContext *txn,
         " to drop");
   }
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto table = storage_manager->GetTableWithOid(database_oid,
                                                 index_object->GetTableOid());
   // drop record in pg_index
@@ -1377,7 +1377,7 @@ ResultType Catalog::DropLayout(concurrency::TransactionContext *txn,
                                oid_t layout_oid) {
   // Check if the default_layout of the table is the same.
   // If true reset it to a row store.
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto database = storage_manager->GetDatabaseWithOid(database_oid);
   auto table = database->GetTableWithOid(table_oid);
   auto default_layout = table->GetDefaultLayout();
@@ -1426,7 +1426,7 @@ ResultType Catalog::DropNotNullConstraint(concurrency::TransactionContext *txn,
   auto table_object =
       catalog_map_[database_oid]->GetTableCatalog()
                                 ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
   auto column = schema->GetColumn(column_id);
@@ -1468,7 +1468,7 @@ ResultType Catalog::DropDefaultConstraint(concurrency::TransactionContext *txn,
   auto table_object =
       catalog_map_[database_oid]->GetTableCatalog()
                                 ->GetTableCatalogEntry(txn, table_oid);
-  auto schema = storage::StorageManager::GetInstance()
+  auto schema = storage::storagemanager::GetInstance()
                     ->GetTableWithOid(database_oid, table_oid)
                     ->GetSchema();
   auto column = schema->GetColumn(column_id);
@@ -1527,7 +1527,7 @@ ResultType Catalog::DropConstraint(concurrency::TransactionContext *txn,
   }
 
   // delete constraint from table
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto table = storage_manager->GetTableWithOid(database_oid, table_oid);
   {
     std::lock_guard<std::mutex> lock(catalog_mutex);
@@ -1581,7 +1581,7 @@ storage::Database *Catalog::GetDatabaseWithName(concurrency::TransactionContext 
     throw CatalogException("Database " + database_name + " is not found");
   }
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   return storage_manager->GetDatabaseWithOid(database_object->GetDatabaseOid());
 }
 
@@ -1602,7 +1602,7 @@ storage::DataTable *Catalog::GetTableWithName(concurrency::TransactionContext *t
       GetTableCatalogEntry(txn, database_name, schema_name, table_name);
 
   // Get table from storage manager
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   return storage_manager->GetTableWithOid(table_object->GetDatabaseOid(),
                                           table_object->GetTableOid());
 }
@@ -1751,8 +1751,8 @@ std::shared_ptr<SystemCatalogs> Catalog::GetSystemCatalogs(
 // This should be deprecated! this can screw up the database oid system
 void Catalog::AddDatabase(storage::Database *database) {
   std::lock_guard<std::mutex> lock(catalog_mutex);
-  auto storage_manager = storage::StorageManager::GetInstance();
-  storage_manager->AddDatabaseToStorageManager(database);
+  auto storage_manager = storage::storagemanager::GetInstance();
+  storage_manager->AddDatabaseTostoragemanager(database);
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
   BootstrapSystemCatalogs(txn, database);
@@ -1768,7 +1768,7 @@ void Catalog::AddDatabase(storage::Database *database) {
 //===--------------------------------------------------------------------===//
 
 Catalog::~Catalog() {
-  storage::StorageManager::GetInstance()->DestroyDatabases();
+  storage::storagemanager::GetInstance()->DestroyDatabases();
 }
 
 //===--------------------------------------------------------------------===//

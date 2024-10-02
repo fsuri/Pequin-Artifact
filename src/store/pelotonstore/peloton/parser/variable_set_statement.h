@@ -4,7 +4,7 @@
 //
 // variable_set_statement.h
 //
-// Identification: src/include/parser/variable_set_statement.h
+// Identification: src/include/../parser/variable_set_statement.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 
 #include <vector>
 
-#include "common/logger.h"
-#include "common/sql_node_visitor.h"
-#include "parser/sql_statement.h"
-#include "parser/table_ref.h"
+#include "../common/logger.h"
+#include "../common/sql_node_visitor.h"
+#include "../parser/sql_statement.h"
+#include "../parser/table_ref.h"
 
 namespace peloton_peloton {
 namespace parser {

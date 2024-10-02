@@ -4,7 +4,7 @@
 //
 // internal_types.h
 //
-// Identification: src/include/common/internal_types.h
+// Identification: src/include/../../common/internal_types.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,7 +16,7 @@
 //
 // internal_types.h
 //
-// Identification: src/include/common/internal_types.h
+// Identification: src/include/../../common/internal_types.h
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
@@ -40,10 +40,10 @@
 #include "tbb/concurrent_unordered_set.h"
 #include "tbb/concurrent_vector.h"
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "parser/pg_trigger.h"
-#include "type/type_id.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../parser/pg_trigger.h"
+#include "../type/type_id.h"
 
 // Impose Row-major to avoid confusion
 #define EIGEN_DEFAULT_TO_ROW_MAJOR
@@ -102,7 +102,7 @@ enum class CmpBool {
 // We do not allow for user-defined types, nor do we try to do anything dynamic.
 //
 // For more information, see 'pg_type.h' in Postgres
-// https://github.com/postgres/postgres/blob/master/src/include/catalog/pg_type.h#L273
+// https://github.com/postgres/postgres/blob/master/src/include/../catalog/pg_type.h#L273
 //===--------------------------------------------------------------------===//
 
 enum class PostgresValueType {

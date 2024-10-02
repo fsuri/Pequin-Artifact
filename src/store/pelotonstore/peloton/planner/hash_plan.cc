@@ -4,13 +4,13 @@
 //
 // hash_plan.cpp
 //
-// Identification: src/planner/hash_plan.cpp
+// Identification: src/../planner/hash_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/hash_plan.h"
+#include "../planner/hash_plan.h"
 
 namespace peloton_peloton {
 namespace planner {

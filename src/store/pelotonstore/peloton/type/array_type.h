@@ -4,7 +4,7 @@
 //
 // array_value.h
 //
-// Identification: src/backend/type/array_value.h
+// Identification: src/backend/../type/array_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/macros.h"
-#include "type/type.h"
-#include "common/exception.h"
-#include "type/value_factory.h"
+#include "../common/macros.h"
+#include "../type/type.h"
+#include "../common/exception.h"
+#include "../type/value_factory.h"
 
 #include <vector>
 

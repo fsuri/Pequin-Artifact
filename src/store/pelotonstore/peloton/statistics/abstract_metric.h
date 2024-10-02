@@ -4,7 +4,7 @@
 //
 // abstract_metric.h
 //
-// Identification: src/statistics/abstract_metric.h
+// Identification: src/../statistics/abstract_metric.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <string>
 
-#include "common/internal_types.h"
-#include "common/printable.h"
+#include "../common/internal_types.h"
+#include "../common/printable.h"
 
 namespace peloton_peloton {
 namespace stats {

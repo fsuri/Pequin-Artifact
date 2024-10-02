@@ -14,11 +14,11 @@
 #pragma once
 
 #include <unordered_map>
-#include "common/internal_types.h"
-#include "type/value.h"
-#include "common/exception.h"
-#include "common/printable.h"
-#include "settings/setting_id.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
+#include "../common/exception.h"
+#include "../common/printable.h"
+#include "../settings/setting_id.h"
 
 namespace peloton_peloton {
 namespace settings {

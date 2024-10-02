@@ -4,7 +4,7 @@
 //
 // storage_manager.h
 //
-// Identification: src/include/storage/storage_manager.h
+// Identification: src/include/../storage/storage_manager.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <vector>
 #include <atomic>
-#include "common/container/cuckoo_map.h"
-#include "common/internal_types.h"
-#include "storage/tile_group.h"
+#include "../common/container/cuckoo_map.h"
+#include "../common/internal_types.h"
+#include "../storage/tile_group.h"
 
 namespace peloton_peloton {
 
@@ -34,13 +34,13 @@ namespace storage {
 class Database;
 class DataTable;
 
-class StorageManager {
+class storagemanager {
  public:
   // Global Singleton
-  static StorageManager *GetInstance(void);
+  static storagemanager *GetInstance(void);
 
   // Deconstruct the catalog database when destroying the catalog.
-  ~StorageManager();
+  ~storagemanager();
 
   //===--------------------------------------------------------------------===//
   // DEPRECATED FUNCTIONs
@@ -85,11 +85,11 @@ class StorageManager {
   // FUNCTIONS USED BY CATALOG
   //===--------------------------------------------------------------------===//
 
-  void AddDatabaseToStorageManager(storage::Database *db) {
+  void AddDatabaseTostoragemanager(storage::Database *db) {
     databases_.push_back(db);
   }
 
-  bool RemoveDatabaseFromStorageManager(oid_t database_oid);
+  bool RemoveDatabaseFromstoragemanager(oid_t database_oid);
 
   void DestroyDatabases();
 
@@ -116,7 +116,7 @@ class StorageManager {
   void ClearTileGroup(void);
 
  private:
-  StorageManager();
+  storagemanager();
 
   // A vector of the database pointers in the catalog
   std::vector<storage::Database *> databases_;

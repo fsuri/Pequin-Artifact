@@ -13,8 +13,8 @@
 
 #pragma once
 
-#include "gc/gc_manager.h"
-#include "gc/transaction_level_gc_manager.h"
+#include "../gc/gc_manager.h"
+#include "../gc/transaction_level_gc_manager.h"
 
 
 namespace peloton_peloton {

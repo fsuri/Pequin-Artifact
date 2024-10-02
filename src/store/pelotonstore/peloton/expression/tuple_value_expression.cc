@@ -4,7 +4,7 @@
 //
 // tuple_value_expression.cpp
 //
-// Identification: src/expression/tuple_value_expression.cpp
+// Identification: src/../expression/tuple_value_expression.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #include <string>
 
-#include "common/abstract_tuple.h"
-#include "expression/tuple_value_expression.h"
-#include "util/hash_util.h"
+#include "../common/abstract_tuple.h"
+#include "../expression/tuple_value_expression.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 namespace expression {

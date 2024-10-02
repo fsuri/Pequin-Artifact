@@ -4,7 +4,7 @@
 //
 // bwtree_index.h
 //
-// Identification: src/include/index/bwtree_index.h
+// Identification: src/include/../index/bwtree_index.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,12 +16,12 @@
 #include <string>
 #include <map>
 
-#include "catalog/manager.h"
-#include "common/platform.h"
-#include "common/internal_types.h"
-#include "index/index.h"
+#include "../catalog/manager.h"
+#include "../common/platform.h"
+#include "../common/internal_types.h"
+#include "../index/index.h"
 
-#include "index/bwtree.h"
+#include "../index/bwtree.h"
 
 #define BWTREE_INDEX_TYPE BWTreeIndex <KeyType, \
                                        ValueType, \

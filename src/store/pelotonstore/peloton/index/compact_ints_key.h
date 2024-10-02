@@ -4,7 +4,7 @@
 //
 // compact_ints_key.h
 //
-// Identification: src/include/index/compact_ints_key.h
+// Identification: src/include/../index/compact_ints_key.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <sstream>
 
-#include "util/string_util.h"
-#include "util/portable_endian.h"
+#include "../util/string_util.h"
+#include "../util/portable_endian.h"
 
 namespace peloton_peloton {
 namespace index {

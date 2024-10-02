@@ -4,7 +4,7 @@
 //
 // tuple_iterator.h
 //
-// Identification: src/include/storage/tuple_iterator.h
+// Identification: src/include/../storage/tuple_iterator.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,10 +13,10 @@
 
 #pragma once
 
-#include "common/iterator.h"
-#include "storage/tuple.h"
-#include "storage/tile.h"
-#include "storage/tile_group_header.h"
+#include "../common/iterator.h"
+#include "../storage/tuple.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group_header.h"
 
 namespace peloton_peloton {
 namespace storage {

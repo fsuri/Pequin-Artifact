@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-#include "type/type.h"
+#include "../type/type.h"
 #include "udf/ast_nodes.h"
 
 namespace peloton_peloton {

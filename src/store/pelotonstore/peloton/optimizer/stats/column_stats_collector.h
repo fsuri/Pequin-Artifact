@@ -4,7 +4,7 @@
 //
 // column_stats_collector.h
 //
-// Identification: src/include/optimizer/stats/column_stats_collector.h
+// Identification: src/include/../../optimizer/stats/column_stats_collector.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -16,11 +16,11 @@
 #include <functional>
 #include <count/hll.h>
 
-#include "common/internal_types.h"
-#include "optimizer/stats/count_min_sketch.h"
-#include "optimizer/stats/top_k_elements.h"
-#include "optimizer/stats/histogram.h"
-#include "optimizer/stats/hyperloglog.h"
+#include "../../common/internal_types.h"
+#include "../../optimizer/stats/count_min_sketch.h"
+#include "../../optimizer/stats/top_k_elements.h"
+#include "../../optimizer/stats/histogram.h"
+#include "../../optimizer/stats/hyperloglog.h"
 
 namespace peloton_peloton {
 namespace optimizer {

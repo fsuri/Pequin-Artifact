@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "brain/workload/linear_model.h"
-#include "brain/util/model_util.h"
+#include "brain/../util/model_util.h"
 
 namespace peloton_peloton {
 namespace brain {

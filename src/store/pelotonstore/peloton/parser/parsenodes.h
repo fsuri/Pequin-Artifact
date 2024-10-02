@@ -4,7 +4,7 @@
 //
 // parsenodes.h
 //
-// Identification: src/include/parser/parsenodes.h
+// Identification: src/include/../parser/parsenodes.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -392,9 +392,9 @@ typedef struct CreateTrigStmt {
   List *funcname;     /* qual. name of function to call */
   List *args;         /* list of (T_String) Values or NIL */
   bool row;           /* ROW/STATEMENT */
-  /* timing uses the TRIGGER_TYPE bits defined in catalog/pg_trigger.h */
+  /* timing uses the TRIGGER_TYPE bits defined in ../catalog/pg_trigger.h */
   int16_t timing; /* BEFORE, AFTER, or INSTEAD */
-  /* events uses the TRIGGER_TYPE bits defined in catalog/pg_trigger.h */
+  /* events uses the TRIGGER_TYPE bits defined in ../catalog/pg_trigger.h */
   int16_t events;    /* "OR" of INSERT/UPDATE/DELETE/TRUNCATE */
   List *columns;     /* column names, or NIL for all columns */
   Node *whenClause;  /* qual expression, or NULL if none */

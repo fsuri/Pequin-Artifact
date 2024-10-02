@@ -4,7 +4,7 @@
 //
 // stats.h
 //
-// Identification: src/include/optimizer/stats.h
+// Identification: src/include/../../optimizer/stats.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/stats/tuple_sample.h"
+#include "../../optimizer/stats/tuple_sample.h"
 
 namespace peloton_peloton {
 namespace optimizer {

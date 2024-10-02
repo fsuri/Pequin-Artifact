@@ -4,20 +4,20 @@
 //
 // child_property_generator.cpp
 //
-// Identification: src/include/optimizer/child_property_generator.cpp
+// Identification: src/include/../optimizer/child_property_generator.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/index_catalog.h"
-#include "catalog/table_catalog.h"
-#include "optimizer/child_property_deriver.h"
-#include "optimizer/properties.h"
-#include "optimizer/group_expression.h"
-#include "optimizer/property_set.h"
-#include "optimizer/memo.h"
-#include "storage/data_table.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../optimizer/child_property_deriver.h"
+#include "../optimizer/properties.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/property_set.h"
+#include "../optimizer/memo.h"
+#include "../storage/data_table.h"
 
 using std::move;
 using std::vector;

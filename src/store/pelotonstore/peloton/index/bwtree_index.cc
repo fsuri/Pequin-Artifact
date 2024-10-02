@@ -4,18 +4,18 @@
 //
 // bwtree_index.cpp
 //
-// Identification: src/index/bwtree_index.cpp
+// Identification: src/../index/bwtree_index.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/bwtree_index.h"
+#include "../index/bwtree_index.h"
 
-#include "index/index_key.h"
-#include "index/scan_optimizer.h"
-#include "statistics/stats_aggregator.h"
-#include "settings/settings_manager.h"
+#include "../index/index_key.h"
+#include "../index/scan_optimizer.h"
+#include "../statistics/stats_aggregator.h"
+#include "../settings/settings_manager.h"
  
 namespace peloton_peloton {
 namespace index {

@@ -4,7 +4,7 @@
 //
 // dedicated_thread_owner.h
 //
-// Identification: src/include/common/dedicated_thread_owner.h
+// Identification: src/include/../../common/dedicated_thread_owner.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #pragma once
 #include <memory>
 #include <thread>
-#include "common/dedicated_thread_task.h"
+#include "../common/dedicated_thread_task.h"
 
 namespace peloton_peloton {
 /**

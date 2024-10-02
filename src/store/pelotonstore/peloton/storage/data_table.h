@@ -4,7 +4,7 @@
 //
 // data_table.h
 //
-// Identification: src/include/storage/data_table.h
+// Identification: src/include/../storage/data_table.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -18,15 +18,15 @@
 #include <queue>
 #include <set>
 
-#include "common/container/lock_free_array.h"
-#include "common/item_pointer.h"
-#include "common/platform.h"
-#include "common/container/lock_free_array.h"
-#include "index/index.h"
-#include "storage/abstract_table.h"
-#include "storage/indirection_array.h"
-#include "storage/layout.h"
-#include "trigger/trigger.h"
+#include "../common/container/lock_free_array.h"
+#include "../common/item_pointer.h"
+#include "../common/platform.h"
+#include "../common/container/lock_free_array.h"
+#include "../index/index.h"
+#include "../storage/abstract_table.h"
+#include "../storage/indirection_array.h"
+#include "../storage/layout.h"
+#include "../trigger/trigger.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables

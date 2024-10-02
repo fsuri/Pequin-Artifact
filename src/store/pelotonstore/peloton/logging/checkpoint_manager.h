@@ -16,10 +16,10 @@
 #include <vector>
 #include <thread>
 
-#include "common/item_pointer.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace logging {

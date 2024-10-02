@@ -4,7 +4,7 @@
 //
 // properties.h
 //
-// Identification: src/include/optimizer/properties.h
+// Identification: src/include/../optimizer/properties.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "expression/expression_util.h"
-#include "expression/tuple_value_expression.h"
-#include "optimizer/column.h"
-#include "optimizer/property.h"
+#include "../expression/expression_util.h"
+#include "../expression/tuple_value_expression.h"
+#include "../optimizer/column.h"
+#include "../optimizer/property.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -9,15 +9,15 @@
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#include "gc/gc_manager.h"
+#include "../gc/gc_manager.h"
 
-#include "catalog/schema.h"
-#include "common/internal_types.h"
-#include "concurrency/transaction_context.h"
-#include "type/value.h"
-#include "type/abstract_pool.h"
-#include "storage/tile.h"
-#include "storage/tile_group.h"
+#include "../catalog/schema.h"
+#include "../common/internal_types.h"
+#include "../concurrency/transaction_context.h"
+#include "../type/value.h"
+#include "../type/abstract_pool.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group.h"
 
 namespace peloton_peloton {
 namespace gc {

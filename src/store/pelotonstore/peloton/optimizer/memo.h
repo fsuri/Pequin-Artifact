@@ -4,7 +4,7 @@
 //
 // memo.h
 //
-// Identification: src/include/optimizer/memo.h
+// Identification: src/include/../optimizer/memo.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "operator_expression.h"
-#include "optimizer/group.h"
+#include "../optimizer/group.h"
 
 namespace peloton_peloton {
 namespace optimizer {

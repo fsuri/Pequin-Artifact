@@ -4,7 +4,7 @@
 //
 // skiplist_index.h
 //
-// Identification: src/index/skiplist_index.h
+// Identification: src/../index/skiplist_index.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -16,12 +16,12 @@
 #include <string>
 #include <map>
 
-#include "catalog/manager.h"
-#include "common/platform.h"
-#include "common/internal_types.h"
-#include "index/index.h"
+#include "../catalog/manager.h"
+#include "../common/platform.h"
+#include "../common/internal_types.h"
+#include "../index/index.h"
 
-#include "index/skiplist.h"
+#include "../index/skiplist.h"
 
 #define SKIPLIST_INDEX_TYPE                                            \
   SkipListIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker, \

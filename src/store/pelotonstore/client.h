@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef _HOTSTUFF_PG_CLIENT_H_
-#define _HOTSTUFF_PG_CLIENT_H_
+#ifndef _PELOTON_CLIENT_H_
+#define _PELOTON_CLIENT_H_
 
 #include "lib/assert.h"
 #include "lib/keymanager.h"
@@ -133,6 +133,6 @@ class Client : public ::Client {
 
 };
 
-} // namespace pg_SMRstore
+} // namespace pelotonstore
 
-#endif /* _HOTSTUFF_PG_CLIENT_H_ */
+#endif /* _PELOTON_CLIENT_H_ */

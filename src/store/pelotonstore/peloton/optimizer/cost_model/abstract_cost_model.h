@@ -4,7 +4,7 @@
 //
 // abstract_cost_calculator.h
 //
-// Identification: src/include/optimizer/abstract_cost_calculator.h
+// Identification: src/include/../optimizer/abstract_cost_calculator.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/operator_visitor.h"
+#include "../../optimizer/operator_visitor.h"
 
 namespace peloton_peloton {
 namespace optimizer {

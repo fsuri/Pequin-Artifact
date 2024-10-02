@@ -4,15 +4,15 @@
 //
 // executor_context.cpp
 //
-// Identification: src/executor/executor_context.cpp
+// Identification: src/../executor/executor_context.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/executor_context.h"
+#include "../executor/executor_context.h"
 
-#include "storage/storage_manager.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton_peloton {
 namespace executor {
@@ -28,7 +28,7 @@ ExecutorContext::ExecutorContext(concurrency::TransactionContext *transaction,
     : transaction_(transaction),
       parameters_(parameters),
       //parameters_(std::move(parameters)),
-      storage_manager_(storage::StorageManager::GetInstance()),
+      storage_manager_(storage::storagemanager::GetInstance()),
       thread_states_(pool_) {}
 
 concurrency::TransactionContext *ExecutorContext::GetTransaction() const {
@@ -39,7 +39,7 @@ const std::vector<type::Value> &ExecutorContext::GetParamValues() const {
   return parameters_;//.GetParameterValues();
 }
 
-storage::StorageManager &ExecutorContext::GetStorageManager() const {
+storage::storagemanager &ExecutorContext::Getstoragemanager() const {
   return *storage_manager_;
 }
 

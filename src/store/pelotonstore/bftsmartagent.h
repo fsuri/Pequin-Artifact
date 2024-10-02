@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef _PG_BFTSMART_AGENT_H_
-#define _PG_BFTSMART_AGENT_H_
+#ifndef _PELOTON_BFTSMART_AGENT_H_
+#define _PELOTON_BFTSMART_AGENT_H_
 
 
 #include <jni.h>

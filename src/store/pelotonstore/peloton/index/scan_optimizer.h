@@ -4,7 +4,7 @@
 //
 // scan_optimizer.h
 //
-// Identification: src/include/index/scan_optimizer.h
+// Identification: src/include/../index/scan_optimizer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,13 +14,13 @@
 
 #include <vector>
 
-#include "catalog/schema.h"
-#include "common/logger.h"
-#include "index/index.h"
-#include "storage/tuple.h"
-#include "type/value_peeker.h"
+#include "../catalog/schema.h"
+#include "../common/logger.h"
+#include "../index/index.h"
+#include "../storage/tuple.h"
+#include "../type/value_peeker.h"
 
-#include "index/index_util.h"
+#include "../index/index_util.h"
 
 namespace catalog {
 class Schema;

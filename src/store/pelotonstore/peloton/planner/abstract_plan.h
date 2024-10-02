@@ -4,7 +4,7 @@
 //
 // abstract_plan.h
 //
-// Identification: src/include/planner/abstract_plan.h
+// Identification: src/include/../planner/abstract_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,15 +16,15 @@
 #include <memory>
 #include <vector>
 
-#include "catalog/schema.h"
+#include "../catalog/schema.h"
 //#include "codegen/query_parameters_map.h"
-#include "common/printable.h"
-#include "planner/binding_context.h"
-#include "type/serializeio.h"
-#include "type/serializer.h"
-#include "common/internal_types.h"
-#include "type/value.h"
-#include "util/hash_util.h"
+#include "../common/printable.h"
+#include "../planner/binding_context.h"
+#include "../type/serializeio.h"
+#include "../type/serializer.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 

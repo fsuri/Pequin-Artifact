@@ -4,27 +4,27 @@
 //
 // copy_executor.cpp
 //
-// Identification: src/executor/copy_executor.cpp
+// Identification: src/../executor/copy_executor.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/copy_executor.h"
+#include "../executor/copy_executor.h"
 
 #include <sys/stat.h>
 #include <sys/mman.h>
 
-#include "common/logger.h"
-#include "catalog/catalog.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "executor/logical_tile_factory.h"
-#include "planner/export_external_file_plan.h"
-#include "storage/table_factory.h"
-#include "network/postgres_protocol_handler.h"
-#include "common/exception.h"
-#include "common/macros.h"
+#include "../common/logger.h"
+#include "../catalog/catalog.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/executor_context.h"
+#include "../executor/logical_tile_factory.h"
+#include "../planner/export_external_file_plan.h"
+#include "../storage/table_factory.h"
+#include "../network/postgres_protocol_handler.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace executor {

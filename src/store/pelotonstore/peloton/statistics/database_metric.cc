@@ -4,15 +4,15 @@
 //
 // database_metric.cpp
 //
-// Identification: src/statistics/database_metric.cpp
+// Identification: src/../statistics/database_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "util/string_util.h"
-#include "statistics/database_metric.h"
-#include "common/macros.h"
+#include "../util/string_util.h"
+#include "../statistics/database_metric.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace stats {

@@ -19,10 +19,10 @@
 
 #include <unistd.h>
 
-#include "common/container/lock_free_queue.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "common/notifiable_task.h"
+#include "../common/container/lock_free_queue.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../common/notifiable_task.h"
 
 namespace peloton_peloton {
 namespace network {

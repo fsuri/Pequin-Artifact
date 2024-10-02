@@ -4,15 +4,15 @@
 //
 // group.cpp
 //
-// Identification: src/optimizer/group.cpp
+// Identification: src/../optimizer/group.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/group.h"
+#include "../optimizer/group.h"
 
-#include "common/logger.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace optimizer {

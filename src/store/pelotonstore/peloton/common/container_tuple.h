@@ -4,7 +4,7 @@
 //
 // container_tuple.h
 //
-// Identification: src/include/common/container_tuple.h
+// Identification: src/include/../../common/container_tuple.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -17,14 +17,14 @@
 #include <sstream>
 #include <vector>
 
-#include "catalog/schema.h"
-#include "common/abstract_tuple.h"
-#include "common/exception.h"
-#include "common/macros.h"
-#include "storage/abstract_table.h"
-#include "storage/tile_group.h"
+#include "../catalog/schema.h"
+#include "../common/abstract_tuple.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
+#include "../storage/abstract_table.h"
+#include "../storage/tile_group.h"
 #include "internal_types.h"
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

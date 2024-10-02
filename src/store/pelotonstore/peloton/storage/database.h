@@ -4,7 +4,7 @@
 //
 // database.h
 //
-// Identification: src/include/storage/database.h
+// Identification: src/include/../storage/database.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <mutex>
 
-#include "common/printable.h"
-#include "storage/data_table.h"
+#include "../common/printable.h"
+#include "../storage/data_table.h"
 
 struct ExecuteResult;
 struct dirty_table_info;

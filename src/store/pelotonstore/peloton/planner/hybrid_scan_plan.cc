@@ -4,19 +4,19 @@
 //
 // hybrid_scan_plan.cpp
 //
-// Identification: src/planner/hybrid_scan_plan.cpp
+// Identification: src/../planner/hybrid_scan_plan.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/hybrid_scan_plan.h"
+#include "../planner/hybrid_scan_plan.h"
 
-#include "common/internal_types.h"
-#include "expression/abstract_expression.h"
-#include "index/index.h"
-#include "planner/index_scan_plan.h"
-#include "storage/data_table.h"
+#include "../common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../index/index.h"
+#include "../planner/index_scan_plan.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

@@ -1,12 +1,12 @@
 #pragma once
 
-#include "type/value.h"
-#include "type/type.h"
-#include "common/internal_types.h"
-#include "type/value_factory.h"
-#include "expression/abstract_expression.h"
-#include "common/macros.h"
-#include "common/logger.h"
+#include "../../type/value.h"
+#include "../../type/type.h"
+#include "../../common/internal_types.h"
+#include "../../type/value_factory.h"
+#include "../../expression/abstract_expression.h"
+#include "../../common/macros.h"
+#include "../../common/logger.h"
 #include "count_min_sketch.h"
 
 #include <cmath>

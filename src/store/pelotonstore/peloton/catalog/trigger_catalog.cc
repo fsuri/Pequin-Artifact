@@ -4,20 +4,20 @@
 //
 // trigger_catalog.cpp
 //
-// Identification: src/catalog/trigger_catalog.cpp
+// Identification: src/../catalog/trigger_catalog.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/trigger_catalog.h"
+#include "../catalog/trigger_catalog.h"
 
-#include "catalog/catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/table_catalog.h"
-#include "storage/data_table.h"
-#include "storage/storage_manager.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../storage/data_table.h"
+#include "../storage/storage_manager.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {
@@ -113,7 +113,7 @@ ResultType TriggerCatalog::DropTrigger(concurrency::TransactionContext *txn,
     LOG_TRACE("Delete trigger successfully");
     // ask target table to update its trigger list variable
     storage::DataTable *target_table =
-        storage::StorageManager::GetInstance()->GetTableWithOid(database_oid,
+        storage::storagemanager::GetInstance()->GetTableWithOid(database_oid,
                                                                 table_oid);
     target_table->UpdateTriggerListFromCatalog(txn);
     return ResultType::SUCCESS;

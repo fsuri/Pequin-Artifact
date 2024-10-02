@@ -4,7 +4,7 @@
 //
 // statements.h
 //
-// Identification: src/include/parser/statements.h
+// Identification: src/include/../parser/statements.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

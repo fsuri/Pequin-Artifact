@@ -4,21 +4,21 @@
 //
 // timestamp_functions.cpp
 //
-// Identification: src/function/timestamp_functions.cpp
+// Identification: src/../function/timestamp_functions.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "function/timestamp_functions.h"
+#include "../function/timestamp_functions.h"
 
 #include <date/date.h>
 #include <date/iso_week.h>
 #include <inttypes.h>
 
-#include "common/logger.h"
-#include "type/limits.h"
-#include "type/value_factory.h"
+#include "../common/logger.h"
+#include "../type/limits.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace function {

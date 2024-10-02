@@ -4,7 +4,7 @@
 //
 // date_type.h
 //
-// Identification: src/include/type/date_type.h
+// Identification: src/include/../type/date_type.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -4,7 +4,7 @@
 //
 // create_function_plan.h
 //
-// Identification: src/include/planner/create_function_plan.h
+// Identification: src/include/../planner/create_function_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "parser/create_function_statement.h"
-#include "planner/abstract_plan.h"
+#include "../parser/create_function_statement.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 

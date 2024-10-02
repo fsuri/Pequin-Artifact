@@ -4,7 +4,7 @@
 //
 // statement_cache.cpp
 //
-// Identification: src/include/common/statement_cache.cpp
+// Identification: src/include/../../common/statement_cache.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #include <unordered_set>
 
-#include "common/statement_cache.h"
+#include "../common/statement_cache.h"
 
 namespace peloton_peloton {
 // Add a statement to the cache

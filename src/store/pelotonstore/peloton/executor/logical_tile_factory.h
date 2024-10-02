@@ -4,7 +4,7 @@
 //
 // logical_tile_factory.h
 //
-// Identification: src/include/executor/logical_tile_factory.h
+// Identification: src/include/../executor/logical_tile_factory.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <vector>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

@@ -4,7 +4,7 @@
 //
 // column.h
 //
-// Identification: src/include/optimizer/column.h
+// Identification: src/include/../optimizer/column.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "catalog/column.h"
+#include "../catalog/column.h"
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -4,7 +4,7 @@
 //
 // layout.cpp
 //
-// Identification: src/storage/layout.cpp
+// Identification: src/../storage/layout.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,11 +13,11 @@
 #include <sstream>
 #include <string>
 
-#include "catalog/catalog_defaults.h"
-#include "catalog/column.h"
-#include "catalog/schema.h"
-#include "storage/layout.h"
-#include "util/stringbox_util.h"
+#include "../catalog/catalog_defaults.h"
+#include "../catalog/column.h"
+#include "../catalog/schema.h"
+#include "../storage/layout.h"
+#include "../util/stringbox_util.h"
 
 namespace peloton_peloton {
 namespace storage {

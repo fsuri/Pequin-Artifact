@@ -4,21 +4,21 @@
 //
 // abstract_expression.cpp
 //
-// Identification: src/expression/abstract_expression.cpp
+// Identification: src/../expression/abstract_expression.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "expression/abstract_expression.h"
+#include "../expression/abstract_expression.h"
 
 #include <string>
 
-//#include "codegen/type/type.h"
-#include "type/type.h"
-#include "util/hash_util.h"
-#include "util/string_util.h"
-#include "expression/expression_util.h"
+//#include "codegen/../type/type.h"
+#include "../type/type.h"
+#include "../util/hash_util.h"
+#include "../util/string_util.h"
+#include "../expression/expression_util.h"
 
 namespace peloton_peloton {
 namespace expression {

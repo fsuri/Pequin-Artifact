@@ -4,7 +4,7 @@
 //
 // hash_executor.h
 //
-// Identification: src/include/executor/hash_executor.h
+// Identification: src/include/../executor/hash_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 
 #include <unordered_map>
 
-#include "common/internal_types.h"
-#include "executor/abstract_executor.h"
-#include "executor/logical_tile.h"
-#include "common/container_tuple.h"
+#include "../common/internal_types.h"
+#include "../executor/abstract_executor.h"
+#include "../executor/logical_tile.h"
+#include "../common/container_tuple.h"
 
 #include <boost/functional/hash.hpp>
 

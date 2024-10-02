@@ -4,19 +4,19 @@
 //
 // numeric_value.cpp
 //
-// Identification: src/backend/type/numeric_value.cpp
+// Identification: src/backend/../type/numeric_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/integer_parent_type.h"
+#include "../type/integer_parent_type.h"
 
 #include <cmath>
 #include <iostream>
-#include "type/boolean_type.h"
-#include "type/decimal_type.h"
-#include "type/varlen_type.h"
+#include "../type/boolean_type.h"
+#include "../type/decimal_type.h"
+#include "../type/varlen_type.h"
 
 namespace peloton_peloton {
 namespace type {

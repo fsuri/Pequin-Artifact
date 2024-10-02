@@ -4,13 +4,13 @@
 //
 // eigen_util.cpp
 //
-// Identification: src/brain/util/eigen_util.cpp
+// Identification: src/brain/../util/eigen_util.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "brain/util/eigen_util.h"
+#include "brain/../util/eigen_util.h"
 #include <random>
 
 namespace peloton_peloton {

@@ -4,13 +4,13 @@
 //
 // statement_cache_manager.cpp
 //
-// Identification: src/include/common/statement_cache_manager.cpp
+// Identification: src/include/../../common/statement_cache_manager.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/statement_cache_manager.h"
+#include "../common/statement_cache_manager.h"
 
 namespace peloton_peloton {
 

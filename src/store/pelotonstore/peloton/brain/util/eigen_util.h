@@ -4,7 +4,7 @@
 //
 // eigen_util.h
 //
-// Identification: src/include/brain/util/eigen_util.h
+// Identification: src/include/brain/../util/eigen_util.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <vector>
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace brain {

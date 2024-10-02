@@ -4,7 +4,7 @@
 //
 // postgresparser.h
 //
-// Identification: src/include/parser/postgresparser.h
+// Identification: src/include/../parser/postgresparser.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "parser/parsenodes.h"
-#include "parser/pg_query.h"
-#include "parser/statements.h"
-#include "common/internal_types.h"
+#include "../parser/parsenodes.h"
+#include "../parser/pg_query.h"
+#include "../parser/statements.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace parser {
@@ -33,7 +33,7 @@ namespace parser {
 // Find corresponding parsenode in
 // /third_party/libpg_query/src/postgres/include/nodes/parsenodes.h or
 // /third_party/libpg_query/src/postgres/include/nodes/primnodes.h and
-// copy to src/include/parser/parsenodes.h, then add a helper function
+// copy to src/include/../parser/parsenodes.h, then add a helper function
 // for the statement.
 //
 //===--------------------------------------------------------------------===//

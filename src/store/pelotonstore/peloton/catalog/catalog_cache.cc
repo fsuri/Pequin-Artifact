@@ -4,7 +4,7 @@
 //
 // catalog_cache.cpp
 //
-// Identification: src/catalog/catalog_cache.cpp
+// Identification: src/../catalog/catalog_cache.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #include <memory>
 
-#include "catalog/catalog_cache.h"
+#include "../catalog/catalog_cache.h"
 
-#include "catalog/database_catalog.h"
-#include "common/logger.h"
+#include "../catalog/database_catalog.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace catalog {

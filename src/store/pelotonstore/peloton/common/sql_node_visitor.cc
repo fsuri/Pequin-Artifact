@@ -4,24 +4,24 @@
 //
 // sql_node_visitor.h
 //
-// Identification: src/common/sql_node_visitor.cpp
+// Identification: src/../../common/sql_node_visitor.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/sql_node_visitor.h"
-#include "expression/comparison_expression.h"
-#include "expression/aggregate_expression.h"
-#include "expression/conjunction_expression.h"
-#include "expression/function_expression.h"
-#include "expression/operator_expression.h"
-#include "expression/parameter_value_expression.h"
-#include "expression/star_expression.h"
-#include "expression/tuple_value_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/case_expression.h"
-#include "expression/subquery_expression.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/comparison_expression.h"
+#include "../expression/aggregate_expression.h"
+#include "../expression/conjunction_expression.h"
+#include "../expression/function_expression.h"
+#include "../expression/operator_expression.h"
+#include "../expression/parameter_value_expression.h"
+#include "../expression/star_expression.h"
+#include "../expression/tuple_value_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/case_expression.h"
+#include "../expression/subquery_expression.h"
 
 namespace peloton_peloton {
 void SqlNodeVisitor::Visit(expression::ComparisonExpression *expr) {

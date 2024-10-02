@@ -4,7 +4,7 @@
 //
 // selectivity.h
 //
-// Identification: src/include/optimizer/stats/selectivity.h
+// Identification: src/include/../../optimizer/stats/selectivity.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,17 +18,17 @@
 #include <algorithm>
 #include <memory>
 
-#include "type/value.h"
-#include "common/macros.h"
-#include "common/logger.h"
-#include "storage/data_table.h"
-#include "optimizer/stats/stats_storage.h"
-#include "optimizer/stats/tuple_samples_storage.h"
-#include "catalog/column_catalog.h"
-#include "catalog/catalog.h"
-#include "optimizer/stats/table_stats.h"
-#include "optimizer/stats/value_condition.h"
-#include "optimizer/stats/column_stats.h"
+#include "../../type/value.h"
+#include "../../common/macros.h"
+#include "../../common/logger.h"
+#include "../../storage/data_table.h"
+#include "../../optimizer/stats/stats_storage.h"
+#include "../../optimizer/stats/tuple_samples_storage.h"
+#include "../../catalog/column_catalog.h"
+#include "../../catalog/catalog.h"
+#include "../../optimizer/stats/table_stats.h"
+#include "../../optimizer/stats/value_condition.h"
+#include "../../optimizer/stats/column_stats.h"
 
 namespace peloton_peloton {
 namespace optimizer {

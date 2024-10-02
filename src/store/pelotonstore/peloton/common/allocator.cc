@@ -4,7 +4,7 @@
 //
 // allocator.cpp
 //
-// Identification: src/common/allocator.cpp
+// Identification: src/../../common/allocator.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,7 +18,7 @@
 #include <execinfo.h>
 #include <unistd.h>
 
-#include "common/stack_trace.h"
+#include "../common/stack_trace.h"
 
 // We will use jemalloc at link time. jemalloc library has already mangled the symbols
 // to be malloc, calloc, etc.

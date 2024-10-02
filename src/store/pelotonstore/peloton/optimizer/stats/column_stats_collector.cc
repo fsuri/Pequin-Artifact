@@ -4,15 +4,15 @@
 //
 // column_stats_collector.cpp
 //
-// Identification: src/optimizer/stats/column_stats_collector.cpp
+// Identification: src/../../optimizer/stats/column_stats_collector.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/column_stats_collector.h"
+#include "../../optimizer/stats/column_stats_collector.h"
 
-#include "common/macros.h"
+#include "../../common/macros.h"
 
 namespace peloton_peloton {
 namespace optimizer {

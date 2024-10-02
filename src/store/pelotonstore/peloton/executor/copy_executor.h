@@ -4,7 +4,7 @@
 //
 // copy_executor.h
 //
-// Identification: src/include/executor/copy_executor.h
+// Identification: src/include/../executor/copy_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "executor/abstract_executor.h"
-#include "catalog/query_metrics_catalog.h"
+#include "../executor/abstract_executor.h"
+#include "../catalog/query_metrics_catalog.h"
 
 #define COPY_BUFFER_SIZE 65536
 #define INVALID_COL_ID -1

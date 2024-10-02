@@ -4,15 +4,15 @@
 //
 // file.cpp
 //
-// Identification: src/util/file.cpp
+// Identification: src/../util/file.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "util/file.h"
+#include "../util/file.h"
 
-#include "util/string_util.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace util {

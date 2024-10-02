@@ -4,7 +4,7 @@
 //
 // explain_statement.h
 //
-// Identification: src/include/parser/explain_statement.h
+// Identification: src/include/../parser/explain_statement.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "parser/sql_statement.h"
+#include "../parser/sql_statement.h"
 
 namespace peloton_peloton {
 namespace parser {

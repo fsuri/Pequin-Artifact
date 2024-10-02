@@ -4,7 +4,7 @@
 //
 // table_metrics_catalog.h
 //
-// Identification: src/include/catalog/table_metrics_catalog.h
+// Identification: src/include/../catalog/table_metrics_catalog.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -28,8 +28,8 @@
 
 #pragma once
 
-#include "catalog/abstract_catalog.h"
-#include "statistics/index_metric.h"
+#include "../catalog/abstract_catalog.h"
+#include "../statistics/index_metric.h"
 
 #define TABLE_METRICS_CATALOG_NAME "pg_table_metrics"
 

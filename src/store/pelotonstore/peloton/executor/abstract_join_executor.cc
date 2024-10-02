@@ -4,7 +4,7 @@
 //
 // abstract_join_executor.cpp
 //
-// Identification: src/executor/abstract_join_executor.cpp
+// Identification: src/../executor/abstract_join_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,17 +12,17 @@
 
 #include <vector>
 
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/exception.h"
-#include "executor/logical_tile_factory.h"
-#include "executor/abstract_join_executor.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/exception.h"
+#include "../executor/logical_tile_factory.h"
+#include "../executor/abstract_join_executor.h"
 
-#include "planner/abstract_join_plan.h"
-#include "expression/abstract_expression.h"
-#include "common/container_tuple.h"
-#include "storage/tile_group_header.h"
-#include "storage/tile.h"
+#include "../planner/abstract_join_plan.h"
+#include "../expression/abstract_expression.h"
+#include "../common/container_tuple.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tile.h"
 
 namespace peloton_peloton {
 namespace executor {

@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/internal_types.h"
-#include "common/item_pointer.h"
-#include "common/macros.h"
+#include "../common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace logging {

@@ -4,7 +4,7 @@
 //
 // table_catalog.h
 //
-// Identification: src/include/catalog/table_catalog.h
+// Identification: src/include/../catalog/table_catalog.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -32,8 +32,8 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "catalog/abstract_catalog.h"
-#include "executor/logical_tile.h"
+#include "../catalog/abstract_catalog.h"
+#include "../executor/logical_tile.h"
 
 namespace peloton_peloton {
 

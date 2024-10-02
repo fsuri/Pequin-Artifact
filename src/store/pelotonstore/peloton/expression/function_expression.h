@@ -4,7 +4,7 @@
 //
 // function_expression.h
 //
-// Identification: src/include/expression/function_expression.h
+// Identification: src/include/../expression/function_expression.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "function/functions.h"
-#include "type/value.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../function/functions.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace expression {

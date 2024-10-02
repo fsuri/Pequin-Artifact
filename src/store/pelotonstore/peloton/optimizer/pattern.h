@@ -4,7 +4,7 @@
 //
 // pattern.h
 //
-// Identification: src/include/optimizer/pattern.h
+// Identification: src/include/../optimizer/pattern.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <vector>
 #include <memory>
 
-#include "optimizer/operator_node.h"
+#include "../optimizer/operator_node.h"
 
 namespace peloton_peloton {
 namespace optimizer {

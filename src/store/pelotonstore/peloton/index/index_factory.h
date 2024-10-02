@@ -4,7 +4,7 @@
 //
 // index_factory.h
 //
-// Identification: src/include/index/index_factory.h
+// Identification: src/include/../index/index_factory.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <string>
 
-#include "index/index.h"
+#include "../index/index.h"
 
 namespace peloton_peloton {
 namespace index {

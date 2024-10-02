@@ -4,7 +4,7 @@
 //
 // stats_util.h
 //
-// Identification: src/include/optimizer/stats/stats_util.h
+// Identification: src/include/../../optimizer/stats/stats_util.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,13 +13,13 @@
 #pragma once
 
 #include <limits>
-#include <murmur3/MurmurHash3.h>
+#include "../../murmur3/MurmurHash3.h"
 
-#include "common/macros.h"
-#include "type/type.h"
-#include "common/internal_types.h"
-#include "type/value.h"
-#include "type/value_factory.h"
+#include "../../common/macros.h"
+#include "../../type/type.h"
+#include "../../common/internal_types.h"
+#include "../../type/value.h"
+#include "../../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -4,18 +4,18 @@
 //
 // limit_executor.cpp
 //
-// Identification: src/executor/limit_executor.cpp
+// Identification: src/../executor/limit_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/limit_executor.h"
+#include "../executor/limit_executor.h"
 
-#include "planner/limit_plan.h"
-#include "common/logger.h"
-#include "common/internal_types.h"
-#include "executor/logical_tile.h"
+#include "../planner/limit_plan.h"
+#include "../common/logger.h"
+#include "../common/internal_types.h"
+#include "../executor/logical_tile.h"
 
 namespace peloton_peloton {
 namespace executor {

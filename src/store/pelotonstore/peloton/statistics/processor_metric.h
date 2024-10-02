@@ -4,7 +4,7 @@
 //
 // processor_metric.h
 //
-// Identification: src/statistics/processor_metric.h
+// Identification: src/../statistics/processor_metric.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,13 +15,13 @@
 #include <string>
 #include <sstream>
 
-#include "common/internal_types.h"
-#include "common/exception.h"
-#include "common/macros.h"
+#include "../common/internal_types.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
 
 #include <sys/resource.h>
-#include "statistics/abstract_metric.h"
-#include "statistics/access_metric.h"
+#include "../statistics/abstract_metric.h"
+#include "../statistics/access_metric.h"
 
 namespace peloton_peloton {
 namespace stats {

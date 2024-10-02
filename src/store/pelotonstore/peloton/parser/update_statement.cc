@@ -4,14 +4,14 @@
 //
 // update_statement.cpp
 //
-// Identification: src/parser/update_statement.cpp
+// Identification: src/../parser/update_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/update_statement.h"
-#include "util/string_util.h"
+#include "../parser/update_statement.h"
+#include "../util/string_util.h"
 #include <sstream>
 
 namespace peloton_peloton {

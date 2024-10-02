@@ -4,17 +4,17 @@
 //
 // index_scan_plan.cpp
 //
-// Identification: src/planner/index_scan_plan.cpp
+// Identification: src/../planner/index_scan_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/index_scan_plan.h"
-#include "common/internal_types.h"
-#include "expression/constant_value_expression.h"
-#include "expression/expression_util.h"
-#include "storage/data_table.h"
+#include "../planner/index_scan_plan.h"
+#include "../common/internal_types.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/expression_util.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

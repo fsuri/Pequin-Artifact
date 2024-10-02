@@ -4,7 +4,7 @@
 //
 // aggregate_plan.h
 //
-// Identification: src/include/planner/aggregate_plan.h
+// Identification: src/include/../planner/aggregate_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <numeric>
 
-#include "common/internal_types.h"
-#include "planner/abstract_plan.h"
-#include "planner/project_info.h"
+#include "../common/internal_types.h"
+#include "../planner/abstract_plan.h"
+#include "../planner/project_info.h"
 
 namespace peloton_peloton {
 

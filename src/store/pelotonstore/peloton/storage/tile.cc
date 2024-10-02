@@ -4,7 +4,7 @@
 //
 // tile.cpp
 //
-// Identification: src/storage/tile.cpp
+// Identification: src/../storage/tile.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,18 +13,18 @@
 #include <cstdio>
 #include <sstream>
 
-#include "catalog/schema.h"
-#include "common/exception.h"
-#include "common/macros.h"
-#include "type/serializer.h"
-#include "common/internal_types.h"
-#include "type/ephemeral_pool.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "storage/backend_manager.h"
-#include "storage/tile.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
-#include "storage/tuple_iterator.h"
+#include "../catalog/schema.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
+#include "../type/serializer.h"
+#include "../common/internal_types.h"
+#include "../type/ephemeral_pool.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../storage/backend_manager.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tuple.h"
+#include "../storage/tuple_iterator.h"
 
 namespace peloton_peloton {
 namespace storage {
@@ -53,7 +53,7 @@ Tile::Tile(BackendType backend_type, TileGroupHeader *tile_header,
   tile_size = tuple_count * tuple_length;
 
   // allocate tuple storage space for inlined data
-  // auto &storage_manager = storage::StorageManager::GetInstance();
+  // auto &storage_manager = storage::storagemanager::GetInstance();
   // data = reinterpret_cast<char *>(
   // storage_manager.Allocate(backend_type, tile_size));
 
@@ -71,7 +71,7 @@ Tile::Tile(BackendType backend_type, TileGroupHeader *tile_header,
 
 Tile::~Tile() {
   // reclaim the tile memory (INLINED data)
-  // auto &storage_manager = storage::StorageManager::GetInstance();
+  // auto &storage_manager = storage::storagemanager::GetInstance();
   // storage_manager.Release(backend_type, data);
 
   delete[] data;
@@ -480,7 +480,7 @@ oid_t Tile::GetActiveTupleCount() const {
 
 void Tile::Sync() {
   // Sync the tile data
-  // auto &storage_manager = storage::StorageManager::GetInstance();
+  // auto &storage_manager = storage::storagemanager::GetInstance();
   // storage_manager.Sync(backend_type, data, tile_size);
 }
 

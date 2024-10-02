@@ -4,13 +4,13 @@
 //
 // create_statement.cpp
 //
-// Identification: src/parser/create_statement.cpp
+// Identification: src/../parser/create_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/create_statement.h"
+#include "../parser/create_statement.h"
 #include <iostream>
 
 namespace peloton_peloton {

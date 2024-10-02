@@ -4,7 +4,7 @@
 //
 // comparison_expression.h
 //
-// Identification: src/include/expression/comparison_expression.h
+// Identification: src/include/../expression/comparison_expression.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
 
 namespace peloton_peloton {
 namespace expression {

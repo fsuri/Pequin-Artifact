@@ -4,7 +4,7 @@
 //
 // populate_index_plan.h
 //
-// Identification: src/include/planner/populate_index_plan.h
+// Identification: src/include/../planner/populate_index_plan.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "planner/abstract_plan.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 

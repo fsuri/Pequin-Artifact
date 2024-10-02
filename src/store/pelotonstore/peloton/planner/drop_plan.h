@@ -4,7 +4,7 @@
 //
 // drop_plan.h
 //
-// Identification: src/include/planner/drop_plan.h
+// Identification: src/include/../planner/drop_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "concurrency/transaction_context.h"
-#include "planner/abstract_plan.h"
+#include "../concurrency/transaction_context.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 namespace storage {

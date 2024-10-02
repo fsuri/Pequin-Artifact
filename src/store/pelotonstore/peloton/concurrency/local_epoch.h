@@ -4,7 +4,7 @@
 //
 // local_epoch.h
 //
-// Identification: src/include/concurrency/local_epoch.h
+// Identification: src/include/../concurrency/local_epoch.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -20,8 +20,8 @@
 #include <functional>
 #include <cstdint>
 
-#include "common/internal_types.h"
-#include "common/synchronization/spin_latch.h"
+#include "../common/internal_types.h"
+#include "../common/synchronization/spin_latch.h"
 
 namespace peloton_peloton {
 namespace concurrency {

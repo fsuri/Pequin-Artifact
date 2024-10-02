@@ -4,7 +4,7 @@
 //
 // manager.h
 //
-// Identification: src/include/catalog/manager.h
+// Identification: src/include/../catalog/manager.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,11 +18,11 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 
-#include "common/internal_types.h"
-#include "common/macros.h"
+#include "../common/internal_types.h"
+#include "../common/macros.h"
 #include "tbb/concurrent_unordered_map.h"
 namespace peloton_peloton {
 

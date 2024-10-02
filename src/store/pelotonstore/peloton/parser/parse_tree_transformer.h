@@ -4,7 +4,7 @@
 //
 // parse_tree_transformer.h
 //
-// Identification: src/include/parser/parse_tree_transformer.h
+// Identification: src/include/../parser/parse_tree_transformer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "type/types.h"
+#include "../type/types.h"
 
 struct Node;
 

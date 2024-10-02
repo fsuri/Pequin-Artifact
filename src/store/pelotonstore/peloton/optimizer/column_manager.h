@@ -4,7 +4,7 @@
 //
 // column_manager.h
 //
-// Identification: src/include/optimizer/column_manager.h
+// Identification: src/include/../optimizer/column_manager.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <map>
 
-#include "optimizer/column.h"
+#include "../optimizer/column.h"
 
 namespace peloton_peloton {
 namespace optimizer {

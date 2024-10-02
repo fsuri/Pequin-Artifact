@@ -4,7 +4,7 @@
 //
 // convert_query_to_op.h
 //
-// Identification: src/include/optimizer/child_property_generator.h
+// Identification: src/include/../optimizer/child_property_generator.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 #include <memory>
-#include "optimizer/operator_visitor.h"
+#include "../optimizer/operator_visitor.h"
 
 namespace peloton_peloton {
 

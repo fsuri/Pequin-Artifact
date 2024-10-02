@@ -4,27 +4,27 @@
 //
 // tile_group.cpp
 //
-// Identification: src/storage/tile_group.cpp
+// Identification: src/../storage/tile_group.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/tile_group.h"
+#include "../storage/tile_group.h"
 
 #include <numeric>
 
-#include "storage/storage_manager.h"
-#include "common/container_tuple.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/platform.h"
-#include "storage/abstract_table.h"
-#include "storage/layout.h"
-#include "storage/tile.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
-#include "util/stringbox_util.h"
+#include "../storage/storage_manager.h"
+#include "../common/container_tuple.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/platform.h"
+#include "../storage/abstract_table.h"
+#include "../storage/layout.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tuple.h"
+#include "../util/stringbox_util.h"
 
 namespace peloton_peloton {
 namespace storage {
@@ -43,7 +43,7 @@ TileGroup::TileGroup(BackendType backend_type,
       tile_group_layout_(layout) {
   tile_count_ = schemas.size();
   for (oid_t tile_itr = 0; tile_itr < tile_count_; tile_itr++) {
-    StorageManager *storage_manager = storage::StorageManager::GetInstance();
+    storagemanager *storage_manager = storage::storagemanager::GetInstance();
     oid_t tile_id = storage_manager->GetNextTileId();
 
     std::shared_ptr<Tile> tile(storage::TileFactory::GetTile(

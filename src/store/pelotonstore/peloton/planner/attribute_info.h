@@ -4,7 +4,7 @@
 //
 // attribute_info.h
 //
-// Identification: src/include/planner/attribute_info.h
+// Identification: src/include/../planner/attribute_info.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <string>
 
-//#include "codegen/type/type.h"
-#include "type/type.h"
-#include "common/internal_types.h"
+//#include "codegen/../type/type.h"
+#include "../type/type.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {

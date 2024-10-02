@@ -4,20 +4,20 @@
 //
 // zone_map_catalog.cpp
 //
-// Identification: src/catalog/zone_map_catalog.cpp
+// Identification: src/../catalog/zone_map_catalog.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/zone_map_catalog.h"
+#include "../catalog/zone_map_catalog.h"
 
-#include "catalog/catalog.h"
-#include "common/internal_types.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "storage/tuple.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../common/internal_types.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../storage/tuple.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

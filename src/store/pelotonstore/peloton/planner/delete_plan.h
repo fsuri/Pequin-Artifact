@@ -4,7 +4,7 @@
 //
 // delete_plan.h
 //
-// Identification: src/include/planner/delete_plan.h
+// Identification: src/include/../planner/delete_plan.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "planner/abstract_plan.h"
-#include "common/internal_types.h"
+#include "../planner/abstract_plan.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

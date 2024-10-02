@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "common/macros.h"
+#include "../common/macros.h"
 #include "annoy/annoylib.h"
 #include "annoy/kissrandom.h"
 #include "brain/cluster.h"

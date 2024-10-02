@@ -18,7 +18,7 @@
 #include <functional>
 #include "capnp/ez-rpc.h"
 #include "peloton/capnp/peloton_service.capnp.h"
-#include "common/notifiable_task.h"
+#include "../common/notifiable_task.h"
 
 namespace peloton_peloton {
 namespace brain {

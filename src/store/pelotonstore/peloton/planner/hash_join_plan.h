@@ -4,7 +4,7 @@
 //
 // hash_join_plan.h
 //
-// Identification: src/include/planner/hash_join_plan.h
+// Identification: src/include/../planner/hash_join_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <numeric>
 
-#include "planner/abstract_join_plan.h"
+#include "../planner/abstract_join_plan.h"
 
 namespace peloton_peloton {
 

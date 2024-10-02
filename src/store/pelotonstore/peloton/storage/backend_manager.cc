@@ -4,12 +4,12 @@
 //
 // backend_manager.cpp
 //
-// Identification: src/storage/backend_manager.cpp
+// Identification: src/../storage/backend_manager.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#include "storage/backend_manager.h"
+#include "../storage/backend_manager.h"
 
 #include <cpuid.h>
 #include <errno.h>
@@ -25,10 +25,10 @@
 #include <iostream>
 #include <string>
 
-#include "common/exception.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "common/internal_types.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
 
 //===--------------------------------------------------------------------===//
 // GUC Variables

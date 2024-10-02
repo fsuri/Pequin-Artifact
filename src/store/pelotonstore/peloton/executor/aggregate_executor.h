@@ -4,7 +4,7 @@
 //
 // aggregate_executor.h
 //
-// Identification: src/include/executor/aggregate_executor.h
+// Identification: src/include/../executor/aggregate_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "executor/abstract_executor.h"
+#include "../executor/abstract_executor.h"
 
 #include <vector>
 

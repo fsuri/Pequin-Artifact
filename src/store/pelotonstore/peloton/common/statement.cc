@@ -4,7 +4,7 @@
 //
 // statement.cpp
 //
-// Identification: src/common/statement.cpp
+// Identification: src/../../common/statement.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 #include <cstdio>
 #include <sstream>
 
-#include "common/logger.h"
-#include "common/statement.h"
-#include "parser/postgresparser.h"
-#include "planner/abstract_plan.h"
+#include "../common/logger.h"
+#include "../common/statement.h"
+#include "../parser/postgresparser.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 

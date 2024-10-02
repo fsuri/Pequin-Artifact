@@ -15,7 +15,7 @@
 #include <memory>
 #include <assert.h>
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 /**

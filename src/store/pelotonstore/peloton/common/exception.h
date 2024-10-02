@@ -4,7 +4,7 @@
 //
 // exception.h
 //
-// Identification: src/include/common/exception.h
+// Identification: src/include/../../common/exception.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -23,8 +23,8 @@
 #include <stdexcept>
 #include <string>
 
-#include "type/type.h"
-#include "common/internal_types.h"
+#include "../type/type.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

@@ -4,7 +4,7 @@
 //
 // layout.h
 //
-// Identification: src/include/storage/layout.h
+// Identification: src/include/../storage/layout.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <map>
 
-#include "common/internal_types.h"
-#include "common/printable.h"
+#include "../common/internal_types.h"
+#include "../common/printable.h"
 
 namespace peloton_peloton {
 

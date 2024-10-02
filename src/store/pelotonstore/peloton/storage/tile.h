@@ -4,7 +4,7 @@
 //
 // tile.h
 //
-// Identification: src/include/storage/tile.h
+// Identification: src/include/../storage/tile.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,13 +14,13 @@
 
 #include <mutex>
 
-#include "catalog/manager.h"
-#include "catalog/schema.h"
-#include "common/item_pointer.h"
-#include "common/printable.h"
-#include "type/abstract_pool.h"
-#include "type/serializeio.h"
-#include "type/serializer.h"
+#include "../catalog/manager.h"
+#include "../catalog/schema.h"
+#include "../common/item_pointer.h"
+#include "../common/printable.h"
+#include "../type/abstract_pool.h"
+#include "../type/serializeio.h"
+#include "../type/serializer.h"
 
 namespace peloton_peloton {
 

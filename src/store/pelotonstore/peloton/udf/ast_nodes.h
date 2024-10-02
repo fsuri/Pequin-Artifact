@@ -16,7 +16,7 @@
 #include <string>
 #include <vector>
 
-#include "type/type_id.h"
+#include "../type/type_id.h"
 
 namespace llvm {
 class Function;

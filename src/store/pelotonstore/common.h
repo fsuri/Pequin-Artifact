@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef HOTSTUFF_PG_COMMON_H
-#define HOTSTUFF_PG_COMMON_H
+#ifndef PELOTON_COMMON_H
+#define PELOTON_COMMON_H
 
 #include "lib/configuration.h"
 #include "lib/keymanager.h"
@@ -98,6 +98,6 @@ std::string string_to_hex(const std::string& input);
 
 void DebugHash(const std::string& hash);
 
-} // namespace pg_SMRstore
+} // namespace pelotonstore
 
-#endif /* HOTSTUFF_PG_COMMON_H */
+#endif /* PELOTON_COMMON_H */

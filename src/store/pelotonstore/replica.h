@@ -24,8 +24,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef _HOTSTUFF_PG_REPLICA_H_
-#define _HOTSTUFF_PG_REPLICA_H_
+#ifndef _PELOTON_REPLICA_H_
+#define _PELOTON_REPLICA_H_
 
 #include <memory>
 
@@ -172,6 +172,6 @@ public:
 
 };
 
-} // namespace pg_SMRstore
+} // namespace pelotonstore
 
 #endif

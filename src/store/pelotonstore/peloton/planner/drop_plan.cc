@@ -4,17 +4,17 @@
 //
 // drop_plan.cpp
 //
-// Identification: src/planner/drop_plan.cpp
+// Identification: src/../planner/drop_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/drop_plan.h"
+#include "../planner/drop_plan.h"
 
-#include "catalog/catalog.h"
-#include "parser/drop_statement.h"
-#include "storage/data_table.h"
+#include "../catalog/catalog.h"
+#include "../parser/drop_statement.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

@@ -4,7 +4,7 @@
 //
 // operator_expression.h
 //
-// Identification: src/include/expression/operator_expression.h
+// Identification: src/include/../expression/operator_expression.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "parser/postgresparser.h"
-#include "type/value_factory.h"
-#include "type/value.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../parser/postgresparser.h"
+#include "../type/value_factory.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace expression {

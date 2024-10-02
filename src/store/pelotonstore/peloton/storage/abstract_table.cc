@@ -4,22 +4,22 @@
 //
 // abstract_table.cpp
 //
-// Identification: src/storage/abstract_table.cpp
+// Identification: src/../storage/abstract_table.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/abstract_table.h"
+#include "../storage/abstract_table.h"
 
-#include "catalog/manager.h"
-#include "catalog/schema.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "index/index.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_factory.h"
-#include "util/stringbox_util.h"
+#include "../catalog/manager.h"
+#include "../catalog/schema.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../index/index.h"
+#include "../storage/tile_group.h"
+#include "../storage/tile_group_factory.h"
+#include "../util/stringbox_util.h"
 
 namespace peloton_peloton {
 namespace storage {

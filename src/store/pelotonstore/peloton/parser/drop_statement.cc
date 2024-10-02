@@ -4,16 +4,16 @@
 //
 // drop_statement.cpp
 //
-// Identification: src/parser/drop_statement.cpp
+// Identification: src/../parser/drop_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/drop_statement.h"
+#include "../parser/drop_statement.h"
 #include <iostream>
 #include <sstream>
-#include "util/string_util.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace parser {

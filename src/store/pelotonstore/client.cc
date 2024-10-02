@@ -52,9 +52,9 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
 
   bclient.reserve(ngroups);
 
-  Notice("Initializing HotStuff Postgres client with id [%lu] %lu", client_id, ngroups);
+  Notice("Initializing PelotonSMR client with id [%lu] %lu", client_id, ngroups);
 
-  if(ngroups > 1) Panic("HS PG store does not support sharding");
+  if(ngroups > 1) Panic("Peloton store does not support sharding");
 
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
@@ -62,15 +62,7 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
         signMessages, validateProofs, keyManager, &stats, fake_SMR, SMR_mode, PG_BFTSMART_config_path);
   }
 
-  Notice("HotStuff Postgres client [%lu] created! %lu %lu", client_id, ngroups, bclient.size());
-
-  //Test connecting directly.
-  if(TEST_DIRECT_PG_CONNECTION){
-    std::string connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
-    Notice("Connection string: %s", connection_str.c_str());
-    connection = tao::pq::connection::create(connection_str);
-    //connectionPool = tao::pq::connection_pool::create(connection_str);
-  }
+  Notice("PelotonSMR client [%lu] created! %lu %lu", client_id, ngroups, bclient.size());
  
 }
 
@@ -90,12 +82,6 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb, uint32_t tim
     client_seq_num++;
     Debug("BEGIN tx: ", client_seq_num);
 
-    //Test connecting directly
-    if(TEST_DIRECT_PG_CONNECTION){
-      //connection = connectionPool->connection();
-      transaction = connection->transaction();
-    }
-
     bcb(client_seq_num);
   });
 }
@@ -112,26 +98,6 @@ void Client::Put(const std::string &key, const std::string &value, put_callback 
 
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) {
-
-  //Test
-  if(TEST_DIRECT_PG_CONNECTION){
-   try {
-    transaction->commit();
-    transaction = nullptr; //reset txn
-    ccb(COMMITTED);
-    } catch (const std::exception &e) {
-      //Panic("Commit should not fail while testing RW-SQL");
-      const std::string &error_message = e.what();
-      Debug("Commit Failed: %s. Aborting!", error_message.c_str());
-      if (error_message.find("restart transaction") != std::string::npos) {
-        transaction = nullptr;
-      }
-      ccb(ABORTED_SYSTEM);
-    }
-    return;
-  }
-
-
 
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     try_commit_callback tccb = [ccb, this](int status) {
@@ -156,18 +122,6 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t 
 
 void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t timeout) {
 
-  //TEST
-  if(TEST_DIRECT_PG_CONNECTION){
-    try {
-      transaction->rollback();
-    } catch (...) {
-      Panic("Rolling back Txn failed");
-    }
-    acb();
-    return;
-  }
-
-
   transport->Timer(0, [this, acb, atcb, timeout]() {
     Debug("Issue Abort (asynchronously)");
     bclient[0]->Abort(client_id, client_seq_num);
@@ -176,47 +130,6 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb, uint32_t tim
 }
 
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
-
-  //QUICK TEST
-  // transaction = connection->transaction();
-  // transaction = nullptr;
-
-    // struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-
-
-
-  if(TEST_DIRECT_PG_CONNECTION){
-   try {
-    if (transaction == nullptr) {
-      Warning("Transaction has already been terminated. ReplyFail");
-      scb(REPLY_FAIL, nullptr);
-      return;
-    }
-
-    tao::pq::result result = transaction->execute(statement);
-    taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
-    scb(REPLY_OK, tao_res);
-  } catch (const tao::pq::integrity_constraint_violation &e) {
-    Notice("Write[%s] exec failed with integrity violation: %s", statement.c_str(), e.what());
-    auto result = new taopq_wrapper::TaoPQQueryResultWrapper();
-    scb(REPLY_OK, result);
-  } catch (const tao::pq::transaction_rollback &e) {
-    Notice("Transaction rollback: %s", e.what());
-    transaction->rollback();
-    transaction = nullptr;
-    scb(REPLY_FAIL, nullptr);
-  } catch (const tao::pq::in_failed_sql_transaction &e) {
-    Notice("In failed sql transaction: %s", e.what());
-    transaction = nullptr;
-    scb(REPLY_FAIL, nullptr);
-  } catch (const std::exception &e) {
-    Panic("Tx write failed with uncovered exception: %s", e.what());
-  }
-  return;
-  }
-
 
   transport->Timer(0, [this, statement, scb, stcb, timeout](){
 

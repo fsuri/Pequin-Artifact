@@ -4,7 +4,7 @@
 //
 // bind_node_visitor.h
 //
-// Identification: src/include/binder/binder_node_visitor.h
+// Identification: src/include/../binder/binder_node_visitor.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "binder/binder_context.h"
-#include "common/sql_node_visitor.h"
-#include "parser/statements.h"
-#include "common/internal_types.h"
+#include "../binder/binder_context.h"
+#include "../common/sql_node_visitor.h"
+#include "../parser/statements.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

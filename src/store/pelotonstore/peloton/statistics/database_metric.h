@@ -4,7 +4,7 @@
 //
 // database_metric.h
 //
-// Identification: src/statistics/database_metric.h
+// Identification: src/../statistics/database_metric.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,9 +15,9 @@
 #include <string>
 #include <sstream>
 
-#include "common/internal_types.h"
-#include "statistics/counter_metric.h"
-#include "statistics/abstract_metric.h"
+#include "../common/internal_types.h"
+#include "../statistics/counter_metric.h"
+#include "../statistics/abstract_metric.h"
 
 namespace peloton_peloton {
 namespace stats {

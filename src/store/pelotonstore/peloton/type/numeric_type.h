@@ -4,7 +4,7 @@
 //
 // numeric_value.h
 //
-// Identification: src/backend/common/numeric_value.h
+// Identification: src/backend/../common/numeric_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #pragma once
 
 #include <cmath>
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace type {

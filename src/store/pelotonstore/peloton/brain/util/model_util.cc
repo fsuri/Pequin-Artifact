@@ -4,13 +4,13 @@
 //
 // model_util.cpp
 //
-// Identification: src/brain/util/model_util.cpp
+// Identification: src/brain/../util/model_util.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "brain/util/model_util.h"
+#include "brain/../util/model_util.h"
 #include "brain/workload/base_tf.h"
 
 namespace peloton_peloton {

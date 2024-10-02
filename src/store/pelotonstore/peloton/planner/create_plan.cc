@@ -4,18 +4,18 @@
 //
 // create_plan.cpp
 //
-// Identification: src/planner/create_plan.cpp
+// Identification: src/../planner/create_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/create_plan.h"
+#include "../planner/create_plan.h"
 
-#include "common/internal_types.h"
-#include "expression/abstract_expression.h"
-#include "expression/constant_value_expression.h"
-#include "storage/data_table.h"
+#include "../common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

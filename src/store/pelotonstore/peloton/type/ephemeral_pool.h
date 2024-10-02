@@ -4,7 +4,7 @@
 //
 // ephemeral_pool.h
 //
-// Identification: src/include/type/ephemeral_pool.h
+// Identification: src/include/../type/ephemeral_pool.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,9 +16,9 @@
 #include <cstdlib>
 #include <unordered_set>
 
-#include "common/macros.h"
-#include "common/synchronization/spin_latch.h"
-#include "type/abstract_pool.h"
+#include "../common/macros.h"
+#include "../common/synchronization/spin_latch.h"
+#include "../type/abstract_pool.h"
 
 namespace peloton_peloton {
 namespace type {

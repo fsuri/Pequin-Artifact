@@ -4,7 +4,7 @@
 //
 // notifiable_task.h
 //
-// Identification: src/include/common/notifiable_task.h
+// Identification: src/include/../../common/notifiable_task.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <unordered_set>
 #include <event2/thread.h>
-#include "common/event_util.h"
+#include "../common/event_util.h"
 
 namespace peloton_peloton {
 

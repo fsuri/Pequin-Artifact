@@ -4,17 +4,17 @@
 //
 // util.cpp
 //
-// Identification: src/optimizer/util.cpp
+// Identification: src/../optimizer/util.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/util.h"
+#include "../optimizer/util.h"
 
-#include "catalog/query_metrics_catalog.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "expression/expression_util.h"
+#include "../catalog/query_metrics_catalog.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../expression/expression_util.h"
 
 namespace peloton_peloton {
 namespace optimizer {

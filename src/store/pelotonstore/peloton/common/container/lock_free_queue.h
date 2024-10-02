@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "common/macros.h"
+#include "../../common/macros.h"
 #include "lib/concurrentqueue/concurrentqueue.h"
 
 namespace peloton_peloton {

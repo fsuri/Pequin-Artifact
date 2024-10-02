@@ -4,18 +4,18 @@
 //
 // query_metrics_catalog.cpp
 //
-// Identification: src/catalog/query_metrics_catalog.cpp
+// Identification: src/../catalog/query_metrics_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/query_metrics_catalog.h"
+#include "../catalog/query_metrics_catalog.h"
 
-#include "catalog/catalog.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

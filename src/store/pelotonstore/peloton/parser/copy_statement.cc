@@ -4,13 +4,13 @@
 //
 // copy_statement.cpp
 //
-// Identification: src/parser/copy_statement.cpp
+// Identification: src/../parser/copy_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/copy_statement.h"
+#include "../parser/copy_statement.h"
 
 namespace peloton_peloton {
 namespace parser {

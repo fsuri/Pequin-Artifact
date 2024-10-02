@@ -4,7 +4,7 @@
 //
 // sql_node_visitor.h
 //
-// Identification: src/include/common/sql_node_visitor.h
+// Identification: src/include/../../common/sql_node_visitor.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

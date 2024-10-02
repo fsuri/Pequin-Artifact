@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "network/protocol_handler.h"
+#include "../network/protocol_handler.h"
 
 #include <boost/algorithm/string.hpp>
 

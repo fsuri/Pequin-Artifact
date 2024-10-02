@@ -4,7 +4,7 @@
 //
 // boolean_value.h
 //
-// Identification: src/backend/common/timestamp_value.h
+// Identification: src/backend/../common/timestamp_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace type {

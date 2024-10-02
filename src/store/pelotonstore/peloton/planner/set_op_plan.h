@@ -4,7 +4,7 @@
 //
 // set_op_plan.h
 //
-// Identification: src/include/planner/set_op_plan.h
+// Identification: src/include/../planner/set_op_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #pragma once
 
 #include "abstract_plan.h"
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {

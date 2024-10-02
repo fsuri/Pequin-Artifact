@@ -18,8 +18,8 @@
 #include <vector>
 
 #include "clusterer.h"
-#include "common/internal_types.h"
-#include "common/timer.h"
+#include "../common/internal_types.h"
+#include "../common/timer.h"
 
 namespace peloton_peloton {
 

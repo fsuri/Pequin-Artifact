@@ -4,16 +4,16 @@
 //
 // decimal_value.cpp
 //
-// Identification: src/backend/common/decimal_value.cpp
+// Identification: src/backend/../common/decimal_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/decimal_type.h"
-#include "type/boolean_type.h"
-#include "type/varlen_type.h"
-#include "type/value_factory.h"
+#include "../type/decimal_type.h"
+#include "../type/boolean_type.h"
+#include "../type/varlen_type.h"
+#include "../type/value_factory.h"
 
 #include <iostream>
 #include <cmath>

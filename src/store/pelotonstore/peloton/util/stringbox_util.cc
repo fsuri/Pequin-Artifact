@@ -4,13 +4,13 @@
 //
 // stringbox_util.cpp
 //
-// Identification: /peloton/src/util/stringbox_util.cpp
+// Identification: /peloton/src/../util/stringbox_util.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "util/stringbox_util.h"
+#include "../util/stringbox_util.h"
 
 #include <iomanip>
 #include <sstream>

@@ -9,15 +9,15 @@
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#include "tuning/sample.h"
+#include "../tuning/sample.h"
 
 #include <cmath>
 #include <iostream>
 #include <sstream>
 
-#include "tuning/sample.h"
-#include "common/logger.h"
-#include "common/macros.h"
+#include "../tuning/sample.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace tuning {

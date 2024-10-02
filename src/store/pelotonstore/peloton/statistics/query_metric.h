@@ -4,7 +4,7 @@
 //
 // query_metric.h
 //
-// Identification: src/statistics/query_metric.h
+// Identification: src/../statistics/query_metric.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,12 +15,12 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include "common/internal_types.h"
-#include "statistics/abstract_metric.h"
-#include "statistics/access_metric.h"
-#include "statistics/latency_metric.h"
-#include "statistics/processor_metric.h"
-#include "util/string_util.h"
+#include "../common/internal_types.h"
+#include "../statistics/abstract_metric.h"
+#include "../statistics/access_metric.h"
+#include "../statistics/latency_metric.h"
+#include "../statistics/processor_metric.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 

@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "logging/log_manager.h"
-#include "logging/logical_log_manager.h"
+#include "../logging/log_manager.h"
+#include "../logging/logical_log_manager.h"
 
 namespace peloton_peloton {
 namespace logging {

@@ -4,15 +4,15 @@
 //
 // column.cpp
 //
-// Identification: src/optimizer/column.cpp
+// Identification: src/../optimizer/column.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/column.h"
+#include "../optimizer/column.h"
 
-#include "util/hash_util.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 namespace optimizer {

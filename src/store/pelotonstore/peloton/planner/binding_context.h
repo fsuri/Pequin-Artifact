@@ -4,7 +4,7 @@
 //
 // binding_context.h
 //
-// Identification: src/include/planner/binding_context.h
+// Identification: src/include/../planner/binding_context.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <unordered_map>
 
-#include "planner/attribute_info.h"
+#include "../planner/attribute_info.h"
 
 namespace peloton_peloton {
 namespace planner {

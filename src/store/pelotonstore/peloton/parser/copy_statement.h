@@ -4,7 +4,7 @@
 //
 // copy_statement.h
 //
-// Identification: src/include/parser/copy_statement.h
+// Identification: src/include/../parser/copy_statement.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "parser/select_statement.h"
-#include "parser/sql_statement.h"
-#include "parser/table_ref.h"
-#include "common/sql_node_visitor.h"
+#include "../parser/select_statement.h"
+#include "../parser/sql_statement.h"
+#include "../parser/table_ref.h"
+#include "../common/sql_node_visitor.h"
 
 namespace peloton_peloton {
 namespace parser {

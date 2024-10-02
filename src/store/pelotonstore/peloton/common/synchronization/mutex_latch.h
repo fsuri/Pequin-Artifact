@@ -4,7 +4,7 @@
 //
 // mutex.h
 //
-// Identification: src/include/common/synchronization/mutex.h
+// Identification: src/include/../../common/synchronization/mutex.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "common/macros.h"
+#include "../../common/macros.h"
 
 namespace peloton_peloton {
 namespace common {

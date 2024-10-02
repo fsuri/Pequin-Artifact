@@ -4,7 +4,7 @@
 //
 // parameter_value_expression.h
 //
-// Identification: src/include/expression/parameter_value_expression.h
+// Identification: src/include/../expression/parameter_value_expression.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "expression/abstract_expression.h"
-#include "common/sql_node_visitor.h"
-#include "util/hash_util.h"
+#include "../expression/abstract_expression.h"
+#include "../common/sql_node_visitor.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 

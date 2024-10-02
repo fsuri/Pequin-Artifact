@@ -4,13 +4,13 @@
 //
 // string_util.cpp
 //
-// Identification: /src/util/string_util.cpp
+// Identification: /src/../util/string_util.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "util/string_util.h"
+#include "../util/string_util.h"
 
 #include <stdarg.h>
 #include <string.h>

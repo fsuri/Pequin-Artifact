@@ -4,7 +4,7 @@
 //
 // abstract_scan_plan.h
 //
-// Identification: src/include/planner/abstract_scan_plan.h
+// Identification: src/include/../planner/abstract_scan_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,9 +17,9 @@
 #include <string>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "expression/abstract_expression.h"
-#include "planner/abstract_plan.h"
+#include "../common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 

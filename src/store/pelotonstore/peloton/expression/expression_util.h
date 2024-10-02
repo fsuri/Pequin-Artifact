@@ -4,7 +4,7 @@
 //
 // expression_util.h
 //
-// Identification: src/include/expression/expression_util.h
+// Identification: src/include/../expression/expression_util.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -16,19 +16,19 @@
 #include <string>
 #include <vector>
 
-#include "catalog/catalog.h"
-#include "catalog/schema.h"
-#include "expression/aggregate_expression.h"
-#include "expression/case_expression.h"
-#include "expression/comparison_expression.h"
-#include "expression/conjunction_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/function_expression.h"
-#include "expression/operator_expression.h"
-#include "expression/parameter_value_expression.h"
-#include "expression/tuple_value_expression.h"
-#include "function/string_functions.h"
-#include "index/index.h"
+#include "../catalog/catalog.h"
+#include "../catalog/schema.h"
+#include "../expression/aggregate_expression.h"
+#include "../expression/case_expression.h"
+#include "../expression/comparison_expression.h"
+#include "../expression/conjunction_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/function_expression.h"
+#include "../expression/operator_expression.h"
+#include "../expression/parameter_value_expression.h"
+#include "../expression/tuple_value_expression.h"
+#include "../function/string_functions.h"
+#include "../index/index.h"
 
 namespace peloton_peloton {
 namespace expression {
@@ -144,7 +144,7 @@ class ExpressionUtil {
     }
 
     // LM: If it's an indexed TupleValueExpression or other
-    // ConstantValueExpression/ParameterValueExpression, then it's removable.
+    // ConstantValue../expression/ParameterValueExpression, then it's removable.
     // Right now I couldn't think of other cases, so otherwise it's not handled.
     if (children_size == 0) {
       PELOTON_ASSERT(

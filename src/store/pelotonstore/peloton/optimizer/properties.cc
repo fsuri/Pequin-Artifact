@@ -4,16 +4,16 @@
 //
 // properties.cpp
 //
-// Identification: src/optimizer/properties.cpp
+// Identification: src/../optimizer/properties.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/properties.h"
+#include "../optimizer/properties.h"
 
-#include "optimizer/property.h"
-#include "optimizer/property_visitor.h"
+#include "../optimizer/property.h"
+#include "../optimizer/property_visitor.h"
 
 namespace peloton_peloton {
 namespace optimizer {

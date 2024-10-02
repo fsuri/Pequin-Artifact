@@ -4,7 +4,7 @@
 //
 // backend_manager.h
 //
-// Identification: src/include/storage/backend_manager.h
+// Identification: src/include/../storage/backend_manager.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <mutex>
 
-#include "common/synchronization/spin_latch.h"
-#include "common/internal_types.h"
+#include "../common/synchronization/spin_latch.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace storage {

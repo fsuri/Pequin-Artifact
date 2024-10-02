@@ -4,7 +4,7 @@
 //
 // csv_scanner.h
 //
-// Identification: src/include/codegen/util/csv_scanner.h
+// Identification: src/include/codegen/../util/csv_scanner.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "type/type.h"
-#include "util/file.h"
+#include "../type/type.h"
+#include "../util/file.h"
 
 namespace peloton_peloton {
 

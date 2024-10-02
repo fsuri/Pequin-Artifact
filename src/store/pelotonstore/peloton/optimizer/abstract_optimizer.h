@@ -4,7 +4,7 @@
 //
 // abstract_optimizer.h
 //
-// Identification: src/include/optimizer/abstract_optimizer.h
+// Identification: src/include/../optimizer/abstract_optimizer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <memory>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {

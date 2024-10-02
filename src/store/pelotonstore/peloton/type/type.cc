@@ -4,28 +4,28 @@
 //
 // type.h
 //
-// Identification: src/backend/common/type.cpp
+// Identification: src/backend/../common/type.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/type.h"
+#include "../type/type.h"
 
-#include "common/exception.h"
-#include "type/abstract_pool.h"
-#include "type/array_type.h"
-#include "type/bigint_type.h"
-#include "type/boolean_type.h"
-#include "type/date_type.h"
-#include "type/decimal_type.h"
-#include "type/integer_type.h"
-#include "type/numeric_type.h"
-#include "type/smallint_type.h"
-#include "type/timestamp_type.h"
-#include "type/tinyint_type.h"
-#include "type/value.h"
-#include "type/varlen_type.h"
+#include "../common/exception.h"
+#include "../type/abstract_pool.h"
+#include "../type/array_type.h"
+#include "../type/bigint_type.h"
+#include "../type/boolean_type.h"
+#include "../type/date_type.h"
+#include "../type/decimal_type.h"
+#include "../type/integer_type.h"
+#include "../type/numeric_type.h"
+#include "../type/smallint_type.h"
+#include "../type/timestamp_type.h"
+#include "../type/tinyint_type.h"
+#include "../type/value.h"
+#include "../type/varlen_type.h"
 
 namespace peloton_peloton {
 namespace type {

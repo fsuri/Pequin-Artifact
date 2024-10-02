@@ -4,7 +4,7 @@
 //
 // layout_catalog.h
 //
-// Identification: src/include/catalog/layout_catalog.h
+// Identification: src/include/../catalog/layout_catalog.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "catalog/abstract_catalog.h"
+#include "../catalog/abstract_catalog.h"
 
 namespace peloton_peloton {
 

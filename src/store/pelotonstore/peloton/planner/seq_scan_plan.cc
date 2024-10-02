@@ -4,24 +4,24 @@
 //
 // seq_scan_plan.cpp
 //
-// Identification: src/planner/seq_scan_plan.cpp
+// Identification: src/../planner/seq_scan_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/seq_scan_plan.h"
+#include "../planner/seq_scan_plan.h"
 
-#include "parser/select_statement.h"
-#include "catalog/manager.h"
-#include "catalog/schema.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "expression/abstract_expression.h"
-#include "expression/expression_util.h"
-#include "storage/data_table.h"
-#include "storage/storage_manager.h"
-#include "common/internal_types.h"
+#include "../parser/select_statement.h"
+#include "../catalog/manager.h"
+#include "../catalog/schema.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../expression/abstract_expression.h"
+#include "../expression/expression_util.h"
+#include "../storage/data_table.h"
+#include "../storage/storage_manager.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {
@@ -143,7 +143,7 @@ bool SeqScanPlan::DeserializeFrom(SerializeInput &input) {
   storage::DataTable *target_table = nullptr;
   try{
       target_table = static_cast<storage::DataTable *>(
-        storage::StorageManager::GetInstance()->GetTableWithOid(
+        storage::storagemanager::GetInstance()->GetTableWithOid(
               database_oid, table_oid));
   } catch (CatalogException &e) {
       LOG_TRACE("Can't find table %d! Return false", table_oid);

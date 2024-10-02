@@ -4,7 +4,7 @@
 //
 // event_util.h
 //
-// Identification: src/include/common/event_util.h
+// Identification: src/include/../../common/event_util.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -17,8 +17,8 @@
 #include <event2/event.h>
 #include <event2/listener.h>
 
-#include "common/exception.h"
-#include "common/logger.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 

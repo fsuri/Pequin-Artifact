@@ -4,7 +4,7 @@
 //
 // histogram.h
 //
-// Identification: src/include/optimizer/stats/histogram.h
+// Identification: src/include/../../optimizer/stats/histogram.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -24,10 +24,10 @@
 #include <vector>
 #include <tuple>
 
-#include "type/value.h"
-#include "type/type.h"
-#include "common/macros.h"
-#include "common/logger.h"
+#include "../../type/value.h"
+#include "../../type/type.h"
+#include "../../common/macros.h"
+#include "../../common/logger.h"
 
 namespace peloton_peloton {
 namespace optimizer {

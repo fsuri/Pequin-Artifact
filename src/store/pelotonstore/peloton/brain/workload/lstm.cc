@@ -11,11 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "brain/workload/lstm.h"
-#include "brain/util/model_util.h"
-#include "brain/util/tf_session_entity/tf_session_entity.h"
-#include "brain/util/tf_session_entity/tf_session_entity_input.h"
-#include "brain/util/tf_session_entity/tf_session_entity_output.h"
-#include "util/file_util.h"
+#include "brain/../util/model_util.h"
+#include "brain/../util/tf_session_entity/tf_session_entity.h"
+#include "brain/../util/tf_session_entity/tf_session_entity_input.h"
+#include "brain/../util/tf_session_entity/tf_session_entity_output.h"
+#include "../util/file_util.h"
 
 namespace peloton_peloton {
 namespace brain {

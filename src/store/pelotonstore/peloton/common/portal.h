@@ -4,7 +4,7 @@
 //
 // portal.h
 //
-// Identification: src/include/common/portal.h
+// Identification: src/include/../../common/portal.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "type/value.h"
-#include "statistics/query_metric.h"
+#include "../type/value.h"
+#include "../statistics/query_metric.h"
 
 namespace peloton_peloton {
 

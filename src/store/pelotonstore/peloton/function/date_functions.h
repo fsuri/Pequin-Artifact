@@ -4,7 +4,7 @@
 //
 // date_functions.h
 //
-// Identification: src/include/function/date_functions.h
+// Identification: src/include/../function/date_functions.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

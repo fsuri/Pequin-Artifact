@@ -4,7 +4,7 @@
 //
 // create_function_statement.h
 //
-// Identification: src/include/parser/create_function_statement.h
+// Identification: src/include/../parser/create_function_statement.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "parser/sql_statement.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../parser/sql_statement.h"
 
 namespace peloton_peloton {
 namespace parser {

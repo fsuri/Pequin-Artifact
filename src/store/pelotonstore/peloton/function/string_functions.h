@@ -4,7 +4,7 @@
 //
 // string_functions.h
 //
-// Identification: src/include/function/string_functions.h
+// Identification: src/include/../function/string_functions.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

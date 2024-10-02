@@ -4,7 +4,7 @@
 //
 // update_executor.h
 //
-// Identification: src/include/executor/update_executor.h
+// Identification: src/include/../executor/update_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "executor/abstract_executor.h"
-#include "expression/abstract_expression.h"
-#include "planner/update_plan.h"
+#include "../executor/abstract_executor.h"
+#include "../expression/abstract_expression.h"
+#include "../planner/update_plan.h"
 
 namespace peloton_peloton {
 

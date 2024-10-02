@@ -10,19 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "traffic_cop/traffic_cop.h"
+#include "../traffic_cop/traffic_cop.h"
 
 #include <utility>
 
-#include "binder/bind_node_visitor.h"
-#include "common/internal_types.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "expression/expression_util.h"
-#include "optimizer/optimizer.h"
-#include "planner/plan_util.h"
-#include "settings/settings_manager.h"
-#include "threadpool/mono_queue_pool.h"
+#include "../binder/bind_node_visitor.h"
+#include "../common/internal_types.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../expression/expression_util.h"
+#include "../optimizer/optimizer.h"
+#include "../planner/plan_util.h"
+#include "../settings/settings_manager.h"
+#include "../threadpool/mono_queue_pool.h"
 
 namespace peloton_peloton {
 namespace tcop {
@@ -196,6 +196,7 @@ executor::ExecutionResult TrafficCop::ExecuteHelper(
                                         on_complete);
   });*/
 
+  //synchronous call: No longer dispatch to a thread.
   executor::PlanExecutor::ExecutePlan(plan, txn, params, result_format,
                                         on_complete);
 

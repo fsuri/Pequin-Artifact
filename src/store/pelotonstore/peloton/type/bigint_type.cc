@@ -4,15 +4,15 @@
 //
 // numeric_value.cpp
 //
-// Identification: src/backend/type/numeric_value.cpp
+// Identification: src/backend/../type/numeric_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/bigint_type.h"
+#include "../type/bigint_type.h"
 
-#include "type/value_factory.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace type {

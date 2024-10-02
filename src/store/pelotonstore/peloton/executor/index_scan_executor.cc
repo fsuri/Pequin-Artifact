@@ -4,32 +4,32 @@
 //
 // index_scan_executor.cpp
 //
-// Identification: src/executor/index_scan_executor.cpp
+// Identification: src/../executor/index_scan_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/index_scan_executor.h"
+#include "../executor/index_scan_executor.h"
 
-#include "catalog/catalog.h"
-#include "catalog/manager.h"
-#include "common/container_tuple.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "expression/abstract_expression.h"
-#include "index/index.h"
-#include "planner/index_scan_plan.h"
-#include "storage/data_table.h"
-#include "storage/masked_tuple.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_header.h"
-#include "storage/storage_manager.h"
-#include "type/value.h"
+#include "../catalog/catalog.h"
+#include "../catalog/manager.h"
+#include "../common/container_tuple.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/executor_context.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../expression/abstract_expression.h"
+#include "../index/index.h"
+#include "../planner/index_scan_plan.h"
+#include "../storage/data_table.h"
+#include "../storage/masked_tuple.h"
+#include "../storage/tile_group.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/storage_manager.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace executor {
@@ -206,7 +206,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
       concurrency::TransactionManagerFactory::GetInstance();
 
   auto current_txn = executor_context_->GetTransaction();
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   std::vector<ItemPointer> visible_tuple_locations;
 
 #ifdef LOG_TRACE_ENABLED
@@ -292,7 +292,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // from scratch.
           tuple_location =
               *(tile_group_header->GetIndirection(tuple_location.offset));
-          auto storage_manager = storage::StorageManager::GetInstance();
+          auto storage_manager = storage::storagemanager::GetInstance();
           tile_group = storage_manager->GetTileGroup(tuple_location.block);
           tile_group_header = tile_group.get()->GetHeader();
           chain_length = 0;
@@ -318,7 +318,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
         }
 
         // search for next version.
-        auto storage_manager = storage::StorageManager::GetInstance();
+        auto storage_manager = storage::storagemanager::GetInstance();
         tile_group = storage_manager->GetTileGroup(tuple_location.block);
         tile_group_header = tile_group.get()->GetHeader();
         continue;
@@ -353,7 +353,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
     } else {
       // Since the tile_group_oids differ, fill in the current tile group
       // into the result vector
-      auto storage_manager = storage::StorageManager::GetInstance();
+      auto storage_manager = storage::storagemanager::GetInstance();
       auto tile_group = storage_manager->GetTileGroup(current_tile_group_oid);
       std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());
       // Add relevant columns to logical tile
@@ -459,7 +459,7 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
   int num_tuples_examined = 0;
   int num_blocks_reused = 0;
 #endif
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   for (auto tuple_location_ptr : tuple_location_ptrs) {
     ItemPointer tuple_location = *tuple_location_ptr;
     if (tuple_location.block != last_block) {
@@ -689,7 +689,7 @@ bool IndexScanExecutor::CheckKeyConditions(const ItemPointer &tuple_location) {
 
   LOG_TRACE("Examining key conditions for the returned tuple.");
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
   ContainerTuple<storage::TileGroup> tuple(tile_group.get(),
                                            tuple_location.offset);

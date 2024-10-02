@@ -4,20 +4,20 @@
 //
 // optimizer_task.cpp
 //
-// Identification: src/optimizer/optimizer_task.cpp
+// Identification: src/../optimizer/optimizer_task.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/optimizer_task.h"
+#include "../optimizer/optimizer_task.h"
 
-#include "optimizer/property_enforcer.h"
-#include "optimizer/optimizer_metadata.h"
-#include "optimizer/binding.h"
-#include "optimizer/child_property_deriver.h"
-#include "optimizer/stats/stats_calculator.h"
-#include "optimizer/stats/child_stats_deriver.h"
+#include "../optimizer/property_enforcer.h"
+#include "../optimizer/optimizer_metadata.h"
+#include "../optimizer/binding.h"
+#include "../optimizer/child_property_deriver.h"
+#include "../optimizer/stats/stats_calculator.h"
+#include "../optimizer/stats/child_stats_deriver.h"
 
 namespace peloton_peloton {
 namespace optimizer {

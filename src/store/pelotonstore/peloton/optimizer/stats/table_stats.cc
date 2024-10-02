@@ -4,15 +4,15 @@
 //
 // table_stats.cpp
 //
-// Identification: src/optimizer/stats/table_stats.cpp
+// Identification: src/../../optimizer/stats/table_stats.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/table_stats.h"
-#include "common/logger.h"
-#include "optimizer/stats/column_stats.h"
+#include "../../optimizer/stats/table_stats.h"
+#include "../../common/logger.h"
+#include "../../optimizer/stats/column_stats.h"
 
 namespace peloton_peloton {
 namespace optimizer {

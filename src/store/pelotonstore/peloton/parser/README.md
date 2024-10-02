@@ -7,8 +7,8 @@ The following files should be automatically generated:
 
     /src/postgres/backend/bootstrap/bootparse.c
     /src/postgres/backend/bootstrap/bootscanner.c
-    /src/postgres/backend/parser/scan.c
-    /src/postgres/backend/parser/gram.c
+    /src/postgres/backend/../parser/scan.c
+    /src/postgres/backend/../parser/gram.c
     /src/postgres/backend/replication/repl_gram.c
     /src/postgres/backend/replication/repl_scanner.c
     /src/postgres/backend/utils/fmgrtab.c 
@@ -47,9 +47,9 @@ In order to port Postgres to C++, we made the following changes:
     does not generate assignment operator for such cases by default. Deails of the cases
     are as follows:
 
-    * `RelFileNode` at `include/storage/relfilnode.h`
+    * `RelFileNode` at `include/../storagerelfilnode.h`
     * `QueuePosition` at `backend/commands/async.cpp`
-    * `BufferTag` at `include/storage/buf_internals.h`
+    * `BufferTag` at `include/../storagebuf_internals.h`
 
 4. Resolve error for implicitly deleted default constructor
 
@@ -57,7 +57,7 @@ In order to port Postgres to C++, we made the following changes:
     non-trivial constructor. The work around is to define the constructor mannually. 
     Details of the cases are as follows:
 
-    * `SharedInvalidationMessage` ar `include/storage/sinval.h`
+    * `SharedInvalidationMessage` ar `include/../storage/sinval.h`
 
 
 5. Resolve error for missing `operator++`

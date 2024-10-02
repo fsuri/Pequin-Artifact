@@ -4,22 +4,22 @@
 //
 // index_factory.cpp
 //
-// Identification: src/index/index_factory.cpp
+// Identification: src/../index/index_factory.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/index_factory.h"
+#include "../index/index_factory.h"
 
 #include <sstream>
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "index/art_index.h"
-#include "index/bwtree_index.h"
-#include "index/index_key.h"
-#include "index/skiplist_index.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../index/art_index.h"
+#include "../index/bwtree_index.h"
+#include "../index/index_key.h"
+#include "../index/skiplist_index.h"
 
 namespace peloton_peloton {
 namespace index {

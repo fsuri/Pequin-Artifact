@@ -4,21 +4,21 @@
 //
 // binder_context.cpp
 //
-// Identification: src/binder/binder_context.cpp
+// Identification: src/../binder/binder_context.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "binder/binder_context.h"
+#include "../binder/binder_context.h"
 
-#include "catalog/catalog.h"
-#include "catalog/column_catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/table_catalog.h"
-#include "expression/tuple_value_expression.h"
-#include "parser/table_ref.h"
-#include "storage/storage_manager.h"
+#include "../catalog/catalog.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../expression/tuple_value_expression.h"
+#include "../parser/table_ref.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton_peloton {
 namespace binder {

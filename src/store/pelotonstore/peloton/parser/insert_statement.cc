@@ -4,14 +4,14 @@
 //
 // insert_statement.cpp
 //
-// Identification: src/parser/insert_statement.cpp
+// Identification: src/../parser/insert_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/insert_statement.h"
-#include "parser/select_statement.h"
+#include "../parser/insert_statement.h"
+#include "../parser/select_statement.h"
 
 namespace peloton_peloton {
 namespace parser {

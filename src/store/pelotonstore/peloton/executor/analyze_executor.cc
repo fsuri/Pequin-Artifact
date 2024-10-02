@@ -4,7 +4,7 @@
 //
 // analyze_executor.cpp
 //
-// Identification: src/executor/analyze_executor.cpp
+// Identification: src/../executor/analyze_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,12 +12,12 @@
 
 #include <vector>
 
-#include "executor/analyze_executor.h"
-#include "executor/executor_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "common/logger.h"
-#include "catalog/catalog.h"
-#include "optimizer/stats/stats_storage.h"
+#include "../executor/analyze_executor.h"
+#include "../executor/executor_context.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../common/logger.h"
+#include "../catalog/catalog.h"
+#include "../optimizer/stats/stats_storage.h"
 
 namespace peloton_peloton {
 namespace executor {

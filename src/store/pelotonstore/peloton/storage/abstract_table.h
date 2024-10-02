@@ -4,7 +4,7 @@
 //
 // abstract_table.h
 //
-// Identification: src/include/storage/abstract_table.h
+// Identification: src/include/../storage/abstract_table.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -19,10 +19,10 @@
 #include <set>
 #include <string>
 
-#include "common/internal_types.h"
-#include "common/item_pointer.h"
-#include "common/printable.h"
-#include "storage/layout.h"
+#include "../common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/printable.h"
+#include "../storage/layout.h"
 
 //===--------------------------------------------------------------------===//
 // GUC Variables

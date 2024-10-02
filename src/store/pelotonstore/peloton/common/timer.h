@@ -4,7 +4,7 @@
 //
 // timer.h
 //
-// Identification: src/include/common/timer.h
+// Identification: src/include/../../common/timer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <chrono>
 #include <sstream>
 
-#include "common/printable.h"
+#include "../common/printable.h"
 
 namespace peloton_peloton {
 

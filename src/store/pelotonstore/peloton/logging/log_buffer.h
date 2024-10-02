@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "common/macros.h"
-#include "common/internal_types.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace logging {

@@ -4,21 +4,21 @@
 //
 // tuple_samples_storage.cpp
 //
-// Identification: src/optimizer/stats/tuple_samples_storage.cpp
+// Identification: src/../../optimizer/stats/tuple_samples_storage.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/tuple_samples_storage.h"
+#include "../../optimizer/stats/tuple_samples_storage.h"
 
-#include "catalog/catalog.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "executor/insert_executor.h"
-#include "executor/seq_scan_executor.h"
-#include "optimizer/stats/tuple_sampler.h"
-#include "planner/insert_plan.h"
+#include "../../catalog/catalog.h"
+#include "../../concurrency/transaction_manager_factory.h"
+#include "../../executor/executor_context.h"
+#include "../../executor/insert_executor.h"
+#include "../../executor/seq_scan_executor.h"
+#include "../../optimizer/stats/tuple_sampler.h"
+#include "../../planner/insert_plan.h"
 
 namespace peloton_peloton {
 namespace optimizer {

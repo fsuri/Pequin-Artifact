@@ -4,7 +4,7 @@
 //
 // backend_stats_context.h
 //
-// Identification: src/statistics/backend_stats_context.h
+// Identification: src/../statistics/backend_stats_context.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -17,15 +17,15 @@
 #include <thread>
 #include <unordered_map>
 
-#include "common/container/cuckoo_map.h"
-#include "common/container/lock_free_queue.h"
-#include "common/platform.h"
-#include "common/synchronization/spin_latch.h"
-#include "statistics/database_metric.h"
-#include "statistics/index_metric.h"
-#include "statistics/latency_metric.h"
-#include "statistics/query_metric.h"
-#include "statistics/table_metric.h"
+#include "../common/container/cuckoo_map.h"
+#include "../common/container/lock_free_queue.h"
+#include "../common/platform.h"
+#include "../common/synchronization/spin_latch.h"
+#include "../statistics/database_metric.h"
+#include "../statistics/index_metric.h"
+#include "../statistics/latency_metric.h"
+#include "../statistics/query_metric.h"
+#include "../statistics/table_metric.h"
 
 #define QUERY_METRIC_QUEUE_SIZE 100000
 

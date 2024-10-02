@@ -4,25 +4,25 @@
 //
 // constraint_catalog.cpp
 //
-// Identification: src/catalog/constraint_catalog.cpp
+// Identification: src/../catalog/constraint_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/constraint_catalog.h"
+#include "../catalog/constraint_catalog.h"
 
 #include <sstream>
 #include <memory>
 
-#include "catalog/catalog.h"
-#include "catalog/system_catalogs.h"
-#include "catalog/table_catalog.h"
-#include "concurrency/transaction_context.h"
-#include "storage/data_table.h"
-#include "storage/database.h"
-#include "storage/storage_manager.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../catalog/table_catalog.h"
+#include "../concurrency/transaction_context.h"
+#include "../storage/data_table.h"
+#include "../storage/database.h"
+#include "../storage/storage_manager.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {
@@ -260,7 +260,7 @@ bool ConstraintCatalog::InsertConstraint(concurrency::TransactionContext *txn,
       PELOTON_ASSERT(constraint->GetColumnIds().size() == 1);
       auto exp = constraint->GetCheckExpression();
       auto column =
-          storage::StorageManager::GetInstance()
+          storage::storagemanager::GetInstance()
               ->GetTableWithOid(database_oid_, constraint->GetTableOid())
               ->GetSchema()
               ->GetColumn(constraint->GetColumnIds().at(0));

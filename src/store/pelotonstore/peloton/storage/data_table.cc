@@ -4,7 +4,7 @@
 //
 // data_table.cpp
 //
-// Identification: src/storage/data_table.cpp
+// Identification: src/../storage/data_table.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -13,31 +13,31 @@
 #include <mutex>
 #include <utility>
 
-#include "catalog/catalog.h"
-#include "catalog/layout_catalog.h"
-#include "catalog/system_catalogs.h"
-#include "catalog/table_catalog.h"
-#include "common/container_tuple.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "common/platform.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "gc/gc_manager_factory.h"
-#include "index/index.h"
-#include "logging/log_manager.h"
-#include "storage/abstract_table.h"
-#include "storage/data_table.h"
-#include "storage/database.h"
-#include "storage/storage_manager.h"
-#include "storage/tile.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_factory.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
-#include "tuning/clusterer.h"
-#include "tuning/sample.h"
+#include "../catalog/catalog.h"
+#include "../catalog/layout_catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../catalog/table_catalog.h"
+#include "../common/container_tuple.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../common/platform.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/executor_context.h"
+#include "../gc/gc_manager_factory.h"
+#include "../index/index.h"
+#include "../logging/log_manager.h"
+#include "../storage/abstract_table.h"
+#include "../storage/data_table.h"
+#include "../storage/database.h"
+#include "../storage/storage_manager.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group.h"
+#include "../storage/tile_group_factory.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tuple.h"
+#include "../tuning/clusterer.h"
+#include "../tuning/sample.h"
 
 //===--------------------------------------------------------------------===//
 // Configuration Variables
@@ -94,7 +94,7 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
 DataTable::~DataTable() {
   // clean up tile groups by dropping the references in the catalog
   auto &catalog_manager = catalog::Manager::GetInstance();
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_groups_size = tile_groups_.GetSize();
   std::size_t tile_groups_itr;
 
@@ -214,7 +214,7 @@ ItemPointer DataTable::GetEmptyTupleSlot(const storage::Tuple *tuple) {
   if (free_item_pointer.IsNull() == false) {
     // when inserting a tuple
     if (tuple != nullptr) {
-      auto tile_group = storage::StorageManager::GetInstance()->GetTileGroup(
+      auto tile_group = storage::storagemanager::GetInstance()->GetTileGroup(
           free_item_pointer.block);
       tile_group->CopyTuple(tuple, free_item_pointer.offset);
     }
@@ -579,7 +579,7 @@ bool DataTable::CheckForeignKeySrcAndCascade(
     oid_t source_table_id = cons->GetTableOid();
     storage::DataTable *src_table = nullptr;
     try {
-      src_table = (storage::DataTable *)storage::StorageManager::GetInstance()
+      src_table = (storage::DataTable *)storage::storagemanager::GetInstance()
                       ->GetTableWithOid(GetDatabaseOid(), source_table_id);
     } catch (CatalogException &e) {
       LOG_TRACE("Can't find table %d! Return false", source_table_id);
@@ -732,7 +732,7 @@ bool DataTable::CheckForeignKeyConstraints(
     oid_t sink_table_id = foreign_key->GetFKSinkTableOid();
     storage::DataTable *ref_table = nullptr;
     try {
-      ref_table = (storage::DataTable *)storage::StorageManager::GetInstance()
+      ref_table = (storage::DataTable *)storage::storagemanager::GetInstance()
                       ->GetTableWithOid(database_oid, sink_table_id);
     } catch (CatalogException &e) {
       LOG_ERROR("Can't find table %d! Return false", sink_table_id);
@@ -847,7 +847,7 @@ void DataTable::ResetDirty() { dirty_ = false; }
 TileGroup *DataTable::GetTileGroupWithLayout(
     std::shared_ptr<const Layout> layout) {
   oid_t tile_group_id =
-      storage::StorageManager::GetInstance()->GetNextTileGroupId();
+      storage::storagemanager::GetInstance()->GetNextTileGroupId();
   return (AbstractTable::GetTileGroupWithLayout(database_oid, tile_group_id,
                                                 layout, tuples_per_tilegroup_));
 }
@@ -887,7 +887,7 @@ oid_t DataTable::AddDefaultTileGroup(const size_t &active_tile_group_id) {
   tile_groups_.Append(tile_group_id);
 
   // add tile group metadata in locator
-  storage::StorageManager::GetInstance()->AddTileGroup(tile_group_id,
+  storage::storagemanager::GetInstance()->AddTileGroup(tile_group_id,
                                                        tile_group);
 
   COMPILER_MEMORY_FENCE;
@@ -934,7 +934,7 @@ void DataTable::AddTileGroupWithOidForRecovery(const oid_t &tile_group_id) {
     LOG_TRACE("Added a tile group ");
 
     // add tile group metadata in locator
-    storage::StorageManager::GetInstance()->AddTileGroup(tile_group_id,
+    storage::storagemanager::GetInstance()->AddTileGroup(tile_group_id,
                                                          tile_group);
 
     // we must guarantee that the compiler always add tile group before adding
@@ -958,7 +958,7 @@ void DataTable::AddTileGroup(const std::shared_ptr<TileGroup> &tile_group) {
   tile_groups_.Append(tile_group_id);
 
   // add tile group in catalog
-  storage::StorageManager::GetInstance()->AddTileGroup(tile_group_id,
+  storage::storagemanager::GetInstance()->AddTileGroup(tile_group_id,
                                                        tile_group);
 
   // we must guarantee that the compiler always add tile group before adding
@@ -984,12 +984,12 @@ std::shared_ptr<storage::TileGroup> DataTable::GetTileGroup(
 
 std::shared_ptr<storage::TileGroup> DataTable::GetTileGroupById(
     const oid_t &tile_group_id) const {
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   return storage_manager->GetTileGroup(tile_group_id);
 }
 
 void DataTable::DropTileGroups() {
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_groups_size = tile_groups_.GetSize();
   std::size_t tile_groups_itr;
 
@@ -1210,7 +1210,7 @@ storage::TileGroup *DataTable::TransformTileGroup(
       tile_groups_.FindValid(tile_group_offset, invalid_tile_group_id);
 
   // Get orig tile group from catalog
-  auto storage_tilegroup = storage::StorageManager::GetInstance();
+  auto storage_tilegroup = storage::storagemanager::GetInstance();
   auto tile_group = storage_tilegroup->GetTileGroup(tile_group_id);
   auto diff = tile_group->GetLayout().GetLayoutDifference(*default_layout_);
 

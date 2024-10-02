@@ -4,16 +4,16 @@
 //
 // boolean_value.h
 //
-// Identification: src/backend/common/boolean_value.cpp
+// Identification: src/backend/../common/boolean_value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/boolean_type.h"
+#include "../type/boolean_type.h"
 
-#include "type/value_factory.h"
-#include "common/logger.h"
+#include "../type/value_factory.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace type {

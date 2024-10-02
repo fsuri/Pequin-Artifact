@@ -4,17 +4,17 @@
 //
 // project_info.cpp
 //
-// Identification: src/planner/project_info.cpp
+// Identification: src/../planner/project_info.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/project_info.h"
+#include "../planner/project_info.h"
 
-#include "executor/executor_context.h"
-#include "expression/abstract_expression.h"
-#include "expression/expression_util.h"
+#include "../executor/executor_context.h"
+#include "../expression/abstract_expression.h"
+#include "../expression/expression_util.h"
 
 namespace peloton_peloton {
 namespace planner {

@@ -4,14 +4,14 @@
 //
 // counter_metric.cpp
 //
-// Identification: src/statistics/counter_metric.cpp
+// Identification: src/../statistics/counter_metric.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/counter_metric.h"
-#include "common/macros.h"
+#include "../statistics/counter_metric.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace stats {

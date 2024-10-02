@@ -4,7 +4,7 @@
 //
 // latency_metric.h
 //
-// Identification: src/statistics/latency_metric.h
+// Identification: src/../statistics/latency_metric.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,12 +15,12 @@
 #include <string>
 #include <sstream>
 
-#include "common/timer.h"
-#include "common/macros.h"
-#include "common/internal_types.h"
-#include "common/exception.h"
-#include "common/container/circular_buffer.h"
-#include "statistics/abstract_metric.h"
+#include "../common/timer.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
+#include "../common/exception.h"
+#include "../common/container/circular_buffer.h"
+#include "../statistics/abstract_metric.h"
 #include <mutex>
 
 namespace peloton_peloton {

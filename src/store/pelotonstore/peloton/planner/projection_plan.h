@@ -4,7 +4,7 @@
 //
 // projection_plan.h
 //
-// Identification: src/include/planner/projection_plan.h
+// Identification: src/include/../planner/projection_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <memory>
 #include <numeric>
 
-#include "planner/abstract_plan.h"
-#include "planner/project_info.h"
+#include "../planner/abstract_plan.h"
+#include "../planner/project_info.h"
 
 namespace peloton_peloton {
 

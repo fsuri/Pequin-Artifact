@@ -4,33 +4,33 @@
 //
 // delete_executor.cpp
 //
-// Identification: src/executor/delete_executor.cpp
+// Identification: src/../executor/delete_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
 #include <cinttypes>
-#include "storage/storage_manager.h"
-#include "executor/delete_executor.h"
-#include "executor/executor_context.h"
+#include "../storage/storage_manager.h"
+#include "../executor/delete_executor.h"
+#include "../executor/executor_context.h"
 
-#include "type/value.h"
-#include "planner/delete_plan.h"
-#include "catalog/manager.h"
-#include "common/container_tuple.h"
-#include "common/logger.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "storage/tile.h"
-#include "storage/tile_group.h"
-#include "storage/tile_group_header.h"
-#include "storage/tuple.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "catalog/trigger_catalog.h"
-#include "trigger/trigger.h"
-#include "catalog/table_catalog.h"
-#include "parser/pg_trigger.h"
+#include "../type/value.h"
+#include "../planner/delete_plan.h"
+#include "../catalog/manager.h"
+#include "../common/container_tuple.h"
+#include "../common/logger.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tuple.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../catalog/trigger_catalog.h"
+#include "../trigger/trigger.h"
+#include "../catalog/table_catalog.h"
+#include "../parser/pg_trigger.h"
 
 namespace peloton_peloton {
 namespace executor {
@@ -127,7 +127,7 @@ bool DeleteExecutor::DExecute() {
     if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
       old_location = *(tile_group_header->GetIndirection(physical_tuple_id));
 
-      auto storage_manager = storage::StorageManager::GetInstance();
+      auto storage_manager = storage::storagemanager::GetInstance();
       tile_group = storage_manager->GetTileGroup(old_location.block).get();
       tile_group_header = tile_group->GetHeader();
 

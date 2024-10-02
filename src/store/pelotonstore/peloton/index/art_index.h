@@ -4,7 +4,7 @@
 //
 // art_index.h
 //
-// Identification: src/include/index/art_index.h
+// Identification: src/include/../index/art_index.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 #pragma once
 
 #include "adaptive_radix_tree/Tree.h"
-#include "index/index.h"
+#include "../index/index.h"
 
 namespace peloton_peloton {
 namespace index {

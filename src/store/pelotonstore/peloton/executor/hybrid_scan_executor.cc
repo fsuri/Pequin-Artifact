@@ -4,25 +4,25 @@
 //
 // hybrid_scan_executor.cpp
 //
-// Identification: src/executor/hybrid_scan_executor.cpp
+// Identification: src/../executor/hybrid_scan_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "storage/storage_manager.h"
-#include "executor/hybrid_scan_executor.h"
-#include "common/container_tuple.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "executor/executor_context.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "planner/hybrid_scan_plan.h"
-#include "storage/data_table.h"
-#include "storage/tile.h"
-#include "storage/tile_group_header.h"
+#include "../storage/storage_manager.h"
+#include "../executor/hybrid_scan_executor.h"
+#include "../common/container_tuple.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../executor/executor_context.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../planner/hybrid_scan_plan.h"
+#include "../storage/data_table.h"
+#include "../storage/tile.h"
+#include "../storage/tile_group_header.h"
 
 namespace peloton_peloton {
 namespace executor {
@@ -378,7 +378,7 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
       item_pointers_.insert(tuple_location);
     }
 
-    auto storage_manager = storage::StorageManager::GetInstance();
+    auto storage_manager = storage::storagemanager::GetInstance();
     auto tile_group = storage_manager->GetTileGroup(tuple_location.block);
     auto tile_group_header = tile_group.get()->GetHeader();
 
@@ -434,7 +434,7 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
 
   // Construct a logical tile for each block
   for (auto tuples : visible_tuples) {
-    auto storage_manager = storage::StorageManager::GetInstance();
+    auto storage_manager = storage::storagemanager::GetInstance();
     auto tile_group = storage_manager->GetTileGroup(tuples.first);
 
     std::unique_ptr<LogicalTile> logical_tile(LogicalTileFactory::GetTile());

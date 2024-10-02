@@ -24,15 +24,15 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef _HOTSTUFF_PG_APP_H_
-#define _HOTSTUFF_PG_APP_H_
+#ifndef _PELOTON_APP_H_
+#define _PELOTON_APP_H_
 
 #include <string>
-#include "store/pg_SMRstore/pbft-proto.pb.h"
+#include "store/pelotonstore/pbft-proto.pb.h"
 #include <google/protobuf/message.h>
 #include "store/common/stats.h"
 #include <vector>
-// #include "store/pg_SMRstore/server.h"
+// #include "store/pelotonstore/server.h"
 
 namespace pelotonstore {
 
@@ -54,4 +54,4 @@ public:
 
 }
 
-#endif /* _HOTSTUFF_PG_APP_H_ */
+#endif /* _PELOTON_APP_H_ */

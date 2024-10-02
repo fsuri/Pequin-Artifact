@@ -4,7 +4,7 @@
 //
 // property.h
 //
-// Identification: src/include/optimizer/property.h
+// Identification: src/include/../optimizer/property.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <typeinfo>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace optimizer {

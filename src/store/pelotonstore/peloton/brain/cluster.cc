@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "brain/cluster.h"
-#include "common/logger.h"
-#include "common/macros.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace brain {

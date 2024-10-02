@@ -4,7 +4,7 @@
 //
 // property_enforcer.h
 //
-// Identification: src/include/optimizer/property_enforcer.h
+// Identification: src/include/../optimizer/property_enforcer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "optimizer/group_expression.h"
-#include "optimizer/operator_expression.h"
-#include "optimizer/property_visitor.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/operator_expression.h"
+#include "../optimizer/property_visitor.h"
 
 namespace peloton_peloton {
 namespace optimizer {

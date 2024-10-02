@@ -4,7 +4,7 @@
 //
 // stats_aggregator.h
 //
-// Identification: src/statistics/stats_aggregator.h
+// Identification: src/../statistics/stats_aggregator.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -20,12 +20,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "concurrency/transaction_context.h"
-#include "statistics/backend_stats_context.h"
-#include "storage/data_table.h"
-#include "storage/database.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../concurrency/transaction_context.h"
+#include "../statistics/backend_stats_context.h"
+#include "../storage/data_table.h"
+#include "../storage/database.h"
 
 //===--------------------------------------------------------------------===//
 // GUC Variables

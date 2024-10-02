@@ -4,7 +4,7 @@
 //
 // abstract_expression.h
 //
-// Identification: src/include/expression/abstract_expression.h
+// Identification: src/include/../expression/abstract_expression.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,12 +14,12 @@
 
 #include <string>
 
-#include "common/printable.h"
-#include "planner/attribute_info.h"
-#include "expression/parameter.h"
+#include "../common/printable.h"
+#include "../planner/attribute_info.h"
+#include "../expression/parameter.h"
 //#include "codegen/query_parameters_map.h"
-#include "common/internal_types.h"
-#include "storage/zone_map_manager.h"
+#include "../common/internal_types.h"
+#include "../storage/zone_map_manager.h"
 
 namespace peloton_peloton {
 

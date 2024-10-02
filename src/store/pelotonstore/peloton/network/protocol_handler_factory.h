@@ -14,7 +14,7 @@
 
 #include <memory>
 
-#include "network/protocol_handler.h"
+#include "../network/protocol_handler.h"
 
 // Packet content macros
 

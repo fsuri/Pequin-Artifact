@@ -4,19 +4,19 @@
 //
 // aggregate_plan.cpp
 //
-// Identification: src/planner/aggregate_plan.cpp
+// Identification: src/../planner/aggregate_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/aggregate_plan.h"
+#include "../planner/aggregate_plan.h"
 
-//#include "codegen/type/bigint_type.h"
-//#include "codegen/type/decimal_type.h"
-#include "type/bigint_type.h"
-#include "type/decimal_type.h"
-#include "common/logger.h"
+//#include "codegen/../type/bigint_type.h"
+//#include "codegen/../type/decimal_type.h"
+#include "../type/bigint_type.h"
+#include "../type/decimal_type.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace planner {

@@ -4,7 +4,7 @@
 //
 // catalog_cache.h
 //
-// Identification: src/include/catalog/catalog_cache.h
+// Identification: src/include/../catalog/catalog_cache.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

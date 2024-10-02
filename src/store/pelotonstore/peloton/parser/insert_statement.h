@@ -4,7 +4,7 @@
 //
 // statement_insert.h
 //
-// Identification: src/include/parser/statement_insert.h
+// Identification: src/include/../parser/statement_insert.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "common/sql_node_visitor.h"
-#include "parser/sql_statement.h"
+#include "../common/sql_node_visitor.h"
+#include "../parser/sql_statement.h"
 #include "select_statement.h"
 
 namespace peloton_peloton {

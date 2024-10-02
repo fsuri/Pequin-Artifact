@@ -4,7 +4,7 @@
 //
 // tuple.h
 //
-// Identification: src/include/storage/tuple.h
+// Identification: src/include/../storage/tuple.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,12 +14,12 @@
 
 #include <memory>
 
-#include "catalog/schema.h"
-#include "common/abstract_tuple.h"
-#include "type/serializeio.h"
-#include "type/serializer.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../catalog/schema.h"
+#include "../common/abstract_tuple.h"
+#include "../type/serializeio.h"
+#include "../type/serializer.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace storage {

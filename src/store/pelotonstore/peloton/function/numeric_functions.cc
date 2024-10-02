@@ -4,19 +4,19 @@
 //
 // numeric_functions.cpp
 //
-// Identification: src/function/numeric_functions.cpp
+// Identification: src/../function/numeric_functions.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "function/numeric_functions.h"
+#include "../function/numeric_functions.h"
 
-//#include "codegen/type/type.h"
+//#include "codegen/../type/type.h"
 //#include "codegen/runtime_functions.h"
-#include "type/type.h"
-#include "type/value.h"
-#include "type/value_factory.h"
+#include "../type/type.h"
+#include "../type/value.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace function {

@@ -4,7 +4,7 @@
 //
 // utility.h
 //
-// Identification: src/include/common/utility.h
+// Identification: src/include/../../common/utility.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

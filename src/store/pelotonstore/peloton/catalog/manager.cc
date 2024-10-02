@@ -4,18 +4,18 @@
 //
 // manager.cpp
 //
-// Identification: src/catalog/manager.cpp
+// Identification: src/../catalog/manager.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/exception.h"
-#include "common/logger.h"
-#include "catalog/manager.h"
-#include "storage/database.h"
-#include "storage/data_table.h"
-#include "concurrency/transaction_manager_factory.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../catalog/manager.h"
+#include "../storage/database.h"
+#include "../storage/data_table.h"
+#include "../concurrency/transaction_manager_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

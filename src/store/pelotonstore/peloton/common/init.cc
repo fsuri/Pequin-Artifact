@@ -4,27 +4,27 @@
 //
 // init.cpp
 //
-// Identification: src/common/init.cpp
+// Identification: src/../../common/init.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/init.h"
+#include "../common/init.h"
 
 #include <gflags/gflags.h>
 #include <google/protobuf/stubs/common.h>
 
-#include "catalog/catalog.h"
-#include "common/statement_cache_manager.h"
-#include "common/thread_pool.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "gc/gc_manager_factory.h"
-#include "index/index.h"
-#include "settings/settings_manager.h"
-#include "threadpool/mono_queue_pool.h"
-#include "tuning/index_tuner.h"
-#include "tuning/layout_tuner.h"
+#include "../catalog/catalog.h"
+#include "../common/statement_cache_manager.h"
+#include "../common/thread_pool.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../gc/gc_manager_factory.h"
+#include "../index/index.h"
+#include "../settings/settings_manager.h"
+#include "../threadpool/mono_queue_pool.h"
+#include "../tuning/index_tuner.h"
+#include "../tuning/layout_tuner.h"
 
 namespace peloton_peloton {
 

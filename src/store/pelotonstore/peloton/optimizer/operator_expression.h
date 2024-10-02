@@ -4,7 +4,7 @@
 //
 // op_expression.h
 //
-// Identification: src/include/optimizer/op_expression.h
+// Identification: src/include/../optimizer/op_expression.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/operator_node.h"
+#include "../optimizer/operator_node.h"
 
 #include <memory>
 #include <vector>

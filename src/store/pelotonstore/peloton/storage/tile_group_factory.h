@@ -4,7 +4,7 @@
 //
 // tile_group_factory.h
 //
-// Identification: src/include/storage/tile_group_factory.h
+// Identification: src/include/../storage/tile_group_factory.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "catalog/manager.h"
-#include "storage/abstract_table.h"
-#include "storage/tile_group.h"
+#include "../catalog/manager.h"
+#include "../storage/abstract_table.h"
+#include "../storage/tile_group.h"
 
 #include <string>
 

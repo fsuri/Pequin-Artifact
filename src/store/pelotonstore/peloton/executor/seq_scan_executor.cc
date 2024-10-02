@@ -4,31 +4,31 @@
 //
 // seq_scan_executor.cpp
 //
-// Identification: src/executor/seq_scan_executor.cpp
+// Identification: src/../executor/seq_scan_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/seq_scan_executor.h"
+#include "../executor/seq_scan_executor.h"
 
-#include "common/internal_types.h"
-#include "type/value_factory.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "executor/executor_context.h"
-#include "expression/abstract_expression.h"
-#include "expression/tuple_value_expression.h"
-#include "expression/conjunction_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/comparison_expression.h"
-#include "common/container_tuple.h"
-#include "planner/create_plan.h"
-#include "storage/data_table.h"
-#include "storage/tile_group_header.h"
-#include "storage/tile.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "common/logger.h"
+#include "../common/internal_types.h"
+#include "../type/value_factory.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../executor/executor_context.h"
+#include "../expression/abstract_expression.h"
+#include "../expression/tuple_value_expression.h"
+#include "../expression/conjunction_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/comparison_expression.h"
+#include "../common/container_tuple.h"
+#include "../planner/create_plan.h"
+#include "../storage/data_table.h"
+#include "../storage/tile_group_header.h"
+#include "../storage/tile.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace executor {

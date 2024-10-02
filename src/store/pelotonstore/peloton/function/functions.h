@@ -4,7 +4,7 @@
 //
 // functions.h
 //
-// Identification: src/include/function/functions.h
+// Identification: src/include/../function/functions.h
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "type/value.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

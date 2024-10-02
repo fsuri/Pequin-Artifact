@@ -4,7 +4,7 @@
 //
 // sql_statement.h
 //
-// Identification: src/include/parser/sql_statement.h
+// Identification: src/include/../parser/sql_statement.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -19,10 +19,10 @@
 
 #include <vector>
 
-#include "catalog/catalog_defaults.h"
-#include "common/macros.h"
-#include "common/printable.h"
-#include "common/sql_node_visitor.h"
+#include "../catalog/catalog_defaults.h"
+#include "../common/macros.h"
+#include "../common/printable.h"
+#include "../common/sql_node_visitor.h"
 
 namespace peloton_peloton {
 

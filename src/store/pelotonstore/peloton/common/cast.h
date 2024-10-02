@@ -4,7 +4,7 @@
 //
 // cast.h
 //
-// Identification: src/include/common/cast.h
+// Identification: src/include/../../common/cast.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 
 #include <limits>
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 // Cast from signed to unsigned types.

@@ -4,7 +4,7 @@
 //
 // generator.h
 //
-// Identification: src/include/common/generator.h
+// Identification: src/include/../../common/generator.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

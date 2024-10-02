@@ -4,7 +4,7 @@
 //
 // column_stats.h
 //
-// Identification: src/include/optimizer/stats/column_stats.h
+// Identification: src/include/../../optimizer/stats/column_stats.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <sstream>
 
-#include "common/macros.h"
-#include "common/internal_types.h"
+#include "../../common/macros.h"
+#include "../../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace optimizer {

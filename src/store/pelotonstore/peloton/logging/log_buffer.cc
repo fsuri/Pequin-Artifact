@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "common/macros.h"
-#include "logging/log_buffer.h"
+#include "../common/macros.h"
+#include "../logging/log_buffer.h"
 
 namespace peloton_peloton {
 namespace logging {

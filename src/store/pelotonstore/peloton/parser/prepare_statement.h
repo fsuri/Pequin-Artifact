@@ -4,7 +4,7 @@
 //
 // statement_prepare.h
 //
-// Identification: src/include/parser/statement_prepare.h
+// Identification: src/include/../parser/statement_prepare.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,10 +12,10 @@
 
 #pragma once
 
-#include "expression/parameter_value_expression.h"
-#include "common/sql_node_visitor.h"
-#include "parser/select_statement.h"
-#include "parser/sql_statement.h"
+#include "../expression/parameter_value_expression.h"
+#include "../common/sql_node_visitor.h"
+#include "../parser/select_statement.h"
+#include "../parser/sql_statement.h"
 
 #include <algorithm>
 

@@ -4,7 +4,7 @@
 //
 // numeric_functions.h
 //
-// Identification: src/include/function/numeric_functions.h
+// Identification: src/include/../function/numeric_functions.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

@@ -4,7 +4,7 @@
 //
 // model_util.h
 //
-// Identification: src/include/brain/util/model_util.h
+// Identification: src/include/brain/../util/model_util.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "brain/util/eigen_util.h"
+#include "brain/../util/eigen_util.h"
 
 namespace peloton_peloton {
 namespace brain {

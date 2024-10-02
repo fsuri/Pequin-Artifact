@@ -4,7 +4,7 @@
 //
 // stack_trace.cpp
 //
-// Identification: src/common/stack_trace.cpp
+// Identification: src/../../common/stack_trace.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -21,8 +21,8 @@
 #include <signal.h>
 #include <memory>
 
-#include "common/logger.h"
-#include "common/stack_trace.h"
+#include "../common/logger.h"
+#include "../common/stack_trace.h"
 
 namespace peloton_peloton {
 

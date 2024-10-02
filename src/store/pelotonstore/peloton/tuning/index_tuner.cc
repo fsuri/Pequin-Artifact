@@ -9,22 +9,22 @@
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#include "tuning/index_tuner.h"
+#include "../tuning/index_tuner.h"
 
 #include <algorithm>
-#include "tuning/brain_util.h"
+#include "../tuning/brain_util.h"
 
-#include "catalog/catalog.h"
-#include "catalog/schema.h"
-#include "common/container_tuple.h"
-#include "common/logger.h"
-#include "common/macros.h"
-#include "common/timer.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "index/index_factory.h"
-#include "storage/data_table.h"
-#include "storage/tile_group.h"
-#include "tuning/clusterer.h"
+#include "../catalog/catalog.h"
+#include "../catalog/schema.h"
+#include "../common/container_tuple.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../common/timer.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../index/index_factory.h"
+#include "../storage/data_table.h"
+#include "../storage/tile_group.h"
+#include "../tuning/clusterer.h"
 
 namespace peloton_peloton {
 namespace tuning {

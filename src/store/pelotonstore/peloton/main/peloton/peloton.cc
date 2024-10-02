@@ -13,10 +13,10 @@
 #include <iostream>
 
 #include <gflags/gflags.h>
-#include "common/init.h"
-#include "common/logger.h"
-#include "network/peloton_server.h"
-#include "settings/settings_manager.h"
+#include "../common/init.h"
+#include "../common/logger.h"
+#include "../network/peloton_server.h"
+#include "../settings/settings_manager.h"
 #include "brain/brain.h"
 
 // For GFlag's built-in help message flag

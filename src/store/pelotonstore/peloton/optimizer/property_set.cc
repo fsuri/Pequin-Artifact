@@ -4,15 +4,15 @@
 //
 // property_set.cpp
 //
-// Identification: src/optimizer/property_set.cpp
+// Identification: src/../optimizer/property_set.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/property_set.h"
-#include "common/logger.h"
-#include "util/hash_util.h"
+#include "../optimizer/property_set.h"
+#include "../common/logger.h"
+#include "../util/hash_util.h"
 
 namespace peloton_peloton {
 namespace optimizer {

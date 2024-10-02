@@ -4,23 +4,23 @@
 //
 // abstract_scan_executor.cpp
 //
-// Identification: src/executor/abstract_scan_executor.cpp
+// Identification: src/../executor/abstract_scan_executor.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "executor/abstract_scan_executor.h"
+#include "../executor/abstract_scan_executor.h"
 
-#include "common/internal_types.h"
-#include "executor/logical_tile.h"
-#include "executor/logical_tile_factory.h"
-#include "expression/abstract_expression.h"
-#include "common/container_tuple.h"
-#include "storage/data_table.h"
-#include "storage/tile_group.h"
+#include "../common/internal_types.h"
+#include "../executor/logical_tile.h"
+#include "../executor/logical_tile_factory.h"
+#include "../expression/abstract_expression.h"
+#include "../common/container_tuple.h"
+#include "../storage/data_table.h"
+#include "../storage/tile_group.h"
 
-#include "common/logger.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace executor {

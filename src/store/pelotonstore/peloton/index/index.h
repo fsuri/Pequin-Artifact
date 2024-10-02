@@ -4,7 +4,7 @@
 //
 // index.h
 //
-// Identification: src/include/index/index.h
+// Identification: src/include/../index/index.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -18,11 +18,11 @@
 #include <string>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "common/item_pointer.h"
-#include "common/logger.h"
-#include "common/printable.h"
-#include "type/value.h"
+#include "../common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../common/logger.h"
+#include "../common/printable.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "brain/kd_tree.h"
-#include "common/logger.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace brain {

@@ -4,7 +4,7 @@
 //
 // statement_update.h
 //
-// Identification: src/include/parser/statement_update.h
+// Identification: src/include/../parser/statement_update.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,10 +14,10 @@
 
 #include <cstring>
 
-#include "common/sql_node_visitor.h"
-#include "expression/abstract_expression.h"
-#include "parser/sql_statement.h"
-#include "parser/table_ref.h"
+#include "../common/sql_node_visitor.h"
+#include "../expression/abstract_expression.h"
+#include "../parser/sql_statement.h"
+#include "../parser/table_ref.h"
 
 namespace peloton_peloton {
 namespace parser {

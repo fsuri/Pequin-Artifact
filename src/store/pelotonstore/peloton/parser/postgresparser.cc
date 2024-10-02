@@ -4,27 +4,27 @@
 //
 // postgresparser.cpp
 //
-// Identification: src/parser/postgresparser.cpp
+// Identification: src/../parser/postgresparser.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/postgresparser.h"
+#include "../parser/postgresparser.h"
 
-#include "expression/aggregate_expression.h"
-#include "expression/case_expression.h"
-#include "expression/comparison_expression.h"
-#include "expression/conjunction_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/function_expression.h"
-#include "expression/operator_expression.h"
-#include "expression/star_expression.h"
-#include "expression/subquery_expression.h"
-#include "expression/tuple_value_expression.h"
-#include "parser/pg_list.h"
-#include "parser/pg_query.h"
-#include "parser/pg_trigger.h"
+#include "../expression/aggregate_expression.h"
+#include "../expression/case_expression.h"
+#include "../expression/comparison_expression.h"
+#include "../expression/conjunction_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/function_expression.h"
+#include "../expression/operator_expression.h"
+#include "../expression/star_expression.h"
+#include "../expression/subquery_expression.h"
+#include "../expression/tuple_value_expression.h"
+#include "../parser/pg_list.h"
+#include "../parser/pg_query.h"
+#include "../parser/pg_trigger.h"
 
 namespace peloton_peloton {
 namespace parser {
@@ -959,7 +959,7 @@ void PostgresParser::ColumnDefTransform(ColumnDef *root,
 
 // This function takes in a Postgres CreateStmt parsenode
 // and transfers into a Peloton CreateStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // CreateStmt parsenodes.
 parser::SQLStatement *PostgresParser::CreateTransform(CreateStmt *root) {
   UNUSED_ATTRIBUTE CreateStmt *temp = root;
@@ -1134,7 +1134,7 @@ parser::ReturnType *PostgresParser::ReturnTypeTransform(TypeName *root) {
 
 // This function takes in a Postgres CreateFunctionStmt parsenode
 // and transfers into a Peloton CreateFunctionStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // CreateFunctionStmt parsenodes.
 parser::SQLStatement *PostgresParser::CreateFunctionTransform(
     CreateFunctionStmt *root) {
@@ -1194,7 +1194,7 @@ parser::SQLStatement *PostgresParser::CreateFunctionTransform(
 
 // This function takes in a Postgres IndexStmt parsenode
 // and transfers into a Peloton CreateStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // IndexStmt parsenodes.
 parser::SQLStatement *PostgresParser::CreateIndexTransform(IndexStmt *root) {
   parser::CreateStatement *result =
@@ -1222,7 +1222,7 @@ parser::SQLStatement *PostgresParser::CreateIndexTransform(IndexStmt *root) {
 
 // This function takes in a Postgres CreateTrigStmt parsenode
 // and transfers into a Peloton CreateStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // CreateTrigStmt parsenodes.
 parser::SQLStatement *PostgresParser::CreateTriggerTransform(
     CreateTrigStmt *root) {
@@ -1389,7 +1389,7 @@ parser::DropStatement *PostgresParser::DropTableTransform(DropStmt *root) {
     auto table_list = reinterpret_cast<List *>(cell->data.ptr_value);
     LOG_TRACE("%d", ((Node *)(table_list->head->data.ptr_value))->type);
     // if schema name is specified, which means you are using the syntax like
-    // DROP INDEX/TABLE A.B where A is schema name and B is table/index name
+    // DROP ../index/TABLE A.B where A is schema name and B is table/index name
     if (table_list->length == 2) {
       table_info->schema_name =
           reinterpret_cast<value *>(table_list->head->data.ptr_value)->val.str;
@@ -1452,7 +1452,7 @@ parser::DropStatement *PostgresParser::DropIndexTransform(DropStmt *root) {
   auto cell = root->objects->head;
   auto list = reinterpret_cast<List *>(cell->data.ptr_value);
   // if schema name is specified, which means you are using the syntax like
-  // DROP INDEX/TABLE A.B where A is schema name and B is table/index name
+  // DROP ../index/TABLE A.B where A is schema name and B is table/index name
   if (list->length == 2) {
     TableInfo *table_info = new TableInfo{};
     table_info->schema_name =
@@ -1685,7 +1685,7 @@ PostgresParser::ParamListTransform(List *root) {
 
 // This function takes in a Postgres InsertStmt parsenode
 // and transfers into a Peloton InsertStatement.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // SelectStmt parsenodes.
 parser::SQLStatement *PostgresParser::InsertTransform(InsertStmt *root) {
   // selectStmt must exist. It would either select from table or directly select
@@ -1731,7 +1731,7 @@ parser::SQLStatement *PostgresParser::InsertTransform(InsertStmt *root) {
 
 // This function takes in a Postgres SelectStmt parsenode
 // and transfers into a Peloton SelectStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // SelectStmt parsenodes.
 parser::SelectStatement *PostgresParser::SelectTransform(SelectStmt *root) {
   parser::SelectStatement *result;
@@ -1783,7 +1783,7 @@ parser::SQLStatement *PostgresParser::ExplainTransform(ExplainStmt *root) {
 
 // This function takes in a Postgres DeleteStmt parsenode
 // and transfers into a Peloton DeleteStatement parsenode.
-// Please refer to parser/parsenode.h for the definition of
+// Please refer to ../parser/parsenode.h for the definition of
 // DeleteStmt parsenodes.
 parser::SQLStatement *PostgresParser::DeleteTransform(DeleteStmt *root) {
   parser::DeleteStatement *result = new parser::DeleteStatement();

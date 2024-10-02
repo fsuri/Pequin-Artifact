@@ -4,7 +4,7 @@
 //
 // rule.h
 //
-// Identification: src/optimizer/optimizer_task_pool.cpp
+// Identification: src/../optimizer/optimizer_task_pool.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/optimizer_task.h"
+#include "../optimizer/optimizer_task.h"
 #include <stack>
 #include <memory>
 

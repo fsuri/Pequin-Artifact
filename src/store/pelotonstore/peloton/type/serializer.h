@@ -4,7 +4,7 @@
 //
 // serializer.h
 //
-// Identification: src/include/type/serializer.h
+// Identification: src/include/../type/serializer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -20,10 +20,10 @@
 #include <string>
 #include <vector>
 
-#include "common/exception.h"
-#include "common/macros.h"
+#include "../common/exception.h"
+#include "../common/macros.h"
 
-#include "type/byte_array.h"
+#include "../type/byte_array.h"
 
 namespace peloton_peloton {
 

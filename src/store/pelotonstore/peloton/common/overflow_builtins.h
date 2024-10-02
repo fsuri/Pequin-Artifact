@@ -4,7 +4,7 @@
 //
 // overflow_builtins.h
 //
-// Identification: src/include/common/overflow_builtins.h
+// Identification: src/include/../../common/overflow_builtins.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 #include <limits>
 

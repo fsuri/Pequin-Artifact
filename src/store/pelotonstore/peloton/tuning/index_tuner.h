@@ -17,7 +17,7 @@
 #include <thread>
 #include <vector>
 
-#include "common/internal_types.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

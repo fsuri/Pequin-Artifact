@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "logging/log_buffer_pool.h"
-#include "common/logger.h"
+#include "../logging/log_buffer_pool.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 namespace logging {

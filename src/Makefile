@@ -92,7 +92,7 @@ CFLAGS += -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
 LDFLAGS += -L/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server -ljvm
 
 # Include peloton
-CFLAGS += -I store/pelotonstore/peloton
+#CFLAGS += -I store/pelotonstore/peloton
 
 # Additional flags
 PARANOID = 1

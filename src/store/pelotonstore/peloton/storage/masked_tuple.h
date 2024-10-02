@@ -4,7 +4,7 @@
 //
 // masked_tuple.h
 //
-// Identification: src/include/storage/masked_tuple.h
+// Identification: src/include/../storage/masked_tuple.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,10 +15,10 @@
 #include <vector>
 #include <sstream>
 
-#include "catalog/schema.h"
-#include "common/abstract_tuple.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../catalog/schema.h"
+#include "../common/abstract_tuple.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace storage {

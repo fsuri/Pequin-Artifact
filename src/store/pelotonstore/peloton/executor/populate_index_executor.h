@@ -4,7 +4,7 @@
 //
 // populate_index_executor.h
 //
-// Identification: src/include/executor/populate_index_executor.h
+// Identification: src/include/../executor/populate_index_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,11 +12,11 @@
 
 #pragma once
 
-#include "common/internal_types.h"
-#include "executor/abstract_executor.h"
-#include "executor/logical_tile.h"
-#include "common/container_tuple.h"
-#include "storage/data_table.h"
+#include "../common/internal_types.h"
+#include "../executor/abstract_executor.h"
+#include "../executor/logical_tile.h"
+#include "../common/container_tuple.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace executor {

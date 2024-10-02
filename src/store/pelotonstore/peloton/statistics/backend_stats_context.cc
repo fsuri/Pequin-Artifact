@@ -4,25 +4,25 @@
 //
 // backend_stats_context.cpp
 //
-// Identification: src/statistics/backend_stats_context.cpp
+// Identification: src/../statistics/backend_stats_context.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/backend_stats_context.h"
+#include "../statistics/backend_stats_context.h"
 
 #include <map>
 
-#include "catalog/catalog.h"
-#include "catalog/manager.h"
-#include "common/internal_types.h"
-#include "common/statement.h"
-#include "index/index.h"
-#include "statistics/stats_aggregator.h"
-#include "storage/storage_manager.h"
-#include "storage/tile_group.h"
-#include "storage/storage_manager.h"
+#include "../catalog/catalog.h"
+#include "../catalog/manager.h"
+#include "../common/internal_types.h"
+#include "../common/statement.h"
+#include "../index/index.h"
+#include "../statistics/stats_aggregator.h"
+#include "../storage/storage_manager.h"
+#include "../storage/tile_group.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton_peloton {
 namespace stats {
@@ -113,8 +113,8 @@ LatencyMetric &BackendStatsContext::GetTxnLatencyMetric() {
 
 void BackendStatsContext::IncrementTableReads(oid_t tile_group_id) {
   oid_t table_id =
-      storage::StorageManager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
-  oid_t database_id = storage::StorageManager::GetInstance()
+      storage::storagemanager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
+  oid_t database_id = storage::storagemanager::GetInstance()
                           ->GetTileGroup(tile_group_id)
                           ->GetDatabaseId();
   auto table_metric = GetTableMetric(database_id, table_id);
@@ -127,8 +127,8 @@ void BackendStatsContext::IncrementTableReads(oid_t tile_group_id) {
 
 void BackendStatsContext::IncrementTableInserts(oid_t tile_group_id) {
   oid_t table_id =
-      storage::StorageManager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
-  oid_t database_id = storage::StorageManager::GetInstance()
+      storage::storagemanager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
+  oid_t database_id = storage::storagemanager::GetInstance()
                           ->GetTileGroup(tile_group_id)
                           ->GetDatabaseId();
   auto table_metric = GetTableMetric(database_id, table_id);
@@ -141,8 +141,8 @@ void BackendStatsContext::IncrementTableInserts(oid_t tile_group_id) {
 
 void BackendStatsContext::IncrementTableUpdates(oid_t tile_group_id) {
   oid_t table_id =
-    storage::StorageManager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
-  oid_t database_id = storage::StorageManager::GetInstance()
+    storage::storagemanager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
+  oid_t database_id = storage::storagemanager::GetInstance()
                           ->GetTileGroup(tile_group_id)
                           ->GetDatabaseId();
   auto table_metric = GetTableMetric(database_id, table_id);
@@ -155,8 +155,8 @@ void BackendStatsContext::IncrementTableUpdates(oid_t tile_group_id) {
 
 void BackendStatsContext::IncrementTableDeletes(oid_t tile_group_id) {
   oid_t table_id =
-      storage::StorageManager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
-  oid_t database_id = storage::StorageManager::GetInstance()
+      storage::storagemanager::GetInstance()->GetTileGroup(tile_group_id)->GetTableId();
+  oid_t database_id = storage::storagemanager::GetInstance()
                           ->GetTileGroup(tile_group_id)
                           ->GetDatabaseId();
   auto table_metric = GetTableMetric(database_id, table_id);
@@ -287,10 +287,10 @@ void BackendStatsContext::Reset() {
   }
 
   oid_t num_databases =
-      storage::StorageManager::GetInstance()->GetDatabaseCount();
+      storage::storagemanager::GetInstance()->GetDatabaseCount();
   for (oid_t i = 0; i < num_databases; ++i) {
     auto database =
-        storage::StorageManager::GetInstance()->GetDatabaseWithOffset(i);
+        storage::storagemanager::GetInstance()->GetDatabaseWithOffset(i);
     oid_t database_id = database->GetOid();
 
     // Reset database metrics

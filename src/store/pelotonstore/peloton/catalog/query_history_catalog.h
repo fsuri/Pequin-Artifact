@@ -4,7 +4,7 @@
 //
 // query_history_catalog.h
 //
-// Identification: src/include/catalog/query_history_catalog.h
+// Identification: src/include/../catalog/query_history_catalog.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -22,8 +22,8 @@
 
 #pragma once
 
-#include "catalog/abstract_catalog.h"
-#include "type/ephemeral_pool.h"
+#include "../catalog/abstract_catalog.h"
+#include "../type/ephemeral_pool.h"
 
 #define QUERY_HISTORY_CATALOG_NAME "pg_query_history"
 

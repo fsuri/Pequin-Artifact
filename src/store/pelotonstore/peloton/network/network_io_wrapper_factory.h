@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "network/network_io_wrappers.h"
-#include "network/peloton_server.h"
+#include "../network/network_io_wrappers.h"
+#include "../network/peloton_server.h"
 
 namespace peloton_peloton {
 namespace network {

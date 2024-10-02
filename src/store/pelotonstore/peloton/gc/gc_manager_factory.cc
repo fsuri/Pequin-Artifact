@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "gc/gc_manager_factory.h"
+#include "../gc/gc_manager_factory.h"
 
 namespace peloton_peloton {
 namespace gc {

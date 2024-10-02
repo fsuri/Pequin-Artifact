@@ -10,18 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "tuning/layout_tuner.h"
+#include "../tuning/layout_tuner.h"
 
 #include <vector>
 #include <string>
 #include <algorithm>
 
-#include "catalog/catalog.h"
-#include "catalog/schema.h"
-#include "common/logger.h"
-#include "common/timer.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "storage/data_table.h"
+#include "../catalog/catalog.h"
+#include "../catalog/schema.h"
+#include "../common/logger.h"
+#include "../common/timer.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace tuning {

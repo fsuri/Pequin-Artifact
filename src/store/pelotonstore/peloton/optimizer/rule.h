@@ -4,7 +4,7 @@
 //
 // rule.h
 //
-// Identification: src/include/optimizer/rule.h
+// Identification: src/include/../optimizer/rule.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -13,10 +13,10 @@
 #pragma once
 
 #include <memory>
-#include "optimizer/pattern.h"
-#include "optimizer/optimize_context.h"
-#include "optimizer/operator_expression.h"
-#include "optimizer/memo.h"
+#include "../optimizer/pattern.h"
+#include "../optimizer/optimize_context.h"
+#include "../optimizer/operator_expression.h"
+#include "../optimizer/memo.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -4,7 +4,7 @@
 //
 // rule.h
 //
-// Identification: src/include/optimizer/optimize_context.h
+// Identification: src/include/../optimizer/optimize_context.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include "common/timer.h"
+#include "../common/timer.h"
 
-#include "optimizer/property_set.h"
-#include "optimizer/optimizer_task.h"
-#include "optimizer/optimizer_task_pool.h"
-#include "settings/settings_manager.h"
+#include "../optimizer/property_set.h"
+#include "../optimizer/optimizer_task.h"
+#include "../optimizer/optimizer_task_pool.h"
+#include "../settings/settings_manager.h"
 
 namespace peloton_peloton {
 namespace optimizer {

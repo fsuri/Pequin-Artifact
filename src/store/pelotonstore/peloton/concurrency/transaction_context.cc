@@ -4,20 +4,20 @@
 //
 // transaction_context.cpp
 //
-// Identification: src/concurrency/transaction_context.cpp
+// Identification: src/../concurrency/transaction_context.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "concurrency/transaction_context.h"
+#include "../concurrency/transaction_context.h"
 
 #include <sstream>
 
-#include "common/logger.h"
-#include "common/macros.h"
-#include "common/platform.h"
-#include "trigger/trigger.h"
+#include "../common/logger.h"
+#include "../common/macros.h"
+#include "../common/platform.h"
+#include "../trigger/trigger.h"
 
 #include <chrono>
 #include <iomanip>

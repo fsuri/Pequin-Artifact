@@ -4,7 +4,7 @@
 //
 // tuple_key.h
 //
-// Identification: src/include/index/tuple_key.h
+// Identification: src/include/../index/tuple_key.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

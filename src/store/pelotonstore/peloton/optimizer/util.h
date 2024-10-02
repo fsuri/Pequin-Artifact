@@ -4,7 +4,7 @@
 //
 // util.h
 //
-// Identification: src/include/optimizer/util.h
+// Identification: src/include/../optimizer/util.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -16,8 +16,8 @@
 #include <cstdlib>
 #include <string>
 
-#include "expression/abstract_expression.h"
-#include "planner/abstract_plan.h"
+#include "../expression/abstract_expression.h"
+#include "../planner/abstract_plan.h"
 
 namespace peloton_peloton {
 

@@ -4,7 +4,7 @@
 //
 // set_util.h
 //
-// Identification: src/include/util/set_util.h
+// Identification: src/include/../util/set_util.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //

@@ -4,14 +4,14 @@
 //
 // delete_plan.cpp
 //
-// Identification: src/planner/delete_plan.cpp
+// Identification: src/../planner/delete_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/delete_plan.h"
-#include "storage/data_table.h"
+#include "../planner/delete_plan.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

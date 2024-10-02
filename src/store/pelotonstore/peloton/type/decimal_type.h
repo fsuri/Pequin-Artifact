@@ -4,7 +4,7 @@
 //
 // decimal_value.h
 //
-// Identification: src/backend/common/decimal_value.h
+// Identification: src/backend/../common/decimal_value.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "type/numeric_type.h"
+#include "../type/numeric_type.h"
 
 namespace peloton_peloton {
 namespace type {

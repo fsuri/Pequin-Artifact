@@ -4,7 +4,7 @@
 //
 // query_to_operator_transformer.h
 //
-// Identification: src/include/optimizer/query_to_operator_transformer.h
+// Identification: src/include/../optimizer/query_to_operator_transformer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,7 +14,7 @@
 
 #include <memory>
 #include <unordered_set>
-#include "common/sql_node_visitor.h"
+#include "../common/sql_node_visitor.h"
 
 namespace peloton_peloton {
 

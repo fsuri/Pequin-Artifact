@@ -4,7 +4,7 @@
 //
 // abstract_executor.h
 //
-// Identification: src/include/executor/abstract_executor.h
+// Identification: src/include/../executor/abstract_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/item_pointer.h"
-#include "executor/logical_tile.h"
-#include "common/internal_types.h"
+#include "../common/item_pointer.h"
+#include "../executor/logical_tile.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

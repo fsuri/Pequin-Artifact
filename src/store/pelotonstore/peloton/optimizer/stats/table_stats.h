@@ -4,7 +4,7 @@
 //
 // table_stats.h
 //
-// Identification: src/include/optimizer/stats/table_stats.h
+// Identification: src/include/../../optimizer/stats/table_stats.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,11 +14,11 @@
 
 #include <sstream>
 
-#include "common/macros.h"
-#include "index/index.h"
-#include "optimizer/stats/stats.h"
-#include "common/internal_types.h"
-#include "optimizer/stats/tuple_sampler.h"
+#include "../../common/macros.h"
+#include "../../index/index.h"
+#include "../../optimizer/stats/stats.h"
+#include "../../common/internal_types.h"
+#include "../../optimizer/stats/tuple_sampler.h"
 
 namespace peloton_peloton {
 namespace optimizer {

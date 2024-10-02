@@ -4,7 +4,7 @@
 //
 // transaction_context.h
 //
-// Identification: src/include/concurrency/transaction_context.h
+// Identification: src/include/../concurrency/transaction_context.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,11 +18,11 @@
 #include <unordered_set>
 #include <vector>
 
-#include "catalog/catalog_cache.h"
-#include "common/exception.h"
-#include "common/item_pointer.h"
-#include "common/printable.h"
-#include "common/internal_types.h"
+#include "../catalog/catalog_cache.h"
+#include "../common/exception.h"
+#include "../common/item_pointer.h"
+#include "../common/printable.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 

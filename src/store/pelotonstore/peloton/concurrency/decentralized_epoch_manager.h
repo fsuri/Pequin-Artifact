@@ -4,7 +4,7 @@
 //
 // decentralized_epoch_manager.h
 //
-// Identification: src/include/concurrency/decentralized_epoch_manager.h
+// Identification: src/include/../concurrency/decentralized_epoch_manager.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,15 +15,15 @@
 #include <thread>
 #include <vector>
 
-#include "common/macros.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/platform.h"
-#include "common/init.h"
-#include "common/thread_pool.h"
-#include "common/synchronization/spin_latch.h"
-#include "concurrency/epoch_manager.h"
-#include "concurrency/local_epoch.h"
+#include "../common/macros.h"
+#include "../common/internal_types.h"
+#include "../common/logger.h"
+#include "../common/platform.h"
+#include "../common/init.h"
+#include "../common/thread_pool.h"
+#include "../common/synchronization/spin_latch.h"
+#include "../concurrency/epoch_manager.h"
+#include "../concurrency/local_epoch.h"
 
 namespace peloton_peloton {
 namespace concurrency {

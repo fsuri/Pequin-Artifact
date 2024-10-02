@@ -27,12 +27,12 @@
 #include <netinet/tcp.h>
 #include <sys/file.h>
 
-#include "common/exception.h"
-#include "common/logger.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
 
 #include "marshal.h"
-#include "network/connection_handler_task.h"
-#include "network/network_io_wrappers.h"
+#include "../network/connection_handler_task.h"
+#include "../network/network_io_wrappers.h"
 #include "network_state.h"
 #include "protocol_handler.h"
 

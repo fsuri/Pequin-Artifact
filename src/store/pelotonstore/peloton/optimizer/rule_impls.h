@@ -4,7 +4,7 @@
 //
 // rule_impls.h
 //
-// Identification: src/include/optimizer/rule_impls.h
+// Identification: src/include/../optimizer/rule_impls.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/rule.h"
+#include "../optimizer/rule.h"
 
 #include <memory>
 

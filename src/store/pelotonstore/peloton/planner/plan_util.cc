@@ -4,31 +4,31 @@
 //
 // plan_util.cpp
 //
-// Identification: src/planner/plan_util.cpp
+// Identification: src/../planner/plan_util.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/plan_util.h"
+#include "../planner/plan_util.h"
 #include <set>
 #include <string>
-#include "catalog/catalog_cache.h"
-#include "catalog/column_catalog.h"
-#include "catalog/database_catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/table_catalog.h"
-#include "common/statement.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "expression/abstract_expression.h"
-#include "expression/expression_util.h"
-#include "optimizer/abstract_optimizer.h"
-#include "optimizer/optimizer.h"
-#include "parser/delete_statement.h"
-#include "parser/insert_statement.h"
-#include "parser/sql_statement.h"
-#include "parser/update_statement.h"
-#include "util/set_util.h"
+#include "../catalog/catalog_cache.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/database_catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../common/statement.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../expression/abstract_expression.h"
+#include "../expression/expression_util.h"
+#include "../optimizer/abstract_optimizer.h"
+#include "../optimizer/optimizer.h"
+#include "../parser/delete_statement.h"
+#include "../parser/insert_statement.h"
+#include "../parser/sql_statement.h"
+#include "../parser/update_statement.h"
+#include "../util/set_util.h"
 
 namespace peloton_peloton {
 namespace planner {

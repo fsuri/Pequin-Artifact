@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <memory>
-#include "network/network_io_wrapper_factory.h"
+#include "../network/network_io_wrapper_factory.h"
 
 namespace peloton_peloton {
 namespace network {

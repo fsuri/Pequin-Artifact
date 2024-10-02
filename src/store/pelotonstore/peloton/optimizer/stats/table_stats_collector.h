@@ -4,7 +4,7 @@
 //
 // table_stats_collector.h
 //
-// Identification: src/include/optimizer/stats/table_stats_collector.h
+// Identification: src/include/../../optimizer/stats/table_stats_collector.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -14,9 +14,9 @@
 
 #include <vector>
 
-#include "optimizer/stats/column_stats_collector.h"
-#include "catalog/schema.h"
-#include "storage/data_table.h"
+#include "../../optimizer/stats/column_stats_collector.h"
+#include "../../catalog/schema.h"
+#include "../../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace optimizer {

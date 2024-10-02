@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "network/protocol_handler_factory.h"
-#include "network/postgres_protocol_handler.h"
+#include "../network/protocol_handler_factory.h"
+#include "../network/postgres_protocol_handler.h"
 
 namespace peloton_peloton {
 namespace network {

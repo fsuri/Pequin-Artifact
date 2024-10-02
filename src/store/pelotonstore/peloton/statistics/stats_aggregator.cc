@@ -4,22 +4,22 @@
 //
 // stats_aggregator.cpp
 //
-// Identification: src/statistics/stats_aggregator.cpp
+// Identification: src/../statistics/stats_aggregator.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "statistics/stats_aggregator.h"
+#include "../statistics/stats_aggregator.h"
 #include <cinttypes>
 
-#include "catalog/catalog.h"
-#include "catalog/database_metrics_catalog.h"
-#include "catalog/system_catalogs.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "index/index.h"
-#include "storage/storage_manager.h"
-#include "type/ephemeral_pool.h"
+#include "../catalog/catalog.h"
+#include "../catalog/database_metrics_catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../concurrency/transaction_manager_factory.h"
+#include "../index/index.h"
+#include "../storage/storage_manager.h"
+#include "../type/ephemeral_pool.h"
 
 namespace peloton_peloton {
 namespace stats {
@@ -191,7 +191,7 @@ void StatsAggregator::UpdateMetrics() {
 
   // Get the target table metrics table
   LOG_TRACE("Inserting stat tuples into catalog database..");
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
 
   auto time_since_epoch = std::chrono::system_clock::now().time_since_epoch();
   auto time_stamp =

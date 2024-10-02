@@ -28,11 +28,11 @@
 #include <cstring>
 #include <vector>
 
-#include "common/container/lock_free_queue.h"
-#include "common/dedicated_thread_owner.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "common/notifiable_task.h"
+#include "../common/container/lock_free_queue.h"
+#include "../common/dedicated_thread_owner.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../common/notifiable_task.h"
 #include "connection_dispatcher_task.h"
 #include "network_state.h"
 #include "protocol_handler.h"

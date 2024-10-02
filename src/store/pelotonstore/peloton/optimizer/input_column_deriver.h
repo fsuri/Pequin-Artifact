@@ -4,7 +4,7 @@
 //
 // operator_to_plan_transformer.h
 //
-// Identification: src/include/optimizer/operator_to_plan_transformer.h
+// Identification: src/include/../optimizer/operator_to_plan_transformer.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "optimizer/operator_visitor.h"
+#include "../optimizer/operator_visitor.h"
 
 namespace peloton_peloton {
 

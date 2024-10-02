@@ -4,7 +4,7 @@
 //
 // property_set.h
 //
-// Identification: src/include/optimizer/property_set.h
+// Identification: src/include/../optimizer/property_set.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,7 +15,7 @@
 #include <memory>
 #include <vector>
 
-#include "optimizer/property.h"
+#include "../optimizer/property.h"
 
 namespace peloton_peloton {
 namespace optimizer {

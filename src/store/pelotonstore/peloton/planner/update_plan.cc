@@ -4,17 +4,17 @@
 //
 // update_plan.cpp
 //
-// Identification: src/planner/update_plan.cpp
+// Identification: src/../planner/update_plan.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/update_plan.h"
-#include "planner/abstract_scan_plan.h"
-#include "planner/project_info.h"
-#include "storage/data_table.h"
-#include "common/internal_types.h"
+#include "../planner/update_plan.h"
+#include "../planner/abstract_scan_plan.h"
+#include "../planner/project_info.h"
+#include "../storage/data_table.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace planner {

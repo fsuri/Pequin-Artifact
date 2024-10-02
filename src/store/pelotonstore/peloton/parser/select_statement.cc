@@ -4,13 +4,13 @@
 //
 // select_statement.cpp
 //
-// Identification: src/parser/select_statement.cpp
+// Identification: src/../parser/select_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/select_statement.h"
+#include "../parser/select_statement.h"
 
 namespace peloton_peloton {
 namespace parser {

@@ -4,7 +4,7 @@
 //
 // platform.h
 //
-// Identification: src/include/common/platform.h
+// Identification: src/include/../../common/platform.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -19,7 +19,7 @@
 #include <pthread.h>
 #include <immintrin.h>
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 //===--------------------------------------------------------------------===//
 // Platform-Specific Code

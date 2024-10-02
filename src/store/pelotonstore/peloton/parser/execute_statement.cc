@@ -4,14 +4,14 @@
 //
 // execute_statement.cpp
 //
-// Identification: src/parser/execute_statement.cpp
+// Identification: src/../parser/execute_statement.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "parser/execute_statement.h"
-#include "util/string_util.h"
+#include "../parser/execute_statement.h"
+#include "../util/string_util.h"
 #include <sstream>
 
 namespace peloton_peloton {

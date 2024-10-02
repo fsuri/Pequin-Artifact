@@ -4,21 +4,21 @@
 //
 // art_index.cpp
 //
-// Identification: src/index/art_index.cpp
+// Identification: src/../index/art_index.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/art_index.h"
+#include "../index/art_index.h"
 
-#include "common/container_tuple.h"
-#include "index/scan_optimizer.h"
-#include "settings/settings_manager.h"
-#include "statistics/backend_stats_context.h"
-#include "storage/data_table.h"
-#include "storage/storage_manager.h"
-#include "util/portable_endian.h"
+#include "../common/container_tuple.h"
+#include "../index/scan_optimizer.h"
+#include "../settings/settings_manager.h"
+#include "../statistics/backend_stats_context.h"
+#include "../storage/data_table.h"
+#include "../storage/storage_manager.h"
+#include "../util/portable_endian.h"
 
 namespace peloton_peloton {
 namespace index {
@@ -33,7 +33,7 @@ void LoadKey(void *ctx, TID tid, art::Key &key) {
   auto *index_meta = art_index->GetMetadata();
 
   // Get physical table instance (to load appropriate tile group)
-  auto *table = storage::StorageManager::GetInstance()->GetTableWithOid(
+  auto *table = storage::storagemanager::GetInstance()->GetTableWithOid(
       index_meta->GetDatabaseOid(), index_meta->GetTableOid());
 
   // Get physical tile group

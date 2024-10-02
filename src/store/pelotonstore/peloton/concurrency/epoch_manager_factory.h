@@ -4,7 +4,7 @@
 //
 // epoch_manager.h
 //
-// Identification: src/include/concurrency/epoch_manager_factory.h
+// Identification: src/include/../concurrency/epoch_manager_factory.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -13,7 +13,7 @@
 
 #pragma once
 
-#include "concurrency/decentralized_epoch_manager.h"
+#include "../concurrency/decentralized_epoch_manager.h"
 
 namespace peloton_peloton {
 namespace concurrency {

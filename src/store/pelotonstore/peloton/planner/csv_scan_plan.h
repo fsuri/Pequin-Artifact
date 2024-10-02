@@ -4,7 +4,7 @@
 //
 // csv_scan_plan.h
 //
-// Identification: src/include/planner/csv_scan_plan.h
+// Identification: src/include/../planner/csv_scan_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -17,9 +17,9 @@
 #include <string>
 #include <vector>
 
-#include "planner/abstract_scan_plan.h"
-#include "planner/attribute_info.h"
-#include "type/type_id.h"
+#include "../planner/abstract_scan_plan.h"
+#include "../planner/attribute_info.h"
+#include "../type/type_id.h"
 
 namespace peloton_peloton {
 namespace planner {

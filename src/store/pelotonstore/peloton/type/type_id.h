@@ -4,7 +4,7 @@
 //
 // type_id.h
 //
-// Identification: src/include/type/type_id.h
+// Identification: src/include/../type/type_id.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //

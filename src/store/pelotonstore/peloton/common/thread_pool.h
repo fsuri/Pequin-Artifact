@@ -4,7 +4,7 @@
 //
 // thread_pool.h
 //
-// Identification: src/include/common/worker_thread_pool.h
+// Identification: src/include/../../common/worker_thread_pool.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -20,7 +20,7 @@
 #include <boost/function.hpp>
 #include <boost/thread/thread.hpp>
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 // a wrapper for boost worker thread pool.

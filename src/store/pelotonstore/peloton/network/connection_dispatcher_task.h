@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "common/notifiable_task.h"
-#include "concurrency/epoch_manager_factory.h"
+#include "../common/notifiable_task.h"
+#include "../concurrency/epoch_manager_factory.h"
 #include "connection_handler_task.h"
 #include "network_state.h"
 

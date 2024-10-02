@@ -4,21 +4,21 @@
 //
 // old_engine_string_functions.cpp
 //
-// Identification: src/function/old_engine_string_functions.cpp
+// Identification: src/../function/old_engine_string_functions.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "function/old_engine_string_functions.h"
+#include "../function/old_engine_string_functions.h"
 
 #include <algorithm>
 #include <cctype>
 #include <string>
 
-#include "executor/executor_context.h"
-#include "function/string_functions.h"
-#include "type/value_factory.h"
+#include "../executor/executor_context.h"
+#include "../function/string_functions.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace function {

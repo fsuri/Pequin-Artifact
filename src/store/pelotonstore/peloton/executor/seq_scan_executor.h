@@ -4,7 +4,7 @@
 //
 // seq_scan_executor.h
 //
-// Identification: src/include/executor/seq_scan_executor.h
+// Identification: src/include/../executor/seq_scan_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "planner/seq_scan_plan.h"
-#include "executor/abstract_scan_executor.h"
+#include "../planner/seq_scan_plan.h"
+#include "../executor/abstract_scan_executor.h"
 
 namespace peloton_peloton {
 namespace executor {

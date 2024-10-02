@@ -4,21 +4,21 @@
 //
 // trigger.cpp
 //
-// Identification: src/trigger/trigger.cpp
+// Identification: src/../trigger/trigger.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "trigger/trigger.h"
+#include "../trigger/trigger.h"
 
-#include "catalog/catalog.h"
-#include "catalog/column_catalog.h"
-#include "catalog/table_catalog.h"
-#include "concurrency/transaction_context.h"
-#include "expression/comparison_expression.h"
-#include "expression/constant_value_expression.h"
-#include "expression/tuple_value_expression.h"
+#include "../catalog/catalog.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../concurrency/transaction_context.h"
+#include "../expression/comparison_expression.h"
+#include "../expression/constant_value_expression.h"
+#include "../expression/tuple_value_expression.h"
 
 namespace peloton_peloton {
 namespace trigger {

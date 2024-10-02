@@ -4,7 +4,7 @@
 //
 // rule.h
 //
-// Identification: src/include/optimizer/optimizer_task.h
+// Identification: src/include/../optimizer/optimizer_task.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -15,8 +15,8 @@
 #include <memory>
 #include <vector>
 
-#include "expression/abstract_expression.h"
-#include "common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace expression {

@@ -4,7 +4,7 @@
 //
 // drop_executor.h
 //
-// Identification: src/include/executor/drop_executor.h
+// Identification: src/include/../executor/drop_executor.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "concurrency/transaction_context.h"
-#include "executor/abstract_executor.h"
-#include "planner/drop_plan.h"
+#include "../concurrency/transaction_context.h"
+#include "../executor/abstract_executor.h"
+#include "../planner/drop_plan.h"
 
 namespace peloton_peloton {
 

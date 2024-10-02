@@ -4,22 +4,22 @@
 //
 // value.h
 //
-// Identification: src/backend/type/value.cpp
+// Identification: src/backend/../type/value.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "type/value.h"
+#include "../type/value.h"
 
 #include <sstream>
 
-#include "common/logger.h"
-#include "type/boolean_type.h"
-#include "type/decimal_type.h"
-#include "type/numeric_type.h"
-#include "type/timestamp_type.h"
-#include "type/varlen_type.h"
+#include "../common/logger.h"
+#include "../type/boolean_type.h"
+#include "../type/decimal_type.h"
+#include "../type/numeric_type.h"
+#include "../type/timestamp_type.h"
+#include "../type/varlen_type.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -4,7 +4,7 @@
 //
 // logical_tile.h
 //
-// Identification: src/include/executor/logical_tile.h
+// Identification: src/include/../executor/logical_tile.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -16,10 +16,10 @@
 #include <unordered_map>
 #include <vector>
 
-#include "common/macros.h"
-#include "common/printable.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../common/macros.h"
+#include "../common/printable.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 

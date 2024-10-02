@@ -4,7 +4,7 @@
 //
 // rule_impls.cpp
 //
-// Identification: src/optimizer/rule_impls.cpp
+// Identification: src/../optimizer/rule_impls.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,15 +12,15 @@
 
 #include <memory>
 
-#include "catalog/column_catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/table_catalog.h"
-#include "optimizer/operators.h"
-#include "optimizer/optimizer_metadata.h"
-#include "optimizer/properties.h"
-#include "optimizer/rule_impls.h"
-#include "optimizer/util.h"
-#include "storage/data_table.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../optimizer/operators.h"
+#include "../optimizer/optimizer_metadata.h"
+#include "../optimizer/properties.h"
+#include "../optimizer/rule_impls.h"
+#include "../optimizer/util.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace optimizer {

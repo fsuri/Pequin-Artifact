@@ -4,16 +4,16 @@
 //
 // group_expression.cpp
 //
-// Identification: src/optimizer/group_expression.cpp
+// Identification: src/../optimizer/group_expression.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/internal_types.h"
-#include "optimizer/group_expression.h"
-#include "optimizer/group.h"
-#include "optimizer/rule.h"
+#include "../common/internal_types.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/group.h"
+#include "../optimizer/rule.h"
 
 namespace peloton_peloton {
 namespace optimizer {

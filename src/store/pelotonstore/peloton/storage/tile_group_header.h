@@ -4,7 +4,7 @@
 //
 // tile_group_header.h
 //
-// Identification: src/include/storage/tile_group_header.h
+// Identification: src/include/../storage/tile_group_header.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -15,13 +15,13 @@
 #include <atomic>
 #include <cstring>
 
-#include "common/item_pointer.h"
-#include "common/macros.h"
-#include "common/synchronization/spin_latch.h"
-#include "common/printable.h"
-#include "storage/tuple.h"
-#include "common/internal_types.h"
-#include "type/value.h"
+#include "../common/item_pointer.h"
+#include "../common/macros.h"
+#include "../common/synchronization/spin_latch.h"
+#include "../common/printable.h"
+#include "../storage/tuple.h"
+#include "../common/internal_types.h"
+#include "../type/value.h"
 
 namespace peloton_peloton {
 namespace storage {

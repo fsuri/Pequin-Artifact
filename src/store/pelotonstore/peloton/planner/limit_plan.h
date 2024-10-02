@@ -4,7 +4,7 @@
 //
 // limit_plan.h
 //
-// Identification: src/include/planner/limit_plan.h
+// Identification: src/include/../planner/limit_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,9 +16,9 @@
 #include <string>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "planner/abstract_plan.h"
-#include "util/string_util.h"
+#include "../common/internal_types.h"
+#include "../planner/abstract_plan.h"
+#include "../util/string_util.h"
 
 namespace peloton_peloton {
 namespace planner {

@@ -4,7 +4,7 @@
 //
 // transaction_manager.h
 //
-// Identification: src/include/concurrency/transaction_manager.h
+// Identification: src/include/../concurrency/transaction_manager.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -18,10 +18,10 @@
 #include <list>
 #include <utility>
 
-#include "storage/tile_group_header.h"
-#include "concurrency/transaction_context.h"
-#include "concurrency/epoch_manager_factory.h"
-#include "common/logger.h"
+#include "../storage/tile_group_header.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/epoch_manager_factory.h"
+#include "../common/logger.h"
 
 namespace peloton_peloton {
 

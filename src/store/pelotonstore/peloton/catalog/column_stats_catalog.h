@@ -4,7 +4,7 @@
 //
 // column_stats_catalog.h
 //
-// Identification: src/include/catalog/column_stats_catalog.h
+// Identification: src/include/../catalog/column_stats_catalog.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -33,7 +33,7 @@
 
 #include <map>
 
-#include "catalog/abstract_catalog.h"
+#include "../catalog/abstract_catalog.h"
 
 #define COLUMN_STATS_CATALOG_NAME "pg_column_stats"
 

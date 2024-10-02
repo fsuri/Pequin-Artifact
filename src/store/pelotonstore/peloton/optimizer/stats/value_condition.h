@@ -4,7 +4,7 @@
 //
 // value_condition.h
 //
-// Identification: src/include/optimizer/stats/value_condition.h
+// Identification: src/include/../../optimizer/stats/value_condition.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,9 +12,9 @@
 
 #pragma once
 
-#include "common/logger.h"
-#include "type/value.h"
-#include "common/internal_types.h"
+#include "../../common/logger.h"
+#include "../../type/value.h"
+#include "../../common/internal_types.h"
 
 namespace peloton_peloton {
 namespace optimizer {

@@ -4,25 +4,25 @@
 //
 // timestamp_ordering_transaction_manager.cpp
 //
-// Identification: src/concurrency/timestamp_ordering_transaction_manager.cpp
+// Identification: src/../concurrency/timestamp_ordering_transaction_manager.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "concurrency/timestamp_ordering_transaction_manager.h"
+#include "../concurrency/timestamp_ordering_transaction_manager.h"
 #include <cinttypes>
-#include "storage/storage_manager.h"
+#include "../storage/storage_manager.h"
 
-#include "catalog/catalog_defaults.h"
-#include "catalog/manager.h"
-#include "common/exception.h"
-#include "common/logger.h"
-#include "common/platform.h"
-#include "concurrency/transaction_context.h"
-#include "gc/gc_manager_factory.h"
-#include "logging/log_manager_factory.h"
-#include "settings/settings_manager.h"
+#include "../catalog/catalog_defaults.h"
+#include "../catalog/manager.h"
+#include "../common/exception.h"
+#include "../common/logger.h"
+#include "../common/platform.h"
+#include "../concurrency/transaction_context.h"
+#include "../gc/gc_manager_factory.h"
+#include "../logging/log_manager_factory.h"
+#include "../settings/settings_manager.h"
 
 namespace peloton_peloton {
 namespace concurrency {
@@ -346,7 +346,7 @@ void TimestampOrderingTransactionManager::PerformInsert(
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
   auto transaction_id = current_txn->GetTransactionId();
 
@@ -382,7 +382,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   LOG_TRACE("Performing Update new tuple %u %u", new_location.block,
             new_location.offset);
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_group_header =
       storage_manager->GetTileGroup(old_location.block)->GetHeader();
   auto new_tile_group_header =
@@ -454,7 +454,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   oid_t tile_group_id = location.block;
   UNUSED_ATTRIBUTE oid_t tuple_id = location.offset;
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   UNUSED_ATTRIBUTE auto tile_group_header =
       storage_manager->GetTileGroup(tile_group_id)->GetHeader();
 
@@ -484,7 +484,7 @@ void TimestampOrderingTransactionManager::PerformDelete(
   LOG_TRACE("Performing Delete new tuple %u %u", new_location.block,
             new_location.offset);
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
 
   auto tile_group_header =
       storage_manager->GetTileGroup(old_location.block)->GetHeader();
@@ -559,7 +559,7 @@ void TimestampOrderingTransactionManager::PerformDelete(
   oid_t tile_group_id = location.block;
   oid_t tuple_id = location.offset;
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
 
   PELOTON_ASSERT(tile_group_header->GetTransactionId(tuple_id) ==
@@ -596,7 +596,7 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(
   //// handle other isolation levels
   //////////////////////////////////////////////////////////
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
   auto &log_manager = logging::LogManager::GetInstance();
 
   log_manager.StartLogging();
@@ -763,7 +763,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
   PELOTON_ASSERT(!current_txn->IsReadOnly());
 
   LOG_TRACE("Aborting peloton txn : %" PRId64, current_txn->GetTransactionId());
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
 
   auto &rw_set = current_txn->GetReadWriteSet();
   auto &rw_object_set = current_txn->GetCreateDropSet();

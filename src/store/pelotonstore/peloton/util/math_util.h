@@ -4,7 +4,7 @@
 //
 // math_util.h
 //
-// Identification: src/include/util/math_util.h
+// Identification: src/include/../util/math_util.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 

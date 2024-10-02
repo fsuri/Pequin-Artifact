@@ -4,18 +4,18 @@
 //
 // language_catalog.cpp
 //
-// Identification: src/catalog/language_catalog.cpp
+// Identification: src/../catalog/language_catalog.cpp
 //
 // Copyright (c) 2015-2017, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/language_catalog.h"
+#include "../catalog/language_catalog.h"
 
-#include "catalog/catalog.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

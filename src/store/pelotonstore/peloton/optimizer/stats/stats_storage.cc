@@ -4,21 +4,21 @@
 //
 // stats_storage.cpp
 //
-// Identification: src/optimizer/stats/stats_storage.cpp
+// Identification: src/../../optimizer/stats/stats_storage.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/stats/stats_storage.h"
+#include "../../optimizer/stats/stats_storage.h"
 
-#include "catalog/catalog.h"
-#include "catalog/column_stats_catalog.h"
-#include "concurrency/transaction_manager_factory.h"
-#include "optimizer/stats/column_stats.h"
-#include "optimizer/stats/table_stats.h"
-#include "storage/storage_manager.h"
-#include "type/ephemeral_pool.h"
+#include "../../catalog/catalog.h"
+#include "../../catalog/column_stats_catalog.h"
+#include "../../concurrency/transaction_manager_factory.h"
+#include "../../optimizer/stats/column_stats.h"
+#include "../../optimizer/stats/table_stats.h"
+#include "../../storage/storage_manager.h"
+#include "../../type/ephemeral_pool.h"
 
 namespace peloton_peloton {
 namespace optimizer {
@@ -284,7 +284,7 @@ ResultType StatsStorage::AnalyzeStatsForAllTables(
     return ResultType::FAILURE;
   }
 
-  auto storage_manager = storage::StorageManager::GetInstance();
+  auto storage_manager = storage::storagemanager::GetInstance();
 
   oid_t database_count = storage_manager->GetDatabaseCount();
   LOG_TRACE("Database count: %u", database_count);

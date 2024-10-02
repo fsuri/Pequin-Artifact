@@ -4,7 +4,7 @@
 //
 // condition.h
 //
-// Identification: src/include/common/synchronization/condition.h
+// Identification: src/include/../../common/synchronization/condition.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -16,7 +16,7 @@
 #include <pthread.h>
 #include <sys/time.h>
 
-#include "common/synchronization/mutex_latch.h"
+#include "../../common/synchronization/mutex_latch.h"
 
 namespace peloton_peloton {
 namespace common {

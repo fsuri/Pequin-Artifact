@@ -4,7 +4,7 @@
 //
 // nested_loop_join_plan.h
 //
-// Identification: src/include/planner/nested_loop_join_plan.h
+// Identification: src/include/../planner/nested_loop_join_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "planner/abstract_join_plan.h"
+#include "../planner/abstract_join_plan.h"
 
 namespace peloton_peloton {
 

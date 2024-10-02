@@ -4,20 +4,20 @@
 //
 // system_catalog.cpp
 //
-// Identification: src/catalog/system_catalog.cpp
+// Identification: src/../catalog/system_catalog.cpp
 //
 // Copyright (c) 2015-18, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/system_catalogs.h"
-#include "catalog/column_catalog.h"
-#include "catalog/index_catalog.h"
-#include "catalog/layout_catalog.h"
-#include "catalog/table_catalog.h"
-#include "storage/data_table.h"
-#include "storage/database.h"
-#include "storage/storage_manager.h"
+#include "../catalog/system_catalogs.h"
+#include "../catalog/column_catalog.h"
+#include "../catalog/index_catalog.h"
+#include "../catalog/layout_catalog.h"
+#include "../catalog/table_catalog.h"
+#include "../storage/data_table.h"
+#include "../storage/database.h"
+#include "../storage/storage_manager.h"
 
 namespace peloton_peloton {
 namespace catalog {
@@ -55,7 +55,7 @@ SystemCatalogs::SystemCatalogs(concurrency::TransactionContext *txn,
       {database_oid, CONSTRAINT_CATALOG_OID}};
 
   for (int i = 0; i < (int)shared_tables.size(); i++) {
-    auto schema = storage::StorageManager::GetInstance()
+    auto schema = storage::storagemanager::GetInstance()
        ->GetTableWithOid(shared_tables[i].first, shared_tables[i].second)
        ->GetSchema();
     oid_t column_id = 0;

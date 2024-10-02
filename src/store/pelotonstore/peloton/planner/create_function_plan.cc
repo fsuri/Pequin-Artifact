@@ -4,14 +4,14 @@
 //
 // create_function_plan.cpp
 //
-// Identification: src/planner/create_function_plan.cpp
+// Identification: src/../planner/create_function_plan.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "planner/create_function_plan.h"
-#include "storage/data_table.h"
+#include "../planner/create_function_plan.h"
+#include "../storage/data_table.h"
 
 namespace peloton_peloton {
 namespace planner {

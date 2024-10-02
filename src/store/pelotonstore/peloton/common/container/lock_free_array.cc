@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "common/container/lock_free_array.h"
-#include "common/internal_types.h"
-#include "common/logger.h"
-#include "common/macros.h"
+#include "../../common/container/lock_free_array.h"
+#include "../../common/internal_types.h"
+#include "../../common/logger.h"
+#include "../../common/macros.h"
 
 namespace peloton_peloton {
 

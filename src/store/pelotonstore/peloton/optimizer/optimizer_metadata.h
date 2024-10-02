@@ -4,7 +4,7 @@
 //
 // optimizer_metadata.h
 //
-// Identification: src/include/optimizer/optimizer_metadata.h
+// Identification: src/include/../optimizer/optimizer_metadata.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include "common/timer.h"
-#include "optimizer/cost_model/default_cost_model.h"
-#include "optimizer/memo.h"
-#include "optimizer/group_expression.h"
-#include "optimizer/rule.h"
-#include "settings/settings_manager.h"
+#include "../common/timer.h"
+#include "../optimizer/cost_model/default_cost_model.h"
+#include "../optimizer/memo.h"
+#include "../optimizer/group_expression.h"
+#include "../optimizer/rule.h"
+#include "../settings/settings_manager.h"
 
 namespace peloton_peloton {
 namespace catalog {

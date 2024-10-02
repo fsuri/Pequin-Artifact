@@ -14,11 +14,11 @@
 
 #include <vector>
 
-#include "common/internal_types.h"
-#include "common/macros.h"
-#include "common/platform.h"
+#include "../common/internal_types.h"
+#include "../common/macros.h"
+#include "../common/platform.h"
 
-#include "logging/log_buffer.h"
+#include "../logging/log_buffer.h"
 
 namespace peloton_peloton {
 namespace logging {

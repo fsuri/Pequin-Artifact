@@ -4,17 +4,17 @@
 //
 // binding.cpp
 //
-// Identification: src/optimizer/binding.cpp
+// Identification: src/../optimizer/binding.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "optimizer/binding.h"
+#include "../optimizer/binding.h"
 
-#include "common/logger.h"
-#include "optimizer/operator_visitor.h"
-#include "optimizer/optimizer.h"
+#include "../common/logger.h"
+#include "../optimizer/operator_visitor.h"
+#include "../optimizer/optimizer.h"
 
 namespace peloton_peloton {
 namespace optimizer {

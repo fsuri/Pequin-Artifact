@@ -4,7 +4,7 @@
 //
 // value_peeker.h
 //
-// Identification: src/include/type/value_peeker.h
+// Identification: src/include/../type/value_peeker.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -12,12 +12,12 @@
 
 #pragma once
 
-#include "type/boolean_type.h"
-#include "type/array_type.h"
-#include "type/decimal_type.h"
-#include "type/numeric_type.h"
-#include "type/timestamp_type.h"
-#include "type/varlen_type.h"
+#include "../type/boolean_type.h"
+#include "../type/array_type.h"
+#include "../type/decimal_type.h"
+#include "../type/numeric_type.h"
+#include "../type/timestamp_type.h"
+#include "../type/varlen_type.h"
 
 namespace peloton_peloton {
 namespace type {

@@ -4,17 +4,17 @@
 //
 // query_history_catalog.cpp
 //
-// Identification: src/catalog/query_history_catalog.cpp
+// Identification: src/../catalog/query_history_catalog.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/query_history_catalog.h"
+#include "../catalog/query_history_catalog.h"
 
-#include "catalog/catalog.h"
-#include "storage/data_table.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../storage/data_table.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {

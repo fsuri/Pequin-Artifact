@@ -4,19 +4,19 @@
 //
 // index_util.cpp
 //
-// Identification: src/index/index_util.cpp
+// Identification: src/../index/index_util.cpp
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "index/index.h"
+#include "../index/index.h"
 
 #include <algorithm>
 #include <sstream>
 
-#include "index/index_util.h"
-#include "type/value_factory.h"
+#include "../index/index_util.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace index {
@@ -37,7 +37,7 @@ namespace index {
  * stop optimizing the predicate at the beginning. So this check serves
  * as a fast path
  *
- * Please refer to src/include/type/types.h for a complete list of comparison
+ * Please refer to src/include/../type/types.h for a complete list of comparison
  * operators
  */
 bool IndexUtil::HasNonOptimizablePredicate(const std::vector<ExpressionType> &expr_types) {

@@ -4,7 +4,7 @@
 //
 // index_scan_plan.h
 //
-// Identification: src/include/planner/index_scan_plan.h
+// Identification: src/include/../planner/index_scan_plan.h
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
@@ -16,11 +16,11 @@
 #include <string>
 #include <vector>
 
-#include "common/internal_types.h"
-#include "expression/abstract_expression.h"
-#include "index/scan_optimizer.h"
-#include "planner/abstract_scan_plan.h"
-#include "storage/tuple.h"
+#include "../common/internal_types.h"
+#include "../expression/abstract_expression.h"
+#include "../index/scan_optimizer.h"
+#include "../planner/abstract_scan_plan.h"
+#include "../storage/tuple.h"
 
 namespace peloton_peloton {
 

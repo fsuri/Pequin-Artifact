@@ -4,18 +4,18 @@
 //
 // schema.cpp
 //
-// Identification: src/catalog/schema.cpp
+// Identification: src/../catalog/schema.cpp
 //
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#include "catalog/schema.h"
+#include "../catalog/schema.h"
 
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 
-#include "common/macros.h"
+#include "../common/macros.h"
 
 namespace peloton_peloton {
 namespace catalog {

@@ -18,19 +18,19 @@
 #include <stack>
 #include <unordered_map>
 
-#include "concurrency/transaction_context.h"
-#include "concurrency/epoch_manager.h"
-#include "logging/log_buffer.h"
-#include "logging/log_record.h"
-#include "logging/log_buffer_pool.h"
-#include "logging/log_manager.h"
-#include "logging/worker_context.h"
-#include "type/types.h"
-#include "common/serializer.h"
-#include "common/lockfree_queue.h"
-#include "common/logger.h"
-#include "common/pool.h"
-#include "common/synchronization/spin_lock.h"
+#include "../concurrency/transaction_context.h"
+#include "../concurrency/epoch_manager.h"
+#include "../logging/log_buffer.h"
+#include "../logging/log_record.h"
+#include "../logging/log_buffer_pool.h"
+#include "../logging/log_manager.h"
+#include "../logging/worker_context.h"
+#include "../type/types.h"
+#include "../common/serializer.h"
+#include "../common/lockfree_queue.h"
+#include "../common/logger.h"
+#include "../common/pool.h"
+#include "../common/synchronization/spin_lock.h"
 
 namespace peloton_peloton {
   

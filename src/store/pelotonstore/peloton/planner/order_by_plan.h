@@ -4,7 +4,7 @@
 //
 // order_by_plan.h
 //
-// Identification: src/include/planner/order_by_plan.h
+// Identification: src/include/../planner/order_by_plan.h
 //
 // Copyright (c) 2015-2018, Carnegie Mellon University Database Group
 //
@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "planner/abstract_plan.h"
-#include "planner/attribute_info.h"
+#include "../planner/abstract_plan.h"
+#include "../planner/attribute_info.h"
 
 namespace peloton_peloton {
 namespace planner {

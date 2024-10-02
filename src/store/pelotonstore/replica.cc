@@ -646,7 +646,7 @@ void Replica::delegateEbatch(std::vector<::google::protobuf::Message*> EpendingB
 }
 
 
-}  // namespace pg_SMRstore
+}  // namespace pelotonstore
 
 
 

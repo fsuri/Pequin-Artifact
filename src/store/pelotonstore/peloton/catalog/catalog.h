@@ -4,7 +4,7 @@
 //
 // catalog.h
 //
-// Identification: src/include/catalog/catalog.h
+// Identification: src/include/../catalog/catalog.h
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
@@ -14,8 +14,8 @@
 
 #include <mutex>
 
-#include "catalog/catalog_defaults.h"
-#include "function/functions.h"
+#include "../catalog/catalog_defaults.h"
+#include "../function/functions.h"
 
 namespace peloton_peloton {
 

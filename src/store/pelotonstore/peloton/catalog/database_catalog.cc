@@ -4,23 +4,23 @@
 //
 // database_catalog.cpp
 //
-// Identification: src/catalog/database_catalog.cpp
+// Identification: src/../catalog/database_catalog.cpp
 //
 // Copyright (c) 2015-17, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
 
-#include "catalog/database_catalog.h"
+#include "../catalog/database_catalog.h"
 
 #include <memory>
 
-#include "catalog/catalog.h"
-#include "catalog/system_catalogs.h"
-#include "concurrency/transaction_context.h"
-#include "executor/logical_tile.h"
-#include "storage/data_table.h"
-#include "storage/tuple.h"
-#include "type/value_factory.h"
+#include "../catalog/catalog.h"
+#include "../catalog/system_catalogs.h"
+#include "../concurrency/transaction_context.h"
+#include "../executor/logical_tile.h"
+#include "../storage/data_table.h"
+#include "../storage/tuple.h"
+#include "../type/value_factory.h"
 
 namespace peloton_peloton {
 namespace catalog {
