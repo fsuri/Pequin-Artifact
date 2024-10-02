@@ -107,13 +107,14 @@ class TableStore {
         int num_threads;
         std::vector<std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
         std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+        std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> GetClientCop(uint64_t client_id, uint64_t tx_id);
 
         std::shared_ptr<peloton_peloton::Statement> ParseAndPrepare(const std::string &query_statement, peloton_peloton::tcop::TrafficCop *tcop, bool skip_cache = false);
 
         void GetResult(peloton_peloton::ResultType &status, uint64_t &rows_affected, peloton_peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
 
         //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
-        std::string TransformResult(peloton_peloton::ResultType &status, std::shared_ptr<peloton_peloton::Statement> statement, std::vector<peloton_peloton::ResultValue> &result);
+        std::string TransformResult(peloton_peloton::ResultType &status, std::shared_ptr<peloton_peloton::Statement> statement, std::vector<peloton_peloton::ResultValue> &result, uint64_t rows_affected);
         
 
 };

@@ -22,7 +22,6 @@
 #include "store/pelotonstore/table_store.h"
 #include "lib/assert.h"
 #include "lib/message.h"
-#include "store/pelotonstore/query-engine/traffic_cop/traffic_cop.h"
 #include <algorithm>
 #include <atomic>
 #include <sched.h>
@@ -69,9 +68,9 @@ TableStore::~TableStore() {
     delete tcop;
     delete counter;
   }
-  for(auto &[tcop, counter]: client_cop){
-    delete tcop;
-    delete counter;
+  for(auto &[_, cop_pair]: client_cop){
+    delete cop_pair.first;
+    delete cop_pair.second;
   }
 
   Latency_t sum_read;
@@ -148,7 +147,7 @@ std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> TableStore::Ge
     //Create new cop
     std::atomic_int *counter = new std::atomic_int();
     peloton_peloton::tcop::TrafficCop *new_cop = new peloton_peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
-    auto cop_pair = {new_cop, counter};
+    std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *>cop_pair = {new_cop, counter};
     itr = client_cop.insert(std::make_pair(client_id, cop_pair));
   }
   return itr->second;
@@ -157,13 +156,13 @@ std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> TableStore::Ge
 ////////////////  Helper Functions //////////////////////////
 std::shared_ptr<peloton_peloton::Statement> TableStore::ParseAndPrepare(const std::string &query_statement, peloton_peloton::tcop::TrafficCop *tcop, bool skip_cache) {
 
-  std::shared_ptr<peloton::Statement> statement;
+  std::shared_ptr<peloton_peloton::Statement> statement;
 
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  auto &peloton_parser = peloton_peloton::parser::PostgresParser::GetInstance();
   try{
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     UW_ASSERT(sql_stmt_list);
@@ -193,7 +192,7 @@ void TableStore::GetResult(peloton_peloton::ResultType &status, uint64_t &rows_a
     ContinueAfterComplete(*c);  // busy loop until result is ready. 
     tcop->ExecuteStatementPlanGetResult();
     status = tcop->ExecuteStatementGetResult();
-    rows_affected = tcop->GetRowsAffected();
+    rows_affected = tcop->getRowsAffected();
     tcop->SetQueuing(false);
   }
   //If Not Queuing: status mustve been != Success already
@@ -213,7 +212,7 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
 
   sql::QueryResultProtoBuilder queryResultBuilder;
 
-  queryResultBuilder.set_rows_affected(rows_affected)
+  queryResultBuilder.set_rows_affected(rows_affected);
 
   // Add columns
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
@@ -290,8 +289,8 @@ std::string TableStore::ExecTransactional(const std::string &sql_statement, uint
   auto statement = ParseAndPrepare(sql_statement, tcop, skip_cache);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_peloton::type::Value> param_values;
+  std::vector<peloton_peloton::ResultValue> result;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
   uint64_t rows_affected;
 
@@ -318,7 +317,7 @@ void TableStore::Begin(uint64_t client_id, uint64_t tx_id){
   Debug("Begin Transaction");
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
-  tcop->BeginQueryHelper(); 
+  tcop->BeginQueryHelper(0); //TODO: Pass a thread id?
 }
 
 peloton_peloton::ResultType TableStore::Commit(uint64_t client_id, uint64_t tx_id){

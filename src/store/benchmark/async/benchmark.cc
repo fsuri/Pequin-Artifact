@@ -78,6 +78,8 @@
 #include "store/hotstuffstore/client.h"
 // HotStuffPostgres
 #include "store/pg_SMRstore/client.h"
+// PelotonSMR
+#include "store/pelotonstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -126,6 +128,7 @@ enum protomode_t {
   PROTO_POSTGRES,
    // PG-SMR
   PROTO_PG_SMR,
+  PROTO_PELOTON_SMR,
   PROTO_CRDB
 };
 
@@ -305,6 +308,7 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
+//PG-SM / PELOTON-SMR
 DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
 
@@ -504,6 +508,7 @@ const std::string protocol_args[] = {
 	"augustus",
   "pg",
   "pg-smr", //Formerly: hotstuffpg
+  "peloton-smr",
   "crdb"
 };
 const protomode_t protomodes[] {
@@ -530,6 +535,8 @@ const protomode_t protomodes[] {
   PROTO_POSTGRES,
    // PG-SMR
   PROTO_PG_SMR,
+  // Peloton-SMR,
+  PROTO_PELOTON_SMR,
   // Cockroach Database
   PROTO_CRDB
 };
@@ -552,6 +559,7 @@ const strongstore::Mode strongmodes[] {
 	strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN
 };
@@ -1406,6 +1414,7 @@ int main(int argc, char **argv) {
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
       case PROTO_PG_SMR:
+      case PROTO_PELOTON_SMR:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -1578,7 +1587,7 @@ int main(int argc, char **argv) {
         break;
     }
 
-// HotStuff
+    // HotStuff
     case PROTO_HOTSTUFF: {
         client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
@@ -1590,9 +1599,22 @@ int main(int argc, char **argv) {
 																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
-// HotStuff Postgres
+
+    // HotStuff Postgres
     case PROTO_PG_SMR: {
         client = new pg_SMRstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_pg_fake_SMR, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
+        break;
+    }
+
+    // Peloton SMR
+    case PROTO_PELOTON_SMR: {
+        client = new pelotonstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
                                        readMessages, readQuorumSize,

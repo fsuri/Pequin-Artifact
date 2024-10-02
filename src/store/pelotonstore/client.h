@@ -49,8 +49,6 @@
 
 namespace pelotonstore {
 
-static bool TEST_DIRECT_PG_CONNECTION = true;
-
 class Client : public ::Client {
  public:
   Client(const transport::Configuration& config, uint64_t id, int nShards, int nGroups,
