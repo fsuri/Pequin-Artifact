@@ -8,8 +8,9 @@
 * of the MIT license.  See the LICENSE file for details.                  *
 *                                                                         *
 ***************************************************************************/
-#ifndef HSTORESERIALIZEIO_H
-#define HSTORESERIALIZEIO_H
+#pragma once
+//#ifndef HSTORESERIALIZEIO_H
+//#define HSTORESERIALIZEIO_H
 
 #include <limits>
 #include <string>
@@ -354,4 +355,4 @@ class CopySerializeOutput : public SerializeOutput {
 };
 
 }
-#endif
+//#endif

@@ -8,8 +8,9 @@
 * of the MIT license.  See the LICENSE file for details.                  *
 *                                                                         *
 ***************************************************************************/
-#ifndef HSTOREBYTEARRAY_H
-#define HSTOREBYTEARRAY_H
+#pragma once
+//#ifndef HSTOREBYTEARRAY_H
+//#define HSTOREBYTEARRAY_H
 
 #include <cstring>
 #include <memory>
@@ -150,4 +151,4 @@ class GenericArray {
 typedef GenericArray<char> ByteArray;
 
 }
-#endif
+//#endif

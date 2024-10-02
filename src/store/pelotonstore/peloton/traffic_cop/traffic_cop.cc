@@ -557,15 +557,15 @@ FieldInfo TrafficCop::GetColumnFieldForValueType(std::string column_name,
 ResultType TrafficCop::ExecuteStatement(
     const std::shared_ptr<Statement> &statement,
     const std::vector<type::Value> &params, UNUSED_ATTRIBUTE bool unnamed,
-    std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,
+    //std::shared_ptr<stats::QueryMetric::QueryParams> param_stats,
     const std::vector<int> &result_format, std::vector<ResultValue> &result,
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
-  if (static_cast<StatsType>(settings::SettingsManager::GetInt(
+  /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::peloton_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
-  }
+  }*/
 
   LOG_TRACE("Execute Statement of name: %s",
             statement->GetStatementName().c_str());

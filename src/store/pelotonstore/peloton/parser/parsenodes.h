@@ -9,11 +9,17 @@
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
+#pragma once
+
+#ifndef _PARSENODES_H
+#define _PARSENODES_H
 
 #include <cstdint>
 
 #include "nodes.h"
 #include "pg_list.h"
+
+namespace peloton_peloton {
 
 typedef enum SetOperation {
   SETOP_NONE = 0,
@@ -21,6 +27,7 @@ typedef enum SetOperation {
   SETOP_INTERSECT,
   SETOP_EXCEPT
 } SetOperation;
+
 
 typedef struct Alias {
   NodeTag type;
@@ -840,3 +847,7 @@ typedef struct FunctionParameter {
   FunctionParameterMode mode; /* IN/OUT/etc */
   Node *defexpr;              /* raw default expr, or NULL if not given */
 } FunctionParameter;
+
+}
+
+#endif

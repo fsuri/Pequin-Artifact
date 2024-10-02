@@ -120,10 +120,10 @@ class AbstractPlan : public Printable {
   // After the implementation for each sub-class, we should set these to pure
   // virtual
   //===--------------------------------------------------------------------===//
-  virtual bool SerializeTo(SerializeOutput &output UNUSED_ATTRIBUTE) const {
+  virtual bool SerializeTo(peloton_peloton::SerializeOutput &output UNUSED_ATTRIBUTE) const {
     return false;
   }
-  virtual bool DeserializeFrom(SerializeInput &input UNUSED_ATTRIBUTE) {
+  virtual bool DeserializeFrom(peloton_peloton::SerializeInput &input UNUSED_ATTRIBUTE) {
     return false;
   }
   virtual int SerializeSize() const { return 0; }

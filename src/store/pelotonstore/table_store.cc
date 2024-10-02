@@ -28,6 +28,7 @@
 #include <utility>
 
 #include "store/common/query_result/query_result.h"
+#include "store/pequinstore/sql_interpreter.h"
 
 namespace pelotonstore {
 
@@ -148,7 +149,8 @@ std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> TableStore::Ge
     std::atomic_int *counter = new std::atomic_int();
     peloton_peloton::tcop::TrafficCop *new_cop = new peloton_peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
     std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *>cop_pair = {new_cop, counter};
-    itr = client_cop.insert(std::make_pair(client_id, cop_pair));
+    client_cop.insert({client_id, cop_pair});
+    return cop_pair;
   }
   return itr->second;
 }
@@ -235,7 +237,7 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
 
   bool already_sorted = false;
   //Check if Statement contains OrderBY, if so, don't sort!! Result already has a sorted order
-  if(statement->GetQueryString().find(order_hook)!= std::string::npos) already_sorted = true;
+  if(statement->GetQueryString().find(pequinstore::order_hook)!= std::string::npos) already_sorted = true;
   return queryResultBuilder.get_result(!already_sorted)->SerializeAsString();
 }
 

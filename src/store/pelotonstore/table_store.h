@@ -99,8 +99,7 @@ class TableStore {
 		peloton_peloton::tcop::TrafficCop traffic_cop_;
 		std::atomic_int counter_;
         bool is_recycled_version_;
-
-    
+ 
         tbb::concurrent_unordered_map<uint64_t, std::pair<peloton_peloton::tcop::TrafficCop*, std::atomic_int*>> client_cop; //map from client_id to traffic cop. 
         //Invariant: Client finishes its Txns sequentially. If not, need traffic cop per Transaction.
 
