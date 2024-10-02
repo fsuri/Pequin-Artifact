@@ -27,6 +27,8 @@
 // * Choose NL if left rows is a single record (for single record lookup queries), else choose hash join
 // * Choose hash group by over sort group by
 
+//FS => EDIT: Make NL default join always.
+
 namespace peloton_peloton {
 namespace optimizer {
 
@@ -69,13 +71,15 @@ class TrivialCostModel : public AbstractCostModel {
   }
 
   void Visit(UNUSED_ATTRIBUTE const PhysicalInnerNLJoin *op) override {
-    auto left_child_rows =
-        memo_->GetGroupByID(gexpr_->GetChildGroupId(0))->GetNumRows();
-    if (left_child_rows == 1) {
-      output_cost_ = 0.f;
-    } else {
-      output_cost_ = 2.f;
-    }
+    output_cost_ = 0.f; //Make Nested Join default Join
+
+    // auto left_child_rows =
+    //     memo_->GetGroupByID(gexpr_->GetChildGroupId(0))->GetNumRows();
+    // if (left_child_rows == 1) {
+    //   output_cost_ = 0.f;
+    // } else {
+    //   output_cost_ = 2.f;
+    // }
   }
 
   void Visit(UNUSED_ATTRIBUTE const PhysicalLeftNLJoin *op) override {}

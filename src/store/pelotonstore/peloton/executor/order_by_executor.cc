@@ -119,14 +119,14 @@ bool OrderByExecutor::DoSort() {
     // increase the counter
     num_tuples_get_ += input_tiles_.back()->GetTupleCount();
 
-    // Optimization for ordered output
-    if (limit_) {
-      // We already get enough tuples, break while
-      if (num_tuples_get_ >= (limit_offset_ + limit_number_)) {
-        LOG_TRACE("num_tuples_get_ (%lu) are enough", num_tuples_get_);
-        break;
-      }
-    }
+    // Optimization for ordered output  //NOTE: FS: THIS ASSUMPTION DOES NOT HOLD. FIXME: WHY?? Seems like Index Scan can return rows in random order?
+    // if (limit_) {
+    //   // We already get enough tuples, break while
+    //   if (num_tuples_get_ >= (limit_offset_ + limit_number_)) {
+    //     LOG_TRACE("num_tuples_get_ (%lu) are enough", num_tuples_get_);
+    //     break;
+    //   }
+    // }
   }
 
   /** Number of valid tuples to be sorted. */

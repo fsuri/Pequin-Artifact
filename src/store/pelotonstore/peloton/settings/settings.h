@@ -55,7 +55,7 @@ SETTING_string(peloton_socket_family,
 // Added for SSL only begins
 
 // Enables SSL connection. The default value is false
-SETTING_bool(peloton_ssl, "Enable SSL connection (default: true)", true, false, false)
+SETTING_bool(peloton_ssl, "Enable SSL connection (default: true)", false, false, false)
 
 // Peloton private key file
 // Currently use hardcoded private key path, may need to change
@@ -99,8 +99,8 @@ SETTING_int(peloton_monoqueue_task_queue_size,
 // Size of the MonoQueue worker pool
 SETTING_int(peloton_monoqueue_worker_pool_size,
             "MonoQueue Worker Pool Size (default: 4)",
-            4, 
-            1, 32,
+            0, //4,    //FS DISABLED threadpool: Traffic cop executes directly
+            0, 32, //1, 32,
             false, false)
 
 // Number of connection threads used by peloton
@@ -186,9 +186,9 @@ SETTING_int(peloton_brain_task_queue_size,
 
 // Size of the brain worker pool
 SETTING_int(peloton_brain_worker_pool_size,
-            "Brain Worker Pool Size (default: 1)",
-            1,
-            1, 16,
+            "Brain Worker Pool Size (default: 1)", //FS: I set this to 0 since it's not something we use?
+            0, //1,
+            0, 16, //1, 16,
             false, false)
 
 //===----------------------------------------------------------------------===//
@@ -197,7 +197,7 @@ SETTING_int(peloton_brain_worker_pool_size,
 
 SETTING_bool(peloton_codegen,
             "Enable code-generation for query execution (default: true)",
-            true,
+            false, //true,
             true, true)
 
 SETTING_bool(peloton_codegen_interpreter,

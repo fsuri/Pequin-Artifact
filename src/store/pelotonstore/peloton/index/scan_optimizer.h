@@ -281,7 +281,7 @@ class ConjunctionScanPredicate {
 
       // is_point_query_ is only determined by expression type
       // Also if not point query then also bind to high key
-      if (is_point_query_ == true) {
+      if (is_point_query_ != true) {
         bind_ret = BindValueToIndexKey(index_p, new_value_list[i], high_key_p_,
                                        index_column);
         PELOTON_ASSERT(bind_ret == INVALID_OID);
