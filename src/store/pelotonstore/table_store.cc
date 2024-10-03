@@ -192,7 +192,7 @@ std::shared_ptr<peloton_peloton::Statement> TableStore::ParseAndPrepare(const st
 void TableStore::GetResult(peloton_peloton::ResultType &status, uint64_t &rows_affected, peloton_peloton::tcop::TrafficCop *tcop, std::atomic_int *c) {
   if (tcop->GetQueuing()) {
     ContinueAfterComplete(*c);  // busy loop until result is ready. 
-    tcop->ExecuteStatementPlanGetResult();
+    tcop->ExecuteStatementPlanGetResult(); //this is only necessary for single stmt TXs (terminates Tx)
     status = tcop->ExecuteStatementGetResult();
     rows_affected = tcop->getRowsAffected();
     tcop->SetQueuing(false);
@@ -290,7 +290,7 @@ void TableStore::ExecSingle(const std::string &sql_statement, bool skip_cache) {
 //Execute SQL Statement on backend. Use the traffic cop associated with the client (and its ongoing transaction)
 std::string TableStore::ExecTransactional(const std::string &sql_statement, uint64_t client_id, uint64_t tx_id, peloton_peloton::ResultType &result_status, std::string &error_msg, bool skip_cache) {
  
-  Debug("Beginning of transactional Statement: %s", sql_statement.c_str());
+  Debug("[CPU: %d] Beginning of tx [%d:%d] Statement: %s", sched_getcpu(), client_id, tx_id, sql_statement.c_str());
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
  
   std::atomic_int *counter = cop_pair.second;
@@ -327,21 +327,42 @@ std::string TableStore::ExecTransactional(const std::string &sql_statement, uint
 }
 
 void TableStore::Begin(uint64_t client_id, uint64_t tx_id){
-  Debug("Begin Transaction [%d:%d] (client, tx_id)", client_id, tx_id);
+  Debug("[CPU: %d] Begin Transaction [%d:%d] (client, tx_id)", sched_getcpu(), client_id, tx_id);
+
+  // std::string query = "BEGIN";
+  // peloton_peloton::ResultType res;
+  // std::string err;
+  // ExecTransactional(query, client_id, tx_id, res, err);
+  // return;
+
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   UW_ASSERT(tcop->BeginQueryHelper(0) == peloton_peloton::ResultType::SUCCESS); //Pass a dummy thread id, it's not really used by Peloton (only for logging it seems)
 }
 
 peloton_peloton::ResultType TableStore::Commit(uint64_t client_id, uint64_t tx_id){
-  Debug("Try to Commit Transaction[%d:%d] (client, tx_id)", client_id, tx_id);
+  Debug("[CPU: %d] Try to Commit Transaction[%d:%d] (client, tx_id)", sched_getcpu(), client_id, tx_id);
+
+  // std::string query = "COMMIT;";
+  // peloton_peloton::ResultType res;
+  // std::string err;
+  // ExecTransactional(query, client_id, tx_id, res, err);
+  // return res;
+
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   return tcop->CommitQueryHelper(); 
 }
 
 void TableStore::Abort(uint64_t client_id, uint64_t tx_id){
-   Debug("Try to Abort Transaction[%d:%d] (client, tx_id)", client_id, tx_id);
+   Debug("[CPU: %d] Try to Abort Transaction[%d:%d] (client, tx_id)", sched_getcpu(), client_id, tx_id);
+
+  // std::string query = "ROLLBACK;";
+  // peloton_peloton::ResultType res;
+  // std::string err;
+  // ExecTransactional(query, client_id, tx_id, res, err);
+  // return;
+
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   tcop->AbortQueryHelper();

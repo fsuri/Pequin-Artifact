@@ -26,10 +26,8 @@ namespace peloton_peloton {
 namespace concurrency {
 
 ProtocolType TransactionManager::protocol_ = ProtocolType::TIMESTAMP_ORDERING;
-IsolationLevelType TransactionManager::isolation_level_ =
-    IsolationLevelType::SERIALIZABLE;
-ConflictAvoidanceType TransactionManager::conflict_avoidance_ =
-    ConflictAvoidanceType::ABORT;
+IsolationLevelType TransactionManager::isolation_level_ = IsolationLevelType::SERIALIZABLE;
+ConflictAvoidanceType TransactionManager::conflict_avoidance_ = ConflictAvoidanceType::ABORT;
 
 TransactionContext *TransactionManager::BeginTransaction(
     const size_t thread_id, const IsolationLevelType type, bool read_only) {
@@ -38,12 +36,10 @@ TransactionContext *TransactionManager::BeginTransaction(
   if (type == IsolationLevelType::SNAPSHOT) {
     // transaction processing with decentralized epoch manager
     // the DBMS must acquire
-    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
-        thread_id, TimestampType::SNAPSHOT_READ);
+    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::SNAPSHOT_READ);
 
     if (protocol_ == ProtocolType::TIMESTAMP_ORDERING) {
-      cid_t commit_id = EpochManagerFactory::GetInstance().EnterEpoch(
-          thread_id, TimestampType::COMMIT);
+      cid_t commit_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::COMMIT);
 
       txn = new TransactionContext(thread_id, type, read_id, commit_id);
     } else {
@@ -56,8 +52,7 @@ TransactionContext *TransactionManager::BeginTransaction(
     // - REPEATABLE_READS, or
     // - READ_COMMITTED.
     // transaction processing with decentralized epoch manager
-    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(
-        thread_id, TimestampType::READ);
+    cid_t read_id = EpochManagerFactory::GetInstance().EnterEpoch(thread_id, TimestampType::READ);
     txn = new TransactionContext(thread_id, type, read_id);
   }
 
@@ -77,8 +72,7 @@ void TransactionManager::EndTransaction(TransactionContext *current_txn) {
   }
 
   // log RWSet and result stats
-  const auto &stats_type = static_cast<StatsType>(
-      settings::SettingsManager::GetInt(settings::SettingId::peloton_stats_mode));
+  const auto &stats_type = static_cast<StatsType>(settings::SettingsManager::GetInt(settings::SettingId::peloton_stats_mode));
 
   // update stats
   if (stats_type != StatsType::INVALID) {
@@ -102,8 +96,7 @@ bool TransactionManager::IsOccupied(TransactionContext *const current_txn,
                                     const void *position_ptr) {
   ItemPointer &position = *((ItemPointer *)position_ptr);
 
-  auto tile_group_header =
-      storage::storagemanager::GetInstance()->GetTileGroup(position.block)->GetHeader();
+  auto tile_group_header = storage::storagemanager::GetInstance()->GetTileGroup(position.block)->GetHeader();
   auto tuple_id = position.offset;
 
   txn_id_t tuple_txn_id = tile_group_header->GetTransactionId(tuple_id);
@@ -212,8 +205,7 @@ VisibilityType TransactionManager::IsVisible(
       PELOTON_ASSERT(tuple_end_cid == MAX_CID);
       // the only version that is visible is the newly inserted/updated one.
       return VisibilityType::OK;
-    } else if (current_txn->GetRWType(ItemPointer(tile_group_id, tuple_id)) ==
-               RWType::READ_OWN) {
+    } else if (current_txn->GetRWType(ItemPointer(tile_group_id, tuple_id)) == RWType::READ_OWN) {
       // the ownership is from a select-for-update read operation
       return VisibilityType::OK;
     } else if (tuple_end_cid == INVALID_CID) {

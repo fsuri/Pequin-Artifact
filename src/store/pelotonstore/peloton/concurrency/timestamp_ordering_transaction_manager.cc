@@ -43,6 +43,8 @@ bool TimestampOrderingTransactionManager::SetLastReaderCommitId(
     // if the write lock has already been acquired by some concurrent
     // transactions,
     // then return without setting the last_reader_cid.
+    std::cerr << "tuple txn id : " << tuple_txn_id << std::endl;
+    std::cerr << "tuple id : " << tuple_id << std::endl;
     latch.Unlock();
     return false;
   } else {
@@ -134,6 +136,7 @@ bool TimestampOrderingTransactionManager::AcquireOwnership(
       return false;
     } else {
       latch.Unlock();
+      std::cerr << "txn: " << txn_id << " writes tuple " << tuple_id << std::endl;
 
       return true;
     }
@@ -145,6 +148,8 @@ void TimestampOrderingTransactionManager::YieldOwnership(
     const storage::TileGroupHeader *const tile_group_header,
     const oid_t &tuple_id) {
   PELOTON_ASSERT(IsOwner(current_txn, tile_group_header, tuple_id));
+
+  std::cerr << "Yiel ownership of tuple: " << tuple_id << std::endl;
   tile_group_header->SetTransactionId(tuple_id, INITIAL_TXN_ID);
 }
 
@@ -168,6 +173,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
 
   // TODO: what if we want to read a version that we write?
   else if (current_txn->GetIsolationLevel() == IsolationLevelType::SNAPSHOT) {
+    assert(false);
     oid_t tuple_id = location.offset;
 
     LOG_TRACE("PerformRead (%u, %u)\n", location.block, location.offset);
@@ -210,8 +216,8 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
   //////////////////////////////////////////////////////////
   //// handle READ_COMMITTED
   //////////////////////////////////////////////////////////
-  else if (current_txn->GetIsolationLevel() ==
-           IsolationLevelType::READ_COMMITTED) {
+  else if (current_txn->GetIsolationLevel() == IsolationLevelType::READ_COMMITTED) {
+    assert(false);
     oid_t tuple_id = location.offset;
 
     LOG_TRACE("PerformRead (%u, %u)\n", location.block, location.offset);
@@ -264,10 +270,8 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
   //// handle SERIALIZABLE and REPEATABLE_READS
   //////////////////////////////////////////////////////////
   else {
-    PELOTON_ASSERT(current_txn->GetIsolationLevel() ==
-                       IsolationLevelType::SERIALIZABLE ||
-                   current_txn->GetIsolationLevel() ==
-                       IsolationLevelType::REPEATABLE_READS);
+    PELOTON_ASSERT(current_txn->GetIsolationLevel() == IsolationLevelType::SERIALIZABLE ||
+                   current_txn->GetIsolationLevel() == IsolationLevelType::REPEATABLE_READS);
 
     oid_t tuple_id = location.offset;
 
@@ -280,11 +284,12 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
         // Acquire ownership if we haven't
         if (IsOwnable(current_txn, tile_group_header, tuple_id) == false) {
           // Cannot own
+          std::cerr << "ownable false" << std::endl;
           return false;
         }
-        if (AcquireOwnership(current_txn, tile_group_header, tuple_id) ==
-            false) {
+        if (AcquireOwnership(current_txn, tile_group_header, tuple_id) == false) {
           // Cannot acquire ownership
+          std::cerr << "acquire ownership false" << std::endl;
           return false;
         }
 
@@ -319,6 +324,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
           // if the tuple has been owned by some concurrent transactions,
           // then read fails.
           LOG_TRACE("Transaction read failed");
+          std::cerr << "fail to set last reader" << std::endl;
           return false;
         }
 
@@ -762,6 +768,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
   // a pre-declared read-only transaction will never abort.
   PELOTON_ASSERT(!current_txn->IsReadOnly());
 
+  std::cerr << "Aborting peloton txn: " << current_txn->GetTransactionId() << std::endl;
   LOG_TRACE("Aborting peloton txn : %" PRId64, current_txn->GetTransactionId());
   auto storage_manager = storage::storagemanager::GetInstance();
 
@@ -792,21 +799,17 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
     oid_t tuple_slot = item_ptr.offset;
 
     if (tile_group_id != last_tile_group_id) {
-      tile_group_header =
-          storage_manager->GetTileGroup(tile_group_id)->GetHeader();
+      tile_group_header = storage_manager->GetTileGroup(tile_group_id)->GetHeader();
       last_tile_group_id = tile_group_id;
     }
 
     if (tuple_entry.second == RWType::READ_OWN) {
-      // A read operation has acquired ownership but hasn't done any further
-      // update/delete yet
+      // A read operation has acquired ownership but hasn't done any further update/delete yet
       // Yield the ownership
       YieldOwnership(current_txn, tile_group_header, tuple_slot);
     } else if (tuple_entry.second == RWType::UPDATE) {
-      ItemPointer new_version =
-          tile_group_header->GetPrevItemPointer(tuple_slot);
-      auto new_tile_group_header =
-          storage_manager->GetTileGroup(new_version.block)->GetHeader();
+      ItemPointer new_version = tile_group_header->GetPrevItemPointer(tuple_slot);
+      auto new_tile_group_header = storage_manager->GetTileGroup(new_version.block)->GetHeader();
       // these two fields can be set at any time.
       new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
       new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
@@ -817,45 +820,40 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
       // we need to unlink it by resetting the item pointers.
 
       // this must be the latest version of a version chain.
-      PELOTON_ASSERT(
-          new_tile_group_header->GetPrevItemPointer(new_version.offset)
-              .IsNull() == true);
+      PELOTON_ASSERT(new_tile_group_header->GetPrevItemPointer(new_version.offset).IsNull() == true);
 
       PELOTON_ASSERT(tile_group_header->GetEndCommitId(tuple_slot) == MAX_CID);
       // if we updated the latest version.
       // We must first adjust the head pointer
       // before we unlink the aborted version from version list
-      ItemPointer *index_entry_ptr =
-          tile_group_header->GetIndirection(tuple_slot);
-      UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
-          index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
+      ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(tuple_slot);
+      UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
       PELOTON_ASSERT(res == true);
       //////////////////////////////////////////////////
 
       // we should set the version before releasing the lock.
       COMPILER_MEMORY_FENCE;
 
-      new_tile_group_header->SetTransactionId(new_version.offset,
-                                              INVALID_TXN_ID);
+      new_tile_group_header->SetTransactionId(new_version.offset, INVALID_TXN_ID);
 
       tile_group_header->SetPrevItemPointer(tuple_slot, INVALID_ITEMPOINTER);
+
+       std::cerr << "releasing tuple: " << tuple_slot << std::endl;
+      tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
       // we should set the version before releasing the lock.
       COMPILER_MEMORY_FENCE;
 
-      tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
+    
 
       // add the version to gc set.
       // this version has already been unlinked from the version chain.
       // however, the gc should further unlink it from indexes.
-      gc_set->operator[](new_version.block)[new_version.offset] =
-          GCVersionType::ABORT_UPDATE;
+      gc_set->operator[](new_version.block)[new_version.offset] = GCVersionType::ABORT_UPDATE;
 
     } else if (tuple_entry.second == RWType::DELETE) {
-      ItemPointer new_version =
-          tile_group_header->GetPrevItemPointer(tuple_slot);
-      auto new_tile_group_header =
-          storage_manager->GetTileGroup(new_version.block)->GetHeader();
+      ItemPointer new_version = tile_group_header->GetPrevItemPointer(tuple_slot);
+      auto new_tile_group_header = storage_manager->GetTileGroup(new_version.block)->GetHeader();
 
       new_tile_group_header->SetBeginCommitId(new_version.offset, MAX_CID);
       new_tile_group_header->SetEndCommitId(new_version.offset, MAX_CID);
@@ -866,17 +864,13 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
       // we need to unlink it by resetting the item pointers.
 
       // this must be the latest version of a version chain.
-      PELOTON_ASSERT(
-          new_tile_group_header->GetPrevItemPointer(new_version.offset)
-              .IsNull() == true);
+      PELOTON_ASSERT(new_tile_group_header->GetPrevItemPointer(new_version.offset).IsNull() == true);
 
       // if we updated the latest version.
       // We must first adjust the head pointer
       // before we unlink the aborted version from version list
-      ItemPointer *index_entry_ptr =
-          tile_group_header->GetIndirection(tuple_slot);
-      UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(
-          index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
+      ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(tuple_slot);
+      UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, ItemPointer(tile_group_id, tuple_slot));
       PELOTON_ASSERT(res == true);
       //////////////////////////////////////////////////
 
@@ -929,6 +923,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
   current_txn->SetResult(ResultType::ABORTED);
   EndTransaction(current_txn);
 
+  std::cerr << "aborting transaction" << std::endl;
   return ResultType::ABORTED;
 }
 

@@ -107,7 +107,7 @@ private:
      ClientState(): tx_id(0), active(false) {}
     
     bool ValidTX(uint64_t tx_id_){
-      //if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
+      if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id); //TODO: REmove this line when testing with 4 replicas/fakeSMR
       return tx_id_ >= tx_id;
     }
     

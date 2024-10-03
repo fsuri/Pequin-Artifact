@@ -253,9 +253,10 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     reply->set_sql_res(result);
   } 
   else if(result_status == peloton_peloton::ResultType::FAILURE) {
-    Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
-      reply->set_status(REPLY_OK); 
-      reply->set_sql_res("");
+    Panic("Peloton failed");
+    // Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
+    //   reply->set_status(REPLY_OK); 
+    //   reply->set_sql_res("");
   }
   else if (result_status == peloton_peloton::ResultType::ABORTED) {
     Notice("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
