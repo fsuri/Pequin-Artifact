@@ -88,6 +88,7 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   // (1) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);
   client.Query(statement, timeout);
+
   // (2) Retrieve DISTRICT row. Update year to date balance. 
   Debug("District: %u", d_id);
   statement = fmt::format("SELECT * FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, d_w_id);

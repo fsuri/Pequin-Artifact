@@ -35,12 +35,14 @@ SyncClient::~SyncClient() {
 }
 
 void SyncClient::Begin(uint32_t timeout) {
+  Notice("Begin");
   //Confirm that all promises have been cleared -- i.e. no ongoing operations.
   UW_ASSERT(getPromises.empty());
   UW_ASSERT(queryPromises.empty());
   UW_ASSERT(asyncPromises.empty());
 
   Promise promise(timeout);
+  Notice("Call begin");
   client->Begin([promisePtr = &promise](uint64_t id){ promisePtr->Reply(0); },
       [](){}, timeout);
   promise.GetReply();
@@ -218,6 +220,7 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
 void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_result) {
   Promise *promise = new Promise(timeout);
   queryPromises.push_back(promise);
+  Notice("Query in sync client");
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,

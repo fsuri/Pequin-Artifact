@@ -161,7 +161,7 @@ std::shared_ptr<peloton_peloton::Statement> TableStore::ParseAndPrepare(const st
   std::shared_ptr<peloton_peloton::Statement> statement;
 
   UW_ASSERT(!query_statement.empty());
-  Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
+  //Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton_peloton::parser::PostgresParser::GetInstance();
@@ -172,7 +172,7 @@ std::shared_ptr<peloton_peloton::Statement> TableStore::ParseAndPrepare(const st
     if (!sql_stmt_list->is_valid) {
       Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
     }
-    Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
+    //Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
     statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list), skip_cache);
     if (statement.get() == nullptr) {
       tcop->setRowsAffected(0);
@@ -184,7 +184,7 @@ std::shared_ptr<peloton_peloton::Statement> TableStore::ParseAndPrepare(const st
     Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
   }
 
-  Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
+  //Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
   return statement;
 }
 
@@ -214,8 +214,16 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
 
   sql::QueryResultProtoBuilder queryResultBuilder;
 
+  Debug("Rows affected: %d", rows_affected);
   queryResultBuilder.set_rows_affected(rows_affected);
 
+  //If there are no rows read (e.g. for Write queries) return immediately
+  if(tuple_descriptor.empty()){
+    Debug("Serialize QueryResult. Tuple descriptor empty (must be a Write query)");
+   return queryResultBuilder.get_result(false)->SerializeAsString();
+  }
+
+  Debug("Tuple descriptor size: %d", tuple_descriptor.size());
   // Add columns
   for (unsigned int i = 0; i < tuple_descriptor.size(); i++) {
     std::string column_name = std::get<0>(tuple_descriptor[i]);
@@ -223,6 +231,7 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
   }
   // Add rows
   unsigned int rows = result.size() / tuple_descriptor.size();
+  Debug("Num rows: %d", rows);
   for (unsigned int i = 0; i < rows; i++) {
   
     Debug("Row[%d]", i);
@@ -237,7 +246,9 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
 
   bool already_sorted = false;
   //Check if Statement contains OrderBY, if so, don't sort!! Result already has a sorted order
-  if(statement->GetQueryString().find(pequinstore::order_hook)!= std::string::npos) already_sorted = true;
+  if(statement->GetQueryString().find("ORDER BY")!= std::string::npos) already_sorted = true;
+
+  Debug("Serialize QueryResult");
   return queryResultBuilder.get_result(!already_sorted)->SerializeAsString();
 }
 
@@ -246,7 +257,7 @@ std::string TableStore::TransformResult(peloton_peloton::ResultType &status, std
 // Execute a statement (as single transaction) directly on the Table backend, no output -- This is used for Table Creation and Data loading
 void TableStore::ExecSingle(const std::string &sql_statement, bool skip_cache) {
  
-  Debug("Beginning of exec raw. Statement: %s", sql_statement.c_str());
+  //Debug("Beginning of exec raw. Statement: %s", sql_statement.substr(0, 1000).c_str());
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop(); //Get the Cop for this thread.
  
   std::atomic_int *counter = cop_pair.second;
@@ -316,21 +327,21 @@ std::string TableStore::ExecTransactional(const std::string &sql_statement, uint
 }
 
 void TableStore::Begin(uint64_t client_id, uint64_t tx_id){
-  Debug("Begin Transaction");
+  Debug("Begin Transaction [%d:%d] (client, tx_id)", client_id, tx_id);
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   tcop->BeginQueryHelper(0); //TODO: Pass a thread id?
 }
 
 peloton_peloton::ResultType TableStore::Commit(uint64_t client_id, uint64_t tx_id){
-  Debug("Try to Commit Transaction");
+  Debug("Try to Commit Transaction[%d:%d] (client, tx_id)", client_id, tx_id);
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   return tcop->CommitQueryHelper(); 
 }
 
 void TableStore::Abort(uint64_t client_id, uint64_t tx_id){
-   Debug("Try to Commit Transaction");
+   Debug("Try to Abort Transaction[%d:%d] (client, tx_id)", client_id, tx_id);
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
   tcop->AbortQueryHelper();

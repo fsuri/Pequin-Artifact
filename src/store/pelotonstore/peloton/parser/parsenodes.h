@@ -9,10 +9,8 @@
 // Copyright (c) 2015-16, Carnegie Mellon University Database Group
 //
 //===----------------------------------------------------------------------===//
-#pragma once
 
-#ifndef _PARSENODES_H
-#define _PARSENODES_H
+
 
 #include <cstdint>
 
@@ -27,7 +25,6 @@ typedef enum SetOperation {
   SETOP_INTERSECT,
   SETOP_EXCEPT
 } SetOperation;
-
 
 typedef struct Alias {
   NodeTag type;
@@ -849,5 +846,3 @@ typedef struct FunctionParameter {
 } FunctionParameter;
 
 }
-
-#endif

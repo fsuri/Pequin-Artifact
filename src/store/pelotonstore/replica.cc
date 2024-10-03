@@ -41,6 +41,8 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
       primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport), 
       fake_SMR(fake_SMR), dummyTO(dummyTO), SMR_mode(SMR_mode) {
     
+  Notice("Param: SignMessages: %d. EbatchSize: %d. EbatchTimeout: %d ms", signMessages, EbatchSize, EbatchTimeoutMS);
+
   Notice("SMR_mode: %d", SMR_mode);
   UW_ASSERT(SMR_mode < 3);
 
@@ -330,6 +332,7 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
       Debug("Trigger reply callback");
       //TEST: Send back unsigned.
       if(!signMessages){
+        Debug("Don't sign!");
         UW_ASSERT(replies.size() <= 1);
         for(auto reply: replies){
            if(reply == nullptr){
@@ -342,6 +345,7 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
         }
       }
       else{
+        Debug("Sign: Create ebatch");
          //Create EBatch
         ProcessReplies(digest, replies);
       }

@@ -80,6 +80,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb, uint32_t tim
   transport->Timer(0, [this, bcb, btcb, timeout]() {
     
     client_seq_num++;
+    Notice("Test begin");
     Debug("BEGIN tx: ", client_seq_num);
 
     bcb(client_seq_num);

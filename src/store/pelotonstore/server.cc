@@ -54,7 +54,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager, s
   int num_threads = std::thread::hardware_concurrency();
   if(num_threads > 8) {
     Warning("more than 8 threads"); 
-    num_threads = 8;
+    //num_threads = 8;
   } 
   table_store = new pelotonstore::TableStore(num_threads); //Register num_threads many traffic cops to be used for Data Loading
 
@@ -142,6 +142,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     results.push_back(ProcessReq(req_id, client_id, tx_id, type, req));
     delete req;
 
+    Debug("Issue Replica Callback [%d:%d] (client, tx_id)", client_id, tx_id);
     // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
     tp->Timer(0, std::bind(ecb, results));
   
@@ -226,7 +227,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 
 
 ::google::protobuf::Message* Server::HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, std::string query) {
-  Debug("Handling SQL_RPC");
+  Debug("Handling SQL_RPC [%d:%d] (client, tx_id)", client_id, tx_id);
   
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
@@ -270,6 +271,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
   //mark current tx as inactive
   if(terminate) c->second.TerminateTX();
 
+  Debug("Finished SQL RPC [%d:%d] (client, tx_id)", client_id, tx_id);
   return reply;
 }
 
@@ -438,7 +440,7 @@ std::string Server::GenerateLoadStatement(const std::string &table_name, const s
     load_statement.resize(load_statement.length()-2); //remove trailing ", "
     load_statement += ";";
 
-    Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
+    //Debug("Generate Load Statement for Table %s. Segment %d. Statement: %s", table_name.c_str(), segment_no, load_statement.substr(0, 1000).c_str());
 
     return load_statement;
 }
@@ -454,10 +456,10 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
   Notice("Load Data for Table %s from: %s", table_name.c_str(), table_data_path.c_str());
 
   auto f = [this, table_name, table_data_path, column_names_and_types, primary_key_col_idx](){
-    Debug("Parsing Table on core %d", sched_getcpu());
+    Notice("Parsing Table on core %d", sched_getcpu());
     std::vector<row_segment_t*> table_row_segments = ParseTableDataFromCSV(table_name, table_data_path, column_names_and_types, primary_key_col_idx);
 
-    Debug("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
+    Notice("Dispatch Table Loading for table: %s. Number of Segments: %d", table_name.c_str(), table_row_segments.size());
     int i = 0;
     for(auto& row_segment: table_row_segments){
       if(row_segment->empty()){
@@ -468,12 +470,14 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     }
     return (void*) true;
   };
-  if(parallel_load){
-      tp->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
-  }
-  else{
-    f();
-  }
+  f();
+  // if(parallel_load){
+  //     tp->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
+  //     tp->DispatchIndexedTP_noCB(thread_id,std::move(f));
+  // }
+  // else{
+  //   f();
+  // }
 }
 
 std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
@@ -535,10 +539,10 @@ std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &tab
 void Server::LoadTableRows(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types,
                            const row_segment_t *row_segment, const std::vector<uint32_t> &primary_key_col_idx, int segment_no, bool load_cc){
 
-  Debug("Load %lu Table rows for: %s", row_segment->size(), table_name.c_str());
+  Notice("Load %lu Table rows for: %s", row_segment->size(), table_name.c_str());
 
   auto f = [this, table_name, segment_no, row_segment](){
-      Debug("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
+      Notice("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
 
       table_store->ExecSingle(this->GenerateLoadStatement(table_name, *row_segment, segment_no));
       delete row_segment;
@@ -548,7 +552,8 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
 
     if(parallel_load){
-      tp->DispatchTP_noCB(std::move(f)); 
+      //tp->DispatchTP_noCB(std::move(f)); 
+      tp->DispatchIndexedTP_noCB(segment_no,f); //Use indexed threadpool because pelotonstore has no worker threads.
     }
     else{
       f();
