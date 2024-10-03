@@ -128,11 +128,15 @@ ResultType TrafficCop::AbortQueryHelper() {
   tcop_txn_state_.pop();
   // explicitly abort the txn only if it has not aborted already
   if (curr_state.second != ResultType::ABORTED) {
+   
     auto txn = curr_state.first;
+     std::cerr << "Abort Tx: " << txn->GetTransactionId() << std::endl;
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto result = txn_manager.AbortTransaction(txn);
     return result;
   } else {
+     auto txn = curr_state.first;
+     std::cerr << "SKIP aborting Txn: " << txn->GetTransactionId() << std::endl;
     delete curr_state.first;
     // otherwise, the txn has already been aborted
     return ResultType::ABORTED;
@@ -236,7 +240,8 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
           LOG_TRACE("Tcop_txn_state size: %lu", tcop_txn_state_.size());
           p_status_.m_result = AbortQueryHelper();
         } else {
-          tcop_txn_state_.top().second = ResultType::ABORTED;
+          //tcop_txn_state_.top().second = ResultType::ABORTED;
+           AbortQueryHelper();
           p_status_.m_result = ResultType::ABORTED;
         }
     }
