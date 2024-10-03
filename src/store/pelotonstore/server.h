@@ -107,17 +107,21 @@ private:
      ClientState(): tx_id(0), active(false) {}
     
     bool ValidTX(uint64_t tx_id_){
-      if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
+      //if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
       return tx_id_ >= tx_id;
     }
     
-    bool GetTxStatus(uint64_t tx_id_, bool &begin){ // if tx exists / tx_id is same => return current TX. If Tx_id is greater => Start new tx}
+    bool GetTxStatus(uint64_t tx_id_, bool &begin, bool &terminate_last){ // if tx exists / tx_id is same => return current TX. If Tx_id is greater => Start new tx}
       
       if(tx_id_ < tx_id) Panic("Receiving outdated request");
 
       if(tx_id_ > tx_id){
         //Start new transaction
-        UW_ASSERT(!active);
+        if(active){
+            Panic("Previous Txn has not yet terminated"); //This should never trigger when running against only a single replica.
+            terminate_last = true; //Terminate current tx so we can start a new one.
+        }
+      
         Debug("Start new Transaction. id: %lu", tx_id_);
         tx_id = tx_id_;
         active = true;
@@ -130,6 +134,7 @@ private:
     }
    
     void TerminateTX(){ // close current txn
+    Debug("Mark Tx[%d] as inactive", tx_id);
       active = false;
     }
     bool active; //curr txn still active
@@ -173,7 +178,7 @@ private:
   ::google::protobuf::Message* HandleTryCommit(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx, uint64_t req_id);
   ::google::protobuf::Message* HandleUserAbort(clientConnectionMap::accessor &c, std::shared_ptr<tao::pq::transaction> tx);*/
 
-  ::google::protobuf::Message* HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, std::string query);
+  ::google::protobuf::Message* HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, const std::string &query);
   ::google::protobuf::Message* HandleTryCommit(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id);
   ::google::protobuf::Message* HandleUserAbort(ClientStateMap::accessor &c, uint64_t client_id, uint64_t tx_id);
   

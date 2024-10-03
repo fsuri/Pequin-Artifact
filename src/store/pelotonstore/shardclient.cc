@@ -173,6 +173,7 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
   psr.timeout->Start();
 
   //TEST
+  Debug("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
   transport->SendMessageToReplica(this, 0, sql_rpc);
   return;
 

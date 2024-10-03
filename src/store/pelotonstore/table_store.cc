@@ -330,7 +330,7 @@ void TableStore::Begin(uint64_t client_id, uint64_t tx_id){
   Debug("Begin Transaction [%d:%d] (client, tx_id)", client_id, tx_id);
   std::pair<peloton_peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetClientCop(client_id, tx_id);
   peloton_peloton::tcop::TrafficCop *tcop = cop_pair.first;
-  tcop->BeginQueryHelper(0); //TODO: Pass a thread id?
+  UW_ASSERT(tcop->BeginQueryHelper(0) == peloton_peloton::ResultType::SUCCESS); //Pass a dummy thread id, it's not really used by Peloton (only for logging it seems)
 }
 
 peloton_peloton::ResultType TableStore::Commit(uint64_t client_id, uint64_t tx_id){

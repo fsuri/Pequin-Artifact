@@ -96,6 +96,7 @@ Server::~Server() {
   else if (type == user_abort_template.GetTypeName()) {
     proto::UserAbort *user_abort = new proto::UserAbort();
     user_abort->ParseFromString(msg);
+    req_id = 0; //Abort needs no reply
     client_id = user_abort->client_id();
     tx_id = user_abort->txn_seq_num();
     return user_abort;
@@ -136,6 +137,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
   uint64_t tx_id;
   
   ::google::protobuf::Message *req = ParseMsg(type, msg, req_id, client_id, tx_id);
+  Debug("Received msg. Type[%s]. Txn [%lu:%lu:%lu]", type.c_str(), client_id, tx_id, req_id);
 
   auto f = [this, type, client_id, tx_id, req, req_id, ecb](){
     std::vector<::google::protobuf::Message*> results;
@@ -144,13 +146,14 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
 
     Debug("Issue Replica Callback [%d:%d] (client, tx_id)", client_id, tx_id);
     // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
-    tp->Timer(0, std::bind(ecb, results));
+    //tp->Timer(0, std::bind(ecb, results));
+    tp->IssueCB(std::bind(ecb, results), (void*) true);
   
     return (void*) true;
   };
 
   auto thread_id = getThreadID(client_id);
-  Debug("Thread id for key %d is: %d", client_id, thread_id);
+  Debug("Thread id for client %d is: %d", client_id, thread_id);
  
   //Dispatch the exec job to the Indexed Threadpool. Make sure that all operations from the same TX go onto the same Thread (and thus are sequential)
   tp->DispatchIndexedTP_noCB(thread_id,f);
@@ -172,8 +175,10 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     Panic("Tx[%lu:%lu] is no longer active!", client_id, tx_id);
     return nullptr;
   }
+  bool terminate_last = false;
   bool begin = false;
-  bool active = c->second.GetTxStatus(tx_id, begin); //Checks if there is an ongoing Txn (and if it is active); if not, starts a new Tx.
+  bool active = c->second.GetTxStatus(tx_id, begin, terminate_last); //Checks if there is an ongoing Txn (and if it is active); if not, starts a new Tx.
+  if(terminate_last) table_store->Abort(client_id, tx_id-1); //NOTE: This is only to help with FakeSMR mode. It's not technically necessary.
   if(begin) table_store->Begin(client_id, tx_id);
   
   if (active){ // if TX is still active
@@ -226,15 +231,15 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 ////////////////////////////////////////////
 
 
-::google::protobuf::Message* Server::HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, std::string query) {
-  Debug("Handling SQL_RPC [%d:%d] (client, tx_id)", client_id, tx_id);
+::google::protobuf::Message* Server::HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, const std::string &query) {
+  Debug("Handling SQL_RPC [%d:%d:%d] (client, tx_id, req)", client_id, tx_id, req_id);
   
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
 
   Debug("Try exec");
   peloton_peloton::ResultType result_status; 
-  std::string error_msg;
+  std::string error_msg; //TODO: It seems like Peloton error msg is always empty?
 
   //result == serialized ProtoWrapper result
   std::string result = table_store->ExecTransactional(query, client_id, tx_id, result_status, error_msg);
@@ -242,36 +247,40 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
   bool terminate = true;
 
   if (result_status == peloton_peloton::ResultType::SUCCESS) {
+    Debug("Success! [%d:%d:%d]. Query: %s", client_id, tx_id, req_id, query.c_str());
     terminate = false;
     reply->set_status(REPLY_OK);
     reply->set_sql_res(result);
   } 
   else if(result_status == peloton_peloton::ResultType::FAILURE) {
-    Notice("An integrity exception caught while using peloton.: %s", error_msg.c_str());
+    Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
       reply->set_status(REPLY_OK); 
       reply->set_sql_res("");
   }
   else if (result_status == peloton_peloton::ResultType::ABORTED) {
-    Notice("Peloton Aborted TX: %s", error_msg.c_str());
+    Notice("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
     reply->set_status(REPLY_FAIL);
     reply->set_sql_res("");
+    table_store->Abort(client_id, tx_id); //Explicitly abort Tx  
+    //(If we don't do this, then the tx hasn't been "removed". When we start the next TX, the aborted txn state is still present and the next TX aborts falsely)
   }
   else if (result_status == peloton_peloton::ResultType::TO_ABORT) {
-    Notice("Peloton Aborted (TO_ABORT) TX: %s", error_msg.c_str());
+    Panic("This case should not be getting triggered");
+    Notice("Peloton Aborted (TO_ABORT) [%d:%d:%d]: %s", client_id, tx_id, req_id, error_msg.c_str());
     reply->set_status(REPLY_FAIL);
     reply->set_sql_res("");
     //Call Abort.
     table_store->Abort(client_id, tx_id);
   }
   else{
-      Panic("Unexpected Peloton result type: %s", error_msg.c_str());
+      Panic("Unexpected Peloton result type: %d. Error msg: %s", result_status, error_msg.c_str());
   }
   
 
   //mark current tx as inactive
   if(terminate) c->second.TerminateTX();
 
-  Debug("Finished SQL RPC [%d:%d] (client, tx_id)", client_id, tx_id);
+  Debug("Finished SQL RPC [%d:%d:%d] (client, tx_id, req_id)", client_id, tx_id, req_id);
   return reply;
 }
 
