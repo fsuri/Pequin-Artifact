@@ -100,7 +100,7 @@ void TableStore::Init(int num_threads) {
   // Init Peloton default DB
   auto &txn_manager = peloton_peloton::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  //peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  peloton_peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
   // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 
