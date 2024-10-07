@@ -118,25 +118,26 @@ ResultType TrafficCop::CommitQueryHelper() {
 }
 
 ResultType TrafficCop::AbortQueryHelper() {
+  std::cerr << "call abort helper" << std::endl;
   // do nothing if we have no active txns
   if (tcop_txn_state_.empty()){ 
-    std::cerr << "already aborted" << std::endl;
+    //std::cerr << "already aborted" << std::endl;
     return ResultType::NOOP;
   }
-  std::cerr << "remove curr txn state" << std::endl;
+  //std::cerr << "remove curr txn state" << std::endl;
   auto &curr_state = tcop_txn_state_.top();
   tcop_txn_state_.pop();
   // explicitly abort the txn only if it has not aborted already
   if (curr_state.second != ResultType::ABORTED) {
    
     auto txn = curr_state.first;
-     std::cerr << "Abort Tx: " << txn->GetTransactionId() << std::endl;
+    //std::cerr << "Abort Tx: " << txn->GetTransactionId() << std::endl;
     auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
     auto result = txn_manager.AbortTransaction(txn);
     return result;
   } else {
      auto txn = curr_state.first;
-     std::cerr << "SKIP aborting Txn: " << txn->GetTransactionId() << std::endl;
+    //std::cerr << "SKIP aborting Txn: " << txn->GetTransactionId() << std::endl;
     delete curr_state.first;
     // otherwise, the txn has already been aborted
     return ResultType::ABORTED;
@@ -223,7 +224,7 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
 
   auto txn_result = GetCurrentTxnState().first->GetResult();
   if (single_statement_txn_ || txn_result == ResultType::FAILURE) {
-    std::cerr << "About to commit/abort single stmt txn: " <<single_statement_txn_ << " . Result: " << txn_result << std::endl;
+    //std::cerr << "About to commit/abort single stmt txn: " <<single_statement_txn_ << " . Result: " << txn_result << std::endl;
     LOG_TRACE("About to commit/abort: single stmt: %d,txn_result: %s", single_statement_txn_, ResultTypeToString(txn_result).c_str());
     switch (txn_result) {
       case ResultType::SUCCESS:

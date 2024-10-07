@@ -54,6 +54,8 @@ Client::Client(const transport::Configuration& config, uint64_t id, int nShards,
 
   Notice("Initializing PelotonSMR client with id [%lu] %lu", client_id, ngroups);
 
+  Notice("SignMessages: %d. ValidateProofs: %d", signMessages, validateProofs);
+
   if(ngroups > 1) Panic("Peloton store does not support sharding");
 
   /* Start a client for each shard. */
@@ -80,7 +82,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb, uint32_t tim
   transport->Timer(0, [this, bcb, btcb, timeout]() {
     
     client_seq_num++;
-    Notice("Test begin");
+
     Debug("BEGIN tx: ", client_seq_num);
 
     bcb(client_seq_num);
@@ -102,21 +104,17 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t 
 
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
     try_commit_callback tccb = [ccb, this](int status) {
-
-        //QUICK TEST
-    //    transaction->commit();
-    // transaction = nullptr; //reset txn
   
       if(status == REPLY_OK) {
-        Debug("COMMIT SUCCESS");
+        Notice("COMMIT SUCCESS");
         ccb(COMMITTED);
       } else {
-        Debug("COMMIT ABORT");
+        Notice("COMMIT ABORT");
         ccb(ABORTED_SYSTEM);
       }
     };
     
-    Debug("Trying to commit txn: [%lu:%lu]", client_id, client_seq_num);
+    Notice("Trying to commit txn: [%lu:%lu]", client_id, client_seq_num);
     bclient[0]->Commit(client_id, client_seq_num, tccb, ctcb, timeout);
   });
 }

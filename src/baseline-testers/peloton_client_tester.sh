@@ -1,16 +1,17 @@
 #!/bin/bash
 
-CLIENTS=2
+CLIENTS=1
 F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r4.config"
 PROTOCOL="peloton-smr"
 STORE=${PROTOCOL}store
-DURATION=3
+DURATION=10
 ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
+SMR_MODE=1
 
 SQL_BENCH="true"
 
@@ -59,7 +60,7 @@ for i in `seq 0 $((CLIENTS-1))`; do
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --benchmark $BENCHMARK  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
     --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
     --key_selector zipf --zipf_coefficient $ZIPF \
-    --stats_file "stats-0.json"  --indicus_key_path $KEY_PATH --indicus_sign_messages='false' &> 0_local_test_outputs/client-$i.out &
+    --stats_file "stats-0.json"  --indicus_key_path $KEY_PATH -pg_SMR_mode=$SMR_MODE --indicus_sign_messages='false' --tpcc_run_sequential &> 0_local_test_outputs/client-$i.out &
 done;
 
 

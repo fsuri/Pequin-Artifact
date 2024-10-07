@@ -30,7 +30,7 @@
 
 namespace pelotonstore {
 
-static bool SEND_ONLY_TO_LEADER = true;
+static bool SEND_ONLY_TO_LEADER = false;
 static bool ONLY_WAIT_FOR_LEADER = true;
 
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
@@ -54,7 +54,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
     closestReplicas = closestReplicas_;
   }
 
-  Notice("SMR_mode: %d", SMR_mode);
+  Notice("SMR_mode: %d. SignMessages: %d", SMR_mode, signMessages);
 
   if(SMR_mode == 2){
     Debug("created bftsmart agent in shard client!");
@@ -173,9 +173,9 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
   psr.timeout->Start();
 
   //TEST
-  Debug("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
-  transport->SendMessageToReplica(this, 0, sql_rpc);
-  return;
+  // Debug("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
+  // transport->SendMessageToReplica(this, 0, sql_rpc);
+  // return;
 
   // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -229,8 +229,9 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
   ptc.timeout->Start();
 
   // //TEST
-  transport->SendMessageToReplica(this, 0, try_commit);
-  return;
+  // Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
+  // transport->SendMessageToReplica(this, 0, try_commit);
+  // return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
@@ -270,8 +271,8 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   user_abort.set_txn_seq_num(client_seq_num);
 
     // //TEST
-  transport->SendMessageToReplica(this, 0, user_abort);
-  return;
+  // transport->SendMessageToReplica(this, 0, user_abort);
+  // return;
 
 
    //Wrap it in generic Request (this goes into Hotstuff)

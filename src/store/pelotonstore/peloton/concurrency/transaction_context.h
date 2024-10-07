@@ -246,7 +246,7 @@ class TransactionContext : public Printable {
    * @param[in]  result  The result
    */
   inline void SetResult(ResultType result) { 
-    std::cerr << "Set Tx result to: " << result << std::endl;
+    //std::cerr << "Set Tx result to: " << result << std::endl;
     result_ = result; 
   }
 

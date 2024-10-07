@@ -22,6 +22,7 @@
 #include <random>
 #include <unistd.h>
 #include <signal.h>
+#include <map>
 
 #include "salticidae/stream.h"
 #include "salticidae/util.h"
@@ -107,18 +108,50 @@ class HotStuffApp: public HotStuff {
         impeach_timer.add(impeach_timeout);
     }
 
+    bool has_smr_cb = false;
+    //std::function<void(uint256_t cmd_hash, uint32_t seqnum)> smr_cb;
+    std::function<void(const std::string&, uint32_t seqnum)> smr_cb;
+    std::map<uint256_t, std::pair<Finality, std::string>> digest_map;
+    uint32_t last_block = 0;
+    uint32_t last_seq;
+
     void state_machine_execute(const Finality &fin) override {
         reset_imp_timer();
 #ifndef HOTSTUFF_ENABLE_BENCHMARK
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
+
+        std::cerr << "State machine execute" << std::endl;
+        return;
+
+        assert(fin.cmd_height >= 1);
+        //Assert fin come in order
+        if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
+            std::cerr << "smr execute called out of order" << std::endl;
+            assert(false);
+        }
+        last_block = fin.cmd_height;
+
+     
+        //TODO: Dynamically compute seq number.
+        uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx; //TODO: make u64_t everywhere
+        //assert(blk_size == 1);
+        std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
+
+        // auto itr = digest_map.find(fin.cmd_hash);
+        // assert(itr != digest_map.end()); //FIXME: Using SMR callback still requires everyone to call propose to register the map...
+        //                                 // TODO: make callback use cmd_hash. At replica level translate digest into cmd_hash (and back)
+        std::string dig; 
+        //Call pre-registered callback
+        //fin.cmd_hash
+        if(has_smr_cb) smr_cb(dig, seqnum);
     }
 
     std::unordered_set<conn_t> client_conns;
     void print_stat() const;
 
     public:
-    HotStuffApp(uint32_t blk_size,
+    HotStuffApp(uint32_t blk_size, uint32_t blk_timeout,
                 double stat_period,
                 double impeach_timeout,
                 ReplicaID idx,
@@ -136,6 +169,11 @@ class HotStuffApp: public HotStuff {
     
     void stop();
 
+    inline void register_smr_callback(std::function<void(const std::string&, uint32_t seqnum)> cb){ 
+        bool has_smr_cb = true;
+        smr_cb = cb;
+    }
+
     void interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb);
 };
 
@@ -149,7 +187,7 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
 salticidae::BoxObj<HotStuffApp> hotstuff_papp = nullptr;
 
 
-HotStuffApp::HotStuffApp(uint32_t blk_size,
+HotStuffApp::HotStuffApp(uint32_t blk_size, uint32_t blk_timeout,
                         double stat_period,
                         double impeach_timeout,
                         ReplicaID idx,
@@ -161,7 +199,7 @@ HotStuffApp::HotStuffApp(uint32_t blk_size,
                         size_t nworker,
                         const Net::Config &repnet_config,
                         const ClientNetwork<opcode_t>::Config &clinet_config):
-    HotStuff(blk_size, 0, 0, idx, raw_privkey,
+    HotStuff(blk_size, blk_timeout, 0, 0, idx, raw_privkey,
             plisten_addr, std::move(pmaker), ec, nworker, repnet_config),
     stat_period(stat_period),
     impeach_timeout(impeach_timeout),
@@ -203,9 +241,26 @@ void HotStuffApp::client_request_cmd_handler(MsgReqCmd &&msg, const conn_t &conn
 }
 
 
+
+std::string string_to_hex(const std::string& input)
+{
+    static const char hex_digits[] = "0123456789ABCDEF";
+
+    std::string output;
+    output.reserve(input.length() * 2);
+    for (unsigned char c : input)
+    {
+        output.push_back(hex_digits[c >> 4]);
+        output.push_back(hex_digits[c & 15]);
+    }
+    return output;
+}
+
+
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
 
+    //std::cerr << "Propose hash " << hash << " as hex: " << string_to_hex(hash) << " --> cmd hash: " <<  cmd_hash.to_hex() << std::endl; //TODO: ideally print cmd_hash, but it has no ToString function
 
     if (!this->hashed_digests.insert(cmd_hash).second){
         std::cerr << "Panic:  duplicate hash per Hotstuff requests with hash "<<hash << std::endl;
@@ -215,8 +270,18 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
 
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
             assert(fin.cmd_height >= 1);
-            uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
-            // std::cout << seqnum << std::endl;
+
+            if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
+                std::cerr << "smr execute called out of order" << std::endl;
+                assert(false);
+            }
+            last_block = fin.cmd_height;
+         
+            uint32_t seqnum = last_seq++; //return current seq_num, and increment.
+
+           // uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
+           // assert(blk_size == 1);
+           std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
             cb(hash, seqnum);
     });
 }

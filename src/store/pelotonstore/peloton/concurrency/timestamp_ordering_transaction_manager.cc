@@ -43,8 +43,8 @@ bool TimestampOrderingTransactionManager::SetLastReaderCommitId(
     // if the write lock has already been acquired by some concurrent
     // transactions,
     // then return without setting the last_reader_cid.
-    std::cerr << "tuple txn id : " << tuple_txn_id << std::endl;
-    std::cerr << "tuple id : " << tuple_id << std::endl;
+    // std::cerr << "tuple txn id : " << tuple_txn_id << std::endl;
+    // std::cerr << "tuple id : " << tuple_id << std::endl;
     latch.Unlock();
     return false;
   } else {
@@ -136,7 +136,7 @@ bool TimestampOrderingTransactionManager::AcquireOwnership(
       return false;
     } else {
       latch.Unlock();
-      std::cerr << "txn: " << txn_id << " writes tuple " << tuple_id << std::endl;
+      //std::cerr << "txn: " << txn_id << " writes tuple " << tuple_id << std::endl;
 
       return true;
     }
@@ -149,7 +149,7 @@ void TimestampOrderingTransactionManager::YieldOwnership(
     const oid_t &tuple_id) {
   PELOTON_ASSERT(IsOwner(current_txn, tile_group_header, tuple_id));
 
-  std::cerr << "Yiel ownership of tuple: " << tuple_id << std::endl;
+  //std::cerr << "Yield ownership of tuple: " << tuple_id << std::endl;
   tile_group_header->SetTransactionId(tuple_id, INITIAL_TXN_ID);
 }
 
@@ -324,7 +324,7 @@ bool TimestampOrderingTransactionManager::PerformRead(TransactionContext *const 
           // if the tuple has been owned by some concurrent transactions,
           // then read fails.
           LOG_TRACE("Transaction read failed");
-          std::cerr << "fail to set last reader" << std::endl;
+          //std::cerr << "fail to set last reader" << std::endl;
           return false;
         }
 
@@ -768,7 +768,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
   // a pre-declared read-only transaction will never abort.
   PELOTON_ASSERT(!current_txn->IsReadOnly());
 
-  std::cerr << "Aborting peloton txn: " << current_txn->GetTransactionId() << std::endl;
+  //std::cerr << "Aborting peloton txn: " << current_txn->GetTransactionId() << std::endl;
   LOG_TRACE("Aborting peloton txn : %" PRId64, current_txn->GetTransactionId());
   auto storage_manager = storage::storagemanager::GetInstance();
 
@@ -838,7 +838,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
 
       tile_group_header->SetPrevItemPointer(tuple_slot, INVALID_ITEMPOINTER);
 
-       std::cerr << "releasing tuple: " << tuple_slot << std::endl;
+      //std::cerr << "releasing tuple: " << tuple_slot << std::endl;
       tile_group_header->SetTransactionId(tuple_slot, INITIAL_TXN_ID);
 
       // we should set the version before releasing the lock.
@@ -923,7 +923,7 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
   current_txn->SetResult(ResultType::ABORTED);
   EndTransaction(current_txn);
 
-  std::cerr << "aborting transaction" << std::endl;
+  //std::cerr << "aborting transaction" << std::endl;
   return ResultType::ABORTED;
 }
 

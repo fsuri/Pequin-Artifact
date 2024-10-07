@@ -259,7 +259,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     //   reply->set_sql_res("");
   }
   else if (result_status == peloton_peloton::ResultType::ABORTED) {
-    Notice("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
+    Debug("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
     reply->set_status(REPLY_FAIL);
     reply->set_sql_res("");
     table_store->Abort(client_id, tx_id); //Explicitly abort Tx  
@@ -480,14 +480,13 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     }
     return (void*) true;
   };
-  f();
-  // if(parallel_load){
-  //     tp->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
-  //     tp->DispatchIndexedTP_noCB(thread_id,std::move(f));
-  // }
-  // else{
-  //   f();
-  // }
+  if(parallel_load){
+      tp->DispatchTP_noCB(std::move(f)); //Dispatching this seems to add no perf
+      //tp->DispatchIndexedTP_noCB(thread_id,std::move(f));
+  }
+  else{
+    f();
+  }
 }
 
 std::vector<row_segment_t*> Server::ParseTableDataFromCSV(const std::string &table_name, const std::string &table_data_path, 
@@ -562,8 +561,8 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     // Call into ApplyTableWrites from different threads. On each Thread, it is a synchronous interface.
 
     if(parallel_load){
-      //tp->DispatchTP_noCB(std::move(f)); 
-      tp->DispatchIndexedTP_noCB(segment_no,f); //Use indexed threadpool because pelotonstore has no worker threads.
+      tp->DispatchTP_noCB(std::move(f)); 
+      //tp->DispatchIndexedTP_noCB(segment_no,f); //Use indexed threadpool because pelotonstore has no worker threads.
     }
     else{
       f();

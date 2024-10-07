@@ -15,7 +15,8 @@ LOCAL="true"
 #FILE_PATH="sql-seats-tables-schema.json"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
 ASYNC_SERVER="true"
-HS_DUMMY_TO=100
+HS_DUMMY_TO=50
+SMR_MODE=1
 
 # FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
@@ -51,8 +52,8 @@ echo '[2] Starting new servers'
 for j in `seq 0 $((NUM_GROUPS-1))`; do
 	#echo Starting Group $j
 	for i in `seq 0 $((N-1))`; do
-		
-		DEBUG=* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine --local_config=$LOCAL --hs_dummy_to=$HS_DUMMY_TO --indicus_sign_messages='false' &> 0_local_test_outputs/server$(($i+$j*$N)).out &
+             	#echo Starting server $i
+	        DEBUG=* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine --pg_SMR_mode=$SMR_MODE --local_config=$LOCAL --hs_dummy_to=$HS_DUMMY_TO --indicus_sign_messages='false' &> 0_local_test_outputs/server$(($i+$j*$N)).out &
 		
 	done;
 done;

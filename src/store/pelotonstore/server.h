@@ -107,7 +107,7 @@ private:
      ClientState(): tx_id(0), active(false) {}
     
     bool ValidTX(uint64_t tx_id_){
-      if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id); //TODO: REmove this line when testing with 4 replicas/fakeSMR
+      //if(tx_id_ > tx_id && active) Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id); //TODO: REmove this line when testing with 4 replicas/fakeSMR
       return tx_id_ >= tx_id;
     }
     
@@ -118,7 +118,8 @@ private:
       if(tx_id_ > tx_id){
         //Start new transaction
         if(active){
-            Panic("Previous Txn has not yet terminated"); //This should never trigger when running against only a single replica.
+            Warning("Previous Txn has not yet terminated"); //This should never trigger when running against only a single replica.
+            Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
             terminate_last = true; //Terminate current tx so we can start a new one.
         }
       

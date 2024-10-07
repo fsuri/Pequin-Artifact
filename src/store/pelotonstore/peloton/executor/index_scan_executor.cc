@@ -261,7 +261,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
                                                      acquire_owner);
           if (!res) {
             LOG_TRACE("read nothing");
-            std::cerr << "I1: no read" << std::endl;
+            //std::cerr << "I1: no read" << std::endl;
             transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
             return res;
           }
@@ -312,7 +312,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
           // if we have traversed through the chain and still can not fulfill
           // one of the above conditions,
           // then return result_failure.
-          std::cerr << "I2: no read" << std::endl;
+          //std::cerr << "I2: no read" << std::endl;
           transaction_manager.SetTransactionResult(current_txn,
                                                    ResultType::FAILURE);
           return false;
@@ -529,9 +529,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
                                                      tile_group_header,
                                                      acquire_owner);
           if (!res) {
-            std::cerr << "I3: no read" << std::endl;
-            transaction_manager.SetTransactionResult(current_txn,
-                                                     ResultType::FAILURE);
+            //std::cerr << "I3: no read" << std::endl;
+            transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
             LOG_TRACE("passed evaluation, but txn read fails");
             return res;
           }
@@ -589,9 +588,8 @@ bool IndexScanExecutor::ExecSecondaryIndexLookup() {
           // if we have traversed through the chain and still can not fulfill
           // one of the above conditions,
           // then return result_failure.
-          std::cerr << "I4: no read" << std::endl;
-          transaction_manager.SetTransactionResult(current_txn,
-                                                   ResultType::FAILURE);
+          //std::cerr << "I4: no read" << std::endl;
+          transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE);
           return false;
         }
 

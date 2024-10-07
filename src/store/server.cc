@@ -409,7 +409,7 @@ DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 //PG-SMR / Peloton-SMR settings.
 DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
-DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
+DEFINE_uint64(hs_dummy_to, 5, "hotstuff dummy timeout ms (to fill pipeline)");
 
 const std::string occ_type_args[] = {
 	"tapir",
@@ -552,11 +552,11 @@ int main(int argc, char **argv) {
     }
   }
 
-  int threadpool_mode = 0; //default for Basil.
+  int threadpool_mode = 0; //default for Basil.   //|| proto == PROTO_PELOTON_SMR
   if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
-  if(proto == PROTO_PG_SMR || proto == PROTO_PELOTON_SMR) threadpool_mode = 3;
+  if(proto == PROTO_PG_SMR) threadpool_mode = 3;
 
   switch (trans) {
     case TRANS_TCP:

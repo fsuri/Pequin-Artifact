@@ -18,6 +18,7 @@
 #ifndef _HOTSTUFF_LIVENESS_H
 #define _HOTSTUFF_LIVENESS_H
 
+#include <iostream>
 #include "salticidae/util.h"
 #include "hotstuff/hotstuff.h"
 
@@ -314,6 +315,9 @@ class PMRoundRobinProposer: virtual public PaceMaker {
     /* role transitions */
 
     void rotate() {
+        std::cerr << "rotating leader " << std::endl;
+        assert(false);
+
         reg_proposal();
         reg_receive_proposal();
         prop_blk.clear();

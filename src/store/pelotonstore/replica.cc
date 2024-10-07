@@ -41,6 +41,7 @@ Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
       primaryCoordinator(primaryCoordinator), requestTx(requestTx), numShards(numShards), transport(transport), 
       fake_SMR(fake_SMR), dummyTO(dummyTO), SMR_mode(SMR_mode) {
     
+  Notice("STARTING REPLICA %d. Group[%d]Idx[%d]", id, groupIdx, idx);
   Notice("Param: SignMessages: %d. EbatchSize: %d. EbatchTimeout: %d ms", signMessages, EbatchSize, EbatchTimeoutMS);
 
   Notice("SMR_mode: %d", SMR_mode);
@@ -110,7 +111,8 @@ void Replica::bubbleCB(uint64_t currProposedCounter){
   }
  
   //Start Timer again
-  transport->Timer(dummyTO, [this,pc](){
+  transport->TimerMicro(dummyTO, [this,pc](){
+  //transport->Timer(dummyTO, [this,pc](){
     this->bubbleCB(pc); 
   });
 }
@@ -131,11 +133,12 @@ void Replica::proposeBubble(){
 
   auto execb_bubble = [this, dummy_digest, bubblePackedMsg](const std::string &digest_paramm, uint32_t seqnumm) {
     auto f = [this, dummy_digest, bubblePackedMsg, digest_paramm, seqnumm](){
-      Debug("Adding %s to pending executions in seqnum %d",dummy_digest.c_str(),seqnumm);
+      Debug("[CPU:%d] ExecBubble: Adding %s to pending executions in seqnum %d", sched_getcpu(), dummy_digest.c_str(),seqnumm);
       requests[dummy_digest] = bubblePackedMsg;
       replyAddrs[dummy_digest] = nullptr;
       pendingExecutions[seqnumm] = dummy_digest;
       executeSlots();
+      Debug("[CPU:%d] Finished ExecBubble: %s", sched_getcpu(), dummy_digest.c_str());
       return (void*) true;
     };
     transport->DispatchTP_main(f);
@@ -463,7 +466,7 @@ void Replica::HandleRequest(const TransportAddress &remote, const proto::Request
   requests_dup.insert(digest);
 
   //if we didn't find the request digest in the map. I.e this is the first time handling this request
-  Debug("new request: %s with digest: %s", request.packed_msg().type().c_str(), digest);
+  Debug("new request: %s with digest: %s", request.packed_msg().type().c_str(), string_to_hex(digest).c_str());
   stats->Increment("handle_new_count",1);
 
   TransportAddress* clientAddr = remote.clone(); //The return address to reply to
@@ -471,11 +474,16 @@ void Replica::HandleRequest(const TransportAddress &remote, const proto::Request
 
   //Create a callback that will be called once the Request has been ordered by Hotstuff
   std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, packedMsg, clientAddr](const std::string &digest_param, uint32_t seqnum) {
-      Debug("Creating and sending callback");
+      Debug("[CPU:%d] Completing execb for digest: %s. Seqnum: %d", sched_getcpu(), string_to_hex(digest).c_str(), seqnum);
+
+      // if(idx > 0){
+      //   Debug("Skip execution on Non-leader replica");//FIXME: REMOVE
+      //   return;
+      // }
 
       //The execb callback will be called from some thread that HS is running => we dispatch it back to our main processing thread (to guarantee sequential processing)
       auto f = [this, digest, packedMsg, clientAddr, digest_param, seqnum](){
-          Debug("Callback: %d, %lu", idx, seqnum);  // This is called once per server
+          Debug("[CPU:%d] Callback: %d, digest: %s seq: %lu", sched_getcpu(), idx, string_to_hex(digest_param).c_str(), seqnum);  // This is called once per server
           stats->Increment("hotstuffpg_exec_callback",1);
 
           // prepare data structures for executeSlots()
@@ -486,33 +494,40 @@ void Replica::HandleRequest(const TransportAddress &remote, const proto::Request
           Debug("Adding to pending executions");
           pendingExecutions[seqnum] = digest;
           executeSlots();
-
+           Debug("[CPU:%d] Finish executeSlots: %d, %lu", sched_getcpu(), idx, seqnum);  // This is called once per server
           return (void*) true;
       };
       Debug("Dispatching to main");
       transport->DispatchTP_main(f);
   };
 
-  Debug("Proposing execb");
+  Debug("[CPU:%d] Proposing execb for digest: %s", sched_getcpu(), string_to_hex(digest).c_str());
   DebugHash(digest);
   hotstuffpg_interface->propose(digest, execb);
   proposedCounter++;
   Debug("Execb proposed");
 
-  //Start Timer for dummy TX upon receiving the first Request
-  if (this->firstReceive){
-    this->firstReceive=false;
-    Debug("Starting dummies Timer");
-    transport->Timer(0, [this, pc = proposedCounter](){
-      this->bubbleCB(pc);
-    });
-  }
+  //TODO: TESTING: NO BUBBLES, use batch timer.
+  // proposeBubble();
+  // proposeBubble();
+  // proposeBubble();
+
+  // //Start Timer for dummy TX upon receiving the first Request
+  // if (this->firstReceive){
+  //   this->firstReceive=false;
+  //   Debug("Starting dummies Timer");
+  //   transport->Timer(0, [this, pc = proposedCounter](){
+  //     this->bubbleCB(pc);
+  //   });
+  // }
   
 }
 
 
 void Replica::executeSlots() {
-  Debug("Next exec seq num: %lu", execSeqNum);
+  Debug("Next exec seq num: %lu", execSeqNum); //execSeqNum == NEXT slot in line. I.e. first not yet executed slot
+
+  if(!pendingExecutions.count(execSeqNum)) Panic("Seq number: %d has not yet been completed", execSeqNum);
 
   //Try to execute all of the available sequenced log prefix
   while(pendingExecutions.find(execSeqNum) != pendingExecutions.end()) { 
@@ -528,6 +543,7 @@ void Replica::executeSlots() {
         
     if (packedMsg.type()=="dummy"){
       //Skip Dummy Requests
+      Debug("Skip dummy");
       stats->Increment("exec_dummy",1);
       continue;
     }
@@ -553,6 +569,9 @@ void Replica::executeSlots() {
 }
 
 void Replica::ProcessReplies(const std::string &digest, const std::vector<::google::protobuf::Message*> &replies){
+
+  if(id > 0) return; //TEST don't send replies //FIXME: Remove this.
+
   std::unique_lock lock(batchMutex); //ensure mutual exclusion when accessing EBatch
   for (const auto& reply : replies) {
     if(reply == nullptr){

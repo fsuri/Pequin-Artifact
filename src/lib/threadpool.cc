@@ -453,9 +453,12 @@ void ThreadPool::add_n_indexed(int num_threads) {
     num_cpus = 8;
     Notice("Total Num_cpus on client downregulated to: %d \n", num_cpus);
   }
+
+  uint64_t offset = 1; // skip first core
+  num_threads = num_threads - offset;
  
   running = true;
-  for (uint32_t i = 0; i < num_threads; i++) {
+  for (uint32_t i = 0; i < num_threads; i++) { 
     uint64_t worker_id = total_indexed_workers + i;
 
     // IndexWorkerMap::accessor w;
@@ -486,7 +489,7 @@ void ThreadPool::add_n_indexed(int num_threads) {
     uint32_t cpu_placement = worker_id % num_cpus;
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    auto target_core = i % num_cpus;
+    auto target_core = (offset + i) % num_cpus;
     CPU_SET(target_core, &cpuset);
     int rc = pthread_setaffinity_np(t->native_handle(), sizeof(cpu_set_t), &cpuset);
     if (rc != 0) {

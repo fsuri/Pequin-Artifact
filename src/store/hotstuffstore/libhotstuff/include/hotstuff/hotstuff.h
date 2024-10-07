@@ -182,6 +182,13 @@ class HotStuffBase: public HotStuffCore {
     friend CmdFetchContext;
 
     public:
+
+    std::thread batch_thread;
+    EventContext ecb;
+    uint64_t batch_timeout = 10; //NOTE: Timer is only at milisecond granularity...
+    TimerEvent timer;
+    void batch();
+
     /** for Archipelago */
     uint64_t stable_point;
     uint32_t stable_point_idx;
@@ -288,7 +295,7 @@ class HotStuffBase: public HotStuffCore {
     virtual void state_machine_execute(const Finality &) = 0;
 
     public:
-    HotStuffBase(uint32_t blk_size,
+    HotStuffBase(uint32_t blk_size, uint32_t blk_timeout,
                  uint32_t stable_period,
                  uint32_t liveness_delta,
             ReplicaID rid,
@@ -373,7 +380,7 @@ class HotStuff: public HotStuffBase {
     }
 
     public:
-    HotStuff(uint32_t blk_size,
+    HotStuff(uint32_t blk_size, uint32_t blk_timeout,
              uint32_t stable_period,
              uint32_t liveness_delta,
             ReplicaID rid,
@@ -383,7 +390,7 @@ class HotStuff: public HotStuffBase {
             EventContext ec = EventContext(),
             size_t nworker = 4,
             const Net::Config &netconfig = Net::Config()):
-        HotStuffBase(blk_size,
+        HotStuffBase(blk_size, blk_timeout,
                      stable_period,
                      liveness_delta,
                     rid,
