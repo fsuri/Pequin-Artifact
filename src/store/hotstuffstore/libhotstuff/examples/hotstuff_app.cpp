@@ -121,13 +121,13 @@ class HotStuffApp: public HotStuff {
         HOTSTUFF_LOG_INFO("replicated %s", std::string(fin).c_str());
 #endif
 
-        std::cerr << "State machine execute" << std::endl;
+        //std::cerr << "State machine execute" << std::endl;
         return;
 
         assert(fin.cmd_height >= 1);
         //Assert fin come in order
         if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
-            std::cerr << "smr execute called out of order" << std::endl;
+            std::cerr << "smr execute called out of order" << std::endl;  //TODO: This is not necessarily true at follower replicas... But it shouldn't impact anything since we are running "fakeSMR"
             assert(false);
         }
         last_block = fin.cmd_height;
@@ -256,7 +256,7 @@ std::string string_to_hex(const std::string& input)
     return output;
 }
 
-
+static std::mutex seq_mutex;
 void HotStuffApp::interface_propose(const string &hash,  std::function<void(const std::string&, uint32_t seqnum)> cb) {
     uint256_t cmd_hash((const uint8_t *)hash.c_str());
 
@@ -269,6 +269,7 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
     }
 
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
+        seq_mutex.lock();
             assert(fin.cmd_height >= 1);
 
             if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
@@ -279,9 +280,10 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
          
             uint32_t seqnum = last_seq++; //return current seq_num, and increment.
 
-           // uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
-           // assert(blk_size == 1);
+        //    uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
+        //    assert(blk_size == 1);
            std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
+        seq_mutex.unlock();
             cb(hash, seqnum);
     });
 }

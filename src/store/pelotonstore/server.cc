@@ -139,6 +139,8 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
   ::google::protobuf::Message *req = ParseMsg(type, msg, req_id, client_id, tx_id);
   Debug("Received msg. Type[%s]. Txn [%lu:%lu:%lu]", type.c_str(), client_id, tx_id, req_id);
 
+  UW_ASSERT(tx_id > 0);
+
   auto f = [this, type, client_id, tx_id, req, req_id, ecb](){
     std::vector<::google::protobuf::Message*> results;
     results.push_back(ProcessReq(req_id, client_id, tx_id, type, req));

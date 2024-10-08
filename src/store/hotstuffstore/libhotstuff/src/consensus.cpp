@@ -143,7 +143,7 @@ void HotStuffCore::update(const block_t &nblk) {
     {
         const block_t &blk = *it;
         blk->decision = 1;
-         std::cerr << "do consensus" << std::endl;
+         //std::cerr << "do consensus" << std::endl;
         do_consensus(blk);
         LOG_PROTO("commit %s", std::string(*blk).c_str());
         std::cerr << "commit Block: " << blk->height << " with num cmds: " << blk->cmds.size() << std::endl;
@@ -179,18 +179,18 @@ block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     if (bnew->height <= vheight)
         throw std::runtime_error("new block should be higher than vheight");
     vheight = bnew->height;
-    std::cerr << "cast self vote "<< std::endl;
+    //std::cerr << "cast self vote "<< std::endl;
 
     on_receive_vote(Vote(id, bnew_hash,create_part_cert(*priv_key, bnew_hash), this));
     on_propose_(prop);
     /* boradcast to other replicas */
     do_broadcast_proposal(prop);
-    std::cerr << "broadcast to all "<< std::endl;
+    //std::cerr << "broadcast to all "<< std::endl;
     return bnew;
 }
 
 void HotStuffCore::on_receive_proposal(const Proposal &prop) {
-    std::cerr << "receive proposal" << std::endl;
+    //std::cerr << "receive proposal" << std::endl;
     LOG_PROTO("got %s", std::string(prop).c_str());
     block_t bnew = prop.blk;
     sanity_check_delivered(bnew);
@@ -227,7 +227,7 @@ void HotStuffCore::on_receive_proposal(const Proposal &prop) {
 }
 
 void HotStuffCore::on_receive_vote(const Vote &vote) {
-     std::cerr << "receive proposal" << std::endl;
+     //std::cerr << "receive proposal" << std::endl;
     LOG_PROTO("got %s", std::string(vote).c_str());
     LOG_PROTO("now state: %s", std::string(*this).c_str());
     block_t blk = get_delivered_blk(vote.blk_hash);
@@ -242,14 +242,14 @@ void HotStuffCore::on_receive_vote(const Vote &vote) {
     auto &qc = blk->self_qc;
     if (qc == nullptr)
     {
-         std::cerr << "create qc" << std::endl;
+        // std::cerr << "create qc" << std::endl;
         LOG_WARN("vote for block not proposed by itself");
         qc = create_quorum_cert(blk->get_hash());
     }
     qc->add_part(vote.voter, *vote.cert);
     if (qsize + 1 == config.nmajority)
     {
-         std::cerr << "compute" << std::endl;
+        // std::cerr << "compute" << std::endl;
         qc->compute();
         update_hqc(blk, qc);
         on_qc_finish(blk);

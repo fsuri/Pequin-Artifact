@@ -21,17 +21,17 @@
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "_server_load_time": 150,
-   "_server_load_time": 48,
-   "server_load_time": 6,
+   "server_load_time": 48,
+   "_server_load_time": 6,
    "_server_load_time": 12,
    "_server_load_time": 45,
    
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: partitioner is unused currently": 0,
-  	  "tpcc_run_sequential": true,
+  	  "tpcc_run_sequential": false,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 1,
+	  "tpcc_num_warehouses": 20,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -70,13 +70,13 @@
 	"read_dep": "one-honest",
 	"hash_digest": true,
 	"validate_proofs": true,
-	"sign_messages": false,
+	"sign_messages": true,
 	"signature_type": 4,
 	"sig_batch": 2,
 	"sig_batch_timeout": 4,
-	"ebatch_size": 2,
+	"ebatch_size": 4,
 	"ebatch_tout": 4,
-	"dummy_tout":5,
+	"dummy_tout":500,
 	"multi_threading": true,
       "mainThreadDispatching": false,
       "dispatchMessageReceive": false,
@@ -93,13 +93,13 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [20]
+    [30]
   ],
   "client_processes_per_client_node": [
     [8]
   ],
   "client_threads_per_process": [
-    [1]
+    [2]
   ],
 
   "client_nodes_per_server": 1,

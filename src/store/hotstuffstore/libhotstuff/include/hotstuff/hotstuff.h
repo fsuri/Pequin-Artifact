@@ -184,7 +184,7 @@ class HotStuffBase: public HotStuffCore {
     public:
 
     std::thread batch_thread;
-    EventContext ecb;
+    //EventContext ecb;
     uint64_t batch_timeout = 10; //NOTE: Timer is only at milisecond granularity...
     TimerEvent timer;
     void batch();

@@ -115,7 +115,7 @@ void MsgConsensusRespCmd::postponed_parse() {
 
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
-    std::cerr << "cmd pending enqueue: " << cmd_hash.to_hex() << std::endl;
+    //std::cerr << "cmd pending enqueue: " << cmd_hash.to_hex() << std::endl;
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 
@@ -532,13 +532,13 @@ void HotStuffBase::do_decide(Finality &&fin) {
     part_decided++;
     state_machine_execute(fin);
 
-        std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
-             // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
-             uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
-             if(cmd_hash == fin.cmd_hash) {
-                std::cerr << "skip dummy cmd" << std::endl;
-                return;
-             }
+        // std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
+        //      // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
+        //      uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
+        //      if(cmd_hash == fin.cmd_hash) {
+        //         std::cerr << "skip dummy cmd" << std::endl;
+        //         return;
+        //      }
 
     decision_mutex.lock();
     auto it = decision_waiting.find(fin.cmd_hash);
@@ -564,25 +564,25 @@ void HotStuffBase::batch(){
     
     batch_mutex.lock();
 
-        std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
-   // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
-   uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
+//         std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
+//    // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
+//    uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
 
     size_t avail = std::min(cmd_pending_buffer.size(), blk_size);
 
     std :: cerr << "Trigger Batch Timer. Avail cmds: " << avail << ". CPU: " << sched_getcpu() << std::endl;
 
 
-    //Instead of starting batch.. Try pushing n dummys? Still seg faults..
-    for(int i =0; i<blk_size-avail;++i){
-       auto cb = [this](Finality fin) {
-           std::cerr << "Ignore batch dummy" << std::endl;
-        };
+    // //Instead of starting batch.. Try pushing n dummys? Still seg faults..
+    // for(int i =0; i<blk_size-avail;++i){
+    //    auto cb = [this](Finality fin) {
+    //        std::cerr << "Ignore batch dummy" << std::endl;
+    //     };
 
-        cmd_pending.enqueue(std::make_pair(cmd_hash, cb));
-    }
-    batch_mutex.unlock();
-    return;
+    //     cmd_pending.enqueue(std::make_pair(cmd_hash, cb));
+    // }
+    // batch_mutex.unlock();
+    // return;
 
     //TODO: Think what happens if cmds is empty. ==> do_decide will not be called.
     //TODO: Do we need to fill with dummy? 
@@ -600,15 +600,15 @@ void HotStuffBase::batch(){
     // std::cerr << "push dummy cmd" << std::endl;
     // }
 
-    std::cerr << "wait for pacemaker to beat" << std::endl;
+    //std::cerr << "wait for pacemaker to beat" << std::endl;
     pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
-        std::cerr << "pacemaker beat" << std::endl;
+        //std::cerr << "pacemaker beat" << std::endl;
         if (proposer == get_id()){
-            std::cerr << "on proposer..." << std::endl;
+            //std::cerr << "on proposer..." << std::endl;
             on_propose(cmds, pmaker->get_parents());
         }
         else{
-            std::cerr << "not proposer..." << std::endl;
+            //std::cerr << "not proposer..." << std::endl;
         }
     });
 
@@ -648,7 +648,7 @@ void HotStuffBase::start(
     on_init(nfaulty);
     pmaker->init(this);
 
-    batch_thread = std::thread([this]() { ecb.dispatch(); });
+    //batch_thread = std::thread([this]() { ecb.dispatch(); });
     
     std::cerr << "Ec loop: " << ec_loop << std::endl;
     if (ec_loop)
@@ -742,9 +742,9 @@ void HotStuffBase::start(
         {
             //std::cerr << "exec cmd hash: " << e.second.cmd_hash.to_hex() << std::endl;
             // execute the command
-            std::cerr << "try execute" << std::endl;
+            //std::cerr << "try execute" << std::endl;
             e.first(e.second);
-            std::cerr << "complete execute" << std::endl;
+            //std::cerr << "complete execute" << std::endl;
         }
         return false;
     });
@@ -789,15 +789,15 @@ void HotStuffBase::start(
             decision_mutex.unlock();
 
             if (proposer != get_id()) continue;
-            std::cerr << "Current proposer: Replica: " << std::endl;
+            //std::cerr << "Current proposer: Replica: " << std::endl;
             batch_mutex.lock();
             cmd_pending_buffer.push(cmd_hash);
             if (cmd_pending_buffer.size() >= blk_size)
             {
-                 std::cerr << "enough to fill batch!" << std::endl;
-                 std::cerr << "CPU: " << sched_getcpu() << std::endl;
-                timer.del(); //stop current batch timer.
-                 std::cerr << "stopped timer" << std::endl;
+                 //std::cerr << "enough to fill batch!" << std::endl;
+                // std::cerr << "CPU: " << sched_getcpu() << std::endl;
+                //timer.del(); //stop current batch timer.
+                 //std::cerr << "stopped timer" << std::endl;
 
                 std::vector<uint256_t> cmds;
                 for (uint32_t i = 0; i < blk_size; i++)
@@ -808,32 +808,32 @@ void HotStuffBase::start(
 
                 pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
 
-                    std::cerr << "pacemaker beat" << std::endl;
+                   // std::cerr << "pacemaker beat" << std::endl;
                     if (proposer == get_id()){
-                        std::cerr << "on proposer..." << std::endl;
+                        //std::cerr << "on proposer..." << std::endl;
                         on_propose(cmds, pmaker->get_parents());
                     }
                     else{
-                        std::cerr << "not proposer..." << std::endl;
+                        //std::cerr << "not proposer..." << std::endl;
                     }
                 });
 
                 // Start a batch timer
-                timer = TimerEvent(ec, [this](TimerEvent &){
-                    batch();
-                });
-                timer.add_m(batch_timeout);
+                // timer = TimerEvent(ec, [this](TimerEvent &){
+                //     batch();
+                // });
+                // timer.add_m(batch_timeout);
 
                 batch_mutex.unlock();
                 return true;
             }
-            else if(!timer){ //If we have no timer: start the first batch timer
-                std :: cerr << "Start first batch timer " << std::endl;
-                timer = TimerEvent(ec, [this](TimerEvent &){
-                    batch();
-                });
-                timer.add_m(batch_timeout);
-            }
+            // else if(!timer){ //If we have no timer: start the first batch timer
+            //     std :: cerr << "Start first batch timer " << std::endl;
+            //     timer = TimerEvent(ec, [this](TimerEvent &){
+            //         batch();
+            //     });
+            //     timer.add_m(batch_timeout);
+            // }
             batch_mutex.unlock();
       
             

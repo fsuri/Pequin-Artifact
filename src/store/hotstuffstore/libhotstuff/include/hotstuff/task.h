@@ -90,9 +90,8 @@ class VeriPool {
                 VeriTask *task;
                 while (q.try_dequeue(task))
                 {
-                    fprintf(stderr, "[CPU:%d]: Working on Verification\n", sched_getcpu());
-                    HOTSTUFF_LOG_DEBUG("%lx working on %u",
-                                        std::this_thread::get_id(), (uintptr_t)task);
+                    //fprintf(stderr, "[CPU:%d]: Working on Verification\n", sched_getcpu());
+                    HOTSTUFF_LOG_DEBUG("%lx working on %u", std::this_thread::get_id(), (uintptr_t)task);
                     task->result = task->verify();
                     out_queue.enqueue(task);
                     if (!--cnt) return true;

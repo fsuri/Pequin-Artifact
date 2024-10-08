@@ -119,7 +119,7 @@ private:
         //Start new transaction
         if(active){
             Warning("Previous Txn has not yet terminated"); //This should never trigger when running against only a single replica.
-            Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
+            //Panic("Processing new tx_id: %d before curr tx_id: %d finished", tx_id_, tx_id);
             terminate_last = true; //Terminate current tx so we can start a new one.
         }
       

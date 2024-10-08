@@ -222,6 +222,7 @@ namespace hotstuffstore {
 
         hotstuff_papp->start(reps);
 
+        //hotstuff_papp->interface_entry();
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
                 // cpu_set_t cpuset;
