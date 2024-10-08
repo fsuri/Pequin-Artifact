@@ -188,7 +188,7 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
   request.mutable_packed_msg()->set_msg(sql_rpc.SerializeAsString());
   request.mutable_packed_msg()->set_type(sql_rpc.GetTypeName());
 
-  Notice("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
+  Debug("Sending Query. TxnSeq: %lu reqID: %lu", client_seq_num, reqId);
 
   
 
@@ -240,7 +240,7 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
   request.mutable_packed_msg()->set_type(try_commit.GetTypeName());
   
 
-  Notice("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
+  Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
 
   if(SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
@@ -281,7 +281,7 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   request.mutable_packed_msg()->set_msg(user_abort.SerializeAsString());
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
-  Notice("Sending Abort TxnSeq: %lu ", client_seq_num);
+  Debug("Sending Abort TxnSeq: %lu ", client_seq_num);
   if(SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
