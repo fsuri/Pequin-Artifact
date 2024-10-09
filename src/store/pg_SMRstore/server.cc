@@ -52,15 +52,18 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
 
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
   std::string db_name = "db1";
+  std::string host = "/users/shir/tmp-pgdata/socket/";
   if (localConfig){
     Debug("using local config (pg server");
     db_name = "db" + std::to_string(1 + idx);
+    host = "/home/sc3348/Pesto/Pequin-Artifact/src/tmp-pgdata/socket/";
   }
 
   // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
   // port should match the one that appears when executing "pg_lsclusters -h"
  
-  connection_string = "host=/users/shir/tmp-pgdata/socket/ user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
+  // connection_string = "host=/users/shir/tmp-pgdata/socket/ user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
+  connection_string = "host="+host+" user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect to UNIX socket
   //connection_string = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432"; //Connect via TCP using localhost loopback device
  
   Notice("Connection string: %s", connection_string.c_str());
@@ -739,7 +742,10 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
     const std::vector<std::pair<std::string, std::string>> &column_names_and_types, const std::vector<uint32_t> &primary_key_col_idx){
   Debug("Load Table data: %s", table_name.c_str());
   // std::cerr<<"Shir: Load Table data\n";
-  std::string copy_table_statement = fmt::format("COPY {0} FROM '{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
+  // std::string copy_table_statement = fmt::format("COPY {0} FROM '{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
+  std::string copy_table_statement = fmt::format("COPY {0} FROM '/home/sc3348/Pesto/Pequin-Artifact/src/{1}' DELIMITER ',' CSV HEADER", table_name, table_data_path);
+  std::cerr<<"Shir: Load Table data statement: "<<  copy_table_statement  <<"\n";
+
   this->exec_statement(copy_table_statement); 
   // std::thread t1([this, copy_table_statement]() { this->exec_statement(copy_table_statement); });
   // t1.detach();

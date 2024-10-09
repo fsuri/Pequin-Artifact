@@ -30,8 +30,8 @@
 
 namespace pg_SMRstore {
 
-static bool SEND_ONLY_TO_LEADER = true;
-static bool ONLY_WAIT_FOR_LEADER = true;
+static bool SEND_ONLY_TO_LEADER = false;
+static bool ONLY_WAIT_FOR_LEADER = false;
 
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,

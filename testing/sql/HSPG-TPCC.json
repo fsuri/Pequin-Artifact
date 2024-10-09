@@ -20,12 +20,12 @@
   
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 95,
+   "server_load_time": 60,
    
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
-  	  "tpcc_run_sequential": true,
+  	  "tpcc_run_sequential": false,
 	  "partitioner": "warehouse",
 	  "tpcc_num_warehouses": 20,
 	  
@@ -64,7 +64,7 @@
     	
     	"local_config": "false",
   "fake_SMR": "true",
-  "SMR_mode": 0,
+  "SMR_mode": 1,
   
   "message_transport_type": "tcp",
 	"watermark_time_delta": 30000,
@@ -72,13 +72,13 @@
 	"read_dep": "one-honest",
 	"hash_digest": true,
 	"validate_proofs": true,
-	"sign_messages": false,
+	"sign_messages": true,
 	"signature_type": 4,
 	"sig_batch": 2,
 	"sig_batch_timeout": 4,
 	"ebatch_size": 1,
 	"ebatch_tout": 4,
-	"dummy_tout":100,
+	"dummy_tout":10,
 	"multi_threading": true,
       "mainThreadDispatching": false,
       "dispatchMessageReceive": false,

@@ -480,18 +480,18 @@ void Replica::HandleRequest_noPacked_shir(const TransportAddress &remote, const 
 
 
 
-    struct timespec ts_start;
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t exec_start_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     
   //Create a callback that will be called once the Request has been ordered by Hotstuff
   std::function<void(const std::string&, uint32_t seqnum)> execb = [this, digest, clientAddr, type, data,exec_start_us](const std::string &digest_param, uint32_t seqnum) {
     
-      struct timespec ts_start;
-      clock_gettime(CLOCK_MONOTONIC, &ts_start);
-      uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-      Notice("Time at HotStuff : %lu us", exec_end_us - exec_start_us);
+      // struct timespec ts_start;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      // uint64_t exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+      // Notice("Time at HotStuff : %lu ms", (exec_end_us - exec_start_us)/1000);
 
 
       Debug("Creating and sending callback");
@@ -525,9 +525,13 @@ void Replica::HandleRequest_noPacked_shir(const TransportAddress &remote, const 
   proposedCounter++;
   Debug("Execb proposed");
 
+  proposeBubble();
+  proposeBubble();
+  proposeBubble();
 
   //Start Timer for dummy TX upon receiving the first Request
-  if (this->firstReceive){
+  if (false){
+  // if (this->firstReceive){
     this->firstReceive=false;
     Debug("Starting dummies Timer");
     transport->Timer(0, [this, pc = proposedCounter](){
