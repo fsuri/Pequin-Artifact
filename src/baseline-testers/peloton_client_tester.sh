@@ -60,7 +60,7 @@ for i in `seq 0 $((CLIENTS-1))`; do
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --benchmark $BENCHMARK  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
     --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
     --key_selector zipf --zipf_coefficient $ZIPF \
-    --stats_file "stats-0.json"  --indicus_key_path $KEY_PATH -pg_SMR_mode=$SMR_MODE --indicus_sign_messages='false' --tpcc_run_sequential &> 0_local_test_outputs/client-$i.out &
+    --stats_file "stats-0.json"  --indicus_key_path $KEY_PATH --pg_SMR_mode=$SMR_MODE --indicus_sign_messages='true' --tpcc_run_sequential &> 0_local_test_outputs/client-$i.out &
 done;
 
 

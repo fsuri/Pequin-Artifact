@@ -136,7 +136,7 @@ class HotStuffApp: public HotStuff {
         //TODO: Dynamically compute seq number.
         uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx; //TODO: make u64_t everywhere
         //assert(blk_size == 1);
-        std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
+        //std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
 
         // auto itr = digest_map.find(fin.cmd_hash);
         // assert(itr != digest_map.end()); //FIXME: Using SMR callback still requires everyone to call propose to register the map...
@@ -269,6 +269,7 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
     }
 
     exec_command(cmd_hash, [this, hash, cb](Finality fin) {
+        //std::cerr << "exec cmd: Core: " << sched_getcpu() << std::endl;
         seq_mutex.lock();
             assert(fin.cmd_height >= 1);
 
@@ -282,7 +283,7 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
 
         //    uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
         //    assert(blk_size == 1);
-           std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
+        //std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
         seq_mutex.unlock();
             cb(hash, seqnum);
     });

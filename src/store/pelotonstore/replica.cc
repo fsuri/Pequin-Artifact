@@ -517,13 +517,13 @@ void Replica::HandleRequest(const TransportAddress &remote, const proto::Request
   // proposeBubble();
 
   // //Start Timer for dummy TX upon receiving the first Request
-  if (this->firstReceive){
-    this->firstReceive=false;
-    Debug("Starting dummies Timer");
-    transport->Timer(0, [this, pc = proposedCounter](){
-      this->bubbleCB(pc);
-    });
-  }
+  // if (this->firstReceive){
+  //   this->firstReceive=false;
+  //   Debug("Starting dummies Timer");
+  //   transport->Timer(0, [this, pc = proposedCounter](){
+  //     this->bubbleCB(pc);
+  //   });
+  // }
   
 }
 

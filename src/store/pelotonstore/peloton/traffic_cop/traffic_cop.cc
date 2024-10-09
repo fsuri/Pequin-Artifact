@@ -118,7 +118,7 @@ ResultType TrafficCop::CommitQueryHelper() {
 }
 
 ResultType TrafficCop::AbortQueryHelper() {
-  std::cerr << "call abort helper" << std::endl;
+  //std::cerr << "call abort helper" << std::endl;
   // do nothing if we have no active txns
   if (tcop_txn_state_.empty()){ 
     //std::cerr << "already aborted" << std::endl;

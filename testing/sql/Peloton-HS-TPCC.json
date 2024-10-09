@@ -18,19 +18,18 @@
   "benchmark_name": "tpcc-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
-  "bftsmart_codebase_dir" : "/users/fs435",
-  
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "_server_load_time": 150,
-   "server_load_time": 55,
+   "server_load_time": 48,
    "_server_load_time": 6,
    "_server_load_time": 12,
+   "_server_load_time": 45,
    
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: partitioner is unused currently": 0,
-  	  "tpcc_run_sequential": false,
+  	  "tpcc_run_sequential": true,
 	  "partitioner": "warehouse",
 	  "tpcc_num_warehouses": 20,
 	  
@@ -63,7 +62,7 @@
     	
     	"local_config": "false",
  	"fake_SMR": "true",
- 	"SMR_mode": 2,
+ 	"SMR_mode": 1,
   
         "message_transport_type": "tcp",
 	"watermark_time_delta": 30000,
@@ -75,9 +74,9 @@
 	"signature_type": 4,
 	"sig_batch": 2,
 	"sig_batch_timeout": 4,
-	"ebatch_size": 1,
+	"ebatch_size": 4,
 	"ebatch_tout": 4,
-	"dummy_tout":5,
+	"dummy_tout":500,
 	"multi_threading": true,
       "mainThreadDispatching": false,
       "dispatchMessageReceive": false,
@@ -94,7 +93,7 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [30]
+    [32]
   ],
   "client_processes_per_client_node": [
     [8]

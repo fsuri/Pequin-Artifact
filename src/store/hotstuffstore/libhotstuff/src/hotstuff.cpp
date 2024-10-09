@@ -750,6 +750,7 @@ void HotStuffBase::start(
     });
 
     cmd_pending.reg_handler(ec, [this](cmd_queue_t &q) {
+        //std::cerr << "pending req handler: Core: " << sched_getcpu() << std::endl;
         std::pair<uint256_t, commit_cb_t> e;
         while (q.try_dequeue(e))
         {
@@ -792,52 +793,84 @@ void HotStuffBase::start(
             //std::cerr << "Current proposer: Replica: " << std::endl;
             batch_mutex.lock();
             cmd_pending_buffer.push(cmd_hash);
-            if (cmd_pending_buffer.size() >= blk_size)
-            {
-                 //std::cerr << "enough to fill batch!" << std::endl;
-                // std::cerr << "CPU: " << sched_getcpu() << std::endl;
-                //timer.del(); //stop current batch timer.
-                 //std::cerr << "stopped timer" << std::endl;
 
-                std::vector<uint256_t> cmds;
-                for (uint32_t i = 0; i < blk_size; i++)
-                {
-                    cmds.push_back(cmd_pending_buffer.front());
-                    cmd_pending_buffer.pop();
-                }
-
-                pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
-
-                   // std::cerr << "pacemaker beat" << std::endl;
-                    if (proposer == get_id()){
-                        //std::cerr << "on proposer..." << std::endl;
-                        on_propose(cmds, pmaker->get_parents());
-                    }
-                    else{
-                        //std::cerr << "not proposer..." << std::endl;
-                    }
-                });
-
-                // Start a batch timer
-                // timer = TimerEvent(ec, [this](TimerEvent &){
-                //     batch();
-                // });
-                // timer.add_m(batch_timeout);
-
-                batch_mutex.unlock();
-                return true;
-            }
-            // else if(!timer){ //If we have no timer: start the first batch timer
-            //     std :: cerr << "Start first batch timer " << std::endl;
-            //     timer = TimerEvent(ec, [this](TimerEvent &){
-            //         batch();
-            //     });
-            //     timer.add_m(batch_timeout);
-            // }
+            //Re-factor of Batching process: Instead of creating batches and then triggering pacemaker. Trigger pacemaker and let pacemaker create batches of whatever is available.
             batch_mutex.unlock();
+            continue;
+            //END REFACTOR
+            
+            // if (cmd_pending_buffer.size() >= blk_size)
+            // {
+            //      //std::cerr << "enough to fill batch!" << std::endl;
+            //     // std::cerr << "CPU: " << sched_getcpu() << std::endl;
+            //     //timer.del(); //stop current batch timer.
+            //      //std::cerr << "stopped timer" << std::endl;
+
+            //     std::vector<uint256_t> cmds;
+            //     for (uint32_t i = 0; i < blk_size; i++)
+            //     {
+            //         cmds.push_back(cmd_pending_buffer.front());
+            //         cmd_pending_buffer.pop();
+            //     }
+
+            //     pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
+
+            //        // std::cerr << "pacemaker beat" << std::endl;
+            //         if (proposer == get_id()){
+            //             //std::cerr << "on proposer..." << std::endl;
+            //             on_propose(cmds, pmaker->get_parents());
+            //         }
+            //         else{
+            //             //std::cerr << "not proposer..." << std::endl;
+            //         }
+            //     });
+
+            //     // Start a batch timer
+            //     // timer = TimerEvent(ec, [this](TimerEvent &){
+            //     //     batch();
+            //     // });
+            //     // timer.add_m(batch_timeout);
+
+            //     batch_mutex.unlock();
+            //     return true;
+            // }
+            // // else if(!timer){ //If we have no timer: start the first batch timer
+            // //     std :: cerr << "Start first batch timer " << std::endl;
+            // //     timer = TimerEvent(ec, [this](TimerEvent &){
+            // //         batch();
+            // //     });
+            // //     timer.add_m(batch_timeout);
+            // // }
+            // batch_mutex.unlock();
       
             
         }
+
+        //TODO: Ideally beat gets triggered without having to add anything new (for pipelining)
+        // Add all available commands to buffer. Then trigger next beat. Upon beat: pick up to batch size many commands to propose
+        pmaker->beat().then([this](ReplicaID proposer) {
+            //std::cerr << "pacemaker: Core: " << sched_getcpu() << std::endl;
+            batch_mutex.lock();
+
+            //std::cerr << "avail cmds: " << cmd_pending_buffer.size() << std::endl;
+            size_t avail = std::min(cmd_pending_buffer.size(), blk_size);
+            //std::cerr << "propose cmds: " << avail << std::endl;
+
+            std::vector<uint256_t> cmds;
+            for (uint32_t i = 0; i < avail; i++)
+            {
+                cmds.push_back(cmd_pending_buffer.front());
+                cmd_pending_buffer.pop();
+            }
+
+            batch_mutex.unlock();
+
+            
+            if (proposer == get_id()){
+                on_propose(cmds, pmaker->get_parents());
+            }
+        });
+
         return false;
     });
 

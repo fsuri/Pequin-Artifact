@@ -146,7 +146,7 @@ void HotStuffCore::update(const block_t &nblk) {
          //std::cerr << "do consensus" << std::endl;
         do_consensus(blk);
         LOG_PROTO("commit %s", std::string(*blk).c_str());
-        std::cerr << "commit Block: " << blk->height << " with num cmds: " << blk->cmds.size() << std::endl;
+        //std::cerr << "commit Block: " << blk->height << " with num cmds: " << blk->cmds.size() << std::endl;
         for (size_t i = 0; i < blk->cmds.size(); i++)
             do_decide(Finality(id, 1, i, blk->height, blk->cmds[i], blk->get_hash()));
     }
@@ -173,7 +173,7 @@ block_t HotStuffCore::on_propose(const std::vector<uint256_t> &cmds,
     update(bnew);
     Proposal prop(id, bnew, nullptr);
     LOG_PROTO("propose %s", std::string(*bnew).c_str());
-    std::cerr << "propose block at height: " << bnew->height << " with #cmds: " << cmds.size() << std::endl;
+    //std::cerr << "propose block at height: " << bnew->height << " with #cmds: " << cmds.size() << std::endl;
 
     /* self-vote */
     if (bnew->height <= vheight)

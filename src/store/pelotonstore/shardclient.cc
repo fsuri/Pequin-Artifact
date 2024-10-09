@@ -55,6 +55,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
   }
 
   Notice("SMR_mode: %d. SignMessages: %d", SMR_mode, signMessages);
+  if(SMR_mode > 0) UW_ASSERT(signMessages); //Must sign messages with SMR mode: Otherwise fakeSMR is bugged in HandleSQL_RPC reply
 
   if(SMR_mode == 2){
     Debug("created bftsmart agent in shard client!");
@@ -192,7 +193,7 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
 
   
 
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
@@ -242,7 +243,7 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
 
   Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
 
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
@@ -282,7 +283,7 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
   Debug("Sending Abort TxnSeq: %lu ", client_seq_num);
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
@@ -385,7 +386,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int repli
   PendingSQL_RPC &pendingSQL_RPC = itr->second;
 
   if(replica_id < 0){ //if not signing messages, simply add a new reply
-    replica_id = pendingSQL_RPC.numReceivedReplies;
+    replica_id = pendingSQL_RPC.numReceivedReplies;   //FIXME: This is bugged with fakeSMR: we might not use leader vote
   }
  
   if (replica_id / config.n != group_idx) {Panic("Received reply from replica_id that is not in group");}
