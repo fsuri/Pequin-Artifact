@@ -712,7 +712,14 @@ LoaderItemInfo GenerateItemTableRow(TableWriter &writer, AuctionMarkProfile &pro
   values.push_back(std::to_string(itemInfo.get_num_bids()));// I_NUM_BIDS
   values.push_back(std::to_string(itemInfo.numImages));// I_NUM_IMAGES
   values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_GLOBAL_ATTRS
-  values.push_back(std::to_string(itemInfo.numAttributes));// I_NUM_COMMENTS
+  values.push_back(std::to_string(itemInfo.numComments));// I_NUM_COMMENTS
+
+  // std:string item_id_test = "000000037700000000010000000309";
+  // if(itemInfo.get_item_id().encode() == item_id_test){
+  //   std::cerr << "num comments: " << itemInfo.numComments << std::endl;
+  //   //values.push_back(std::to_string(17));// I_NUM_COMMENTS
+  //   //exit(0);
+  // }
 
   values.push_back(std::to_string(itemInfo.startDate));// I_START_DATE
 

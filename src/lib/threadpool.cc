@@ -454,9 +454,11 @@ void ThreadPool::add_n_indexed(int num_threads) {
     Notice("Total Num_cpus on client downregulated to: %d \n", num_cpus);
   }
 
-  uint64_t offset = 1; // skip first core
-  num_threads = num_threads - offset;
- 
+  uint64_t offset = 0;
+  if(num_threads < num_cpus){
+    offset = num_cpus - num_threads; //if we are using less than #num_cpu threads, offset them to account for network/main thread.
+  }
+  
   running = true;
   for (uint32_t i = 0; i < num_threads; i++) { 
     uint64_t worker_id = total_indexed_workers + i;

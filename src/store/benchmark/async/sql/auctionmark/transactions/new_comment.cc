@@ -52,7 +52,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("NEW COMMENT");
+  Notice("NEW COMMENT EXEC");
 
   client.Begin(timeout);
 
@@ -65,6 +65,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
     Panic("item does not exist?");
   }
   deserialize(ic_id, queryResult);
+  Notice("Num comments: %d", ic_id);
   ++ic_id;
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});

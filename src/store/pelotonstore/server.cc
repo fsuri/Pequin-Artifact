@@ -36,29 +36,41 @@
 namespace pelotonstore {
 
 static bool TEST_DUMMY_RESULT = false;
-const uint64_t number_of_threads = 8;
+static uint64_t number_of_threads = 6; //8;
 
 using namespace std;
 
 Server::Server(const transport::Configuration& config, KeyManager *keyManager, std::string &table_registry_path,
   int groupIdx, int idx, int numShards, int numGroups, bool signMessages,
-  bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp, bool localConfig,
+  bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp, bool localConfig, int SMR_mode,
   TrueTime timeServer) : 
   config(config), keyManager(keyManager),
   groupIdx(groupIdx), idx(idx), id(groupIdx * config.n + idx),
   numShards(numShards), numGroups(numGroups), signMessages(signMessages),
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp), localConfig(localConfig), timeServer(timeServer) {
 
-  tp->AddIndexedThreads(number_of_threads);
-
   int num_threads = std::thread::hardware_concurrency();
   if(num_threads > 8) {
     Warning("more than 8 threads"); 
     //num_threads = 8;
   } 
+
   table_store = new pelotonstore::TableStore(num_threads); //Register num_threads many traffic cops to be used for Data Loading
 
   RegisterTables(table_registry_path);
+
+
+    //thread 0 is doing messages
+    //thread 1 is doing parsing.  //TODO: Move these onto same thread
+    //TODO: Configure based off SMR mode
+    //TODO: add offset param  (make offset = num cores - num_threads)
+    //If SMR mode = 0: use 7 threads and offset = 1   => might be better with 6 as well? Maybe just use 6 for even comparison?
+    if(SMR_mode == 0) number_of_threads = 7;
+    if(SMR_mode == 1) number_of_threads = 6;  
+    //If SMR mode = 2 => same I assume. check!
+    if(SMR_mode == 2) number_of_threads = 7;
+  tp->AddIndexedThreads(number_of_threads);
+
 
   Notice("Peloton Server Id: %d", idx);
 }
@@ -204,7 +216,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 
   }
   else{ //if TX has been aborted
-     Debug("ProcessReq Has Been terminated already. client: %lu. txn: %lu. req: %lu", client_id, tx_id, req_id);
+    Debug("ProcessReq Has Been terminated already. client: %lu. txn: %lu. req: %lu", client_id, tx_id, req_id);
     if (type == sql_rpc_template.GetTypeName()) {
       //Panic("Should never get triggered in simple test with single client running sequentially");
       //UW_ASSERT(is_aborted);
@@ -237,7 +249,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 
 
 ::google::protobuf::Message* Server::HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, const std::string &query) {
-  Debug("Handling SQL_RPC [%d:%d:%d] (client, tx_id, req)", client_id, tx_id, req_id);
+  Notice("Handling SQL_RPC [%d:%d:%d] (client, tx_id, req). Query: %s", client_id, tx_id, req_id, query.c_str());
   
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
@@ -252,11 +264,16 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
   bool terminate = true;
 
   if (result_status == peloton_peloton::ResultType::SUCCESS) {
-    Debug("Success! [%d:%d:%d]. Query: %s", client_id, tx_id, req_id, query.c_str());
+    Notice("Success! [%d:%d:%d]. Query: %s", client_id, tx_id, req_id, query.c_str());
     terminate = false;
     reply->set_status(REPLY_OK);
     reply->set_sql_res(result);
   } 
+   else if(result_status == peloton_peloton::ResultType::DUPLICATE) {
+    Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
+      reply->set_status(REPLY_OK); 
+      reply->set_sql_res("");
+  }
   else if(result_status == peloton_peloton::ResultType::FAILURE) {
     Panic("Peloton failed");
     // Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
@@ -264,7 +281,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     //   reply->set_sql_res("");
   }
   else if (result_status == peloton_peloton::ResultType::ABORTED) {
-    Debug("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
+   Notice("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
     reply->set_status(REPLY_FAIL);
     reply->set_sql_res("");
     table_store->Abort(client_id, tx_id); //Explicitly abort Tx  

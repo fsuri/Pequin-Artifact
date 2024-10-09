@@ -69,8 +69,8 @@ bool InsertExecutor::DExecute() {
   auto current_txn = executor_context_->GetTransaction();
 
   if (!target_table) {
-    transaction_manager.SetTransactionResult(current_txn,
-                                             peloton_peloton::ResultType::FAILURE);
+    std::cerr << "Target table false" << std::endl;
+    transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::FAILURE);
     return false;
   }
 
@@ -118,16 +118,15 @@ bool InsertExecutor::DExecute() {
 
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
-      peloton_peloton::ItemPointer location =
-          target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
+      peloton_peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
-      // it is possible that some concurrent transactions have inserted the same
-      // tuple.
-      // in this case, abort the transaction.
+      // it is possible that some concurrent transactions have inserted the same tuple. in this case, abort the transaction. //FIXME: Aborting TX is the wrong semantics for duplicate Insert!!
       if (location.block == INVALID_OID) {
-        transaction_manager.SetTransactionResult(current_txn,
-                                                 peloton_peloton::ResultType::FAILURE);
-        return false;
+        //transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::FAILURE);
+        //return false;
+         std::cerr << "Duplicate insert" << std::endl;
+        transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::DUPLICATE);
+        return true;
       }
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);

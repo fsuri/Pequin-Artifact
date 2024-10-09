@@ -955,7 +955,7 @@ int main(int argc, char **argv) {
       server = new pelotonstore::Server(config, &keyManager, FLAGS_data_file_path, 
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config, FLAGS_pg_SMR_mode);
 
       replica = new pelotonstore::Replica(config, &keyManager,
                                        dynamic_cast<pelotonstore::App *>(server),
