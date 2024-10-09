@@ -244,6 +244,12 @@ class TimerEvent {
             throw SalticidaeError(SALTI_ERROR_LIBUV_START);
     }
 
+    void add_m(uint64_t m_sec) {
+        assert(ev_timer != nullptr);
+        if (uv_timer_start(ev_timer, TimerEvent::timer_then, m_sec, 0) < 0)
+            throw SalticidaeError(SALTI_ERROR_LIBUV_START);
+    }
+
     void del() {
         if (ev_timer != nullptr) uv_timer_stop(ev_timer);
     }

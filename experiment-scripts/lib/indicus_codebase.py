@@ -83,7 +83,8 @@ class IndicusCodebase(ExperimentCodebase):
         if 'message_transport_type' in config['replication_protocol_settings']:
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -205,7 +206,7 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'pg':
             client_command += " --experiment_name=%s" % str(config['experiment_name'])
 
-        if config['replication_protocol'] == 'pg-smr':
+        if config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr':
             client_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
             if 'SMR_mode' in config['replication_protocol_settings']:
                 client_command += ' --pg_SMR_mode=%d' % config['replication_protocol_settings']['SMR_mode']
@@ -379,7 +380,8 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
             n = 5 * config['fault_tolerance'] + 1
-        elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
+            config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             n = 3 * config['fault_tolerance'] + 1
         else:
             n = 2 * config['fault_tolerance'] + 1
@@ -431,7 +433,8 @@ class IndicusCodebase(ExperimentCodebase):
 
 
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
@@ -568,7 +571,7 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'bftsmart':
             replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
-        if config['replication_protocol'] == 'pg-smr':
+        if config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr':
             replica_command += ' --local_config=%s' % str(config['replication_protocol_settings']['local_config']).lower()
             replica_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
             if 'SMR_mode' in config['replication_protocol_settings']:
@@ -669,7 +672,8 @@ class IndicusCodebase(ExperimentCodebase):
         with open(config_file, 'w') as f:
             if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
                 n = 5 * config['fault_tolerance'] + 1
-            elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
+                config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
                 n = 3 * config['fault_tolerance'] + 1
             else:
                 n = 2 * config['fault_tolerance'] + 1
@@ -694,7 +698,8 @@ class IndicusCodebase(ExperimentCodebase):
         return local_exp_directory
 
     def prepare_remote_server_codebase(self, config, host, local_exp_directory, remote_out_directory):
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff'  or config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             run_remote_command_sync('sudo rm -rf /dev/shm/*', config['emulab_user'], host)
 
     def setup_nodes(self, config):

@@ -65,6 +65,10 @@
 // HotStuffPG
 #include "store/pg_SMRstore/replica.h"
 #include "store/pg_SMRstore/server.h"
+// SMR Peloton store
+#include "store/pelotonstore/replica.h"
+#include "store/pelotonstore/server.h"
+
 // Augustus
 #include "store/augustusstore/replica.h"
 #include "store/augustusstore/server.h"
@@ -110,7 +114,9 @@ enum protocol_t {
     // Postgres
     PROTO_PG,
      // PG-SMR
-    PROTO_PG_SMR
+    PROTO_PG_SMR,
+    // Peloton-SMR
+    PROTO_PELOTON_SMR
 };
 
 enum transmode_t {
@@ -158,7 +164,8 @@ const std::string protocol_args[] = {
   "bftsmart",
 	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
-  "pg-smr"
+  "pg-smr",
+  "peloton-smr"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -172,7 +179,8 @@ const protocol_t protos[] {
   PROTO_BFTSMART,
   PROTO_AUGUSTUS_SMART,
   PROTO_PG,
-  PROTO_PG_SMR
+  PROTO_PG_SMR,
+  PROTO_PELOTON_SMR
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -400,10 +408,10 @@ DEFINE_uint64(pbft_esig_batch_timeout, 10, "signature batch timeout ms"
 DEFINE_bool(pbft_order_commit, true, "order commit writebacks as well");
 DEFINE_bool(pbft_validate_abort, true, "validate abort writebacks as well");
 
-//HotstuffPG settings.
+//PG-SMR / Peloton-SMR settings.
 DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
 DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
-DEFINE_uint64(hs_dummy_to, 100, "hotstuff dummy timeout ms (to fill pipeline)");
+DEFINE_uint64(hs_dummy_to, 5, "hotstuff dummy timeout ms (to fill pipeline)");
 
 const std::string occ_type_args[] = {
 	"tapir",
@@ -546,7 +554,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  int threadpool_mode = 0; //default for Basil.
+  int threadpool_mode = 0; //default for Basil.   //|| proto == PROTO_PELOTON_SMR
   if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
@@ -738,6 +746,7 @@ int main(int argc, char **argv) {
       case PROTO_PBFT:
       case PROTO_HOTSTUFF:
       case PROTO_PG_SMR:
+      case PROTO_PELOTON_SMR:
       case PROTO_BFTSMART:
       case PROTO_AUGUSTUS_SMART:
       case PROTO_AUGUSTUS:
@@ -930,6 +939,26 @@ int main(int argc, char **argv) {
 
       replica = new pg_SMRstore::Replica(config, &keyManager,
                                        dynamic_cast<pg_SMRstore::App *>(server),
+                                       FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
+                                       FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
+                                       FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
+                                       FLAGS_indicus_use_coordinator, FLAGS_indicus_request_tx, protocol_cpu, FLAGS_local_config, FLAGS_num_shards, tport, 
+                                       FLAGS_pg_fake_SMR, FLAGS_hs_dummy_to, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
+    
+      break;
+  }
+
+       // Peloton SMR
+  case PROTO_PELOTON_SMR: {
+      Notice("Using [%s] server config", FLAGS_local_config ? "LOCAL" : "REMOTE");
+   
+      server = new pelotonstore::Server(config, &keyManager, FLAGS_data_file_path, 
+                                     FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
+                                     FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+
+      replica = new pelotonstore::Replica(config, &keyManager,
+                                       dynamic_cast<pelotonstore::App *>(server),
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,

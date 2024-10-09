@@ -362,6 +362,7 @@ class PartCertSecp256k1: public SigSecp256k1, public PartCert {
     }
 
     promise_t verify(const PubKey &pub_key, VeriPool &vpool) override {
+        //fprintf(stderr, "[CPU:%d]: Verify \n", sched_getcpu());
         return vpool.verify(new Secp256k1VeriTask(obj_hash,
                 static_cast<const PubKeySecp256k1 &>(pub_key),
                 static_cast<const SigSecp256k1 &>(*this)));

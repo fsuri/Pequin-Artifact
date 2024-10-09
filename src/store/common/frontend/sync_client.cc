@@ -228,6 +228,7 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
 void SyncClient::Query(const std::string &query, uint32_t timeout, bool cache_result) {
   Promise *promise = new Promise(timeout);
   queryPromises.push_back(promise);
+ 
   client->Query(query, std::bind(&SyncClient::QueryCallback, this, promise,
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::QueryTimeoutCallback, this,

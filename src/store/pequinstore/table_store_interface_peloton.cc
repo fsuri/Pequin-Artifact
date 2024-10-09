@@ -22,7 +22,7 @@
 #include "store/pequinstore/table_store_interface_peloton.h"
 #include "lib/assert.h"
 #include "lib/message.h"
-#include "store/pequinstore/query-engine/traffic_cop/traffic_cop.h"
+//#include "store/pequinstore/query-engine/traffic_cop/traffic_cop.h"
 #include <algorithm>
 #include <atomic>
 #include <sched.h>

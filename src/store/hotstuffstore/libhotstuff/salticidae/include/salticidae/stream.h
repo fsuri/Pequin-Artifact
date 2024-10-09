@@ -288,6 +288,13 @@ class Blob: public Serializable {
 
     size_t cheap_hash() const { return *data; }
 
+    std::string to_string() const {
+        std::string hash;
+        for(size_t i = 0; i < _len; ++i){
+            hash += to_string(data[i]);
+        }
+    }
+
     void serialize(DataStream &s) const override {
         if (loaded)
         {

@@ -33,6 +33,7 @@ bool QuorumCertSecp256k1::verify(const ReplicaConfig &config) {
     for (size_t i = 0; i < rids.size(); i++)
         if (rids.get(i))
         {
+            //fprintf(stderr, "[CPU:%d]: Verify sig %d", sched_getcpu(), i);
             HOTSTUFF_LOG_DEBUG("checking cert(%d), obj_hash=%s",
                                 i, get_hex10(obj_hash).c_str());
             if (!sigs[i].verify(obj_hash,
@@ -50,6 +51,7 @@ promise_t QuorumCertSecp256k1::verify(const ReplicaConfig &config, VeriPool &vpo
     for (size_t i = 0; i < rids.size(); i++)
         if (rids.get(i))
         {
+            //fprintf(stderr, "[CPU:%d]: Dispatch Verify sig %d to pool", sched_getcpu(), i);
             HOTSTUFF_LOG_DEBUG("checking cert(%d), obj_hash=%s",
                                 i, get_hex10(obj_hash).c_str());
             vpm.push_back(vpool.verify(new Secp256k1VeriTask(obj_hash,

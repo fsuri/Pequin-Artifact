@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+import "store/common/common-proto.proto";
+import "store/common/query_result/query-result-proto.proto";
+import "store/pelotonstore/pbft-proto.proto";
+
+package pelotonstore.proto;
+
+message SQL_RPC {
+  required uint64 req_id = 1;
+  required bytes query = 2;
+  required uint64 client_id = 4;
+  required uint64 txn_seq_num = 5;
+}
+
+message TryCommit {
+  required uint64 req_id = 1;
+  required uint64 client_id = 3;
+  required uint64 txn_seq_num = 4;
+}
+
+message UserAbort {
+  required uint64 client_id = 1;
+  required uint64 txn_seq_num = 2;
+}
+
+message SQL_RPCReply {
+  required uint64 req_id = 1;
+  required int32 status = 2;
+  optional bytes sql_res = 3;
+}
+
+message TryCommitReply {
+  required uint64 req_id = 1;
+  required int32 status = 2;
+}
