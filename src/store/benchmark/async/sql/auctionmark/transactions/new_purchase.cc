@@ -146,7 +146,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   client.Wait(results);
 
   //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE ISSUED THE PURCHASE.) In this case: update cache and pick a different TX.
-  if(!results[0]->has_rows_affected()){ //If purchase fails.
+  if(!results[0]->has_rows_affected() || results[0]->rows_affected() == 0){ //If purchase fails.
     Notice("Item has already been purchased");
     //Update the cache
     ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.

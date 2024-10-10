@@ -247,6 +247,14 @@ void TrafficCop::ExecuteStatementPlanGetResult() {
         }
     }
   }
+  // if(txn_result == ResultType::DUPLICATE){
+  //   std::cerr << "result type was duplicate" << std::endl;
+  //   p_status_.m_result = ResultType::DUPLICATE;
+  // }
+  // if(txn_result == ResultType::SUCCESS){
+  //   std::cerr << "result type was success" << std::endl;
+  //   p_status_.m_result = ResultType::SUCCESS;
+  // }
 }
 
 /*

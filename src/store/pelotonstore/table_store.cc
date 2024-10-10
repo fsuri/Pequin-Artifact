@@ -315,6 +315,8 @@ std::string TableStore::ExecTransactional(const std::string &sql_statement, uint
   GetResult(status, rows_affected, tcop, counter);  //If result was queuing => fetch final result. If result was not queuing, result was already != sucess, so nothing needs to be done.
   result_status = status;
 
+   Debug("[CPU: %d] End of tx [%d:%d] Statement: %s. Status: %d", sched_getcpu(), client_id, tx_id, sql_statement.c_str(), result_status);
+
   if (status == peloton_peloton::ResultType::SUCCESS){
     Debug("RawExecResult success");
     std::string &&res(TransformResult(status, statement, result, rows_affected));

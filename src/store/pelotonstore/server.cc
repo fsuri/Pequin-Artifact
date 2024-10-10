@@ -249,7 +249,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 
 
 ::google::protobuf::Message* Server::HandleSQL_RPC(ClientStateMap::accessor &c, uint64_t req_id, uint64_t client_id, uint64_t tx_id, const std::string &query) {
-  Notice("Handling SQL_RPC [%d:%d:%d] (client, tx_id, req). Query: %s", client_id, tx_id, req_id, query.c_str());
+  Debug("Handling SQL_RPC [%d:%d:%d] (client, tx_id, req). Query: %s", client_id, tx_id, req_id, query.c_str());
   
   proto::SQL_RPCReply* reply = new proto::SQL_RPCReply();
   reply->set_req_id(req_id);
@@ -263,14 +263,16 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
 
   bool terminate = true;
 
-  if (result_status == peloton_peloton::ResultType::SUCCESS) {
-    Notice("Success! [%d:%d:%d]. Query: %s", client_id, tx_id, req_id, query.c_str());
+  if (result_status == peloton_peloton::ResultType::SUCCESS) {  //NOTE: If an INSERT failed it will still be treated as Success, but rows_affected will be 0
+    Debug("Success! [%d:%d:%d]. Query: %s", client_id, tx_id, req_id, query.c_str());
     terminate = false;
     reply->set_status(REPLY_OK);
     reply->set_sql_res(result);
   } 
    else if(result_status == peloton_peloton::ResultType::DUPLICATE) {
+    Panic("This case should not be getting triggered. Failed Inserts should go through Success status as well, but will have rows_applied == 0");
     Notice("Peloton Failure [%d:%d:%d] An integrity exception caught while using peloton.: %s", client_id, tx_id, req_id, error_msg.c_str());
+    terminate = false;
       reply->set_status(REPLY_OK); 
       reply->set_sql_res("");
   }
@@ -281,7 +283,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
     //   reply->set_sql_res("");
   }
   else if (result_status == peloton_peloton::ResultType::ABORTED) {
-   Notice("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
+   Debug("Peloton Aborted [%d:%d:%d] : Q:%s. Error: %s", client_id, tx_id, req_id, query.c_str(), error_msg.c_str());
     reply->set_status(REPLY_FAIL);
     reply->set_sql_res("");
     table_store->Abort(client_id, tx_id); //Explicitly abort Tx  

@@ -16,12 +16,12 @@ LOCAL="true"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
 ASYNC_SERVER="true"
 HS_DUMMY_TO=50
-SMR_MODE=1
+SMR_MODE=0
 
 # FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
-FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
-#FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
 
