@@ -160,7 +160,7 @@ void Server::Execute_Callback(const string& type, const string& msg, std::functi
     delete req;
 
     // Issue Callback back on mainthread (That way don't need to worry about concurrency when building EBatch)
-    tp->IssueCB(std::bind(ecb, results), (void*) true);
+    tp->IssueCB(std::bind(cb, results), (void*) true);
   
     return (void*) true;
   };
@@ -439,10 +439,8 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
       const tao::pq::result sql_res = tx->execute(query);
     
       Debug("Finished Exec");
-      sql::QueryResultProtoBuilder* res_builder = createResult(sql_res);
       reply->set_status(REPLY_OK);
-      reply->set_sql_res(res_builder->get_result()->SerializeAsString());
-      delete res_builder;
+      reply->set_sql_res(createResult(sql_res));
     }
     
   } 
@@ -649,7 +647,7 @@ std::string Server::createResult(const tao::pq::result &sql_res){
     res_builder.add_empty_row();
   } else {
     for(int i = 0; i < sql_res.columns(); i++) {
-      res_builder->add_column(sql_res.name(i));
+      res_builder.add_column(sql_res.name(i));
       // std::cerr << sql_res.name(i) << std::endl;
     }
     Debug("res size: %d", sql_res.size());
@@ -657,7 +655,7 @@ std::string Server::createResult(const tao::pq::result &sql_res){
       RowProto *new_row = res_builder.new_row();
       for( const auto& field : row ) {
         std::string field_str = field.as<std::string>();
-        res_builder->AddToRow(new_row,field_str);
+        res_builder.AddToRow(new_row,field_str);
       }
     }
   }
