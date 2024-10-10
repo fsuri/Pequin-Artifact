@@ -58,10 +58,10 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
-
-    struct timespec ts_start;
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    //FIXME: Remove
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
      if(TEST_READ_MATERIALIZED) TEST_READ_MATERIALIZED_f();
 
@@ -106,7 +106,16 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         }
     } 
     if(read_materialized){
-        Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
+        //Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
+        if(query_md->retry_version > 0){
+            for(auto const &[tx, _]: query_md->merged_ss_msg->merged_txns()){
+                materializedMap::const_accessor mat;
+                bool found = materialized.find(mat, tx);
+                mat.release();
+                if(!found) Panic("Tx[%s] has not been successfully materialized before starting exec");
+            }
+        }
+
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
 
@@ -193,13 +202,13 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
                 }
             }
 
-
             if(PRINT_READ_SET){
+                Notice("Query[%lu:%lu] read set.", query_md->ts.getTimestamp(), query_md->ts.getID());
                 for(auto &read : queryReadSetMgr.read_set->read_set()){
-                    Debug("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+                   Notice("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
                 }
                 for(auto &dep : queryReadSetMgr.read_set->deps()){
-                    Debug("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
+                    Notice("Dependency on Txn: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
                 }
             }
 
@@ -225,11 +234,11 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //// END DEBUG CODE        
     
     //FIXME: REMOVE
-    struct timespec ts_end;
-    clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    auto duration = microseconds_end - microseconds_start;
-    if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = microseconds_end - microseconds_start;
+    // if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
     
    
     return serialized_result;
@@ -380,6 +389,7 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
 
         if(TEST_MATERIALIZE_FORCE) TEST_MATERIALIZE_FORCE_f(txn, tx_id);
      
+       Debug("Txn part of snapshot is locally present, but not materialized (might be abstain, or still in process of preparing). Register force mat[%s]!", BytesToHex(tx_id, 16).c_str());
         RegisterForceMaterialization(tx_id, txn); 
     }
 
@@ -501,9 +511,12 @@ void Server::RequestMissing(const proto::ReplicaList &replica_list, std::map<uin
 bool Server::RegisterForceMaterialization(const std::string &txnDigest, const proto::Transaction *txn){
  //Note: This is called if a Tx is ongoing but not committed/aborted & it is not yet materialized. (ongoing indicates that it has or will TryPrepare)
 
+  Debug("Register ForceMaterialize Txn[%s]!", BytesToHex(txnDigest, 16).c_str());
+
   p1MetaDataMap::accessor c;
   p1MetaData.insert(c, txnDigest); 
-  if(c->second.hasP1){  //if already has a p1 result => ForceMat
+  if(c->second.hasP1 && !c->second.alreadyForceMaterialized){  //if already has a p1 result => ForceMat
+    c->second.alreadyForceMaterialized = true; //avoid forceMat twice.
     Debug("Txn[%s] hasP1 result. Attempting force materialization.", BytesToHex(txnDigest, 16).c_str());
     ForceMaterialization(c->second.result, txnDigest, txn); //Note: This only force materializes if the result is abstain (i.e. if it's not materialized yet)
     return false;

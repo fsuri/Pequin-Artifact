@@ -160,6 +160,8 @@ inline void load_row(std::unique_ptr<query_result::Row> row,
   row->get(5, &supply_w_id);
   row->get(6, &delivery_d);
   row->get(7, &quantity);
+  row->get(8, &amount);
+  //Note: dist info not read currently
   o.set_o_id(o_id);
   o.set_d_id(d_id);
   o.set_w_id(w_id);

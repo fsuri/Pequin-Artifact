@@ -388,31 +388,32 @@ void TimestampOrderingTransactionManager::PerformInsert(
   tile_group_header->SetLastReaderCommitId(tuple_id, current_txn->GetCommitId());
 
   // no need to set next item pointer.
-
+ 
   // NEW: add timestamp
-  auto ts = current_txn->GetBasilTimestamp();
-  tile_group_header->SetBasilTimestamp(tuple_id, ts);
+  // auto ts = current_txn->GetBasilTimestamp();
+  // tile_group_header->SetBasilTimestamp(tuple_id, ts);
 
-  // NEW: set txn digest
-  tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
+  // // NEW: set txn digest
+  // tile_group_header->SetTxnDig(tuple_id, current_txn->GetTxnDig());
 
-  // NEW: set commit proof
-  const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
-  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
-    /*auto ts1 = Timestamp(proof->txn().timestamp());
-    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());*/
-  }
-  tile_group_header->SetCommittedProof(tuple_id, proof);
-  // NEW: set commit or prepare
-  tile_group_header->SetCommitOrPrepare(tuple_id, current_txn->GetCommitOrPrepare());
-  //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
-  tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
+  // // NEW: set commit proof
+  // const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
+  // if (ts.getTimestamp() > 0 && current_txn->GetCommitOrPrepare()) {
+  //   UW_ASSERT(proof != nullptr);
+  //   /*auto ts1 = Timestamp(proof->txn().timestamp());
+  //   Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());*/
+  // }
+  // tile_group_header->SetCommittedProof(tuple_id, proof);
+  // // NEW: set commit or prepare
+  // tile_group_header->SetCommitOrPrepare(tuple_id, current_txn->GetCommitOrPrepare());
+  // //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
+  // tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
 
   // Add the new tuple into the insert set
   //current_txn->RecordInsert(location);
-  tile_group_header->GetSpinLatch(tuple_id).Lock();
+  //tile_group_header->GetSpinLatch(tuple_id).Lock();
   tile_group_header->SetIndirection(tuple_id, index_entry_ptr);
-  tile_group_header->GetSpinLatch(tuple_id).Unlock();
+  //tile_group_header->GetSpinLatch(tuple_id).Unlock();
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(
@@ -444,96 +445,162 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
   // if the executor doesn't call PerformUpdate after AcquireOwnership,
   // no one will possibly release the write lock acquired by this txn.
-  auto ts = current_txn->GetBasilTimestamp();
-  new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
 
-  new_tile_group_header->SetTxnDig(new_location.offset, current_txn->GetTxnDig());
+  //Set Pequin meta data
+  // auto ts = current_txn->GetBasilTimestamp();
+  // new_tile_group_header->SetBasilTimestamp(new_location.offset, ts);
 
-  // NEW: set commit proof
-  const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
-  if (current_txn->GetCommitOrPrepare() && proof != nullptr) {
-    auto ts1 = Timestamp(proof->txn().timestamp());
-    Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());
-  }
-  new_tile_group_header->SetCommittedProof(new_location.offset, proof);
 
-  // NEW: set commit or prepare. Set Materialize
-  new_tile_group_header->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());
-  //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
-  new_tile_group_header->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
+  // new_tile_group_header->SetTxnDig(new_location.offset, current_txn->GetTxnDig());
 
-  Debug("Setting new ts to [%lu:%lu]", ts.getTimestamp(), ts.getID());
+  // // NEW: set commit proof
+  // const pequinstore::proto::CommittedProof *proof = current_txn->GetCommittedProof();
+  // if (ts.getTimestamp() > 0 && current_txn->GetCommitOrPrepare()) {
+  //   UW_ASSERT(proof != nullptr);
+  //   /*auto ts1 = Timestamp(proof->txn().timestamp());
+  //   Debug("The commit proof timestamp is %lu, %lu", ts1.getTimestamp(), ts1.getID());*/
+  // }
+  // new_tile_group_header->SetCommittedProof(new_location.offset, proof);
+
+  // // NEW: set commit or prepare. Set Materialize
+  // new_tile_group_header->SetCommitOrPrepare(new_location.offset, current_txn->GetCommitOrPrepare());
+  // //if(current_txn->GetForceMaterialize()) Panic("shouldn't be foreMat for current test");
+  // new_tile_group_header->SetMaterialize(new_location.offset, current_txn->GetForceMaterialize());
+
+  // Debug("Setting new ts to [%lu:%lu]", ts.getTimestamp(), ts.getID());
+
+  // Notice("Core[%d] New_loc: [%p: %lu %lu]. Old_loc: [%p: %lu %lu].", 
+  //           sched_getcpu(),
+  //           &new_location, new_location.block, new_location.offset,
+  //           &old_location, old_location.block, old_location.offset);
 
   ItemPointer *index_entry_ptr = tile_group_header->GetIndirection(old_location.offset);
-  if (index_entry_ptr != nullptr) {
-    auto index_tile_group_header = storage_manager->GetTileGroup(index_entry_ptr->block)->GetHeader();
-    auto head_ts = index_tile_group_header->GetBasilTimestamp(index_entry_ptr->offset);
-    // std::cerr << "index entry not null" << std::endl;
-    ItemPointer curr_pointer = *index_entry_ptr;
-    auto curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+  UW_ASSERT(index_entry_ptr);
+  
+  new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);   //TODO: FIXME: Why is this different. 
+ 
+  
+  //Find the current linked list header (atomically)
+  // ItemPointer head_pointer;
+  // peloton::storage::TileGroupHeader *head_tile_group_header; 
+  // while(true){
+  //   head_pointer = *index_entry_ptr;
+  //   head_tile_group_header = storage_manager->GetTileGroup(head_pointer.block)->GetHeader();
+   
+  //   head_tile_group_header->GetSpinLatch(head_pointer.offset).Lock(); //TODO: change code to TryLock
+    
+  //   //index_entry_ptr = new_tile_group_header->GetIndirection(new_location.offset); //TODO: Should be able to remove line
 
-    while (new_tile_group_header->GetBasilTimestamp(new_location.offset) < curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
+  //   //check if we are holding the lock for the header. If not (i.e. the header changed in the meantime, need to re-read the right header)
+  //   if(!(head_pointer == *index_entry_ptr)){
+  //       // Notice("Core[%d] Not equal: Head pointer [%p: %lu %lu]. Index_entry_ptr [%p: %lu %lu]. Equal? %d", 
+  //       //   sched_getcpu(), &head_pointer, head_pointer.block, head_pointer.offset, index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, (head_pointer == *index_entry_ptr));
+  //     head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock(); 
+  //     continue;
+  //   }
+  //   break;
+  // }
+
+
+    ItemPointer curr_pointer = *index_entry_ptr;
+    peloton::storage::TileGroupHeader *curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+    //Find the right location to insert in linked list.
+
+   
+    auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
+    auto head_ts = curr_ts;
+    auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+
+  
+    while (new_ts < curr_ts) {
       // Update current pointer and the associated header
       // std::cerr << "Iterate through while loop" << std::endl;
       if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
         break;
       }
+      
       curr_pointer = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
       curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+      curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);    
     }
+    //Invariant: //TS >= Curr_ts => New tuple should be put *before* curr_pointer (Head is "left" in linked list) OR new tuple goes at end of linked list
 
-    auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
-    auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
+    
     Debug("Curr ts is [%lu:%lu]. New ts is [%lu:%lu]", curr_ts.getTimestamp() ,curr_ts.getID(), new_ts.getTimestamp(),new_ts.getID());
 
-    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset)) {
-
-      // NEW: For out of order inserts
-      if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
-        //std::cerr << "In the if case" << std::endl;
-        auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
-        auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
-        prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
-        new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
-      }
-
-      // std::cerr << "If case" << std::endl;
-      curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
-      new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
-
-      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
-      new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
-    } else {
-      //std::cerr << "In the else case" << std::endl;
-      // NEW: For out of order inserts
-      if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
-
-        auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
-        auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
-        next_tile_group_header->SetPrevItemPointer(next_loc.offset, new_location);
-        new_tile_group_header->SetNextItemPointer(new_location.offset, next_loc);
-      }
-
-      // std::cerr << "Else case" << std::endl;
-      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+    //Note: In theory we should hold a mutex during read time too, to make sure all re-links are observed atomically. 
+    //However, I think we can get away with simply linking in a safe order: Link new tuple links before changing existing tuple links. Change prev before next.
+    //
+    if(new_ts < curr_ts){ //Curr was tail => add us to right
       new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
+      curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+    }
+    else if(new_ts > curr_ts || (new_ts == curr_ts && current_txn->GetCommitOrPrepare())){ // Add us to left
 
-      new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
-      new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
+        new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
+
+        //if curr node is head
+        bool is_head = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull();
+
+        if(is_head){ //if curr node is head
+          curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+        }
+        else{  //need to link to parent as well.
+          auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+          auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
+      
+          new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
+          curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+          prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);  //link next ptr from existing linked list last.
+        }
+    }
+    else{
+      UW_ASSERT(new_ts == curr_ts); //Do nothing. Must be a prepare/force-mat, ignore.
     }
 
+    // if (new_ts > curr_ts) {
+    //   if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
+    //     //std::cerr << "In the if case" << std::endl;
+    //     auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
+    //     auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
+    //     prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);
+    //     new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
+    //   }
+
+    //   // std::cerr << "If case" << std::endl;
+    //   curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
+    //   new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
+
+    
+    // } 
+    
+    // else { //tuple is going at end of linked list
+    //   if (!curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
+    //     UW_ASSERT(new_ts == curr_ts); //TODO: FIXME: This case should, in theory (under proper atomicity), be impossible. 
+    //                                   //However, currently it is possible since we 1) check for dupliates in data table, then release lock, and then 2) insert here while holding lock.
+
+    //     auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
+    //     auto next_tile_group_header = storage_manager->GetTileGroup(next_loc.block)->GetHeader();
+    //     next_tile_group_header->SetPrevItemPointer(next_loc.offset, new_location);
+    //     new_tile_group_header->SetNextItemPointer(new_location.offset, next_loc);
+    //   }
+
+    //   curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
+    //   new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
+    // }
+    
+    //Peloton internal, probably fine to remove
+    new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
+    new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
+
     COMPILER_MEMORY_FENCE;
-    new_tile_group_header->GetSpinLatch(new_location.offset).Lock();
-    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock();
+    // new_tile_group_header->GetSpinLatch(new_location.offset).Lock();
+    // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock();
 
-    new_tile_group_header->SetIndirection(new_location.offset, index_entry_ptr);
-    curr_tile_group_header->SetIndirection(curr_pointer.offset, index_entry_ptr);
-    // UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, old_location);
 
-    Debug("Update for delete");
-    // Update the index entry pointer if necessary
+    //If new tuple has become head => update index entry pointer
     if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >  head_ts) {
-      Debug("Updating the head pointer of linked list");
+      Debug("[Core: %d] Updating the head pointer of linked list. From [%p: %lu %lu] -> [%p: %lu %lu]", sched_getcpu(), index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, &new_location, new_location.block, new_location.offset);
       COMPILER_MEMORY_FENCE;
 
       // Set the index header in an atomic way.
@@ -548,9 +615,11 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       current_txn->RecordUpdate(new_location);
     }
 
-    new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
-    curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
-  }
+    // new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
+    // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
+
+  //head_tile_group_header->GetSpinLatch(head_pointer.offset).Unlock();
+  
 }
 
 void TimestampOrderingTransactionManager::PerformUpdate(

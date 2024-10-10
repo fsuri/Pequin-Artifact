@@ -63,6 +63,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
     bool IsImplicitPointRead(concurrency::TransactionContext *current_txn);
     void TryForceReadSetAddition(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &timestamp);
   void SetTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr, const Timestamp &current_txn_timestamp);
+  void RefineTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr);
   void GetColNames(const expression::AbstractExpression * child_expr, std::unordered_set<std::string> &column_names, bool use_updated = true);
 
 
@@ -97,7 +98,7 @@ class IndexScanExecutor : public AbstractScanExecutor {
     bool FindRightRowVersion_Old(const Timestamp &timestamp, std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
         size_t &num_iters, concurrency::TransactionContext *current_txn, bool &read_curr_version, bool &found_committed, bool &found_prepared);
     void EvalRead(std::shared_ptr<storage::TileGroup> tile_group, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location,
-        std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, bool use_secondary_index = false);
+        std::vector<ItemPointer> &visible_tuple_locations, concurrency::TransactionContext *current_txn, std::set<ItemPointer> &visible_tuple_set, bool use_secondary_index = false);
     void SetPointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, Timestamp const &write_timestamp);
     void RefinePointRead(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, bool eval);
     void ManageSnapshot(concurrency::TransactionContext *current_txn, storage::TileGroupHeader *tile_group_header, ItemPointer tuple_location, const Timestamp &write_timestamp, 
@@ -151,6 +152,8 @@ class IndexScanExecutor : public AbstractScanExecutor {
   bool already_added_table_col_versions;
   bool first_execution;
   bool is_implicit_point_read_;
+
+  Timestamp lowest_snapshot_frontier;
 
   // TODO make predicate_ a unique_ptr
   // this is a hack that prevents memory leak

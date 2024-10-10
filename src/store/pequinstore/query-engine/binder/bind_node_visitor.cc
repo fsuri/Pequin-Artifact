@@ -209,9 +209,9 @@ void BindNodeVisitor::Visit(parser::CreateStatement *node) {
 void BindNodeVisitor::Visit(parser::InsertStatement *node) {
 
    //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
- struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+//   struct timespec ts_start;
+//   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+//   uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   node->TryBindDatabaseName(default_database_name_);
   context_ = std::make_shared<BinderContext>(nullptr);
@@ -222,14 +222,14 @@ void BindNodeVisitor::Visit(parser::InsertStatement *node) {
   }
   context_ = nullptr;
 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-   auto duration2 = microseconds_end - microseconds_start;
-  if(duration2 > 100){
-    Warning("BindNameToNode (VISIT INSERT) exceeded 100us: %d", duration2);
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  //  auto duration2 = microseconds_end - microseconds_start;
+  // if(duration2 > 100){
+  //   Warning("BindNameToNode (VISIT INSERT) exceeded 100us: %d", duration2);
+  // }
 }
 void BindNodeVisitor::Visit(parser::DropStatement *node) {
   node->TryBindDatabaseName(default_database_name_);

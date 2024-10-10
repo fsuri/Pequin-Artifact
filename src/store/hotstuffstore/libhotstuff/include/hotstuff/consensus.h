@@ -251,6 +251,7 @@ struct Vote: public Serializable {
 
     promise_t verify(VeriPool &vpool) const {
         assert(hsc != nullptr);
+        //fprintf(stderr, "[CPU:%d]: Verify pool\n", sched_getcpu());
         return cert->verify(hsc->get_config().get_pubkey(voter), vpool).then([this](bool result) {
             return result && cert->get_obj_hash() == blk_hash;
         });

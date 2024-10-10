@@ -562,6 +562,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         //could have a list of interested clients.
 
         bool forceMaterialize;
+        bool alreadyForceMaterialized;
       };
       typedef tbb::concurrent_hash_map<std::string, P1MetaData> p1MetaDataMap;
     p1MetaDataMap p1MetaData;
@@ -1068,6 +1069,19 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   };
   typedef tbb::concurrent_hash_map<std::string, ongoingData> ongoingMap;
   ongoingMap ongoing;
+
+  tbb::concurrent_unordered_set<std::string> ongoingErased; //FIXME: REMOVE. Just for testing.
+
+  struct ooMsg { //out of order msg
+    ooMsg() : mode(0) {}
+    ~ooMsg(){}
+      uint8_t mode; //2 = wb, 1 =p2
+      proto::Phase2 *p2;
+      proto::Writeback *wb;
+      TransportAddress *remoteCopy; 
+  };
+  typedef tbb::concurrent_hash_map<std::string, ooMsg> ooMap;
+  ooMap ooMessages;
 
   typedef tbb::concurrent_hash_map<uint64_t, std::string> ts_to_txMap;
   ts_to_txMap ts_to_tx;

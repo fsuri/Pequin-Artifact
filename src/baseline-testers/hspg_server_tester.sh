@@ -16,6 +16,7 @@ LOCAL="true"
 #"0_local_test_outputs/kv_example/kv-tables-schema.json"
 pg_fake_SMR="true"
 HS_DUMMY_TO=100
+SMR_MODE=1
 
 # FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
@@ -40,12 +41,12 @@ N=$((3*$F+1))
 
 
 
-if [ "$PROTOCOL" = "pg-smr" ] ; then
-    echo "Setting up postgres enviorment with $N different databases"
-	./scripts/postgres_service.sh -r
-	./scripts/postgres_service.sh -n $N
+# if [ "$PROTOCOL" = "pg-smr" ] ; then
+#     echo "Setting up postgres enviorment with $N different databases"
+# 	./scripts/postgres_service.sh -r
+# 	./scripts/postgres_service.sh -n $N
 
-fi
+# fi
 
 
 
@@ -67,8 +68,9 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	for i in `seq 0 $((N-1))`; do
 
 		# Shir : my previous cmd 
-		DEBUG=* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --pg_fake_SMR=$pg_fake_SMR --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --local_config=$LOCAL --hs_dummy_to=$HS_DUMMY_TO --pg_SMR_mode 1 &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
-		
+		# DEBUG=* store/server store/hotstuffstore/libhotstuff/examples/* --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --pg_fake_SMR=$pg_fake_SMR --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --local_config=$LOCAL --hs_dummy_to=$HS_DUMMY_TO --pg_SMR_mode 1 &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+		DEBUG=* store/server --config_path $CONFIG --group_idx $j --num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL --num_keys $NUM_KEYS_IN_DB  --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine --pg_SMR_mode=$SMR_MODE --local_config=$LOCAL --hs_dummy_to=$HS_DUMMY_TO --indicus_sign_messages='true' &> 0_local_test_outputs/server$(($i+$j*$N)).out &
+
 		
 		#echo Starting Replica $(($i+$j*$N))
 		#valgrind --tool=callgrind --instr-atstart=no

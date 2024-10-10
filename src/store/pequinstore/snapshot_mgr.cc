@@ -281,19 +281,33 @@ void SnapshotManager::SealMergedSnapshot(){
   if(!useOptimisticTxId){
      //remove all keys with insufficient replicas.
     for (auto it = merged_ss->mutable_merged_txns()->begin(), next_it = it; it != merged_ss->mutable_merged_txns()->end();  it = next_it){ /* not hoisted */; /* no increment */
+      
         ++next_it;
         proto::ReplicaList &replica_list = it->second;
+        
+        //FIXME: REMOVE. JUST TEST CODE
+        // if(replica_list.commit_count() < config_f+1) replica_list.set_prepared(true);
+        // Notice("Snapshot tentatively included tx-id: %s. Prepared? %d", BytesToHex(it->first, 16).c_str(), it->second.prepared());
+        // for(auto &id: it->second.replicas()){
+        //   Notice("   vouched for by replica: %d", id);
+        // }
+
         if (replica_list.replicas().size() < query_params->mergeThreshold){
           merged_ss->mutable_merged_txns()->erase(it);   
           continue; 
         }
         replica_list.mutable_replicas()->Truncate(config_f +1);   //prune replica lists to be f+1 max.
         if(replica_list.commit_count() < config_f+1) replica_list.set_prepared(true);
+       
     }
   }
   else{
      //remove all keys with insufficient replicas.
     for (auto it = merged_ss->mutable_merged_ts()->begin(), next_it = it; it != merged_ss->mutable_merged_ts()->end();  it = next_it){ /* not hoisted */; /* no increment */
+    //  Notice("Snapshot tentatively included ts-id: %lu. Prepared? %d", it->first,  it->second.prepared());
+    //   for(auto &id: it->second.replicas()){
+    //     Notice("   vouched for by replica: %d", id);
+    //   }
         ++next_it;
         proto::ReplicaList &replica_list = it->second;
         if (replica_list.replicas().size() < query_params->mergeThreshold){

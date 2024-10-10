@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <queue>
 #include <set>
 
@@ -26,6 +27,7 @@
 #include "../storage/abstract_table.h"
 #include "../storage/indirection_array.h"
 #include "../storage/layout.h"
+#include "../storage/tile_group_header.h"
 // #include "../trigger/trigger.h"
 
 //===--------------------------------------------------------------------===//
@@ -100,11 +102,22 @@ public:
 
   ~DataTable();
 
+   //===--------------------------------------------------------------------===//
+  // Pequin modifiers
+  //===--------------------------------------------------------------------===//
+  void SetPequinMetaData(ItemPointer &location, concurrency::TransactionContext *current_txn);
+
+  bool CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header,
+                                 ItemPointer *index_entry_ptr, ItemPointer &check, concurrency::TransactionContext *transaction);
+    void PurgeRowVersion(ItemPointer *index_entry_ptr, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction);
+    void UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, 
+                                  ItemPointer &curr_pointer, concurrency::TransactionContext *transaction, const Timestamp &ts);
+
   //===--------------------------------------------------------------------===//
   // TUPLE OPERATIONS
   //===--------------------------------------------------------------------===//
   // insert an empty version in table. designed for delete operation.
-  ItemPointer InsertEmptyVersion();
+  ItemPointer InsertEmptyVersion(concurrency::TransactionContext *current_txn);
 
   // these two functions are designed for reducing memory allocation by
   // performing in-place update.
@@ -321,8 +334,9 @@ public:
 
   size_t active_indirection_array_count_;
 
-  std::vector<std::shared_ptr<storage::IndirectionArray>>
-      active_indirection_arrays_;
+  std::vector<std::shared_ptr<storage::IndirectionArray>> active_indirection_arrays_;
+
+  std::array<std::mutex, 32> active_indirection_mutexes_;
 
 protected:
   //===--------------------------------------------------------------------===//
@@ -388,6 +402,15 @@ private:
   //===--------------------------------------------------------------------===//
   // MEMBERS
   //===--------------------------------------------------------------------===//
+
+  std::mutex atomic_index; 
+  //Ideally we'd have an atomic check: is_in_index. 
+  //if false, immediately set to true
+  //depending on return result: 
+  //if true: take write lock on index: this is creating tuple version (new start of linked list)
+  //if false: take read lock on index: find the linked list version. => then take latch for linked list header.
+  // std::shared_mutex check_index;
+  // std::shared_mutex modify_index;
 
   size_t active_tilegroup_count_;
   // size_t active_indirection_array_count_;

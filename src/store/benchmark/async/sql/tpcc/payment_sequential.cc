@@ -78,7 +78,7 @@ transaction_status_t SQLPaymentSequential::Execute(SyncClient &client) {
   //Update a customer's balance and reflect payment on district/warehouse sales statistics
   //Type: Light-weight read-write Tx, high frequency. (Uses Non-primar key access to CUSTOMER table)
   Debug("PAYMENT");
-  std::cerr << "PAYMENT" << std::endl;
+  //std::cerr << "PAYMENT" << std::endl;
   Debug("Amount: %u", h_amount);
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
@@ -154,7 +154,7 @@ transaction_status_t SQLPaymentSequential::Execute(SyncClient &client) {
     std::stringstream ss;
     ss << c_id << "," << c_d_id << "," << c_w_id << "," << d_id << "," << w_id << "," << h_amount;
     std::string new_data = ss.str() +  c_row.get_data();
-    new_data = new_data.substr(std::min(new_data.size(), 500UL));
+    new_data = new_data.substr(0, std::min(new_data.size(), 500UL));
     c_row.set_data(new_data);
   }
   statement = fmt::format("UPDATE {} SET c_balance = {}, c_ytd_payment = {}, c_payment_cnt = {}, c_data = '{}' "

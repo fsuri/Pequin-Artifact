@@ -155,11 +155,14 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
   
     deserialize(newBidId, results[0]);
     
-    ++newBidId;
-
     getItemMaxBidRow imbr;
     
     deserialize(imbr, results[1]);
+
+     //Note, might not be true if concurrently a new row was inserted. We don't provide opacity.
+    if(newBidId < imbr.currentBidId) Warning("Opacity violation: New bid id: %d not bigger than max Bid id: %d. Dynamically adjust to maximum", newBidId, imbr.currentBidId);
+    //++newBidId;
+    newBidId = std::max(newBidId, imbr.currentBidId) + 1;
     
     bool updateMaxBid = false;
     // Check whether this bidder is already the max bidder
@@ -178,7 +181,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
 
       Debug("Increasing the max bid the highest bidder %s from %d to %d for Item %s", buyer_id, imbr.currentBidMax, newBid, item_id);
     }
-    // Otherwise check whether this new bidder's max bid is greater than the current max
+    // Otherwise check whether this new bidder's max bid is greater than the current max   (This is necessary because we didn't update the Max bid entry if a previous max bidder increased its own bid)
     else{
         // The new maxBid trumps the existing guy, so our the buyer_id for this txn becomes the new winning bidder at this time. 
         // The new current price is one step above the previous max bid amount
@@ -189,6 +192,7 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
         }
         // The current max bidder is still the current one.  We just need to bump up their bid amount to be at least the bidder's amount
         // Make sure that we don't go over the the currentMaxBidMax, otherwise this would mean that we caused the user to bid more than they wanted.
+        //FIXME: FS comment: This does not make sense to me semantically. The following code only ever "decreases" the current max bidders bid?
         else{
           newBidMaxBuyerId = imbr.currentBuyerId;
            i_current_price = std::min(imbr.currentBidMax, newBid + (ir.i_initial_price * ITEM_BID_PERCENT_STEP));

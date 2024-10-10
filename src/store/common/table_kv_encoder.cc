@@ -16,12 +16,12 @@ std::string EncodeTable(const std::string &table_name){
   numerics_to_name[std::to_string(new_numeric)] = table_name;
 
   //TEST
-  // for(const auto &[name, num]: name_to_numerics){
-  //   std::cerr << "Map: " << name << " -> " << num << std::endl;
-  // }
-  // for(const auto &[num, name]: numerics_to_name){
-  //   std::cerr << "Rev: " << num << " -> " << name << std::endl;
-  // }
+  for(const auto &[name, num]: name_to_numerics){
+    std::cerr << "Table Encoding: " << name << " -> " << num << std::endl;
+  }
+  for(const auto &[num, name]: numerics_to_name){
+    std::cerr << "Table Encoding Rev: " << num << " -> " << name << std::endl;
+  }
 
   return std::to_string(new_numeric);
  

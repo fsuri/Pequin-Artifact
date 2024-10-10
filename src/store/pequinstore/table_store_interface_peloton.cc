@@ -22,7 +22,7 @@
 #include "store/pequinstore/table_store_interface_peloton.h"
 #include "lib/assert.h"
 #include "lib/message.h"
-#include "store/pequinstore/query-engine/traffic_cop/traffic_cop.h"
+//#include "store/pequinstore/query-engine/traffic_cop/traffic_cop.h"
 #include <algorithm>
 #include <atomic>
 #include <sched.h>
@@ -543,6 +543,10 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 // serialized form) as well as a commitProof (note, the read set is implicit)
 void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::string &enc_primary_key, const Timestamp &ts,
       proto::Write *write, const proto::CommittedProof* &committedProof) {
+
+  //Debugging //FIXME: REMOVE
+  bool is_customer_read = query_statement.find("customer") != std::string::npos;
+  
   
   // Client sends query statement, and expects a Query Result for the given key, a timestamp, and a proof (if it was a committed value it read) Note:
   // Sending a query statement (even though it is a point request) allows us to handle complex Select operators (like Count, Max, or just some subset of
@@ -590,10 +594,14 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   Timestamp prepared_timestamp;         // TODO: Change into write subparts.
   std::shared_ptr<std::string> txn_dig(nullptr); // prepared dependency
 
+   
+  //Notice("Query: %s", query_statement.c_str());
+  
+
   // Execute PointQueryStatement on Peloton using traffic_cop args: query, Ts, this->can_read_prepared ; commit: (result1, timestamp1, proof), prepared: (result2, timestamp2, txn_digest), key (optional) 
   //Read latest committed (return committedProof) + Read latest prepared (if > committed)
   auto status = tcop->ExecutePointReadStatement(statement, param_values, unamed, result_format, result, ts,
-      this->can_read_prepared, &committed_timestamp, &committedProof, &prepared_timestamp, &txn_dig, write);
+      this->can_read_prepared, &committed_timestamp, &committedProof, &prepared_timestamp, &txn_dig, write, is_customer_read);
 
   // GetResult(status);
   GetResult(status, tcop, counter);
@@ -633,6 +641,12 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   }
 
   TransformPointResult(write, committed_timestamp, prepared_timestamp, txn_dig, status, tuple_descriptor, result);
+
+  if(is_customer_read){
+    if(!write->has_committed_value()){
+      Panic("Point read to customer has no committed value. Has prep?: %d: %s", write->has_prepared_value(), query_statement.c_str());
+    }
+  }
 
   Debug("End readLat on core: %d", core);
   Latency_End(&readLats[core]);
@@ -993,20 +1007,17 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     this_shard_has_writes = true;
 
     //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
-
     Debug("Write statement: %s", write_statement.substr(0, 1000).c_str());
-    Debug("Commit or prepare is %d", commit_or_prepare);
-
-    // Notice("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
-    // Notice("Commit or prepare is %d", commit_or_prepare);
+    Debug("Txn %s is trying to %s with TS[%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), commit_or_prepare? "commit" : "prepare" , ts.getTimestamp(), ts.getID());
+  
     
     // prepareStatement
     auto statement = ParseAndPrepare(write_statement, tcop);
 
      //FIXME: REMOVE: JUST FOR TESTING
-   struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //  struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     // ExecuteStatment
     std::vector<peloton::type::Value> param_values;
@@ -1030,14 +1041,14 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
       Panic("Write failure");
 
 
-    clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
   
-    //Should not take more than 1 ms (already generous) to parse and prepare.
-    auto duration = microseconds_end - microseconds_start;
-    if(duration > 1000){
-      Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
-    }
+    // //Should not take more than 1 ms (already generous) to parse and prepare.
+    // auto duration = microseconds_end - microseconds_start;
+    // if(duration > 1000){
+    //   Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
+    // }
   }
 
   // Execute Delete Statement
@@ -1118,7 +1129,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   if (purge_statement.empty())
     return; // Nothing to undo.
 
-  //Notice("Purge statement: %s", purge_statement.c_str());
+  // Notice("Txn:[%s]. Table[%s] Purge statement: %s", BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), purge_statement.c_str());
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
@@ -1142,7 +1153,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
     Debug("Purge successful");
   else
     Debug("Purge failure/Nothing to purge");
-    //Panic("Purge failure");
+    // Panic("Purge failure");
   //}
 
   Debug("End writeLat on core: %d", core);
@@ -1196,6 +1207,9 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
 
 std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_statement, const Timestamp &ts, SnapshotManager &ssMgr, QueryReadSetMgr &readSetMgr, size_t snapshot_prepared_k) {
   
+ //if(query_statement.find("item, item_max_bid, item_bid, useracct") != std::string::npos) Notice("Executing Giga join: %s", query_statement.c_str());
+  //Notice("Executing query: %s", query_statement.c_str());
+
   //Perform EagerRead + FindSnapshot in one go
   Debug("Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
 
@@ -1214,9 +1228,9 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   auto statement = ParseAndPrepare(query_statement, tcop);
 
      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  struct timespec ts_start;
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
   std::vector<peloton::type::Value> param_values;
@@ -1225,6 +1239,8 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
   counter->store(1);
 
+  //Notice("Query: %s", query_statement.c_str());
+
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
                                             ts, &this->record_table_version, &this->can_read_prepared, peloton::PequinMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
@@ -1232,6 +1248,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   //     this->record_table_version, this->can_read_prepared);
 
   GetResult(status, tcop, counter);
+
 
   // Transform PelotonResult into ProtoResult
   std::string &&res(TransformResult(status, statement, result));
@@ -1256,14 +1273,14 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
 
     //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
-  clock_gettime(CLOCK_MONOTONIC, &ts_start);
-  uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
  
-  //Should not take more than 1 ms (already generous) to parse and prepare.
-  auto duration = microseconds_end - microseconds_start;
-  if(duration > 2000){
-    Warning("ScanRead exceeded 2000us: %d us", duration); 
-  }
+  // //Should not take more than 1 ms (already generous) to parse and prepare.
+  // auto duration = microseconds_end - microseconds_start;
+  // if(duration > 2000){
+  //   Warning("ScanRead exceeded 2000us: %d us", duration); 
+  // }
 
   Debug("Finish Execute EagerExecAndSnapshot: %s. TS: [%lu:%lu]", query_statement.c_str(), ts.getTimestamp(), ts.getID());
   return std::move(res);

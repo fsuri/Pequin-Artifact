@@ -167,8 +167,9 @@ message ReplicaList {
 //can use this instead of map <string, ReplicaList>
 message TxnData {
   required bytes txn = 1;
-  repeated uint64 replicas = 2; //list of replicas that have txn.
-  required bool committed = 3 ; // true if committed, false if prepared
+  required ReplicaList replica_list = 2;
+  // repeated uint64 replicas = 2; //list of replicas that have txn.
+  // required bool committed = 3 ; // true if committed, false if prepared
 }
 
 message MergedSnapshot {
@@ -182,6 +183,8 @@ message MergedSnapshot {
       //repeated TxnData cp_txns = 3;
    map<string, ReplicaList> merged_txns = 5; //map from txn digest to replicas that have txn.
    map<uint64, ReplicaList> merged_ts = 6; //map from txn digest to replicas that have txn.
+
+   repeated TxnData merged_txns_utf = 7;
 
    //map<string, ReplicaList> merged_txns_prepared = 7; //dont think one needs to distinguish at this point. ==> might want to store it separately so that client can remember what are deps? ==> store a flag
    //required TimestampMessage timestamp = 7; //
@@ -218,7 +221,7 @@ message TxnInfo {
    bool invalid = 4;
   }
   optional Writeback abort_proof = 5;
-  optional string txn_id = 6; //Only set if using ts map.
+  optional bytes txn_id = 6; //Only set if using ts map.
 }
 
 message SupplyMissingTxnsMessage {

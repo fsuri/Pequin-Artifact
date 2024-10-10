@@ -63,6 +63,44 @@ namespace pequinstore {
 
 static bool LocalDispatch = true; //TODO: Turn into config flag if a viable option.
 
+
+inline uint64_t MStoTS(const uint64_t &time_milis){
+    uint64_t second_comp = time_milis / 1000;
+    uint64_t milisecond_remain = time_milis % 1000;
+    uint64_t microsecond_comp =  milisecond_remain * 1000;
+  
+    uint64_t ts = (second_comp << 32) | (microsecond_comp << 12);
+    return ts;
+}
+
+inline uint64_t TStoMS(const uint64_t &time_stamp)
+{
+    //TODO: Instead of shifting. Mask the first 32 and last 32 bit
+    uint64_t second_comp = time_stamp >> 32;
+    uint64_t microsecond_comp = (time_stamp - (second_comp << 32)) >> 12;
+
+    uint64_t ms = second_comp * 1000 + microsecond_comp / 1000;
+    return ms;
+}
+
+inline uint64_t UStoTS(const uint64_t &time_micros){
+    uint64_t second_comp = time_micros / 1000000;
+    uint64_t microsecond_comp = time_micros % 1000000;
+  
+    uint64_t ts = (second_comp << 32) | (microsecond_comp << 12);
+    return ts;
+}
+
+inline uint64_t TStoUS(const uint64_t &time_stamp)
+{
+    //TODO: Instead of shifting. Mask the first 32 and last 32 bit
+    uint64_t second_comp = time_stamp >> 32;
+    uint64_t microsecond_comp = (time_stamp - (second_comp << 32)) >> 12;
+
+    uint64_t us = second_comp * 1000 * 1000 + microsecond_comp;
+    return us;
+}
+
 typedef std::function<void()> signedCallback;
 typedef std::function<void()> cleanCallback;
 //typedef std::function<void(void*)> verifyCallback;
@@ -96,7 +134,7 @@ struct asyncVerification{
   asyncVerification(uint32_t _quorumSize, mainThreadCallback mcb, int groupTotals,
     proto::CommitDecision _decision, Transport* tp) :  quorumSize(_quorumSize),
     mcb(mcb), groupTotals(groupTotals), decision(_decision),
-    terminate(false), callback(true), tp(tp) { 
+    terminate(false), callback(true), tp(tp), num_skips(0), num_jobs(0) { 
         groupCounts.empty();
     }
   ~asyncVerification() { deleteMessages();}
@@ -123,7 +161,9 @@ struct asyncVerification{
   //proto::Transaction *txn;
   //std::set<int> groupsVerified;
 
-  int deletable;
+  uint32_t num_skips;
+  uint32_t num_jobs;
+  uint32_t deletable;
   bool terminate;
   bool callback;
 };
@@ -392,6 +432,12 @@ inline static bool sortWriteSetByKey(const WriteMessage &lhs, const WriteMessage
     return lhs.key() < rhs.key(); 
 }
 
+inline static bool sortWriteSetByKey_no_dup(const WriteMessage &lhs, const WriteMessage &rhs) { 
+    UW_ASSERT(lhs.key() != rhs.key()); //FIXME: Shouldn't write the same key twice. ==> Currently might happen since we store Write Set as List instead of Set.
+    return lhs.key() < rhs.key(); 
+}
+
+
 inline static bool sortDepSet(const proto::Dependency &lhs, const proto::Dependency &rhs) { 
     return (lhs.write().prepared_txn_digest() == rhs.write().prepared_txn_digest() ? lhs.involved_group() < rhs.involved_group() : lhs.write().prepared_txn_digest() < rhs.write().prepared_txn_digest()) ; 
 }
@@ -439,7 +485,7 @@ struct QueryReadSetMgr {
 
           if(is_table_col_ver){
             read->set_is_table_col_version(true);
-            //TS doesnt matter. Not used for CC, just for locking
+            //TS doesnt matter. Not used for CC, just for locking. Setting to 0 ensures that this read key does not affect Read Set hash
             read->mutable_readtime()->set_id(0); 
             read->mutable_readtime()->set_timestamp(0);
           }
@@ -456,8 +502,12 @@ struct QueryReadSetMgr {
           readtime.serialize(read->mutable_readtime());
         }
 
+      
         void AddToDepSet(const std::string &tx_id, const TimestampMessage &tx_ts){
             UW_ASSERT(tx_ts.timestamp() > 0); //should never add genesis
+
+            //Simple check to avoid *some* redundant dependencies. A proper check would look at all deps.
+            if(!read_set->deps().empty() && read_set->deps()[read_set->deps_size()-1].write().prepared_txn_digest() == tx_id) return; 
 
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
@@ -475,6 +525,9 @@ struct QueryReadSetMgr {
 
         void AddToDepSet(const std::string &tx_id, const Timestamp &tx_ts){
             UW_ASSERT(tx_ts.getTimestamp() > 0); //should never add genesis
+
+             //Simple check to avoid *some* redundant dependencies. A proper check would look at all deps.
+            if(!read_set->deps().empty() && read_set->deps()[read_set->deps_size()-1].write().prepared_txn_digest() == tx_id) return; 
 
             proto::Dependency *add_dep = read_set->add_deps();
             add_dep->set_involved_group(groupIdx);
@@ -496,6 +549,8 @@ struct QueryReadSetMgr {
             new_pred->set_table_name(table_name);
 
         }
+
+    
         void SetPredicateTableVersion(const TimestampMessage &table_version){
             //Set TableVersion
             if(read_set->read_predicates().empty()){
@@ -510,8 +565,48 @@ struct QueryReadSetMgr {
             catch(...){
                 Panic("Predicate has not been reserved");
             }
-          
         }
+
+         void RefinePredicateTableVersion(const Timestamp &lowest_snapshot_frontier, uint64_t monotonicityGrace){
+            if(lowest_snapshot_frontier.getTimestamp() == UINT64_MAX) return; //If no prepared was missed, no need to update
+
+            if(read_set->read_predicates().empty()){
+                Debug("No predicate available to set Table Version");
+                return;
+            }
+            int last_idx = read_set->read_predicates_size() - 1;
+            try{
+                proto::ReadPredicate &current_pred = (*read_set->mutable_read_predicates())[last_idx]; //get last pred
+
+                auto &curr_table_version = current_pred.table_version();
+
+        
+                uint64_t low_time = lowest_snapshot_frontier.getTimestamp();
+                const uint64_t &curr_time = curr_table_version.timestamp();
+
+                //transform low_time to account for montonicity grace. 
+                //Logic: We are already checking everything between (curr_time - grace) up to TX.TS. So if low_time falls within curr_time-grace there is no need to update.
+                uint64_t low_us = TStoUS(low_time) + (monotonicityGrace * 1000) - 1; //-1us so we *check* against the lower_frontier bound as well.
+                low_time = UStoTS(low_us);
+                //Conversion test:
+                //uint64_t low_ref = UStoTS(TStoUS(low_time))
+                // if(low_time != low_rev){
+                //     Panic("Timestamp[%lu:%lu]. US: %lu. TS_rev: %lu", lowest_snapshot_frontier.getTimestamp(), lowest_snapshot_frontier.getID(), low_us, low_rev);
+                // }
+                
+                if((low_time < curr_time) 
+                    || (low_time == curr_time && lowest_snapshot_frontier.getID() < curr_table_version.id()) ){ //This is unecessary, since we anyways only compare at 
+                    Notice("Updating TblV from [%lu:%lu]->[%lu:%lu]. approx. MS Diff: %lu", curr_table_version.timestamp(), curr_table_version.id(), low_time, lowest_snapshot_frontier.getID(), TStoMS(curr_time) - TStoMS(low_time));
+                    current_pred.mutable_table_version()->set_timestamp(low_time); 
+                    current_pred.mutable_table_version()->set_id(lowest_snapshot_frontier.getID());
+                  
+                }
+            }
+            catch(...){
+                Panic("Predicate has not been reserved");
+            }
+        }
+
 
         //Call this every time the executor runs. Fill in new col values.
         void ExtendPredicate(const std::string &predicate){
@@ -565,12 +660,16 @@ typedef struct QueryParameters {
     const uint64_t mergeThreshold; //number of tx instances required to observe to include in sync snapshot
     const uint64_t syncMessages;    //number of sync messages sent to replicas to request result replies
     const uint64_t resultQuorum ;   //number of matching query replies necessary to return
+
+    const int retryLimit; //maximum number of Query retries before Aborting TX.
     
     const size_t snapshotPrepared_k; //number of prepared reads to include in the snapshot (before reaching first committed version)
 
     const bool eagerExec;   //Perform eager execution on Queries
     const bool eagerPointExec;  //Perform query style eager execution on point queries (instead of using proof)
     const bool eagerPlusSnapshot; //Perform eager exec and snapshot simultaneously
+
+    const bool forceReadFromSnapshot; //Force read to only read versions present in the snapshot (no newer committed)
     
     const bool readPrepared; //read only committed or also prepared values in query?
     const bool cacheReadSet; //return query read set to client, or cache it locally at servers?
@@ -591,11 +690,11 @@ typedef struct QueryParameters {
     const uint64_t monotonicityGrace;     //first grace: writes within are considered monotonic
     const uint64_t non_monotonicityGrace; //second grace: writes within are not considered monotonic, but still accepted.
 
-    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, size_t snapshotPrepared_k,
-        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+    QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, uint32_t retryLimit, size_t snapshotPrepared_k,
+        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool forceReadFromSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace, uint64_t non_monotonicityGrace) : 
-        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), snapshotPrepared_k(snapshotPrepared_k),
-        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), retryLimit(retryLimit), snapshotPrepared_k(snapshotPrepared_k),
+        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), forceReadFromSnapshot(forceReadFromSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
         useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace), non_monotonicityGrace(non_monotonicityGrace) {
             //std::cerr << "eagerPlusSnapshot: " 

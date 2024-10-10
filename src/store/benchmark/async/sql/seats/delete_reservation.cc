@@ -72,14 +72,12 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
             "AND c_id = c_id", //REFLEXIVE ARGS TO SATISFY DUMB PELOTON PLANNER
                                 FREQUENT_FLYER_TABLE, CUSTOMER_TABLE, ff_c_id_str, ff_c_id_str);
         } else {
-            Notice("No way to get Customer ID");
             Debug("No way to get Customer ID");
             client.Abort(timeout);
             return ABORTED_USER;
         }
         client.Query(query, queryResult, timeout);
         if (queryResult->empty()) {
-            Notice("No customer record found");
             Debug("No customer record found");
             client.Abort(timeout);
             return ABORTED_USER;
@@ -101,7 +99,6 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
     client.Query(query, queryResult, timeout);
     //If there is no valid customer record, throw an abort  //Note: supposedly happens 5% of the time.
     if (queryResult->empty()) {
-        Notice("No customer record with c_id: %d.", c_id);
         Debug("No customer record with id %ld", c_id);
         client.Abort(timeout);
         return ABORTED_USER;
@@ -139,7 +136,7 @@ transaction_status_t SQLDeleteReservation::Execute(SyncClient &client) {
 
     client.Wait(results);
     //Debug
-    std::cerr << "results size: " << results.size() << std::endl;
+    Debug("results size: %d", results.size());
     UW_ASSERT(results.size() == 4 - !update_freq_flyer);
     bool abort = false;
     if(!results[0]->has_rows_affected()){ Panic("Failed to delete reservation"); abort = true;}

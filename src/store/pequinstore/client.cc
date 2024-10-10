@@ -138,7 +138,6 @@ Client::~Client()
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry) {
 
-      
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
   //only fail fresh transactions
@@ -167,9 +166,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     Latency_Start(&executeLatency);
     client_seq_num++;
-    //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
-    Debug("BEGIN [%lu]", client_seq_num);
-
+  
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
@@ -177,12 +174,16 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
     txn.mutable_timestamp()->set_id(client_id);
 
+      //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
+    Debug("BEGIN [%lu]. TS[%lu:%lu]", client_seq_num, txn.timestamp().timestamp(), txn.timestamp().id());
+
     sql_interpreter.NewTx(&txn);
 
     pendingWriteStatements.clear();
     point_read_cache.clear();
 
-    pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
+    ClearTxnQueries();
+    //pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways
 
     //FIXME: Just for profiling.
   if(PROFILING_LAT){
@@ -295,7 +296,7 @@ void Client::SQLRequest(std::string &statement, sql_callback scb,
 void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write){ //blind_write: default false, must be explicit application choice to skip.
 
-    
+    stats.Increment("total_writes");
     //////////////////
     // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
     //TODO: parse write statement into table, column list, values_list, and read condition
@@ -346,6 +347,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     }
     else{
       Debug("Issuing re-con Query");
+      stats.Increment("total_recon_reads");
       Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
       //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
       //TODO: add a field for "is_point" (for Inserts we already know!)
@@ -404,6 +406,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
+  stats.Increment("total_reads");
   
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
@@ -465,7 +468,15 @@ void Client::Query(const std::string &query, query_callback qcb,
       }
     } 
     //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
-
+    else{
+      auto itr = scan_read_cache.find(query);
+      if(itr != scan_read_cache.end()){
+        Debug("Supply scan query result from cache! (Query seq: %d). Query: %s", query_seq_num, query.c_str());
+        auto res = new sql::QueryResultProtoWrapper(itr->second);
+        qcb(REPLY_OK, res);
+        return;
+      }
+    }
 
     //std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
       // Contact the appropriate shard to get the value.
@@ -721,10 +732,12 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
 
   stats.Increment("QuerySuccess", 1);
   //if it was a point query
-  if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
-  //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
-  else stats.Increment("Sync_successes", 1);
+  // if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_successes", 1);
+  // //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
+  // else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_successes", 1);
+  // else stats.Increment("Sync_successes", 1);
+
+  stats.IncrementList("NumRetries", pendingQuery->version);
 
   Debug("Result size: %d. Result rows affected: %d", q_result->size(), q_result->rows_affected());
 
@@ -745,9 +758,18 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     }
   }
 
+
+  if(!q_result->empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
+     Debug("Caching result for query: %s", pendingQuery->queryMsg.query_cmd().c_str());
+        //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+      if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos){
+            scan_read_cache[pendingQuery->queryMsg.query_cmd()] = pendingQuery->result;  
+      }
+  }
+
   //Optional Result Caching... Turn the result into individual point results. 
   //Cache result for future point updates. This can help optimize common point Select + point Update patterns.
-  if(!q_result->empty() && !pendingQuery->table_name.empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
+  if(false && !q_result->empty() && !pendingQuery->table_name.empty() && (pendingQuery->cache_result || FORCE_SCAN_CACHING)){ //only cache if we did find a row.
       ColRegistry *col_registry;
       try{
         col_registry = &sql_interpreter.GetTableRegistry()->at(pendingQuery->table_name);
@@ -856,15 +878,28 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 
 void Client::RetryQuery(PendingQuery *pendingQuery){
 
+  if(params.query_params.retryLimit > -1 && pendingQuery->version >= params.query_params.retryLimit){
+    Panic("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
+    stats.Increment("Exceeded_Retry_Limit");
+    //throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
+
+    for (auto group : txn.involved_groups()) {
+      bclient[group]->Abort(client_seq_num, txn.timestamp(), txn);
+    }
+
+    pendingQuery->qcb(REPLY_FAIL, nullptr);
+  }
   
   stats.Increment("QueryRetries", 1);
   //if it was a point query
   if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);
   //If it was an eager exec.    //Note: Running eager exec whenever version == 0 AND either eagerExec param is set, or it is a pointQuery and eagerPointExec is set
-  else if(pendingQuery->version == 0 && params.query_params.eagerExec) stats.Increment("EagerExec_failures", 1);
-  else stats.Increment("Sync_failures", 1);
+  else if(pendingQuery->version == 0 && params.query_params.eagerExec && !params.query_params.eagerPlusSnapshot) stats.Increment("EagerExec_failures", 1);
+  else{ //!eager OR eager ran with snapshot and failed
+     if(pendingQuery->version == 0) stats.Increment("First_Sync_fail");
+     stats.Increment("Sync_failures", 1);
+  } 
   
-
   pendingQuery->version++;
   pendingQuery->group_replies = 0;
   pendingQuery->queryMsg.set_retry_version(pendingQuery->version);
@@ -974,7 +1009,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     if(TEST_READ_SET){
       Debug("Try Commit. PRINT WRITE SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
       for(auto &write: txn.write_set()){
-        Debug("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 2);
+        Debug("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 0);
       }
       Debug("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
       for(auto &read: txn.read_set()){
@@ -1034,6 +1069,19 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     stats.IncrementList("txn_groups", txn.involved_groups().size());
 
     Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
+   
+    //Notice("Try Commit. Txn[%s][%lu:%lu].", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
+    if(false){
+      Notice("Try Commit. Txn[%s][%lu:%lu]. PRINT WRITE SET", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &write: txn.write_set()){
+        Notice("key: %s. table_v? %d. deletion? %d", write.key().c_str(), write.is_table_col_version(), write.rowupdates().has_deletion() ? write.rowupdates().deletion() : 0);
+      }
+
+      Notice("Try Commit. PRINT READ SET"); //FIXME: REMOVE THIS. JUST FOR TESTING
+      for(auto &read: txn.read_set()){
+        Notice("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
+      }
+    }
 
     Phase1(req);
   });
@@ -1092,15 +1140,13 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
       // saving abort sigs in req->eqvAbortSigsGrouped
       auto itr_abort = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr_abort != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d. Saving in eqvAbortSigsGrouped",
-          itr_abort->second.sigs_size(), group);
+      Debug("Have %d ABSTAIN replies from group %d. Saving in eqvAbortSigsGrouped", itr_abort->second.sigs_size(), group);
       (*req->eqvAbortSigsGrouped.mutable_grouped_sigs())[group] = itr_abort->second;
       req->slowAbortGroup = group;
       // saving commit sigs in req->p1ReplySigsGrouped
       auto itr_commit = sigs.find(proto::ConcurrencyControl::COMMIT);
       UW_ASSERT(itr_commit != sigs.end());
-      Debug("Have %d COMMIT replies from group %d.", itr_commit->second.sigs_size(),
-          group);
+      Debug("Have %d COMMIT replies from group %d.", itr_commit->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr_commit->second;
 
     }
@@ -1108,30 +1154,30 @@ void Client::Phase1CallbackProcessing(PendingRequest *req, int group,
     else if(decision == proto::ABORT && fast && !conflict_flag){
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),  group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->fastAbortGroup = group;
     } else if (decision == proto::ABORT && !fast) {
       auto itr = sigs.find(proto::ConcurrencyControl::ABSTAIN);
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d ABSTAIN replies from group %d.", itr->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
       req->slowAbortGroup = group;
     } else if (decision == proto::COMMIT) {
       auto itr = sigs.find(proto::ConcurrencyControl::COMMIT);
-      // if(itr == sigs.end()){
-      //   if(fb){
-      //     std::cerr << "abort on fallback path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
-      //   }
-      //   if(!fb){
-      //     std::cerr << "abort on normal path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
-      //   }
-      // }
+      if(itr == sigs.end()){
+        for(auto [res, b]: sigs){
+          Notice("Res[%d] has %d sigs", res, b.sigs_size());
+        }
+        if(fb){
+          std::cerr << "abort on fallback path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+        }
+        if(!fb){
+          std::cerr << "abort on normal path for txn: " << BytesToHex(req->txnDigest, 16) << std::endl;
+        }
+      }
       UW_ASSERT(itr != sigs.end());
-      Debug("Have %d COMMIT replies from group %d.", itr->second.sigs_size(),
-          group);
+      Debug("Have %d COMMIT replies from group %d.", itr->second.sigs_size(), group);
       (*req->p1ReplySigsGrouped.mutable_grouped_sigs())[group] = itr->second;
     }
   }
@@ -1483,7 +1529,8 @@ void Client::Writeback(PendingRequest *req) {
   }
 
   //total_writebacks++;
-  Debug("WRITEBACK[%lu:%lu] result %s", client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  Debug("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
+  //Notice("WRITEBACK[%s][%lu:%lu] result %s", BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), client_id, req->id, req->decision ?  "ABORT" : "COMMIT");
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {
@@ -1872,6 +1919,7 @@ void Client::RelayP1TimeoutCallback(uint64_t reqId){
   for(auto p1_pair : itr->second->RelayP1s){
     Debug("Starting Phase1FB from FB buffer for dependent txnId: %d", reqId);
     //itr->second->req_FB_instances.insert(p1_pair.first); //XXX mark connection between reqId and FB instance
+    if(FB_instances.find(p1_pair.first) != FB_instances.end()) continue;
     Phase1FB(p1_pair.first, reqId, p1_pair.second);
   }
   //
@@ -1917,6 +1965,7 @@ void Client::RelayP1callbackFB(uint64_t reqId, const std::string &dependent_txnD
 
 
 void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto::Phase1 *p1){  //passes callbacks
+  if(FB_instances.find(txnDigest) != FB_instances.end()) return;
 
   Debug("Started Phase1FB for txn: %s, for dependent ID: %d", BytesToHex(txnDigest, 16).c_str(), conflict_id);
 
@@ -1946,6 +1995,7 @@ void Client::Phase1FB(const std::string &txnDigest, uint64_t conflict_id, proto:
 }
 
 void Client::Phase1FB_deeper(uint64_t conflict_id, const std::string &txnDigest, const std::string &dependent_txnDigest, proto::Phase1 *p1){
+   if(FB_instances.find(txnDigest) != FB_instances.end()) return;
 
   Debug("Starting Phase1FB for deeper depth. Original conflict id: %d, Dependent txnDigest: %s, txnDigest of tx causing the stall %s", conflict_id, BytesToHex(dependent_txnDigest, 16).c_str(), BytesToHex(txnDigest, 16).c_str());
 
@@ -2102,8 +2152,7 @@ void Client::Phase1FBcallbackA(uint64_t conflict_id, std::string txnDigest, int6
   PendingRequest* req = FB_instances[txnDigest];
 
   if (req->startedPhase2 || req->startedWriteback) {
-    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback"
-        " response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
+    Debug("Already started Phase2FB/WritebackFB for tx [%s[]. Ignoring Phase1 callback response from group %d.", BytesToHex(txnDigest, 128).c_str(), group);
     return;
   }
 

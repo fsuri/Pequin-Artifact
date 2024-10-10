@@ -317,6 +317,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
     while((next_val = values_statement.find(", ")) != string::npos){
         std::string_view curr_val = values_statement.substr(0, next_val);
         value_list.push_back(std::move(TrimValue(curr_val, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement.substr(0, next_val))));
+        //UW_ASSERT(!value_list.back().empty());
         values_statement = values_statement.substr(next_val+2);
     }
     value_list.push_back(std::move(TrimValue(values_statement, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
@@ -479,6 +480,11 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                                                                                     //Alternatively, would select only the columns required by the Values; and pass the primary columns in separately.
     //             write_cont: for (column = value) statement, create TableWrite with primary column encoded key, column_list, and column_values (or direct inputs)
 
+
+    //DEBUG TEST//REMOVE FIXME:
+    bool is_customer_update = write_statement.find("UPDATE customer SET c_balance") != std::string::npos;
+
+
     std::string table_name;
     std::map<std::string_view, Col_Update> col_updates;
     std::string_view where_cond;
@@ -556,12 +562,13 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
                                         
     
-    write_continuation = [this, wcb, table_name, col_updates](int status, query_result::QueryResult* result) mutable {
+    write_continuation = [this, wcb, table_name, col_updates, is_customer_update](int status, query_result::QueryResult* result) mutable {
 
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Performing write_continuation"); //FIXME: Debug doesnt seem to be registered
 
         if(result->empty()){
+            if(is_customer_update) Warning("Recon read for Customer Read returned no result");
             Debug("No rows to update");
             result->set_rows_affected(result->size()); 
             wcb(REPLY_OK, result);
@@ -672,6 +679,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                     } 
                 }
     
+                //if(set_val.empty()) Panic("Updating col: %s => new val: %s", col.c_str(), set_val.c_str());
                 (*row_update->mutable_column_values())[col_registry.col_name_index[col]] = std::move(set_val); //Realistically row columns will be in correct order. But in case they are not, must insert at the right position.
                
             }    
@@ -723,6 +731,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
         Debug("Completed Write with %lu rows written", result->size());
         //std::cerr << "Completed Write with " << result->size() << " row(s) written" << std::endl;
         result->set_rows_affected(result->size()); 
+        if(is_customer_update) UW_ASSERT(result->rows_affected() == 1);
         wcb(REPLY_OK, result);
         
     };
@@ -773,7 +782,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
    
     if(is_point_delete){
         //Add to write set.
-        std::cerr << "IS POINT DELETE" << std::endl;
+        Debug("IS POINT DELETE");
 
         //Write Table Version itself. //Only for kv-store.
         // WriteMessage *table_ver = txn->add_write_set();
@@ -1393,6 +1402,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             UW_ASSERT(row.column_values_size() == col_registry.col_names.size());
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
+                    //UW_ASSERT(!row.column_values()[i].empty());
                      if(col_registry.primary_key_cols.count(col_registry.col_names[i])) Debug("Table[%s][%d]:  %s", table_name.c_str(), i, row.column_values()[i].c_str());
                     if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
                     else write_statement += row.column_values()[i] + ", ";
@@ -1456,8 +1466,15 @@ void SQLTransformer::GenerateTablePurgeStatement(std::string &purge_statement, c
         purge_statement += "(";
         if(fine_grained_quotes){ // Use this to add fine grained quotes:
             for(int i = 0; i < row.column_values_size(); ++i){
-                if(col_registry.col_quotes[i])  purge_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
-                else purge_statement += row.column_values()[i] + ", ";
+                //UW_ASSERT(!row.column_values()[i].empty());
+                if(row.column_values()[i].empty()){  //INSERT statements cannot have empty values. Deletes however include only the primary key columns, so we create some dummy values (0) here.
+                    if(col_registry.col_quotes[i])  purge_statement += "\'0\', ";
+                    else purge_statement += "0, ";
+                }
+                else{
+                    if(col_registry.col_quotes[i])  purge_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
+                    else purge_statement += row.column_values()[i] + ", ";
+                }
             }
         }
         else{

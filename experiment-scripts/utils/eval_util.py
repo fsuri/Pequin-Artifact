@@ -456,6 +456,42 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         total_attempted_failures = stats['failure_attempts']
     stats['tx_attempted_failure_percentage'] = total_attempted_failures/stats['attempts']
 
+    stats['read_write_ratio'] = 1
+    if 'total_writes' in stats:
+        total_ops = stats['total_writes'] + stats['total_reads']
+        stats['read_write_ratio_nr'] = (stats['total_reads'] - stats['total_recon_reads']) / (total_ops - stats['total_recon_reads'])
+        stats['read_write_ratio'] = stats['total_reads'] / total_ops
+
+    #Record the ratio of Point Reads to Queries (invoked only - not counting retries). This also counts Recon-Reads
+    if 'PointQueryAttempts' in stats:
+        if 'QueryAttempts' in stats:
+            stats['point_univ_ratio'] = stats['PointQueryAttempts'] / (stats['PointQueryAttempts'] + stats['QueryAttempts'])
+        else:
+            stats['point_univ_ratio'] = 1
+    else:
+        stats['point_univ_ratio'] = 0
+
+    #Record the ratio of successful eager executions. I.e. what percentage of queries succeeded without snapshot
+    if 'QueryAttempts' in stats:
+        stats['eager_success_rate'] = 0
+        if 'EagerExec_successes' in stats:
+            stats['eager_success_rate'] = stats['EagerExec_successes'] / stats['QueryAttempts']
+        else:
+            stats['EagerExec_successes'] = 0
+
+
+    #Record Sync Failures, i.e. the percentage of times query failed.
+        # among all queries that tried to sync (i.e. didn't succeed on eager), how many had to retry?
+        stats['retried_queries_rate'] = 0
+        if 'First_Sync_fail' in stats:
+            stats['retried_queries_rate'] = stats['First_Sync_fail'] / ( stats['QueryAttempts'] - stats['EagerExec_successes'])
+        #b) percentage of unsuccessful sync
+        stats['sync_fail_rate'] = 0
+        if 'Sync_failures' in stats:
+            stats['sync_fail_rate'] = stats['Sync_failures'] / (stats['QueryAttempts'] - stats['EagerExec_successes'] + stats['Sync_failures'])
+
+        ##TODO: max number of retries
+
     norm_op_latencies, norm_op_times = calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs)
     for k, v in norm_op_latencies.items():
         region_op_latencies['%s_norm' % k] = v
@@ -488,6 +524,7 @@ def calculate_op_statistics(config, stats, total_recorded_time, op_type, latenci
         if (not 'server_emulate_wan' in config or config['server_emulate_wan']) and len(norm_latencies) > 0:
             stats['%s_norm' % op_type] = calculate_statistics_for_data(norm_latencies)
             stats['%s_norm' % op_type]['samples'] = len(norm_latencies)
+
 
 def calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs):
     total_recorded_time = float(config['client_experiment_length'] - config['client_ramp_up'] - config['client_ramp_down'])

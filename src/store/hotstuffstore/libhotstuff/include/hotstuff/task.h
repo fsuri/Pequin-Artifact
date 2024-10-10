@@ -57,6 +57,12 @@ class VeriPool {
     public:
     VeriPool(EventContext ec, size_t nworker, size_t burst_size = 128) {
         out_queue.reg_handler(ec, [this, burst_size](mpsc_queue_t &q) {
+            
+            // struct timespec ts_start;
+            // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+            // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+            // fprintf(stderr, "[CPU:%d]: finished task at [%lu]\n", sched_getcpu(), microseconds_start);
+
             size_t cnt = burst_size;
             VeriTask *task;
             while (q.try_dequeue(task))
@@ -84,8 +90,8 @@ class VeriPool {
                 VeriTask *task;
                 while (q.try_dequeue(task))
                 {
-                    HOTSTUFF_LOG_DEBUG("%lx working on %u",
-                                        std::this_thread::get_id(), (uintptr_t)task);
+                    //fprintf(stderr, "[CPU:%d]: Working on Verification\n", sched_getcpu());
+                    HOTSTUFF_LOG_DEBUG("%lx working on %u", std::this_thread::get_id(), (uintptr_t)task);
                     task->result = task->verify();
                     out_queue.enqueue(task);
                     if (!--cnt) return true;
@@ -110,6 +116,13 @@ class VeriPool {
     }
 
     promise_t verify(veritask_ut &&task) {
+      
+        
+        // struct timespec ts_start;
+        // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+        // fprintf(stderr, "[CPU:%d]: add task at [%lu]\n", sched_getcpu(), microseconds_start);
+
         auto ptr = task.get();
         auto ret = pms.insert(std::make_pair(ptr,
                 std::make_pair(std::move(task), promise_t([](promise_t &){}))));

@@ -34,7 +34,7 @@ SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, SeatsProfile
             start_time = flight.depart_time - range; 
             end_time = flight.depart_time + range; 
 
-            fprintf(stderr, "Select Flight From Cache. dep_ap: %d, arrive_ap: %d. Dep_time %lu. Sanity f_id: %lu\n", depart_aid, arrive_aid, start_time, flight.flight_id);
+            Debug("Select Flight From Cache. dep_ap: %d, arrive_ap: %d. Dep_time %lu. Sanity f_id: %lu\n", depart_aid, arrive_aid, start_time, flight.flight_id);
 
         }
        

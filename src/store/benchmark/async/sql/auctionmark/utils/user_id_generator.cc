@@ -37,6 +37,9 @@ UserIdGenerator::UserIdGenerator(const std::map<int, int> &users_per_item_count,
     }
 
     set_current_item_count(min_item_count);
+
+
+    fprintf(stderr, "UserIDGenerator. min_item_count: %d. max_item_count: %d, num_clients: %d. Total users: %d\n", min_item_count, max_item_count, num_clients, total_users);
 }
 
 long UserIdGenerator::get_total_users() const {
@@ -166,6 +169,7 @@ std::optional<UserId> UserIdGenerator::find_next_user_id() {
         }
         // Otherwise we have to spin through and find one for our client
         else if (current_position % num_clients == client_id) {
+            //fprintf(stderr, "curr pos: %d. num_clients: %d. client_id: %d\n", current_position, num_clients, client_id);
             found = next_ctr;
             break;
         }

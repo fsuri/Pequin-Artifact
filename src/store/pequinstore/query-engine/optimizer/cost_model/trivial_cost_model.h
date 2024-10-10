@@ -28,6 +28,8 @@
 // * Choose NL if left rows is a single record (for single record lookup queries), else choose hash join
 // * Choose hash group by over sort group by
 
+//FS => EDIT: Make NL default join always.
+
 namespace peloton {
 namespace optimizer {
 

@@ -44,7 +44,7 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
   for (uint8_t i = 0; i < ol_cnt; ++i) {
     if (rbk == 1 && i == ol_cnt - 1) {
       o_ol_i_ids.push_back(0);
-      Notice("NEXT NEW_ORDER TX is going to rollback! (Trying to access invalid item)");
+      Debug("NEXT NEW_ORDER TX is going to rollback! (Trying to access invalid item)");
     } else {
       uint32_t i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
       
@@ -126,6 +126,7 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   Debug("  Tax Rate: %u", d_row.get_tax());
   uint32_t o_id = d_row.get_next_o_id();
   Debug("  Order Number: %u", o_id);
+  UW_ASSERT(o_id > 2100);
 
   CustomerRow c_row;
   deserialize(c_row, results[2]);
@@ -182,6 +183,10 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
       ItemRow i_row;
       deserialize(i_row, results[ol_number]);
       Debug("    Item Name: %s", i_row.get_name().c_str());
+      if(i_row.get_price() <= 0){
+        Warning("Item row has price: %d", i_row.get_price());
+        Panic("Invalid item row");
+      }
 
       StockRow s_row;
       deserialize(s_row, results[ol_number + ol_cnt]);

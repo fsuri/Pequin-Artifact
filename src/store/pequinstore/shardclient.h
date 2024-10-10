@@ -263,7 +263,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
   struct PendingQuery {
     PendingQuery(uint64_t reqId, const QueryParameters *query_params) : done(false), eager_mode(false), snapshot_mode(true), reqId(reqId), client_seq_num(0UL), query_seq_num(0UL),
         retry_version(0UL), num_designated_replies(0UL), numResults(0UL), numFails(0UL), 
-        query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId) //,  numSnapshotReplies(0UL),
+        query_manager(false), success(false),  snapshot_mgr(query_params), pendingPointQuery(reqId), sync_started(false) //,  numSnapshotReplies(0UL),
         { 
           result_freq.clear();
         }
@@ -278,6 +278,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     //Note: It is not necessarily the case that eager_mode = !snapshot_mode. snapshot_mode might become ready before eager_ends. 
     //snapshot_mode indicates that we CAN go Sync; but sync may not yet be ready. However, once Sync started, eager will be false.
     // This ensures that sync can also only be started once, since we ignore all eager replies once eager mode is false
+
+    bool sync_started; //start at most one sync proposal per retry version
 
     uint64_t reqId; 
     uint64_t client_seq_num;
@@ -307,6 +309,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     //map from result to map of associated result hash + their frequency (could be that two same results have different result hash; and vice versa)
     std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; //result_hash (read-set) -> (result (serialization) -> freq)
     //TODO: For each read_set -> maintain a list of deps that is updated.
+     std::unordered_map<std::string, std::unordered_map<std::string, proto::ReadSet>> result_read_set; // map: result -> read_set_hash -> read set.
     
     bool query_manager;
     result_callback rcb;
@@ -565,11 +568,14 @@ SQLTransformer *sql_interpreter;
 ///////////////
 
   inline size_t GetNthClosestReplica(size_t idx) const {
+    size_t replica_idx;
     if (pingReplicas && GetOrderedReplicas().size() > 0) {
-      return GetOrderedReplicas()[idx];
+      replica_idx = GetOrderedReplicas()[idx];
     } else {
-      return closestReplicas[idx];
+      replica_idx = closestReplicas[idx];
     }
+    UW_ASSERT(replica_idx < config->n);
+    return replica_idx;
   }
 
   Stats *stats;

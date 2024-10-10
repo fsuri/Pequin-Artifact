@@ -9,6 +9,10 @@ namespace hotstuff {
 
 namespace hotstuffstore {
 
+    void IndicusInterface::register_smr_callback(smr_callback smr_cb){
+        hotstuff_papp->register_smr_callback(smr_cb);    
+    }
+
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
         // std::cout << "############# HotStuff Interface #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
@@ -24,7 +28,7 @@ namespace hotstuffstore {
        
 
         if (local_config){
-            // std::cerr << "using local config (hotstuffstore)\n";
+            std::cerr << "using local config (hotstuffstore)\n";
             auto curr_path=std::filesystem::current_path();
             auto target_dir="src";
             while (!curr_path.empty()) {
@@ -68,6 +72,7 @@ namespace hotstuffstore {
         elapsed.start();
 
         auto opt_blk_size = Config::OptValInt::create(1);
+        auto opt_blk_timeout = Config::OptValInt::create(5);
         auto opt_parent_limit = Config::OptValInt::create(-1);
         auto opt_stat_period = Config::OptValDouble::create(10);
         auto opt_replicas = Config::OptValStrVec::create();
@@ -92,6 +97,7 @@ namespace hotstuffstore {
         auto opt_max_cli_msg = Config::OptValInt::create(65536); // 64K by default
 
         config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
+        config.add_opt("block-timeout", opt_blk_timeout, Config::SET_VAL);
         config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
         config.add_opt("stat-period", opt_stat_period, Config::SET_VAL);
         config.add_opt("replica", opt_replicas, Config::APPEND, 'a', "add an replica to the list");
@@ -114,6 +120,7 @@ namespace hotstuffstore {
         config.add_opt("max-rep-msg", opt_max_rep_msg, Config::SET_VAL, 'S', "the maximum replica message size");
         config.add_opt("max-cli-msg", opt_max_cli_msg, Config::SET_VAL, 'S', "the maximum client message size");
         config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
+
 
         EventContext ec;
         config.parse(argc, argv);
@@ -186,7 +193,7 @@ namespace hotstuffstore {
         clinet_config
             .burst_size(opt_cliburst->get())
             .nworker(opt_clinworker->get());
-        hotstuff_papp = new HotStuffApp(opt_blk_size->get(),
+        hotstuff_papp = new HotStuffApp(opt_blk_size->get(), opt_blk_timeout->get(),
                                opt_stat_period->get(),
                                opt_imp_timeout->get(),
                                idx,
@@ -215,6 +222,7 @@ namespace hotstuffstore {
 
         hotstuff_papp->start(reps);
 
+        //hotstuff_papp->interface_entry();
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
                 // cpu_set_t cpuset;
@@ -227,4 +235,5 @@ namespace hotstuffstore {
             });
         t.detach();
     }
+
 }

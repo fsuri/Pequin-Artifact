@@ -70,7 +70,7 @@ bool UpdateExecutor::PerformUpdatePrimaryKey(
   ///////////////////////////////////////
   // Delete tuple/version chain
   ///////////////////////////////////////
-  ItemPointer new_location = target_table_->InsertEmptyVersion();
+  ItemPointer new_location = target_table_->InsertEmptyVersion(current_txn);
 
   // PerformUpdate() will not be executed if the insertion failed.
   // There is a write lock acquired, but since it is not in the write
@@ -153,7 +153,7 @@ bool UpdateExecutor::DExecute() {
 
   // We are scanning over a logical tile.
   LOG_TRACE("Update executor :: 1 child ");
-  Debug("reached update executor");
+  Panic("reached update executor");
   //std::cerr << "Update executor reached" << std::endl;
 
   if (!children_[0]->Execute()) {

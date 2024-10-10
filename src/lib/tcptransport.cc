@@ -661,8 +661,7 @@ TCPTransport::OnTimer(TCPTransportTimerInfo *info)
 void
 TCPTransport::TimerCallback(evutil_socket_t fd, short what, void *arg)
 {
-    TCPTransport::TCPTransportTimerInfo *info =
-        (TCPTransport::TCPTransportTimerInfo *)arg;
+    TCPTransport::TCPTransportTimerInfo *info = (TCPTransport::TCPTransportTimerInfo *)arg;
 
     UW_ASSERT(what & EV_TIMEOUT);
 

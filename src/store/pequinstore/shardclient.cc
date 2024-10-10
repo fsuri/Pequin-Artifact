@@ -55,6 +55,7 @@ ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
       //closestReplicas.push_back((i + client_id) % config->n); //Create a load balanced mapping
       // Debug("i: %d; client_id: %d", i, client_id);
       // Debug("Calculations: %d", (i + client_id) % config->n);
+      Debug("Closest replicas - in order: %d", closestReplicas[i]);
     }
   } else {
     closestReplicas = closestReplicas_;
@@ -1107,8 +1108,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     pendingPhase1 = pendingFB->pendingP1;
   }
 
-  bool hasSigned = (params.validateProofs && params.signedMessages) &&
-   (!reply.has_cc() || reply.cc().ccr() != proto::ConcurrencyControl::ABORT);
+  bool hasSigned = (params.validateProofs && params.signedMessages) && (!reply.has_cc() || reply.cc().ccr() != proto::ConcurrencyControl::ABORT);
 
   const proto::ConcurrencyControl *cc = nullptr;
   if (hasSigned) {
@@ -1164,7 +1164,12 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     proto::Signature *sig = pendingPhase1->p1ReplySigs[cc->ccr()].add_sigs();
     sig->set_process_id(reply.signed_cc().process_id());
     *sig->mutable_signature() = reply.signed_cc().signature();
+
+    UW_ASSERT(!pendingPhase1->p1ReplySigs.empty());
   }
+
+  //FIXME: REMOVE TEST
+  if(!hasSigned) UW_ASSERT(cc->ccr() == proto::ConcurrencyControl::ABORT);
 
   //Keep track of conflicts.
   if(reply.has_abstain_conflict()){
@@ -1248,7 +1253,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
                     return;
                   }
                   if(!itr->second->p1){
-                    itr->second->pendingP1->decisionTimeout->Stop();
+                    //itr->second->pendingP1->decisionTimeout->Stop(); //Note: Don't do anything, pendingP1 might already have been deleted?
                     return;
                   }
                   Debug("P1Validator STATE: SLOW_COMMIT_TENTATIVE - Execute TIMER");
@@ -1297,7 +1302,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
                     return;
                   }
                   if(!itr->second->p1){
-                    itr->second->pendingP1->decisionTimeout->Stop();
+                    //itr->second->pendingP1->decisionTimeout->Stop();
                     return;
                   }
                   Debug("P1Validator STATE: SLOW_ABORT_TENTATIVE - Execute TIMER");
@@ -1345,7 +1350,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
                       return;
                     }
                     if(!itr->second->p1){
-                      itr->second->pendingP1->decisionTimeout->Stop();
+                      //itr->second->pendingP1->decisionTimeout->Stop();
                       return;
                     }
                     Debug("P1Validator STATE: SLOW_ABORT_TENTATIVE2 - Execute TIMER");
@@ -1458,8 +1463,7 @@ void ShardClient::HandlePhase2Reply_MultiView(const proto::Phase2Reply &reply) {
 
   auto itr = this->pendingPhase2s.find(reply.req_id());
   if (itr == this->pendingPhase2s.end()) {
-     Debug("[group %i] Received stale Phase2Reply for request %lu.", group,
-        reply.req_id());
+     Debug("[group %i] Received stale Phase2Reply for request %lu.", group, reply.req_id());
     return; // this is a stale request
   }
 
@@ -1902,10 +1906,12 @@ void ShardClient::ProcessP1FBR(proto::Phase1Reply &reply, PendingFB *pendingFB, 
   void ShardClient::Phase1FBDecision(PendingFB *pendingFB) {
 
     //std::cerr << "Failing on FB path" << std::endl;
+   
 
     pendingFB->p1 = false;
     PendingPhase1 *pendingPhase1 = pendingFB->pendingP1;
     Debug("Calling Phase1FB callbackA for txn: %s from shardclient %d", BytesToHex(pendingPhase1->txnDigest_, 16).c_str(), group);
+    if(!pendingPhase1->conflict_flag ) UW_ASSERT(!pendingPhase1->p1ReplySigs.empty());
     pendingFB->p1FBcbA(pendingPhase1->decision, pendingPhase1->fast, pendingPhase1->conflict_flag, pendingPhase1->conflict, pendingPhase1->p1ReplySigs);
     //pendingPhase1 needs to be deleted -->> happens in pendingFB destructor
   }

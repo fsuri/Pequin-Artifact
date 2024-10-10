@@ -367,7 +367,8 @@ void asyncValidateP1RepliesCallback(asyncVerification* verifyObj, uint32_t group
   else{
     if(verifyObj->deletable == 0){
       Debug("Return to CB UNSUCCESSFULLY");
-      Panic("fail validation");
+      Panic("fail validation. Total groups: %d. Verified groups: %d Quorum size: %d, Group[%d]: Group Counts: %d. Num jobs: %d. Num skips: %d", 
+              verifyObj->groupTotals, verifyObj->groupsVerified,verifyObj->quorumSize, groupId, verifyObj->groupCounts[groupId], verifyObj->num_jobs, verifyObj->num_skips);
       verifyObj->mcb((void*) false);
       //verifyObj->deleteMessages();
        if(LocalDispatch) lockScope.unlock();
@@ -615,6 +616,7 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
 
         if (concurrencyControl.ccr() == myResult) {
           skip = true;
+          verifyObj->num_skips++;
           if(myResult == proto::ConcurrencyControl::WAIT) Panic("Aborting due to Wait Sent");
 
           verifyObj->groupCounts[sigs.first]++;
@@ -697,6 +699,7 @@ void asyncValidateP1Replies(proto::CommitDecision decision,
   //verifyObj->deletable = verificationJobs.size();
   //verifyObj->deletable = verificationJobs2.size();
   verifyObj->deletable = verificationJobs3.size();
+  verifyObj->num_jobs = verificationJobs3.size();
 
   //does ref & make a difference here?
   for (std::function<void*()>* f : verificationJobs3){
@@ -921,7 +924,7 @@ void asyncValidateP2RepliesCallback(asyncVerification* verifyObj, uint32_t group
       Debug("Phase2Replies for logging group %d insufficient to complete.", (int)groupId);
       if(verifyObj->deletable == 0){
         Debug("Return to CB UNSUCCESSFULLY");
-        Panic("fail validation");
+        Panic("fail validation. Decision: %d Quorum size: %d, Group Counts: %d. Num jobs: %d. Num skips: %d", verifyObj->decision, verifyObj->quorumSize, verifyObj->groupCounts[groupId], verifyObj->num_jobs, verifyObj->num_skips);
         verifyObj->mcb((void*) false);
         if(LocalDispatch) lockScope.unlock();
         delete verifyObj;
@@ -1039,6 +1042,11 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
       return;
     }
     asyncVerification *verifyObj = new asyncVerification(QuorumSize(config), std::move(mcb), 1, decision, transport);
+    if(config->f == 1){
+      if(verifyObj->quorumSize != 5) Panic("P2 Quorum size is wrong?: %d", verifyObj->quorumSize);
+      if(sigs->second.sigs_size() !=5) Panic("P2 Quorum wrong amount of sigs? %d", sigs->second.sigs_size());
+    }
+
     verifyObj->ccMsgs.push_back(p2DecisionMsg);
     std::vector<std::pair<std::function<void*()>,std::function<void(void*)>>> verificationJobs;
 
@@ -1063,6 +1071,7 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
       if (sig.process_id() == myProcessId && myProcessId >= 0) {
         if (p2Decision.decision() == myDecision) {
           skip = true;
+          verifyObj->num_skips++;
           Debug("Skipping verification of local signature for txn %s", BytesToHex(*txnDigest, 16).c_str() );
           verifyObj->groupCounts[sigs->first]++;
           if (verifyObj->groupCounts[sigs->first] == verifyObj->quorumSize) {
@@ -1103,6 +1112,8 @@ void asyncValidateP2Replies(proto::CommitDecision decision, uint64_t view,
     }
 
     verifyObj->deletable = verificationJobs.size();
+    verifyObj->num_jobs = verificationJobs.size();
+    
     for (auto &verification : verificationJobs){
 
       //a)) Multithreading: Dispatched f: verify , cb: async Callback

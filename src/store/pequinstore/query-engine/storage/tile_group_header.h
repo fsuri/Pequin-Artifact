@@ -55,6 +55,8 @@ struct TupleHeader {
   bool materialize;
   Timestamp basil_timestamp;
   bool is_deleted = false;
+  bool is_purged = false;
+  size_t indirection_offset = 0;
 } __attribute__((aligned(64)));
 
 /**
@@ -176,6 +178,14 @@ public:
   // MVCC utilities
   //===--------------------------------------------------------------------===//
 
+  inline size_t GetIndirectionOffset(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].indirection_offset;
+  }
+
+  inline void SetIndirectionOffset(const oid_t &tuple_slot_id, size_t indirection_offset) {
+    tuple_headers_[tuple_slot_id].indirection_offset = indirection_offset;
+  }
+
   // Getters
   inline const TileGroup *GetTileGroup() const {
     PELOTON_ASSERT(tile_group);
@@ -242,6 +252,10 @@ public:
     return tuple_headers_[tuple_slot_id].is_deleted;
   }
 
+  inline bool IsPurged(const oid_t &tuple_slot_id) const {
+    return tuple_headers_[tuple_slot_id].is_purged;
+  }
+
   // Setters
 
   inline void SetTileGroup(TileGroup *tile_group) {
@@ -280,7 +294,13 @@ public:
 
   inline void SetIndirection(const oid_t &tuple_slot_id,
                              ItemPointer *indirection) const {
+    //if(indirection) Notice("Core[%d] Set Index_entry_ptr [%p: %lu %lu].", sched_getcpu(), indirection, indirection->block, indirection->offset);
     tuple_headers_[tuple_slot_id].indirection = indirection;
+
+    // if(indirection){
+    // auto *test = tuple_headers_[tuple_slot_id].indirection;
+    // Notice("Core[%d] Get Index_entry_ptr [%p: %lu %lu].", sched_getcpu(), test, test->block, test->offset);
+    // }
   }
 
   inline bool SetAtomicTransactionId(const oid_t &tuple_slot_id,
@@ -302,6 +322,7 @@ public:
     tuple_headers_[tuple_slot_id].txn_dig = txn_dig;
   }
 
+  
   // NEW: set commit proof
   inline void
   SetCommittedProof(const oid_t &tuple_slot_id,
@@ -325,6 +346,11 @@ public:
   // NEW: set whether is deleted
   inline void SetIsDeleted(const oid_t &tuple_slot_id, bool is_deleted) {
     tuple_headers_[tuple_slot_id].is_deleted = is_deleted;
+  }
+
+  // NEW: set whether is purged
+  inline void SetPurged(const oid_t &tuple_slot_id, bool purge) {
+    tuple_headers_[tuple_slot_id].is_purged = purge;
   }
 
   /*

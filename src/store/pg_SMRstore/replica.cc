@@ -367,7 +367,7 @@ void Replica::HandleRequest_noHS(const TransportAddress &remote, const proto::Re
     }
     else{
      //Use Asynchronous interface
-      app->Execute_Callback(packedMsg.type(), packedMsg.msg(),cb);
+      app->Execute_Callback(packedMsg.type(), packedMsg.msg(), std::move(cb));
     }
   
     return (void*) true;
@@ -449,7 +449,7 @@ void Replica::HandleRequest_noPacked(const TransportAddress &remote, const std::
     }
     else{
      //Use Asynchronous interface
-      app->Execute_Callback(type, data,cb);
+      app->Execute_Callback(type, data, std::move(cb));
     }
   
     return (void*) true;
@@ -633,7 +633,7 @@ void Replica::executeSlots() {
       auto cb = [this, digest, packedMsg](const std::vector<::google::protobuf::Message*> &replies){
         ProcessReplies(digest, replies);
       };
-      app->Execute_Callback(packedMsg.type(), packedMsg.msg(),cb);
+      app->Execute_Callback(packedMsg.type(), packedMsg.msg(), std::move(cb));
 
     } else {
       // Shir: server is synchronous

@@ -110,13 +110,19 @@ bool InsertExecutor::DExecute() {
 
     std::unique_ptr<storage::Tuple> tuple(new storage::Tuple(target_table_schema, true));
 
+   
+    int cnt = 0;
     // Go over the logical tile
     for (oid_t tuple_id : *logical_tile) {
+      cnt++;
       ContainerTuple<LogicalTile> cur_tuple(logical_tile.get(), tuple_id);
+
+      // if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
 
       // Materialize the logical tile tuple
       for (oid_t column_itr = 0; column_itr < column_count; column_itr++) {
         type::Value val = (cur_tuple.GetValue(column_itr));
+        //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("  Val: %s", val.ToString().c_str());
         tuple->SetValue(column_itr, val, executor_pool);
       }
 
@@ -138,6 +144,7 @@ bool InsertExecutor::DExecute() {
 
       executor_context_->num_processed += 1; // insert one
     }
+    //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("logical tile size: %d", cnt);
 
     // execute after-insert-statement triggers and
     // record on-commit-insert-statement triggers into current transaction
@@ -184,21 +191,27 @@ bool InsertExecutor::DExecute() {
       tuple = storage_tuple.get();
     }
 
+    // if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Bulk Insert count: %d", bulk_insert_count);
     // Bulk Insert Mode
     for (oid_t insert_itr = 0; insert_itr < bulk_insert_count; insert_itr++) {
       // if we are doing a bulk insert from values not project_info
 
+      UW_ASSERT(!project_info);
       if (!project_info) {
         tuple = node.GetTuple(insert_itr);
 
         if (tuple == nullptr) {
           storage_tuple.reset(new storage::Tuple(schema, true));
 
+
+         // if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Next Tuple");
+
           // read from values
           uint32_t num_columns = schema->GetColumnCount();
           for (uint32_t col_id = 0; col_id < num_columns; col_id++) {
             try{
               auto value = node.GetValue(col_id + insert_itr * num_columns);
+              //if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("   Val: %s", value.ToString().c_str());
               storage_tuple->SetValue(col_id, value, executor_pool);
             }
             catch(...){
@@ -221,8 +234,10 @@ bool InsertExecutor::DExecute() {
  
       /*ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);*/
 
+      // if(current_txn->GetBasilTimestamp().getTimestamp() > 0) Notice("Calling InsertTuple. Cnt: %d. Txn status: %d (prepare/commit)", insert_itr, current_txn->GetCommitOrPrepare());
       ItemPointer old_location = ItemPointer(0, 0);
-      ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, result, is_duplicate, old_location, &index_entry_ptr);
+      ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, result, is_duplicate, old_location, &index_entry_ptr); //TODO:FIXME: In InsertTuple we should be setting tuple txn meta data.
+    
 
       // if (new_tuple->GetColumnCount() > 2) {
       //   type::Value val = (new_tuple->GetValue(2));
@@ -239,15 +254,27 @@ bool InsertExecutor::DExecute() {
 
       bool is_purge = current_txn->GetUndoDelete();
 
-      //If inserting a NEW row version. (if there is already a row version exists yet)
-      if (!result && !is_duplicate && !is_purge) {
-      
+      if(is_duplicate){
+        //do nothing. We are updating it in data table.
+      }
+      //Note: If version is "purged", but its the first occurence of the row, still write it.
+      else if(result){ //== first version
+        InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
+      }
+      else{
         InsertNewVersion(project_info, target_table, transaction_manager, current_txn, location, old_location, index_entry_ptr);
       }
-      //  //If inserting a NEW row version, and it is the first version of the row
-      else if (!is_duplicate && !is_purge) {
-          InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
-      }
+
+
+      // //If inserting a NEW row version. (if there is already a row version exists yet)
+      // if (!result && !is_duplicate && !is_purge) {
+      
+      //   InsertNewVersion(project_info, target_table, transaction_manager, current_txn, location, old_location, index_entry_ptr);
+      // }
+      // //  //If inserting a NEW row version, and it is the first version of the row
+      // else if (!is_duplicate && !is_purge) {
+      //     InsertFirstVersion(transaction_manager, current_txn, location, index_entry_ptr);
+      // }
 
       // TODO: This is what was here before
       // transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
@@ -270,36 +297,64 @@ bool InsertExecutor::InsertFirstVersion(concurrency::TransactionManager &transac
   //Debug("Insert was performed");
     transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
 
-    //std::cerr <<"here" << std::endl;
-    auto storage_manager = storage::StorageManager::GetInstance();
-
-    auto tile_group = storage_manager->GetTileGroup(location.block);
-    auto tile_group_header = tile_group->GetHeader();
-
-    
-   //std::cerr <<"here2" << std::endl;
-    //Debug("Commit or prepare is %d", current_txn->GetCommitOrPrepare());
-      //TODO: Obsolete to set here? Will be done in PerformUpdate?
-    tile_group_header->SetCommitOrPrepare(location.offset, current_txn->GetCommitOrPrepare());
-    tile_group_header->SetMaterialize(location.offset, current_txn->GetForceMaterialize());
-
-    auto ts = current_txn->GetBasilTimestamp();
-    tile_group_header->SetBasilTimestamp(location.offset, ts);
-
-    if (current_txn->GetTxnDig() != nullptr) {
-      tile_group_header->SetTxnDig(location.offset, current_txn->GetTxnDig());
-    }
-
-    // std::cerr <<"here3" << std::endl;
-
     return true;
 }
 
-//
-      // auto &latch = tile_group_header->GetSpinLatch(old_location.offset);
-      // latch.Lock();
-
 bool InsertExecutor::InsertNewVersion(const planner::ProjectInfo *project_info, storage::DataTable *target_table, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
+                                      ItemPointer &location, ItemPointer &old_location, ItemPointer *index_entry_ptr){
+  //If inserting a NEW row version. (if there is already a row version exists yet)
+ 
+      Debug("Trying to insert with existing primary key -- doing update instead");
+      // ItemPointer new_location = target_table->AcquireVersion();
+      ItemPointer new_location = location;
+      // std::cerr << "New location is (" << new_location.block << ", " << new_location.offset << ")" << std::endl;
+      
+
+      if (old_location.IsNull()) {
+        Panic("Old location is null");
+      } 
+      auto storage_manager = storage::StorageManager::GetInstance();
+      auto tile_group = storage_manager->GetTileGroup(old_location.block);
+      auto tile_group_header = tile_group->GetHeader();
+
+      auto new_tile_group = storage_manager->GetTileGroup(new_location.block);
+
+      ContainerTuple<storage::TileGroup> new_tuple_one(new_tile_group.get(), new_location.offset);
+
+      ContainerTuple<storage::TileGroup> old_tuple_one(tile_group.get(), old_location.offset);
+
+ 
+      // get indirection.
+      // std::cerr << "Before getting indirection" << std::endl;
+      ItemPointer *indirection = tile_group_header->GetIndirection(old_location.offset);
+      // std::cerr << "After getting indirection" << std::endl;
+      if (indirection == nullptr) {
+        Panic("Indirection pointer is null");
+      }
+
+      new_tile_group->GetHeader()->SetIndirection(new_location.offset, indirection);
+    
+      // Set the indirection offset
+      size_t indirection_offset = tile_group_header->GetIndirectionOffset(old_location.offset);
+      new_tile_group->GetHeader()->SetIndirectionOffset(new_location.offset, indirection_offset);
+      std::mutex &m = target_table->active_indirection_mutexes_[indirection_offset % 32];
+      m.lock();
+
+      transaction_manager.PerformUpdate(current_txn, old_location, new_location);
+      
+      m.unlock();
+
+       bool install_res = target_table->InstallVersion(&new_tuple_one, &(project_info->GetTargetList()), current_txn, indirection);
+
+      /** NEW: Yield ownership if necessary */
+      if (install_res == false) {
+        Panic("Fail to install new tuple. Set txn failure.");
+      }
+
+      return true;
+}
+
+bool InsertExecutor::InsertNewVersionOLD(const planner::ProjectInfo *project_info, storage::DataTable *target_table, concurrency::TransactionManager &transaction_manager, concurrency::TransactionContext *current_txn, 
                                       ItemPointer &location, ItemPointer &old_location, ItemPointer *index_entry_ptr){
   //If inserting a NEW row version. (if there is already a row version exists yet)
   // std::cerr << "Tried to insert row with same primary key, so will do an update"  << std::endl;

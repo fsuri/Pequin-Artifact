@@ -75,6 +75,8 @@ bool SeqScanExecutor::DInit() {
   already_added_table_col_versions = false;
   first_execution = true;
 
+  lowest_snapshot_frontier = Timestamp(UINT64_MAX); //smallest prepared version that we skip during snapshot materialization.  //Update continously during read. At the end of exec, update TblVersion
+
   bool is_metadata_table_ = target_table_->GetName().substr(0,3) == "pg_"; //Note: seq_scan never used for meta data tables.
   UW_ASSERT(!is_metadata_table_);
 
@@ -131,7 +133,8 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
   //bool snapshot_only_mode = false; 
   bool snapshot_only_mode = !current_txn->GetHasReadSetMgr() && current_txn->GetHasSnapshotMgr() && !current_txn->IsNLJoin(); 
  
-
+  int max_num_reads = 1; 
+  int num_reads = 0;
 
   while(!done) {
     auto tuple_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
@@ -141,9 +144,19 @@ void SeqScanExecutor::CheckRow(ItemPointer head_tuple_location, concurrency::Tra
       bool read_curr_version = false;
       done = FindRightRowVersion(txn_timestamp, tile_group, tile_group_header, tuple_location, num_iters, current_txn, read_curr_version, found_committed, found_prepared);
 
-      if (read_curr_version && !snapshot_only_mode) { //if the current version is readable, and we are in read mode: Evaluate Read
+      if (read_curr_version && ++num_reads <= max_num_reads && !snapshot_only_mode) { //if the current version is readable, and we are in read mode: Evaluate Read
         EvalRead(tile_group, tile_group_header, tuple_location, current_txn, position_map);
       }
+
+      //If we are in read_from_snapshot mode, and we skip a read (i.e. done = false), update the min_snapshot_frontier. Note: Ignore tuples that a force materialized (they are effectively invisible)
+      if(!done && current_txn->GetSnapshotRead()){ //bool perform_read_on_snapshot = true
+        UW_ASSERT(!found_committed && !found_prepared); // in read_on_snapshot mode done should be true as soon as found_prepared or found_committed becomes true.
+        if(!tile_group_header->GetMaterialize(tuple_location.offset)){
+            Timestamp const &skipped_timestamp = tile_group_header->GetBasilTimestamp(tuple_location.offset);
+            lowest_snapshot_frontier = std::min(lowest_snapshot_frontier, skipped_timestamp);
+        }
+      }
+
     }
 
     if (done) break;
@@ -399,6 +412,17 @@ void SeqScanExecutor::SetTableColVersions(concurrency::TransactionContext *curre
   already_added_table_col_versions = true;
 }
 
+void SeqScanExecutor::RefineTableColVersions(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
+    //If we are in perform_read_on_snapshot mode: update TableVersion.
+    if(!current_txn->GetSnapshotRead()) return;
+
+    UW_ASSERT(current_txn->GetSqlInterpreter()); //should be set for Snapshot read
+    auto query_params = current_txn->GetSqlInterpreter()->GetQueryParams();
+   
+    //if(query_params->useSemanticCC) 
+    query_read_set_mgr->RefinePredicateTableVersion(lowest_snapshot_frontier, query_params->monotonicityGrace);
+}
+
 void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn, pequinstore::QueryReadSetMgr *query_read_set_mgr){
 
   if(!current_txn->GetHasReadSetMgr()) return;
@@ -474,6 +498,8 @@ void SeqScanExecutor::Scan() {
       CheckRow(location, transaction_manager, current_txn, storage_manager, position_map);
     }
   }
+
+  RefineTableColVersions(current_txn, query_read_set_mgr); //Refine TableVersion if reading from materialized snapshot
 
   PrepareResult(position_map);
   done_ = true;

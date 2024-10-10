@@ -705,22 +705,31 @@ executor::ExecutionResult TrafficCop::ExecuteWriteHelper(
     std::shared_ptr<std::string> txn_dig,
     const pequinstore::proto::CommittedProof *commit_proof,
     bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
-  auto &curr_state = GetCurrentTxnState();
+  //auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
-  if (!tcop_txn_state_.empty()) {
-    // std::cerr << "Write helper use of existing txn" << std::endl;
-    txn = curr_state.first;
-  } else {
-    // std::cerr << "Write helper create new txn" << std::endl;
-    //  No active txn, single-statement txn
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  // if (!tcop_txn_state_.empty()) {
+  //   // std::cerr << "Write helper use of existing txn" << std::endl;
+  //   Panic("Write helper uses existing txn");
+  //   txn = curr_state.first;
+  // } else {
+  //   // std::cerr << "Write helper create new txn" << std::endl;
+  //   //  No active txn, single-statement txn
+  //   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  //   // new txn, reset result status
+  //   curr_state.second = ResultType::SUCCESS;
+  //   single_statement_txn_ = true;
+  //   txn = txn_manager.BeginTransaction(thread_id);
+  //   tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  // }
+
+   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+   auto &curr_state = GetDefaultTxnState();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
     single_statement_txn_ = true;
     txn = txn_manager.BeginTransaction(thread_id);
-    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
-  }
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
@@ -800,20 +809,28 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
     const std::vector<type::Value> &params, std::vector<ResultValue> &result,
     const std::vector<int> &result_format, const Timestamp &basil_timestamp,
     std::shared_ptr<std::string> txn_dig, bool undo_delete, size_t thread_id) {
-  auto &curr_state = GetCurrentTxnState();
+  //auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
-  if (!tcop_txn_state_.empty()) {
-    txn = curr_state.first;
-  } else {
-    // No active txn, single-statement txn
-    auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  // if (!tcop_txn_state_.empty()) {
+  //   txn = curr_state.first;
+  // } else {
+  //   // No active txn, single-statement txn
+  //   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+  //   // new txn, reset result status
+  //   curr_state.second = ResultType::SUCCESS;
+  //   single_statement_txn_ = true;
+  //   txn = txn_manager.BeginTransaction(thread_id);
+  //   tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
+  // }
+
+   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
+
+   auto &curr_state = GetDefaultTxnState();
     // new txn, reset result status
     curr_state.second = ResultType::SUCCESS;
     single_statement_txn_ = true;
     txn = txn_manager.BeginTransaction(thread_id);
-    tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
-  }
 
   // Set the Basil timestamp
   txn->SetBasilTimestamp(basil_timestamp);
@@ -826,10 +843,11 @@ executor::ExecutionResult TrafficCop::ExecutePurgeHelper(
   txn->GetUndoDelete());
   // std::cerr << "Undo delete in execute purge helper is " << undo_delete <<
   // std::endl; std::cerr << "Txn get undo delete in execute purge helper is "
-  // << txn->GetUndoDelete() << std::endl; No read set manager for purge
+  // << txn->GetUndoDelete() << std::endl; //No read set manager for purge
   txn->SetHasReadSetMgr(false);
   txn->SetIsPointRead(false);
   txn->SetHasSnapshotMgr(false);
+  txn->SetCommitOrPrepare(false);
 
   // skip if already aborted
   if (curr_state.second == ResultType::ABORTED) {
@@ -914,7 +932,7 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-    pequinstore::proto::Write *write, size_t thread_id) {
+    pequinstore::proto::Write *write, size_t thread_id, bool is_customer_read) {
   auto &curr_state = GetCurrentTxnState();
 
   concurrency::TransactionContext *txn;
@@ -929,6 +947,8 @@ executor::ExecutionResult TrafficCop::ExecutePointReadHelper(
     txn = txn_manager.BeginTransaction(thread_id);
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
+
+  txn->is_customer_read = is_customer_read;
 
   txn->SetReadOnly(); //THIS IS A READ QUERY
 
@@ -1862,7 +1882,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
         statement->SetPlanTree(plan);
         statement->SetNeedsReplan(true);
       }
-      Debug("Purge statement. undo_delete: %d", undo_delete);
+      Debug("Purge statement. Txn[%s] undo_delete: %d", pequinstore::BytesToHex(*txn_dig, 16).c_str(), undo_delete);
       // std::cerr << "Undo delete in execute purge statement is " <<
       // undo_delete << std::endl;
       ExecutePurgeHelper(statement->GetPlanTree(), params, result,
@@ -1917,14 +1937,12 @@ ResultType TrafficCop::ExecuteWriteStatement(
       // The statement may be out of date
       // It needs to be replan
       if (statement->GetNeedsReplan()) {
+        Panic("Need replan");
         // TODO(Tianyi) Move Statement Replan into Statement's method
         // to increase coherence
-        auto bind_node_visitor = binder::BindNodeVisitor(
-            tcop_txn_state_.top().first, default_database_name_);
-        bind_node_visitor.BindNameToNode(
-            statement->GetStmtParseTreeList()->GetStatement(0));
-        auto plan = optimizer_->BuildPelotonPlanTree(
-            statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
+        auto bind_node_visitor = binder::BindNodeVisitor(tcop_txn_state_.top().first, default_database_name_);
+        bind_node_visitor.BindNameToNode(statement->GetStmtParseTreeList()->GetStatement(0));
+        auto plan = optimizer_->BuildPelotonPlanTree(statement->GetStmtParseTreeList(), tcop_txn_state_.top().first);
         statement->SetPlanTree(plan);
         statement->SetNeedsReplan(true);
       }
@@ -1955,7 +1973,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     Timestamp *committed_timestamp,
     const pequinstore::proto::CommittedProof **commit_proof,
     Timestamp *prepared_timestamp, std::shared_ptr<std::string> *txn_dig,
-    pequinstore::proto::Write *write, size_t thread_id) {
+    pequinstore::proto::Write *write, bool is_customer_read, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
           settings::SettingId::stats_mode)) != StatsType::INVALID) {
@@ -2004,7 +2022,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
       ExecutePointReadHelper(statement->GetPlanTree(), params, result,
                              result_format, basil_timestamp, predicate,
                              committed_timestamp, commit_proof,
-                             prepared_timestamp, txn_dig, write, thread_id);
+                             prepared_timestamp, txn_dig, write, thread_id, is_customer_read);
       if (GetQueuing()) {
         return ResultType::QUEUING;
       } else {
