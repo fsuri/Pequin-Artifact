@@ -193,7 +193,7 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
   bool begin = false;
   bool active = c->second.GetTxStatus(tx_id, begin, terminate_last); //Checks if there is an ongoing Txn (and if it is active); if not, starts a new Tx.
   if(terminate_last){
-    if(idx == 0) Panic("Call terminate last on leader?");
+    if(idx == 0) Panic("Call terminate last on leader? ProcessReq. client: %lu. txn: %lu. req: %lu", client_id, tx_id, req_id);
     table_store->Abort(client_id, tx_id-1); //NOTE: This is only to help with FakeSMR mode. It's not technically necessary.
   }
   if(begin) table_store->Begin(client_id, tx_id);

@@ -62,9 +62,12 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
     try {
       *result = currTxn->Execute(client);
     }
-    catch(...) {
-      Notice("catch abort");
+    catch(const std::exception& e) {
+      Notice("catch abort. Will retry last TX");
       *result = ABORTED_SYSTEM; //ABORTED_USER;
+    }
+    catch(...){
+      Panic("Caught misfire in Tx");
     }
     //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
     // Panic("stop after one");

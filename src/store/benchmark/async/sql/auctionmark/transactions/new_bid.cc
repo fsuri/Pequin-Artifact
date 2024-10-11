@@ -132,6 +132,8 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
   uint64_t newBidId = 0;
   std::string newBidMaxBuyerId = buyer_id;
 
+  Debug("Item: %s. Seller: %s. NumBids: %d.", item_id.c_str(), seller_id.c_str(), ir.i_num_bids);
+
   // If we existing bids, then we need to figure out whether we are the new highest bidder or if the existing one just has their max_bid bumped up
   if(ir.i_num_bids > 0){
 
@@ -153,11 +155,27 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     
     client.Wait(results);
   
-    deserialize(newBidId, results[0]);
+    try{
+      deserialize(newBidId, results[0]);
+    }
+    catch(...){
+      Panic("Failed deserializing newBidID");
+    }
     
+    //TODO: Check if result is empty? Could this be possible?  => Could happen if read inbetween max bid and bid being written. In that case. Should retry!
+    if(results[1]->empty()){
+      Panic("Did not read a MaxItemBid even though item has Bid?.. Retry Tx.. Stmt: %s", statement.c_str());
+      client.Abort(timeout);
+      throw std::exception(); //Trigger TX system abort & retry
+      //return ABORTED_USER;
+    }
     getItemMaxBidRow imbr;
-    
-    deserialize(imbr, results[1]);
+    try{
+      deserialize(imbr, results[1]);
+    }
+    catch(...){
+      Panic("Failed deserializing ItemMaxBidRow");
+    }
 
      //Note, might not be true if concurrently a new row was inserted. We don't provide opacity.
     if(newBidId < imbr.currentBidId) Warning("Opacity violation: New bid id: %d not bigger than max Bid id: %d. Dynamically adjust to maximum", newBidId, imbr.currentBidId);
@@ -240,6 +258,17 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
     client.Write(statement, timeout); 
 
     client.Wait(results); 
+
+    //Cornercase bug: Since we issued both Inserts asynchronously there can be a race condition for systems like Pelotonstore in which
+    //Tx1 succeeds with the first insert, and Tx2 succeeds with the second insert, resulting in an inconsistent state: even though only 1 insertion overall will have taken place, num_bids is incremented twice
+    //Likewise, it is possible that Tx2 may become aborted on a concurrent update, resulting in the write to ItemMaxBid rolling back. Now we have no MaxBid.
+    //-> This handling is trying to ensure atomicity
+    if(results[0]->rows_affected() == 0 || results[1]->rows_affected() == 0){
+      //Insert failed. Mustve been a concurrent Tx that made us select the wrong newBidId. Retry tx!
+      Warning("NewBid insertion failed. Item: %s. BidId: %d", item_id.c_str(), newBidId);
+      client.Abort(timeout);
+      throw std::exception();
+    }
   }
 
   Debug("COMMIT");

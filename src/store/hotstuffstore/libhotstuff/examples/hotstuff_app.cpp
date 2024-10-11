@@ -113,7 +113,7 @@ class HotStuffApp: public HotStuff {
     std::function<void(const std::string&, uint32_t seqnum)> smr_cb;
     std::map<uint256_t, std::pair<Finality, std::string>> digest_map;
     uint32_t last_block = 0;
-    uint32_t last_seq;
+    uint32_t last_seq = 0;
 
     void state_machine_execute(const Finality &fin) override {
         reset_imp_timer();
