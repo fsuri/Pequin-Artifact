@@ -528,6 +528,7 @@ void Replica::HandleRequest_noPacked_shir(const TransportAddress &remote, const 
   proposeBubble();
   proposeBubble();
   proposeBubble();
+  proposeBubble();
 
   //Start Timer for dummy TX upon receiving the first Request
   if (false){
@@ -673,7 +674,7 @@ void Replica::executeSlots_unpacked() {
 
     //If we are using the more performant fake SMR mode -> then prepare a callback to be called by the execution threads on the server upon completion of the request
     if(fake_SMR) {
-      auto cb = [this, digest](const std::vector<::google::protobuf::Message*> &replies){
+      std::function<void(std::vector<google::protobuf::Message*>& )> cb = [this, digest](const std::vector<::google::protobuf::Message*> &replies){
         ProcessReplies(digest, replies);
       };
       app->Execute_Callback(type, data, cb);

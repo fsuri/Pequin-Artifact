@@ -143,7 +143,8 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 }
 
 //Asynchronous Execution Interface -> Dispatch execution to a thread, and let it call callback when done
-void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> &&ecb) {
+void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
+
   Debug("Execute with callback: %s", type.c_str());
 
   std::string client_seq_key; //TODO: GET RID OF THIS

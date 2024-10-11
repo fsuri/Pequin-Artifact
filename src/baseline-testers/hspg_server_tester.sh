@@ -41,12 +41,12 @@ N=$((3*$F+1))
 
 
 
-# if [ "$PROTOCOL" = "pg-smr" ] ; then
-#     echo "Setting up postgres enviorment with $N different databases"
-# 	./scripts/postgres_service.sh -r
-# 	./scripts/postgres_service.sh -n $N
+if [ "$PROTOCOL" = "pg-smr" ] ; then
+    echo "Setting up postgres enviorment with $N different databases"
+	./scripts/postgres_service.sh -r
+	./scripts/postgres_service.sh -n $N
 
-# fi
+fi
 
 
 

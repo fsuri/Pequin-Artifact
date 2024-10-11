@@ -61,7 +61,7 @@ public:
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);
     std::vector<::google::protobuf::Message*> Execute_OLD(const string& type, const string& msg);
     
-  void Execute_Callback(const std::string& type, const std::string& msg, execute_callback &&ecb);
+  void Execute_Callback(const std::string& type, const std::string& msg, execute_callback ecb);
     void Execute_Callback_OLD(const std::string& type, const std::string& msg, const execute_callback ecb);
 
   void Load(const std::string &key, const std::string &value,
