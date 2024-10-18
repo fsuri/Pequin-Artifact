@@ -136,7 +136,7 @@
   
 
   "client_total": [
-    [1, 5, 10, 15]
+    [1, 3, 5, 10]
   ],
   "client_processes_per_client_node": [
     [8, 8, 8, 8]

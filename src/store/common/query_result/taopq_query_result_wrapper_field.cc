@@ -41,6 +41,7 @@ bool Field::is_null() const {
     return _field.is_null();
 }
 
+//FIXME: These are all unsafe. Need to account for is null. 
 auto Field::get_bytes(std::size_t* size) const -> const char* {
     return _field.get();
 }

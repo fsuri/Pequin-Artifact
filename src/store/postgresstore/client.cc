@@ -120,15 +120,20 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
       return;
     }
    
-    tao::pq::result result = [this, &query_statement]() {
-      return transaction->execute(query_statement);
-    }();
-    Debug("Completed Query execution: %s", query_statement.c_str());
+    tao::pq::result result = transaction->execute(query_statement);
+    Debug("Completed Query execution: %s.", query_statement.c_str());
+    // for( const auto& row : result ) {
+    //     for( const auto& field : row ) {
+    //     // use field to access your data
+    //     if(field.is_null()) Warning("Col name Is null: %s", field.name().c_str());
+    //     else Notice("Col name: %s. Val: %s", field.name().c_str(), field.get());
+    //   }  
+    //  }
     stats.Increment("queries_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
     qcb(REPLY_OK, tao_res);
   } catch (const std::exception &e) {
-    Notice("Query[%s] exec failed: %s", query_statement.c_str(), e.what());
+    Notice("Query exec failed: %s. Query: %s", query_statement.c_str(), e.what());
     // Maybe not needed (rollback)
     transaction->rollback();
 
@@ -141,6 +146,11 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
 inline void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write) {
   
+  //Wrap all inserts in ON CONFLICT DO NOTHING. //Assumption: Doesn't end with semicolon. If it does, TODO: remove it.
+  if(write_statement.find("INSERT INTO") != std::string::npos){
+    write_statement += " ON CONFLICT DO NOTHING";
+  }
+
   Debug("Write: %s", write_statement.c_str());
   try {
     if (transaction == nullptr) {

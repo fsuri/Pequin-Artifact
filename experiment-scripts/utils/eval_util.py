@@ -222,7 +222,12 @@ def calculate_statistics_for_run(config, local_out_directory, run):
 
                                         cid = 0
                                         if x + 3 < len(opCols):
-                                            cid = int(opCols[x + 3])
+                                            #cid = int(opCols[x + 3])
+                                            try:
+                                                cid = int(opCols[x + 3])
+                                            except ValueError:
+                                                print('Invalid row: ', opCols)
+                                                #break #skip this row
 
                                         if cid not in op_latencies:
                                             op_latencies[cid] = {}

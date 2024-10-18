@@ -406,6 +406,7 @@ First, download the installation script:
 
 1. `wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e6ff8e9c-ee28-47fb-abd7-5c524c983e1c/l_BaseKit_p_2024.2.1.100.sh --no-check-certificate`
 > :warning: Our tested install used the 2021 basekit (`wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh`). However, the 2021 basekit download is now deprecated. The 2024 installer includes the 2021 package.
+
  Alternatively, you may download the latest Intel BaseKit version from https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=online (Note that you need to ensure the version is compatible with our code). 
  
  Next, execute the installation script

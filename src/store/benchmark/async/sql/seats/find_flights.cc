@@ -110,7 +110,12 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     //Parallel Read version
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     for (std::size_t i = 0; i < queryResult->size(); i++) {
-        deserialize(flight_row, queryResult, i);
+        try{
+            deserialize(flight_row, queryResult, i);
+        }
+        catch(const std::exception &e){
+            Panic("failed to deserialize flight row: %s", e.what());
+        }
 
         //Departure Airport
         query = fmt::format(getAirportInfoQuery, AIRPORT_TABLE, COUNTRY_TABLE, flight_row.f_depart_ap_id);
@@ -125,7 +130,15 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
    
     for(auto &queryResultAirportInfo: results){
         GetAirportInfoResultRow ai_row;
-        deserialize(ai_row, queryResultAirportInfo, 0);
+       
+
+        try{
+             deserialize(ai_row, queryResultAirportInfo, 0);
+        }
+        catch(const std::exception &e){
+            Panic("failed to deserialize Airport Info: %s", e.what());
+        }
+
         airport_infos.push_back(ai_row);
     }
 
@@ -148,8 +161,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     //     deserialize(ai_row, queryResultAirportInfo, 0);
     //     airport_infos.push_back(ai_row);
     // }
-
-
+    
     Debug("COMMIT");
     auto result = client.Commit(timeout);
     if(result != transaction_status_t::COMMITTED) return result;

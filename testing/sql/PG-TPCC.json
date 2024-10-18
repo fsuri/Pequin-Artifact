@@ -19,13 +19,13 @@
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 16,
+   "server_load_time": 30,
   
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 10,
+	  "tpcc_num_warehouses": 20,
 	  
 	  "tpcc_stock_level_ratio": 4,
 	  "tpcc_delivery_ratio": 4,
@@ -54,7 +54,7 @@
     {
       "message_transport_type": "tcp",
       "signature_type": 4,
-		  "sig_batch": 4,
+		  "sig_batch": 1,
 		  	"_sig_batch_timeout": 5000,
 		  "key_path": "/usr/local/etc/indicus-keys/donna"
     }

@@ -82,7 +82,8 @@ void SeatsProfile::LoadProfile(const std::string &profile_file_path){
   
       std::ifstream file3 (profile_file_path + seats_sql::CACHED_FLIGHTS_FILE_NAME);
       skipCSVHeader(file3);
-      for (int i = 0; i < seats_sql::CACHE_LIMIT_FLIGHT_IDS; i++) {
+      while(true){
+      //for (int i = 0; i < seats_sql::CACHE_LIMIT_FLIGHT_IDS; i++) {
         std::vector<std::string> row = readCSVRow(file3);
         if (row.size() < 5) break;
 
@@ -98,6 +99,7 @@ void SeatsProfile::LoadProfile(const std::string &profile_file_path){
       file3.close();
 
       std::shuffle(cached_flights.begin(), cached_flights.end(), gen);
+      cached_flights.resize(seats_sql::CACHE_LIMIT_FLIGHT_IDS);
       UW_ASSERT(!cached_flights.empty());
 
         //PLACEHOLDER CODE:

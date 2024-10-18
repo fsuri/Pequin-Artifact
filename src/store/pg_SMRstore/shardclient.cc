@@ -55,6 +55,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
   }
 
   Notice("SMR_mode: %d", SMR_mode);
+  if(SMR_mode > 0) UW_ASSERT(signMessages); //Must sign messages with SMR mode: Otherwise fakeSMR is bugged in HandleSQL_RPC reply
 
   if(SMR_mode == 2){
     Debug("created bftsmart agent in shard client!");
@@ -172,9 +173,9 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
       });
   psr.timeout->Start();
 
-  //TEST
-  transport->SendMessageToReplica(this, 0, sql_rpc);
-  return;
+  // //TEST
+  // transport->SendMessageToReplica(this, 0, sql_rpc);
+  // return;
 
   // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -191,7 +192,7 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
 
   
 
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
@@ -227,9 +228,9 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
       });
   ptc.timeout->Start();
 
-  // //TEST
-  transport->SendMessageToReplica(this, 0, try_commit);
-  return;
+  // // //TEST
+  // transport->SendMessageToReplica(this, 0, try_commit);
+  // return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
@@ -240,7 +241,7 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
 
   Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
 
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{
@@ -268,9 +269,9 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   user_abort.set_client_id(client_id);
   user_abort.set_txn_seq_num(client_seq_num);
 
-    // //TEST
-  transport->SendMessageToReplica(this, 0, user_abort);
-  return;
+  //   // //TEST
+  // transport->SendMessageToReplica(this, 0, user_abort);
+  // return;
 
 
    //Wrap it in generic Request (this goes into Hotstuff)
@@ -280,7 +281,7 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
   Debug("Sending Abort TxnSeq: %lu ", client_seq_num);
-  if(SEND_ONLY_TO_LEADER){
+  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
     transport->SendMessageToReplica(this, 0, request);
   }
   else{

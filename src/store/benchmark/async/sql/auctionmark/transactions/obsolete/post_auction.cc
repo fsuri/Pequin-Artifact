@@ -64,7 +64,7 @@ transaction_status_t PostAuction::Execute(SyncClient &client) {
       assert(queryResult->has_rows_affected());
 
       statement = fmt::format("INSERT INTO USER_ITEM (ui_u_id, ui_i_id, ui_i_u_id, ui_created) "
-                              "VALUES({}, {}, {}, {});", 
+                              "VALUES({}, {}, {}, {})", 
                               buyer_id.value(), i_id, seller_id, 0);
       client.Write(statement, queryResult, timeout);
       assert(queryResult->has_rows_affected());

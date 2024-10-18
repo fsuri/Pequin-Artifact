@@ -32,7 +32,7 @@ namespace auctionmark {
 
 NewPurchase::NewPurchase(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   
-  std::cerr << std::endl << "NEW PURCHASE" << std::endl;
+  std::cerr << "NEW PURCHASE" << std::endl;
   ItemInfo itemInfo = *profile.get_random_waiting_for_purchase_item();
   item_id = itemInfo.get_item_id().encode();
   UserId sellerId = itemInfo.get_seller_id();

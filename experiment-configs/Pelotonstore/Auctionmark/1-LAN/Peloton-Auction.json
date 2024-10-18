@@ -74,13 +74,24 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
     
-  "client_total": [
-    [1, 5, 10, 20, 25, 30]
+   "client_total": [
+    [30, 20, 25]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8]
+    [8, 8, 8]
   ],
   "client_threads_per_process": [
+    [1, 2, 2]
+  ],
+
+    
+  "_client_total": [
+    [1, 5, 10, 20, 25, 30]
+  ],
+  "_client_processes_per_client_node": [
+    [8, 8, 8, 8, 8, 8]
+  ],
+  "_client_threads_per_process": [
     [1, 1, 1, 1, 1, 1]
   ],
 

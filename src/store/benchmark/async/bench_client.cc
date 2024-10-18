@@ -180,7 +180,11 @@ void BenchmarkClient::IncrementSent(int result) {
           //std::cout << "#start," << startMeasureTime.tv_sec << "," << startMeasureTime.tv_usec << std::endl;
         }
         uint64_t currNanos = curr.tv_sec * 1000000000ULL + curr.tv_nsec;
-        std::cout << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
+
+        std::stringstream msg;
+        msg << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
+        std::cout << msg.str();
+        //std::cout << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
         latencies.push_back(ns);
       }
     }
@@ -214,7 +218,11 @@ void BenchmarkClient::Finish() {
   gettimeofday(&endTime, NULL);
   struct timeval diff = timeval_sub(endTime, startMeasureTime);
 
-  std::cout << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  std::stringstream msg;
+  msg << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  std::cout << msg.str();
+  //std::cout << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  //std::osyncstream(std::cout) << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
 
   Notice("Completed %d requests in " FMT_TIMEVAL_DIFF " seconds", n,
       VA_TIMEVAL_DIFF(diff));

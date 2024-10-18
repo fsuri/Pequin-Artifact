@@ -141,11 +141,11 @@ transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
   client.Write(statement, queryResult, timeout);
 
   // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 
-  statement = fmt::format("INSERT INTO {} (no_w_id, no_d_id, no_o_id) VALUES ({}, {}, {});", NEW_ORDER_TABLE, w_id, d_id, o_id);
+  statement = fmt::format("INSERT INTO {} (no_w_id, no_d_id, no_o_id) VALUES ({}, {}, {})", NEW_ORDER_TABLE, w_id, d_id, o_id);
   client.Write(statement, queryResult, timeout, true); //blind_write
   
   statement = fmt::format("INSERT INTO {} (o_w_id, o_d_id, o_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
-          "VALUES ({}, {}, {}, {}, {}, {}, {}, {});", ORDER_TABLE, w_id, d_id, o_id, c_id, o_entry_d, 0, ol_cnt, all_local);
+          "VALUES ({}, {}, {}, {}, {}, {}, {}, {})", ORDER_TABLE, w_id, d_id, o_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   client.Write(statement, queryResult, timeout, true); //blind write
 
 
@@ -236,7 +236,7 @@ transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
           NOT_REACHABLE();
       }
       statement = fmt::format("INSERT INTO {} (ol_w_id, ol_d_id, ol_o_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
-            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}');", 
+            "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}')", 
             ORDER_LINE_TABLE, w_id, d_id, o_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
       client.Write(statement, queryResult, timeout, true); //blind write
     }

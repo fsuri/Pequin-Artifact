@@ -36,18 +36,31 @@
 namespace pg_SMRstore {
 
 static bool TEST_DUMMY_RESULT = false;
-const uint64_t number_of_threads = 8;
+static uint64_t number_of_threads = 8;
 
 using namespace std;
 
 Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   int groupIdx, int idx, int numShards, int numGroups, bool signMessages,
   bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp, bool localConfig,
-  TrueTime timeServer) : config(config), keyManager(keyManager),
+  int SMR_mode, uint64_t num_clients, TrueTime timeServer) : config(config), keyManager(keyManager),
   groupIdx(groupIdx), idx(idx), id(groupIdx * config.n + idx),
   numShards(numShards), numGroups(numGroups), signMessages(signMessages),
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp), localConfig(localConfig), timeServer(timeServer) {
 
+  //tp->AddIndexedThreads(number_of_threads);
+
+      //thread 0 is doing messages
+    //thread 1 is doing parsing.  //TODO: Move these onto same thread
+    //TODO: Configure based off SMR mode
+    //TODO: add offset param  (make offset = num cores - num_threads)
+    //If SMR mode = 0: use 7 threads and offset = 1   => might be better with 6 as well? Maybe just use 6 for even comparison?
+    if(SMR_mode == 0) number_of_threads = 7;
+    if(SMR_mode == 1) number_of_threads = 6;  
+    //If SMR mode = 2 => same I assume. check!
+    if(SMR_mode == 2) number_of_threads = 7;
+
+  number_of_threads = num_clients; //give each client it's own thread. //TODO: threads => offset by 64..
   tp->AddIndexedThreads(number_of_threads);
 
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
@@ -138,7 +151,7 @@ std::vector<::google::protobuf::Message*> Server::Execute(const string& type, co
 }
 
 //Asynchronous Execution Interface -> Dispatch execution to a thread, and let it call callback when done
-void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> &&ecb) {
+void Server::Execute_Callback(const string& type, const string& msg, std::function<void(std::vector<google::protobuf::Message*>& )> ecb) {
   Debug("Execute with callback: %s", type.c_str());
 
   std::string client_seq_key; //TODO: GET RID OF THIS
@@ -457,8 +470,16 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
       reply->set_status(REPLY_OK); 
       reply->set_sql_res("");
     }
+    else if (std::regex_match(e.sqlstate, std::regex("25P04"))){ // Concurrency errors
+      Notice("A lock-timeout exception caught while using postgres.: %s", e.what());
+      //tr->rollback();
+      c->second.TerminateTX(); //tx = nullptr; //alternatively: Then must pass tx by reference
+      
+      reply->set_status(REPLY_FAIL);
+      reply->set_sql_res("");
+    } 
     else{
-      Panic("Unexpected postgres exception: %s", e.what());
+      Panic("Unexpected postgres exception: %s. %s", e.sqlstate.c_str() , e.what());  //FIXME: pivot probably means we aborted due to lock timeout -> need to abort next tx too.
     }
   }
   catch (const std::exception &e) {
@@ -657,7 +678,10 @@ std::string Server::createResult(const tao::pq::result &sql_res){
     for( const auto& row : sql_res ) {
       RowProto *new_row = res_builder.new_row();
       for( const auto& field : row ) {
-        std::string field_str = field.as<std::string>();
+        std::string field_str; //This is a HACK. If the result is Null, we should propagate the "null-ness" to frontend. It will work fine here because only string values will be null/empty
+        if(!field.is_null()){
+           field_str = field.as<std::string>();
+        }
         res_builder.AddToRow(new_row,field_str);
         //std::cout << field_str << std::endl;
       }

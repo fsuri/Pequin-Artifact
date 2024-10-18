@@ -62,30 +62,58 @@ auto Row::operator[]( const std::size_t column ) const -> std::unique_ptr<query_
 }
 
 void Row::get(const std::size_t column, bool *field) const {
+   if(row.is_null(column)){
+    *field = false;
+    return;
+  }
   *field = row.get<bool>(column);
 }
 
 void Row::get(const std::size_t column, int32_t *field) const {
+   if(row.is_null(column)){
+    *field = 0;
+    return;
+  }
   *field = row.get<int32_t>(column);
 }
 
 void Row::get(const std::size_t column, int64_t *field) const {
+   if(row.is_null(column)){
+    *field = 0;
+    return;
+  }
   *field = row.get<int64_t>(column);
 }
 
 void Row::get(const std::size_t column, uint32_t *field) const {
+   if(row.is_null(column)){
+    *field = 0;
+    return;
+  }
   *field = row.get<uint32_t>(column);
 }
 
 void Row::get(const std::size_t column, uint64_t *field) const {
+  if(row.is_null(column)){
+    *field = 0;
+    return;
+  }
   *field = row.get<uint64_t>(column);
 }
 
 void Row::get(const std::size_t column, double *field) const {
+  if(row.is_null(column)){
+    *field = 0.0;
+    return;
+  }
   *field = row.get<double>(column);
 }
 
 void Row::get(const std::size_t column, std::string *field) const {
+  if(row.is_null(column)){
+    *field = "";
+    return;
+  }
   *field = row.get<std::string>(column);
 }
 

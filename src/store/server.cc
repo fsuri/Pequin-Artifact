@@ -935,7 +935,7 @@ int main(int argc, char **argv) {
       server = new pg_SMRstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config, FLAGS_pg_SMR_mode, client_total);
 
       replica = new pg_SMRstore::Replica(config, &keyManager,
                                        dynamic_cast<pg_SMRstore::App *>(server),

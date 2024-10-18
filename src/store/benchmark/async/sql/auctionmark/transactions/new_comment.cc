@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  std::cerr << std::endl << "NEW COMMENT" << std::endl;
+  std::cerr << "NEW COMMENT" << std::endl;
   ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);

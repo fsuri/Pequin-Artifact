@@ -146,13 +146,13 @@
   ],
 
   "client_total": [
-    [1, 5, 10, 15, 20, 25, 30, 35]
+    [1, 5, 10, 15, 20, 25, 30, 35, 40]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 1]
   ],
 
   "client_nodes_per_server": 1,
