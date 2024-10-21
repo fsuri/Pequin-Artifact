@@ -208,7 +208,9 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     UW_ASSERT(pendingQuery->key != nullptr && pendingQuery->table_name != nullptr); //Both of these should be set for point queries.
     pendingQuery->pendingPointQuery.key = std::move(*pendingQuery->key);  //NOTE: key no longer owned by client.cc after this.
     pendingQuery->pendingPointQuery.table_name = std::move(*pendingQuery->table_name);
-    queryReq.mutable_query()->set_primary_enc_key(pendingQuery->pendingPointQuery.key); //Alternatively, can let server compute it.
+    // Notice("Send Point Query with primary enc key: %s", pendingQuery->pendingPointQuery.key.c_str());
+    queryMsg.set_primary_enc_key(pendingQuery->pendingPointQuery.key); //Alternatively, can let server compute it.
+    Debug("Send Point Query with primary enc key: %s", queryMsg.primary_enc_key().c_str());
   }
   //queryReq.set_eager_exec(params.query_params.eagerExec && !pendingQuery->retry_version); //On retry use sync.
 

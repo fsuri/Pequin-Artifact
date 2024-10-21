@@ -116,7 +116,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   Server(const transport::Configuration &config, int groupIdx, int idx,
       int numShards, int numGroups,
       Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry_path,
-      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false,
+      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false, bool simulate_point_kv = false,
       TrueTime timeServer = TrueTime(0, 0));
   virtual ~Server();
 
@@ -157,6 +157,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual inline Stats &GetStats() override { return stats; }
 
  private:
+    bool simulate_point_kv;
 
    uint64_t total_lock_time_ms =0 ;
 

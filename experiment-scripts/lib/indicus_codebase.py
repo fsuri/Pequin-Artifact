@@ -274,10 +274,21 @@ class IndicusCodebase(ExperimentCodebase):
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
 
             if config['benchmark_name'] == 'rw-sql':
+                client_command += ' --rw_read_only_rate %d' % config['rw_read_only_rate']
+                client_command += ' --rw_secondary_condition=%s' % (str(config['rw_secondary_condition']).lower())
+
                 client_command += ' --num_tables %d' % config['num_tables']
                 client_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+                client_command += ' --value_size %d' % config['value_size']
+                client_command += ' --value_categories %d' % config['value_categories']
+
+                client_command += ' --fixed_range=%s' % (str(config['fixed_range']).lower())
                 client_command += ' --max_range %d' % config['max_range']
                 client_command += ' --point_op_freq %d' % config['point_op_freq']
+
+                client_command += ' --scan_as_point=%s' % (str(config['scan_as_point']).lower())
+                client_command += ' --scan_as_point_parallel=%s' % (str(config['scan_as_point_parallel']).lower())
+                client_command += ' --rw_simulate_point_kv=%s' % (str(config['rw_simulate_point_kv']).lower())
 
         elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync' or config['benchmark_name'] == 'tpcc-sql':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
@@ -608,7 +619,10 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --data_file_path %s' % config['smallbank_data_file_path']
         elif config['benchmark_name'] == 'rw-sql':
             replica_command += ' --num_tables %d' % config['num_tables']
-            replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+            replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table'] 
+            replica_command += ' --value_size %d' % config['value_size']
+            replica_command += ' --value_categories %d' % config['value_categories']  
+            replica_command += ' --rw_simulate_point_kv=%s' % (str(config['rw_simulate_point_kv']).lower())
         elif config['benchmark_name'] == 'tpcc-sql':
              replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
         

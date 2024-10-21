@@ -40,7 +40,8 @@ namespace rwsql {
 //querySelector = new querySelector(numKeys, tableSelector, baseSelector, rangeSelector); //TODO: create this in benchmark.
 
 //uint64_t numTables, uint64_t numOps, uint64_t maxRange,
-RWSQLClient::RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool readOnly,
+RWSQLClient::RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool readOnly, uint64_t readOnlyRate, bool readSecondaryCondition, 
+      bool fixedRange, int32_t value_size, uint64_t value_categories, bool scanAsPoint, bool execPointScanParallel,
       SyncClient &client, Transport &transport, uint64_t id, 
       int numRequests, int expDuration, uint64_t delay, 
       int warmupSec, int cooldownSec, int tputInterval, 
@@ -51,8 +52,11 @@ RWSQLClient::RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool rea
                                  expDuration, delay, warmupSec, cooldownSec,
                                  tputInterval, abortBackoff, retryAborted, maxBackoff, maxAttempts, timeout,
                                  latencyFilename),
-        readOnly(readOnly), querySelector(querySelector), numOps(numOps) {
+        readOnly(readOnly), readOnlyRate(readOnlyRate), querySelector(querySelector), numOps(numOps),
+        readSecondaryCondition(readSecondaryCondition), fixedRange(fixedRange), value_size(value_size), value_categories(value_categories), 
+        scanAsPoint(scanAsPoint), execPointScanParallel(execPointScanParallel) {
 
+    if(readOnly) readOnlyRate = 100;
 }
 
 RWSQLClient::~RWSQLClient() {
@@ -60,11 +64,12 @@ RWSQLClient::~RWSQLClient() {
 }
 
 SyncTransaction *RWSQLClient::GetNextTransaction() {
-  RWSQLTransaction *rw_tx = new RWSQLTransaction(querySelector, numOps, GetRand(), readOnly); 
-  // for(int key : rw_tx->getKeyIdxs()){
-  //   //key_counts[key]++;
-  //   stats.IncrementList("key distribution", key, 1);
-  // }
+
+  // Switch depending on read only percentage.
+  int ttype = GetRand()() % 100;
+  RWSQLTransaction *rw_tx = new RWSQLTransaction(querySelector, numOps, GetRand(), readSecondaryCondition, fixedRange,
+                                                 value_size, value_categories, ttype < readOnlyRate, scanAsPoint, execPointScanParallel);
+ 
   return rw_tx;
 }
 

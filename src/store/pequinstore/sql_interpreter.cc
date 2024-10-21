@@ -321,7 +321,6 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         values_statement = values_statement.substr(next_val+2);
     }
     value_list.push_back(std::move(TrimValue(values_statement, col_registry.col_quotes[i++]))); //value_list.push_back(std::move(static_cast<std::string>(values_statement))); //push back last value (only remaining).
-
     // Done.
             
     //UW_ASSERT(value_list.size() == column_list.size()); //Require to pass all columns currently.
@@ -1403,6 +1402,7 @@ void SQLTransformer::GenerateTableWriteStatement(std::string &write_statement, s
             if(fine_grained_quotes){ // Use this to add fine grained quotes:
                 for(int i = 0; i < row.column_values_size(); ++i){
                     //UW_ASSERT(!row.column_values()[i].empty());
+                    Debug("Row-col value: %s", row.column_values()[i].c_str());
                      if(col_registry.primary_key_cols.count(col_registry.col_names[i])) Debug("Table[%s][%d]:  %s", table_name.c_str(), i, row.column_values()[i].c_str());
                     if(col_registry.col_quotes[i])  write_statement += "\'" + row.column_values()[i]  + "\'" + ", ";
                     else write_statement += row.column_values()[i] + ", ";

@@ -629,7 +629,6 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       txn.timestamp().timestamp(), txn.timestamp().id());
   Timestamp ts(txn.timestamp());
 
-
   preparedMap::const_accessor a;
   bool already_prepared = prepared.find(a, txnDigest);
   //if (preparedItr == prepared.end()) {

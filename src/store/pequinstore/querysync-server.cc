@@ -327,13 +327,46 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     // auto duration2 = microseconds_end2 - microseconds_start;
     // Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
     
+    if(simulate_point_kv){ //WARNING: FIXME: This is only Test/Profile logic -> TODO: Implement KV-store version directly. 
+        //Read committed value.
+         std::pair<Timestamp, Server::Value> tsVal;
+        //find committed write value to read from
+        Debug("Simulate point kv for key: %s", query->primary_enc_key().c_str());
+        bool committed_exists = store.get(query->primary_enc_key(), ts, tsVal);
+        UW_ASSERT(committed_exists);
 
-    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+        //Create dummy result.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        RowProto *row = queryResultBuilder.new_row();
+            
+        queryResultBuilder.add_column("key");
+        queryResultBuilder.add_column("value");
+                
+        std::string key = query->primary_enc_key();
+        queryResultBuilder.AddToRow(row, key); 
+
+        //std::string value = "101"; //TODO: Make a value of the right size...
+        std::string value = tsVal.second.val;
+        queryResultBuilder.AddToRow(row, value); 
+            
+        write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+
+        tsVal.first.serialize(write->mutable_committed_timestamp());
+
+        *pointQueryReply->mutable_proof() = *tsVal.second.proof;
+        
+    }
+    
+
+    if(!simulate_point_kv){
+        table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+    
    
-    if(write->has_committed_value()){ 
-        UW_ASSERT(committedProof); //proof must exist
-        *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
-    } 
+        if(write->has_committed_value()){ 
+            UW_ASSERT(committedProof); //proof must exist
+            *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
+        } 
+    }
 
     // Notice("Query[%lu:%lu] read set. committed[%lu:%lu], prepared[%lu][%lu]", ts.getTimestamp(), ts.getID(), 
     //             write->committed_timestamp().timestamp(), write->committed_timestamp().id(),

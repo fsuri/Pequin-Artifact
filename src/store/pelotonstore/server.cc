@@ -258,6 +258,15 @@ uint64_t Server::getThreadID(const uint64_t &client_id){
   peloton_peloton::ResultType result_status; 
   std::string error_msg; //TODO: It seems like Peloton error msg is always empty?
 
+  //Note: Peloton doesn't seem to have handling for ON CONFLICT
+  // std::string stmt = query;
+  // bool is_insert = false;
+  // if(query.find("INSERT INTO") != std::string::npos){
+  //     is_insert = true;
+  //     stmt += " ON CONFLICT DO NOTHING";
+  // }
+  // std::string result = table_store->ExecTransactional(stmt, client_id, tx_id, result_status, error_msg);
+  
   //result == serialized ProtoWrapper result
   std::string result = table_store->ExecTransactional(query, client_id, tx_id, result_status, error_msg);
 

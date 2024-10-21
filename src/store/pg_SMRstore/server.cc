@@ -60,7 +60,7 @@ Server::Server(const transport::Configuration& config, KeyManager *keyManager,
     //If SMR mode = 2 => same I assume. check!
     if(SMR_mode == 2) number_of_threads = 7;
 
-  number_of_threads = num_clients; //give each client it's own thread. //TODO: threads => offset by 64..
+  number_of_threads = num_clients; //give each client it's own thread. //Note: Relies on the fact that client ids must be between 0 and num_clients-1
   tp->AddIndexedThreads(number_of_threads);
 
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name

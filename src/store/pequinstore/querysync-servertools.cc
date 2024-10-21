@@ -125,9 +125,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //                                                         //
     /////////////////////////////////////////////////////////////
     //TODO: Result should be of protobuf result type: --> can either return serialized value, or result object (probably easiest) -- but need serialized value anyways to check for equality.
-
-
-
+   
     Debug("SERIALIZED RESULT: %lu", std::hash<std::string>{}(serialized_result));
 
      //If MVTSO: Read prepared (handled by predicate in table_store), Set RTS

@@ -737,11 +737,21 @@ DEFINE_bool(rw_read_only, false, "only do read operations");
 /**
  * RW-sql additional settings.
  */
-// Shir: this should match the flags in server.cc
+DEFINE_uint64(rw_read_only_rate, 0, "percentage of read only operations");
+DEFINE_bool(rw_secondary_condition, true, "whether the read/update has a condition on a secondary key");
+
 DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys per table for rw-sql");
-DEFINE_uint64(max_range, 3, "max amount of reads in a single scan for rw-sql");
-DEFINE_uint64(point_op_freq, 50, "percentage of times an operation is a point operation (the others are scan)");
+DEFINE_uint64(num_keys_per_table, 1000, "number of keys per table for rw-sql");
+DEFINE_int32(value_size, 10, "-1 = value is int, > 0, value is string => if value is string: size of the value strings"); //Currently not supported. Requires rw-sql input that is value String and not bigint
+DEFINE_int32(value_categories, 50, "number of unique states value can be in; -1 = unlimited");
+
+DEFINE_bool(fixed_range, true, "whether each read should have the same range");
+DEFINE_uint64(max_range, 100, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(point_op_freq, 0, "percentage of times an operation is a point operation (the others are scan)");
+
+DEFINE_bool(scan_as_point, true, "whether to execute all logical scans via individual point operations");
+DEFINE_bool(scan_as_point_parallel, false, "whether to execute the individual point operations of a scan in parallel");
+DEFINE_bool(rw_simulate_point_kv, false, "whether to simulate point read execution in Pesto by not invoking the Table store, but just storing in the KV store");
 
 
 /**
@@ -1100,7 +1110,7 @@ int main(int argc, char **argv) {
     TableWriter table_writer(FLAGS_data_file_path, false);
 
     //Set up a bunch of Tables: Num_tables many; with num_items...
-    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", (FLAGS_value_size < 0 ? "INT" : "VARCHAR")}}; //switch value type depending on FLAG
     const std::vector<uint32_t> &primary_key_col_idx = {0};
         //Create Table
         
@@ -1155,6 +1165,7 @@ int main(int argc, char **argv) {
     {
       UW_ASSERT(benchMode == BENCH_RW_SQL);
       part = new RWSQLPartitioner(FLAGS_num_tables);
+      break;
     }
     default:
       NOT_REACHABLE();
@@ -1804,7 +1815,8 @@ int main(int argc, char **argv) {
         break;
       case BENCH_RW_SQL:
         UW_ASSERT(syncClient != nullptr);
-        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only,
+        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only, FLAGS_rw_read_only_rate, FLAGS_rw_secondary_condition, 
+                                      FLAGS_fixed_range, FLAGS_value_size, FLAGS_value_categories, FLAGS_scan_as_point, FLAGS_scan_as_point_parallel,
             *syncClient, *tport, seed,
             FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
             FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,

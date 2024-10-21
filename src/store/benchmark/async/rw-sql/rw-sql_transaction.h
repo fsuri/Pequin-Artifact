@@ -43,13 +43,15 @@ static bool POINT_READS_ENABLED = true;
 static bool PARALLEL_QUERIES = true;
 static bool DISABLE_WRAP_AROUND = false;
 
+
 inline int mod(int &x, const int &N){
     return (x % N + N) %N;
 }
 
 class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
  public:
-  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly);
+  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
+                   int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
   virtual ~RWSQLTransaction();
 
   transaction_status_t Execute(SyncClient &client);
@@ -76,10 +78,25 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   QuerySelector *querySelector;
 
  private:
+  std::pair<uint64_t, std::string> GenerateSecondaryCondition();
+  void ExecuteScanStatement(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound);
+  void ExecutePointStatements(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound);
+  void ProcessPointResult(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, const std::pair<uint64_t, std::string> &cond_pair);
+  void Update(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, uint64_t row);
+
+  std::mt19937 &rand;
+
   const size_t numOps;
   const int numKeys;
   
   const bool readOnly;
+  const bool readSecondaryCondition;
+  const int32_t value_size; 
+  const uint64_t value_categories;
+  uint64_t max_random_size;
+  const bool scanAsPoint;
+  const bool execPointScanParallel;
+
   std::vector<int> keyIdxs;
 
   std::vector<uint64_t> tables;
@@ -97,6 +114,17 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   }
   
 };
+
+template <class T>
+void load_row(T& t, std::unique_ptr<query_result::Row> row, const std::size_t col) {
+  row->get(col, &t);
+}
+
+template<class T>
+void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryResult, const std::size_t row, const std::size_t col) {
+  load_row(t, queryResult->at(row), col);
+}
+
 
 }
 

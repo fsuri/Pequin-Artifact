@@ -57,13 +57,13 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
                KeyManager *keyManager, Parameters params,
                std::string &table_registry_path, uint64_t timeDelta,
                OCCType occType, Partitioner *part,
-               unsigned int batchTimeoutMicro, bool sql_bench,
+               unsigned int batchTimeoutMicro, bool sql_bench, bool simulate_point_kv,
                TrueTime timeServer)
     : PingServer(transport), config(config), groupIdx(groupIdx), idx(idx),
       numShards(numShards), numGroups(numGroups), id(groupIdx * config.n + idx),
       transport(transport), occType(occType), part(part), params(params),
       keyManager(keyManager), timeDelta(timeDelta), timeServer(timeServer),
-      sql_bench(sql_bench) {
+      sql_bench(sql_bench), simulate_point_kv(simulate_point_kv) {
 
   ongoing = ongoingMap(100000);
   p1MetaData = p1MetaDataMap(100000);
@@ -823,12 +823,38 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
     //std::string genesis_tx_dig("");
 
-    
     Debug("Dispatch Table Loading for table: %s. Segment [%d] with %d rows", table_name.c_str(), segment_no, row_segment->size());
+
+    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment, load_cc, primary_key_col_idx](){
+      //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
+                  //Note: Partitioning has already been checked: For RW-SQL it happens at server.cc level. For all others it happens in ParseFromCSV.
+      if(load_cc){
+        Debug("Load segment %d of table %s", segment_no, table_name.c_str());
+        for(auto &row: *row_segment){
+      
+          //Load it into CC-store
+          std::vector<const std::string*> primary_cols;
+          for(auto i: primary_key_col_idx){
+            primary_cols.push_back(&(row[i]));
+          }
+          std::string enc_key = EncodeTableRow(table_name, primary_cols);
+        
+          if(simulate_point_kv){
+            //Debug("Loading key: %s. With value: %s", enc_key.c_str(), row[1].c_str());
+            Load(enc_key, row[1], Timestamp());
+            continue;
+          }
+          Load(enc_key, "", Timestamp());
+        }
+      }
+
+      if(simulate_point_kv) return (void*) true; //Don't need to load into peloton
+      
+    
     //Put this into dispatch: (pass gensiss proof)
 
     //TODO: Pass a pointer to row segment instead of it... (TODO: Allocate row segment and then delete)
-    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
+    // auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
       Debug("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
 
       table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment, segment_no), genesis_txn_dig, genesis_ts, genesis_proof);
@@ -845,22 +871,6 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
       f();
     }
    
-    //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
-                //Note: Partitioning has already been checked: For RW-SQL it happens at server.cc level. For all others it happens in ParseFromCSV.
-    if(load_cc){
-      Debug("Load segment %d of table %s", segment_no, table_name.c_str());
-      for(auto &row: *row_segment){
-    
-        //Load it into CC-store
-        std::vector<const std::string*> primary_cols;
-        for(auto i: primary_key_col_idx){
-          primary_cols.push_back(&(row[i]));
-        }
-        std::string enc_key = EncodeTableRow(table_name, primary_cols);
-        Load(enc_key, "", Timestamp());
-      }
-    }
-
   return;
 }
 
