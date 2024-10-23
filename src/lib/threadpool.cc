@@ -119,6 +119,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       load_running = true;
     }
 
+
     Notice("Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start - use_load_bonus; i < end; i++) {
       UW_ASSERT(i >= 0);

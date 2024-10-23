@@ -648,7 +648,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
     //1.5 Reject TX that write non-monotonic Table Version
     if(params.query_params.useSemanticCC){
-      if(!CheckMonotonicTableColVersions(txnDigest, txn)){
+      if(!txn.write_set().empty() && !CheckMonotonicTableColVersions(txnDigest, txn)){
         Debug("[%lu:%lu][%s] ABSTAIN ts %lu below low Table Version threshold.", txn.client_id(), txn.client_seq_num(), BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp());
         stats.Increment("cc_abstains", 1);
         stats.Increment("cc_abstains_non_monotonic", 1);
@@ -973,7 +973,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       //Check Read deps
       CheckDepLocalPresence(txn, depSet, res);
       if(res != proto::ConcurrencyControl::COMMIT){
-        stats.Increment("cc_semantic_abort");
+        stats.Increment("cc_dep_missing");
         return res;
       }
     
@@ -983,8 +983,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     if(params.query_params.useSemanticCC){
       std::set<std::string> dynamically_active_dependencies;
       auto res = CheckPredicates(txn, ts, readSet, predSet, dynamically_active_dependencies);
-       if(res != proto::ConcurrencyControl::COMMIT) return res;
-      
+      if(res != proto::ConcurrencyControl::COMMIT){
+        stats.Increment("cc_semantic_abort");
+        return res;
+      }
       //Add relevant dynamic deps to the dependency set
       if(!dynamically_active_dependencies.empty()){
        

@@ -218,7 +218,13 @@ void RWSQLTransaction::ExecuteScanStatement(SyncClient &client, const std::strin
   if(readOnly) return; //nothing more to do.
 
   //Otherwise, apply all the updates. //Note: Result already only includes those keys that meet the conditional.
-  for(int i=0; i<queryResult->size(); ++i){
+  int num_res = queryResult->size();
+  // int set_to = 0;
+  // if(num_res > set_to){
+  //   Notice("Reducing writes from %d to %d", num_res, set_to);
+  //   num_res = set_to;
+  // } 
+  for(int i=0; i<num_res; ++i){
     uint64_t key;
     deserialize(key, queryResult, i, 0);
     Update(client, table_name, key, queryResult, i);

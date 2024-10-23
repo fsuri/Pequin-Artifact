@@ -56,8 +56,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 1,
-		  	"sig_batch_timeout": 1,
+		  "sig_batch": 4,
+		  	"sig_batch_timeout": 2,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -135,25 +135,26 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
 
-  "_client_total": [
-    [30]
+   "_client_total": [
+    [1, 5, 10, 15]
   ],
   "_client_processes_per_client_node": [
-    [8]
+    [8, 8, 8, 8]
   ],
   "_client_threads_per_process": [
-    [1]
+    [1, 1, 1, 1]
   ],
-
+  
   "client_total": [
-    [1, 5, 10, 15, 20, 25, 30, 35]
+    [15, 20, 25, 30, 35, 40]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1]
   ],
+  
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,

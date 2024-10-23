@@ -184,7 +184,7 @@ void BenchmarkClient::IncrementSent(int result) {
         std::stringstream msg;
         msg << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
         std::cout << msg.str();
-        //std::cout << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
+        std::cout.flush(); //Note: Since endl is now done in the stringstream, rather than cout, cout doesn't flush by default
         latencies.push_back(ns);
       }
     }

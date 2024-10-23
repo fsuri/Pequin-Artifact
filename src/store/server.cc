@@ -483,7 +483,7 @@ DEFINE_uint64(num_tables, 1, "number of tables to generate");
 DEFINE_uint64(num_keys_per_table, 1000, "number of keys to generate per table");
 DEFINE_int32(value_size, 10, "-1 = value is int, > 0, value is string => if value is string: size of the value strings"); //Currently not supported. Requires rw-sql input that is value String and not bigint
 DEFINE_int32(value_categories, 50, "number of unique states value can be in; -1 = unlimited");
-DEFINE_bool(rw_simulate_point_kv, true, "whether to simulate point read execution in Pesto by not invoking the Table store, but just storing in the KV store");
+DEFINE_bool(rw_simulate_point_kv, false, "whether to simulate point read execution in Pesto by not invoking the Table store, but just storing in the KV store");
 
 
 

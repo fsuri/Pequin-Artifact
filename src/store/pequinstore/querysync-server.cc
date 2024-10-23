@@ -67,6 +67,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         query = msg.release_query(); //mutable_query()
     }
 
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t query_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     if (params.rtsMode > 0){
         //Ignore Query requests that are too far in the future. Such requests can produce a lot of RTS
         Timestamp ts(query->timestamp()); 
@@ -275,6 +279,13 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         //Note: If eager exec on && caching read set --> all must execute.
         Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         ExecQueryEagerly(q, query_md, queryId);
+
+          
+        // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        // uint64_t query_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+        // if(query_md->client_id == 0) Notice("QueryRPC took %d us", query_end-query_start);
+
+    
          Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
 
@@ -831,7 +842,18 @@ void Server::SendQueryReply(QueryMetaData *query_md){
                 SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
             }
 
+            //  struct timespec ts_start;
+            // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+            // uint64_t send_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
+
+            
+            // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+            // uint64_t send_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+            // if(query_md->client_id == 0) Notice("Send TCP took %d us", send_end - send_start);
+
+
              Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
             //delete queryResultReply;
             

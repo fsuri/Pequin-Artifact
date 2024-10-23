@@ -205,6 +205,8 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 
 //////////// Commit Protocol 
 
+static uint64_t commit_start;
+
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
   uint64_t reqId = lastReqId++;
@@ -243,6 +245,11 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   else{
     *phase1.mutable_txn() = transaction;
   }
+
+
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // commit_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
 
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
@@ -1087,6 +1094,11 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
 
 void ShardClient::HandlePhase1Reply(proto::Phase1Reply &reply) {
+
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t p1_reply = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Notice("P1 RPC took %d us", p1_reply - commit_start);
 
   ProcessP1R(reply);
 }

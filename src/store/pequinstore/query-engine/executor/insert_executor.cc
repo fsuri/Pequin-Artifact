@@ -57,6 +57,7 @@ bool InsertExecutor::DInit() {
  * @return true on success, false otherwise.
  */
 bool InsertExecutor::DExecute() {
+
   //std::cerr << "Inside insert executor" << std::endl;
   if (done_)
     return false;
@@ -72,6 +73,11 @@ bool InsertExecutor::DExecute() {
   auto &transaction_manager = concurrency::TransactionManagerFactory::GetInstance();
 
   auto current_txn = executor_context_->GetTransaction();
+
+    //  struct timespec ts_start;
+    //   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    //   uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
 
   if (!target_table) {
     transaction_manager.SetTransactionResult(current_txn, peloton::ResultType::FAILURE);
@@ -285,6 +291,13 @@ bool InsertExecutor::DExecute() {
 
       new_tuple = tuple;
     }
+
+    //    struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = microseconds_end - microseconds_start;
+    // if(current_txn->GetBasilTimestamp().getID() == 0 )Warning("InsertExecutor Latency: %dus", duration);
+
     
     done_ = true;
     return true;

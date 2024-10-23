@@ -167,8 +167,15 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
     RequestQuery(pendingQuery, queryMsg);
 }
 
+static uint64_t query_start;
+static uint64_t query_end;
+
 //pass a query object already from client: This way it avoids copying the query string across multiple shards and for retries
 void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg){
+
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // query_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   //Init new Merged Snapshot
   pendingQuery->snapshot_mgr.InitMergedSnapshot(&pendingQuery->merged_ss, pendingQuery->query_seq_num, client_id, pendingQuery->retry_version, config->f);
@@ -507,6 +514,12 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
 
 void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
+
+    //   struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // query_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Notice("QueryRPC took %d us", query_end-query_start);
+
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
     if (itr == this->pendingQueries.end()){
@@ -1338,7 +1351,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     }
 
     //Check that Commit Proof is correct
-    if (false && params.signedMessages && !ValidateCommittedProof(proof, txnDigest, keyManager, config, verifier)) {
+    if (params.signedMessages && !ValidateCommittedProof(proof, txnDigest, keyManager, config, verifier)) {
         Debug("VALIDATE CommittedProof failed for txn %lu.%lu.", proof.txn().client_id(), proof.txn().client_seq_num());
         Panic("Verification should be working");
         return false;
