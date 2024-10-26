@@ -58,11 +58,6 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //TODO: Must take as input some Materialization info... (whether to use a materialized snapshot (details are in query_md), or whether to just use current state)
     //TODO: Must be able to report exec failure (e.g. materialized snapshot inconsistent) -- note that if eagerly executiong (no materialization) there is no concept of failure.
 
-    //FIXME: Remove
-    // struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-
      if(TEST_READ_MATERIALIZED) TEST_READ_MATERIALIZED_f();
 
         /////////////////////////////////////////////////////////////
@@ -229,17 +224,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
                     }
                 }
             }
-    //// END DEBUG CODE        
-    
-    //FIXME: REMOVE
-    // struct timespec ts_end;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    // auto duration = microseconds_end - microseconds_start;
-    // // if(duration > 2000) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
-    // if(query_md->ts.getID() == 0) Warning("Query exec duration: %d us. Q[%s] [%lu:%lu]", duration, query_md->query_cmd.c_str(), query_md->client_id, query_md->query_seq_num);
-    
-   
+
 
     // FIXME: REMOVE//TEST DUMMY RESULT
     // sql::QueryResultProtoBuilder queryResultBuilder;
@@ -258,18 +243,13 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     //     //queryReadSetMgr. 
     //     //Having a result means that we write. But we are not incurring Peloton cost (finding right version, finding snapshot)
     // }
-    // return queryResultBuilder.get_result()->SerializeAsString();
-
+    // return queryResultBuilder.get_result()->SerializeAsString(); 
+    
     return serialized_result;
 }
 
 //TODO: Measure Exec time. Measure Send time.
 void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
-
-    // struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // uint64_t exec_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-
 
     query_md->executed_query = true;
 
@@ -294,16 +274,7 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
             //query_md->queryResult->set_query_result(dummy_result);
     }
 
-    //   clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // uint64_t exec_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    // if(query_md->client_id == 0) Notice("Exec took %d us", exec_end-exec_start);
-
     SendQueryReply(query_md);
-
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // uint64_t send_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    // if(query_md->client_id == 0) Notice("Sign and send took %d us", send_end-exec_end);
-
 
     uint64_t retry_version = query_md->retry_version;
     q.release();

@@ -440,6 +440,7 @@ DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute
 DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
 
 DEFINE_bool(pequin_eager_plus_snapshot, true, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
+DEFINE_bool(pequin_simulate_fail_eager_plus_snapshot, false, "simulate failing eager even though it may be successful");
 
 DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
 DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
@@ -745,6 +746,7 @@ DEFINE_uint64(num_keys_per_table, 1000, "number of keys per table for rw-sql");
 DEFINE_int32(value_size, 10, "-1 = value is int, > 0, value is string => if value is string: size of the value strings"); //Currently not supported. Requires rw-sql input that is value String and not bigint
 DEFINE_int32(value_categories, 50, "number of unique states value can be in; -1 = unlimited");
 
+DEFINE_bool(rw_no_wrap, true, "disallow scans that wrap around. E.g. >= 97 AND < 5");
 DEFINE_bool(fixed_range, true, "whether each read should have the same range");
 DEFINE_uint64(max_range, 100, "max amount of reads in a single scan for rw-sql");
 DEFINE_uint64(point_op_freq, 0, "percentage of times an operation is a point operation (the others are scan)");
@@ -1068,6 +1070,8 @@ int main(int argc, char **argv) {
 
   Debug("transport protocol used: %d",trans);
 
+  if(FLAGS_zipf_coefficient == 1.0) Panic("Use a Zipf coefficient != 1.0. E.g. 0.99 or 1.01. 1.0 is not supported");
+
   switch (keySelectionMode) {
     case KEYS_UNIFORM:
       keySelector = new UniformKeySelector(keys);
@@ -1086,18 +1090,27 @@ int main(int argc, char **argv) {
     KeySelector *baseSelector;
     KeySelector *rangeSelector = new UniformKeySelector(keys, FLAGS_max_range); //doesn't make sense really to have a zipfean range selector - does not strongly correlate to contention. The bigger the range = the bigger contention
 
+    auto maxBase = FLAGS_rw_no_wrap? FLAGS_num_keys_per_table - FLAGS_max_range : FLAGS_num_keys_per_table;
+
     //Note: "keys" is an empty/un-used argument for this setup.
     switch (keySelectionMode) {
       case KEYS_UNIFORM:
+      {
+        Notice("Using Uniform selector");
         tableSelector = new UniformKeySelector(keys, FLAGS_num_tables);
-        baseSelector = new UniformKeySelector(keys, FLAGS_num_keys_per_table);
+       
+        baseSelector = new UniformKeySelector(keys, maxBase);
         //rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
         break;
+      }
       case KEYS_ZIPF:
+      {
+        Notice("Using Zipf selector. Coefficient: %f", FLAGS_zipf_coefficient);
         tableSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_tables);
-        baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_keys_per_table);
+        baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, maxBase);
         //rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
         break;
+      }
       default:
         NOT_REACHABLE();
     }
@@ -1362,6 +1375,10 @@ int main(int argc, char **argv) {
           default:
               NOT_REACHABLE();
           }
+
+          if(resultQuorum > syncMessages) Panic("Query Result Quorum size cannot be larger than number of Sync Messages sent");
+          if(resultQuorum + config->f > syncMessages) std::cerr << "WARNING: Under given Config Query Result is not live in presence of byzantine replies witholding query results (omission faults)" << std::endl;
+         
          
          // ==> Moved to client logic in order to account for retries.
          //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->f); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
@@ -1460,16 +1477,58 @@ int main(int argc, char **argv) {
         }
     }
 
-    //TODO: Parameterize better
-    //If SemanticCC enabled need at least these Quorum sizes.
-    if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
-      if(FLAGS_pequin_query_eager_exec){ //TODO: Even when query does not use eager, might want to increase quorum sizes for retries
-        queryMessages = std::max((int)queryMessages, 4 * config->f + 1);
-        syncQuorumSize = std::max((int)syncQuorumSize, 3 * config->f + 1); 
-        //Note: syncQuorum size does not necessarily need to increase, but might as well for better freshness since we already have larger queryMessages
+   
+    if(true){
+      //TODO: Parameterize better: This version by default always uses pessimistic bonus.
+      //If SemanticCC enabled need at least these Quorum sizes.
+      if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+        if(FLAGS_pequin_query_eager_exec){ //TODO: Even when query does not use eager, might want to increase quorum sizes for retries
+          queryMessages = std::max((int)queryMessages, 4 * config->f + 1);
+          syncQuorumSize = std::max((int)syncQuorumSize, 3 * config->f + 1); 
+          //Note: syncQuorum size does not necessarily need to increase, but might as well for better freshness since we already have larger queryMessages
+        }
+        syncMessages = std::max((int)syncMessages, 4 * config->f + 1);
+        resultQuorum = 3 * config->f + 1;
       }
-      syncMessages = std::max((int)syncMessages, 4 * config->f + 1);
-      resultQuorum = 3 * config->f + 1;
+    }
+    else{
+      //NEW version: parameterized.
+      if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+        Notice("Upgrading number of messages and Quorum sizes for SemanticCC");
+        resultQuorum = 3 * config->f + 1;
+
+        switch (sync_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              syncMessages = resultQuorum;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              syncMessages = resultQuorum + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              syncMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+
+        if(FLAGS_pequin_query_eager_exec){
+            switch (query_messages) {
+              case QUERY_MESSAGES_QUERY_QUORUM:
+                  queryMessages = std::max(syncQuorumSize, syncMessages);
+                  break;
+              case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+                  queryMessages = std::max(syncQuorumSize, syncMessages) + config->f;
+                  break;
+              case QUERY_MESSAGES_ALL:
+                  queryMessages = config->n;
+                  break;
+              default:
+                  NOT_REACHABLE();
+              }
+              if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
+              if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+        }
+      }
     }
 
     Notice("Quorum sizes:");
@@ -1509,6 +1568,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,
+                                                 FLAGS_pequin_simulate_fail_eager_plus_snapshot,
                                                  false, //ForceReadFromSnapshot
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,

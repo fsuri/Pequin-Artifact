@@ -80,8 +80,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 1,
-		  	"sig_batch_timeout": 0,
+		  "sig_batch": 4,
+		  	"sig_batch_timeout": 2,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -93,7 +93,8 @@
 			  "_max_dep_depth": -2, 
 		  "rts_mode": 0, 
 	
-		  "p1_decision_timeout": 10,	
+		  "_2s is a high timeout. It's roughly 2x > the tail latency difference between last 2 replies": false,
+		  "p1_decision_timeout": 2,	
 		  "read_dep": "one-honest",
 		  "read_quorum": "one-honest",
 		  "read_messages": "read-quorum",
@@ -117,6 +118,8 @@
 		  "inject_failure_ms": 0,
 		  "inject_failure_freq": 100,
 		  "_inject_failure_type" : "client-crash",
+		  
+		  "simulate_replica_failure":true,
 	  
 	  
 	 "_QUERY_ARGS_": 0,
@@ -143,8 +146,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 2,
-		  "non_monotonicity_grace": 5, 
+		  "monotonicity_grace": 1,
+		  "non_monotonicity_grace": 3, 
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -159,7 +162,7 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
   "_client_total": [
-    [30]
+    [45]
   ],
   "_client_processes_per_client_node": [
     [8]
@@ -168,19 +171,51 @@
     [1]
   ],
   
-  "client_total": [
-    [1, 3, 5, 8, 10, 15, 20, 25, 30]
+  "_client_total": [
+    [8, 10, 12]
   ],
-  "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8, 8]
+  "_client_processes_per_client_node": [
+    [8, 8, 8]
   ],
-  "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1]
+  "_client_threads_per_process": [
+    [1, 1, 1]
   ],
   
- 
+  
+  "_client_total": [
+    [12, 16, 20, 25, 30, 35, 40, 45]
+  ],
+  "_client_processes_per_client_node": [
+    [8, 8, 8, 8, 8, 8, 8, 8]
+  ],
+  "_client_threads_per_process": [
+    [1, 1, 1, 1, 1, 1, 1, 1]
+  ],
+  
+  "_client_total": [
+    [45, 50, 60]
+  ],
+  "_client_processes_per_client_node": [
+    [8, 8, 8]
+  ],
+  "_client_threads_per_process": [
+    [1, 1, 1]
+  ],
+  
+  "client_total": [
+    [65]
+  ],
+  "client_processes_per_client_node": [
+    [8]
+  ],
+  "client_threads_per_process": [
+    [1]
+  ],
+  
+  
 
-  "client_nodes_per_server": 1,
+
+  "client_nodes_per_server": 2,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],

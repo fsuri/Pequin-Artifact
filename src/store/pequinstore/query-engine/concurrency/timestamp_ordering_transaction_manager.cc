@@ -615,6 +615,40 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       current_txn->RecordUpdate(new_location);
     }
 
+    //FIXME: JUST TESTING GC: Garbage collect all tuples beyond the last 10 after the new location.
+  // auto start_pointer = new_location;
+
+  // auto save = 10;
+  // //Find ancestor 
+  // while(!start_pointer.IsNull() && save > 0){
+  //   auto start_tile_group_header = storage_manager->GetTileGroup(start_pointer.block)->GetHeader();
+  //   start_pointer = start_tile_group_header->GetNextItemPointer(start_pointer.offset);
+  // }
+
+  // if(start_pointer.IsNull()) return;
+
+  // auto start_tile_group_header = storage_manager->GetTileGroup(start_pointer.block)->GetHeader();
+  // start_tile_group_header->SetNextItemPointer(start_pointer.offset, ItemPointer()); //sever connection.
+
+  // auto next_pointer = start_tile_group_header->GetNextItemPointer(start_pointer.offset);
+ 
+  
+  // //auto gc_manager = gc::GCManager::GetInstance();
+
+  // auto &gc_manager = gc::GCManagerFactory::GetInstance();
+  // //Delete all after
+  // while(!next_pointer.IsNull()){
+  //   //delete current
+  //   auto del_pointer = next_pointer;
+  //   auto del_tile_group_header = storage_manager->GetTileGroup(del_pointer.block)->GetHeader();
+  //   next_pointer = del_tile_group_header->GetNextItemPointer(del_pointer.offset);
+
+  //   auto del_tile_group = storage_manager->GetTileGroup(del_pointer.block).get();
+  //   gc_manager.CheckAndReclaimVarlenColumns(del_tile_group, del_pointer.offset);
+
+  // }
+   
+
     // new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
     // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Unlock();
 

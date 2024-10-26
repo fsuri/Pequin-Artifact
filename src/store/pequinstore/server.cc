@@ -57,13 +57,13 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
                KeyManager *keyManager, Parameters params,
                std::string &table_registry_path, uint64_t timeDelta,
                OCCType occType, Partitioner *part,
-               unsigned int batchTimeoutMicro, bool sql_bench, bool simulate_point_kv,
+               unsigned int batchTimeoutMicro, bool sql_bench, bool simulate_point_kv, bool simulate_replica_failure,
                TrueTime timeServer)
     : PingServer(transport), config(config), groupIdx(groupIdx), idx(idx),
       numShards(numShards), numGroups(numGroups), id(groupIdx * config.n + idx),
       transport(transport), occType(occType), part(part), params(params),
       keyManager(keyManager), timeDelta(timeDelta), timeServer(timeServer),
-      sql_bench(sql_bench), simulate_point_kv(simulate_point_kv) {
+      sql_bench(sql_bench), simulate_point_kv(simulate_point_kv), simulate_replica_failure(simulate_replica_failure) {
 
   ongoing = ongoingMap(100000);
   p1MetaData = p1MetaDataMap(100000);
@@ -322,6 +322,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   std::cerr.sync_with_stdio(true);
 }
 
+
 Server::~Server() {
   std::cerr << "KVStore size: " << store.KVStore_size() << std::endl;
   std::cerr << "ReadStore size: " << store.ReadStore_size() << std::endl;
@@ -407,6 +408,9 @@ void ParseProto(::google::protobuf::Message *msg, std::string &data) {
 
 // Upcall from Network layer with new message. Called by TCPReadableCallback(..)
 void Server::ReceiveMessage(const TransportAddress &remote, const std::string &type, const std::string &data, void *meta_data) {
+
+  //Simulate Failure: Just ignore all messages.  -- Don't crash or else TCP will drop causing panic at client?
+  if(simulate_replica_failure) return; //Ignore all messages
 
   if (params.dispatchMessageReceive) {
     Debug("Dispatching message handling to Support Main Thread");
@@ -2183,6 +2187,13 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   preparedMap::accessor a;
   bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
+
+  ///Test section
+  //TODO: Occasionally drop some of the prepare/commit and rely on sync.
+  // bool drop = (txn.client_id() + 1) % (idx +1 ); // drop 1/nth of traffic   //Since client also accesses replica by modulo order, dropping here should cause client to trigger sync. //TODO: Test this with 1 client
+  // if(drop) first_prepare = !first_prepare; //drop on first, but allow to pass on second!
+  ///
+
   if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
   // Debug("PREPARE: TESTING MERGED READ");
@@ -2346,6 +2357,10 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view) {
 
+      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
   
   proto::CommittedProof *proof = nullptr;
   if (params.validateProofs) {
@@ -2374,9 +2389,14 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   Value val;
   val.proof = proof;
 
-  auto [committedItr, first] = committed.insert(std::make_pair(txnDigest, proof));
+  auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof));
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
+
+  // bool drop = (txn->client_id() + 1) % (idx + 1) == 0; // drop 1/nth of traffic   //Since client also accesses replica by modulo order, dropping here should cause client to trigger sync. //TODO: Test this with 1 client
+  // if(drop) first_commit = !first_commit; //drop on first, but allow to pass on second!
+  // Debug("Dropping? %d", drop);
+  // if(!first_commit) return;// already was inserted
 
   proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
 
@@ -2390,6 +2410,9 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CleanQueries(txn_ref);
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
 
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // if(ts.getID() % 5) Notice("[CPU: %d. Commit time: %d us", sched_getcpu(), microseconds_end - microseconds_start);
 }
 
 //Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.

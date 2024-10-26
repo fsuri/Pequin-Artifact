@@ -396,6 +396,7 @@ DEFINE_uint64(pequin_non_monotonicity_grace, 20, "(ms) SECOND graceperiod for wr
 DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
 DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 //TODO: Active Snapshot set (optional), false
+DEFINE_bool(pequin_simulate_replica_failure, false, "simulate failure at replica 0");
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -821,6 +822,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,
+                                                 false, //simulateFailEagerPlusSnapshot is a client only flag.
                                                  FLAGS_pequin_force_read_from_snapshot,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
@@ -857,11 +859,13 @@ int main(int argc, char **argv) {
                                       query_params);
 
       Debug("Starting new server object");
-      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());;
+      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());
+      bool simulate_fault = FLAGS_pequin_simulate_replica_failure && (FLAGS_replica_idx == 0);
+      Notice("Simulating Fault at this Replica? %d", simulate_fault);
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, FLAGS_rw_simulate_point_kv); //TODO: Move to params.
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, FLAGS_rw_simulate_point_kv, simulate_fault); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {

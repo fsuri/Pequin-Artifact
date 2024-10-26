@@ -125,10 +125,10 @@ bool Server::CheckMonotonicTableColVersions(const std::string &txn_digest, const
     //NOTE: we are rounding TS to MS precision here (dropping US precision) This is fine because we do it everywhere; it just means this check is a bit coarser. (grace effectively up to 1ms bigger)
     //if(timeServer.TStoMS(txn.timestamp().timestamp()) + params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace <= timeServer.TStoMS(highTS.getTimestamp())) {
     if(TStoUS(txn.timestamp().timestamp()) + (params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace) * 1000 <= TStoUS(highTS.getTimestamp())) {
-      Debug("Aborting txn: %s. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
-          BytesToHex(txn_digest, 16).c_str(), table_name.c_str(), 
+      Debug("Aborting txn: %s [%lu:%lu]. Non monotonic Table/Col Write to [%s]! ms_diff: %lu. ms_grace: %lu. writeTxnTS: %lu [%lu ms] < highTS: %lu [%lu ms]", 
+          BytesToHex(txn_digest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id() , table_name.c_str(), 
           timeServer.TStoMS(highTS.getTimestamp()) - timeServer.TStoMS(txn.timestamp().timestamp()),  //diff
-          params.query_params.monotonicityGrace,  //grace
+          params.query_params.monotonicityGrace + params.query_params.non_monotonicityGrace,  //grace
           txn.timestamp().timestamp(), timeServer.TStoMS(txn.timestamp().timestamp()),  highTS.getTimestamp(), timeServer.TStoMS(highTS.getTimestamp()));
 
       return false; //If beyond both grace periods: reject

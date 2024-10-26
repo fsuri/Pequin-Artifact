@@ -1046,7 +1046,8 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   
     // //Should not take more than 1 ms (already generous) to parse and prepare.
     // auto duration = microseconds_end - microseconds_start;
-    // if(duration > 1000){
+    // if(ts.getID() % 5 == 0){ //Print for every 6th client
+    // //if(duration > 1000){
     //   Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
     // }
   }
@@ -1278,7 +1279,8 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
  
   // //Should not take more than 1 ms (already generous) to parse and prepare.
   // auto duration = microseconds_end - microseconds_start;
-  // if(duration > 2000){
+  // if(ts.getID() % 5 == 0){ //Print for every 6th client
+  // //if(duration > 2000){
   //   Warning("ScanRead exceeded 2000us: %d us", duration); 
   // }
 

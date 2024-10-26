@@ -27,6 +27,9 @@ void WorkerFunc(size_t i, std::string thread_name, std::atomic_bool *is_running,
 
   LOG_INFO("Thread %s starting ...", thread_name.c_str());
 
+  std::cerr << "Don't create any Peloton Threads" << std::endl;
+  return;
+
   //Pin Thread to core.
   pthread_t self = pthread_self(); 
   cpu_set_t cpuset;

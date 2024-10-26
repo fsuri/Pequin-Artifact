@@ -479,6 +479,8 @@ void SeqScanExecutor::Scan() {
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
 
+  //Warning("Txn [%lu:%lu] going through SequentialScan", current_txn_timestamp.getTimestamp(), current_txn_timestamp.getID());
+
   std::unordered_map<oid_t, std::vector<oid_t>> position_map;
 
   SetPredicate(current_txn, query_read_set_mgr);

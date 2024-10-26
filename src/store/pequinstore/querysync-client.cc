@@ -29,7 +29,7 @@ namespace pequinstore {
 
 static bool PRINT_SNAPSHOT_SET = true;
 static bool PRINT_SNAPSHOT_READ_SET = true;
-static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path
+// static bool TEST_EAGER_PLUS_SNAPSHOT = false; //Artificially cause eager exec to fail in order to trigger Sync path => DEPRECATED. Now a real flag!
 
 //TODO: Add: Handle Query Fail
 //-> Every shard (not just query_manager shard) should be able to send this if it observes a committed query was missed; or if the materialized snapshot frontier includes a prepare that aborted (or is guaranteed to, e.g. vote Abort)
@@ -167,15 +167,10 @@ void ShardClient::RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, boo
     RequestQuery(pendingQuery, queryMsg);
 }
 
-static uint64_t query_start;
-static uint64_t query_end;
 
 //pass a query object already from client: This way it avoids copying the query string across multiple shards and for retries
 void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMsg){
 
-    // struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // query_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   //Init new Merged Snapshot
   pendingQuery->snapshot_mgr.InitMergedSnapshot(&pendingQuery->merged_ss, pendingQuery->query_seq_num, client_id, pendingQuery->retry_version, config->f);
@@ -244,15 +239,20 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   uint64_t total_msg;
   //uint64_t num_designated_replies;
-  if(queryReq.eager_exec() && !params.query_params.eagerPlusSnapshot){  
+
+  if(!queryReq.eager_exec()){
+    //Send to at least #syncMessages (so everyone has the Query), but designate only #queryMessages for snapshot replies.
+    total_msg = params.query_params.cacheReadSet? config->n : std::max(params.query_params.queryMessages, params.query_params.syncMessages);
+    pendingQuery->num_designated_replies = params.query_params.queryMessages;
+  }
+  else if(queryReq.eager_exec() && !params.query_params.eagerPlusSnapshot){   //If not sourcing snapshot: send to #syncMessages
     total_msg = params.query_params.cacheReadSet? config->n : params.query_params.syncMessages;
     pendingQuery->num_designated_replies = params.query_params.syncMessages;  
     //Notice("Num designated replies %d", params.query_params.syncMessages);
   }
-
-  else{  //Note: if eagerPlusSnapshot is set, then send larger quorum
-    total_msg = params.query_params.cacheReadSet? config->n : params.query_params.queryMessages;
-    pendingQuery->num_designated_replies = params.query_params.queryMessages;
+  else{  //Note: if eagerPlusSnapshot is set, then send to larger of the quorums. I.e. if snapshot sourcing requires more replies than result, send to more.
+    total_msg = params.query_params.cacheReadSet? config->n : std::max(params.query_params.queryMessages, params.query_params.syncMessages);
+    pendingQuery->num_designated_replies = std::max(params.query_params.queryMessages, params.query_params.syncMessages);
   }
   
 
@@ -515,10 +515,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
 void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
-    //   struct timespec ts_start;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    // query_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    // Notice("QueryRPC took %d us", query_end-query_start);
+
 
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
@@ -838,7 +835,8 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
   
     //4) if receive enough --> upcall;  At client: Add query identifier and result to Txn
 
-    bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && pendingQuery->eager_mode;
+    // bool TEST_SYNC_PATH = TEST_EAGER_PLUS_SNAPSHOT && params.query_params.eagerPlusSnapshot && pendingQuery->eager_mode;
+    bool TEST_SYNC_PATH = params.query_params.simulateFailEagerPlusSnapshot && params.query_params.eagerPlusSnapshot && pendingQuery->eager_mode;
     if(TEST_SYNC_PATH) Debug("Forcing Sync path even though Eager might have matched.");
    
     Debug("[group %i] Req %lu. Matching_res %d. resultQuorum: %d \n", group, queryResult.req_id(), matching_res, params.query_params.resultQuorum);

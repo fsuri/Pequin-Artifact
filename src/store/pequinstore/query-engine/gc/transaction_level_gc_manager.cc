@@ -77,6 +77,8 @@ void TransactionLevelGCManager::Running(const int &thread_id) {
       }
       uint64_t sleep_duration = 1UL << backoff_shifts;
       sleep_duration *= 100;
+      std::cerr << "GC sleep" << std::endl;
+        exit(0);
       std::this_thread::sleep_for(std::chrono::microseconds(sleep_duration));
     } else {
       backoff_shifts >>= 1;

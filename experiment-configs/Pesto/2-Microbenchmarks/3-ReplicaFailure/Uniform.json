@@ -80,8 +80,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 1,
-		  	"sig_batch_timeout": 0,
+		  "sig_batch": 2,
+		  	"sig_batch_timeout": 2,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -143,8 +143,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 2,
-		  "non_monotonicity_grace": 5, 
+		  "monotonicity_grace": 1,
+		  "non_monotonicity_grace": 4, 
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -169,13 +169,24 @@
   ],
   
   "client_total": [
-    [1, 3, 5, 8, 10, 15, 20, 25, 30]
+    [8, 10, 15]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1]
+  ],
+  
+  "_Use batch = 4 for larger clients":false,
+  "_client_total": [
+    [8, 10, 15, 20, 25, 30, 35, 40]
+  ],
+  "_client_processes_per_client_node": [
+    [8, 8, 8, 8, 8, 8, 8, 8]
+  ],
+  "_client_threads_per_process": [
+    [1, 1, 1, 1, 1, 1, 1, 1]
   ],
   
  

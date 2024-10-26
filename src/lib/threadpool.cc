@@ -147,6 +147,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             std::function<void *()> job;
 
             main_thread_request_list.wait_dequeue(job);
+            //while(!main_thread_request_list.try_dequeue(job)){} //non-blocking spin version.
+
              Debug("Main Thread %d running job on CPU %d", i, sched_getcpu());
             //Notice("Main Thread %d running job on CPU %d", i, sched_getcpu());
 
@@ -179,6 +181,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
 
             std::pair<std::function<void *()>, EventInfo *> job;
+            
+            //while(!worker_thread_request_list.try_dequeue(job)){} //non-blocking spin version
             worker_thread_request_list.wait_dequeue(job);
            // Debug("popped job on CPU %d.", i);
             Debug("Worker Thread %d running job on CPU %d", i, sched_getcpu());

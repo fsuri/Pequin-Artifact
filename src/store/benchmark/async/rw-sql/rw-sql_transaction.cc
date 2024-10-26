@@ -36,6 +36,10 @@ namespace rwsql {
 const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const uint64_t alpha_numeric_size = sizeof(ALPHA_NUMERIC) - 1; //Account for \0 terminator
 
+static std::map<uint64_t, uint64_t> table_freq;
+static std::map<uint64_t, uint64_t> base_freq;
+static uint64_t periodic = 0;
+
 RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                                      int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
     : SyncTransaction(10000), rand(rand), querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), 
@@ -43,14 +47,37 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
   
   max_random_size = value_categories < 0? UINT64_MAX : log(value_categories) / log(alpha_numeric_size);
 
-  Notice("New TX with %d ops. Read only? %d", numOps, readOnly);
+  Debug("New TX with %d ops. Read only? %d", numOps, readOnly);
  
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
 
+   
+
     uint64_t base = querySelector->baseSelector->GetKey(rand); //Choose which key to use as starting point for query i
     starts.push_back(base);
+
+    if(false){
+      Notice(" Next Scan. Table: %d. Base: %d.    Total num tables: %d. Total range: [0, %d]", table, base, querySelector->tableSelector->GetNumKeys(), querySelector->baseSelector->GetNumKeys());
+      UW_ASSERT(table < querySelector->tableSelector->GetNumKeys());
+
+      table_freq[table]++;
+      base_freq[base]++;
+      periodic++;
+      if(periodic % 1000 == 0){
+        Notice(" PRINTING TABLE FREQUENCIES:");
+        for(auto &[tbl, freq]: table_freq){
+          Notice("   Table: %d. Accessed: %d times", tbl, freq);
+        }
+
+        Notice(" PRINTING base FREQUENCIES:");
+        for(auto &[base, freq]: base_freq){
+          Notice("   Base: %d. Accessed: %d times", base, freq);
+        }
+      }
+    }
+    
 
     bool is_point = std::uniform_int_distribution<uint64_t>(1, 100)(rand) <= querySelector->point_op_freq;
 
@@ -136,7 +163,7 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
   Debug("TXN COMMIT STATUS: %d",commitRes);
 
-  //Panic("stop after one");
+  // Panic("stop after one");
 
   //usleep(1000);
   return commitRes;
@@ -219,11 +246,6 @@ void RWSQLTransaction::ExecuteScanStatement(SyncClient &client, const std::strin
 
   //Otherwise, apply all the updates. //Note: Result already only includes those keys that meet the conditional.
   int num_res = queryResult->size();
-  // int set_to = 0;
-  // if(num_res > set_to){
-  //   Notice("Reducing writes from %d to %d", num_res, set_to);
-  //   num_res = set_to;
-  // } 
   for(int i=0; i<num_res; ++i){
     uint64_t key;
     deserialize(key, queryResult, i, 0);

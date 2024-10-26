@@ -8114,6 +8114,8 @@ class BwTree : public BwTreeBase {
         // printf("Start new epoch cycle");
         PerformGarbageCollection();
 
+        std::cerr << "BT tree Triggering sleep" << std::endl;
+        exit(0);
         // Sleep for 50 ms
         std::chrono::milliseconds duration(GC_INTERVAL);
         std::this_thread::sleep_for(duration);

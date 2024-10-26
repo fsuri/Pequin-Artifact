@@ -444,12 +444,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   auto query_read_set_mgr = current_txn->GetQueryReadSetMgr();
   auto const &current_txn_timestamp = current_txn->GetBasilTimestamp();
 
-      //FIXME: REMOVE
-      // struct timespec ts_start;
-      // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-      // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-
-
   //On FIRST executor iteration: Set TableVersion and Set Predicate
   SetPredicate(current_txn, query_read_set_mgr); // NOTE: MUST add predicate before index scan component; in case index scan doesn't find anything, we still need pred.
   SetTableColVersions(current_txn, query_read_set_mgr, current_txn_timestamp);
@@ -579,14 +573,6 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
   done_ = true;
 
   LOG_TRACE("Result tiles : %lu", result_.size());
-
-
-    //FIXME: REMOVE
-    //  struct timespec ts_end;
-    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
-    // uint64_t microseconds_end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-    // auto duration = microseconds_end - microseconds_start;
-    // if(current_txn_timestamp.getID() == 0 )Warning("IndexExecutor Latency: %dus", duration);
 
   return true;
 }

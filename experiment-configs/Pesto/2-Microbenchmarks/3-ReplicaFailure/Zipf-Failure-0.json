@@ -24,8 +24,8 @@
   	  "_note: parititoner is unused currently": 0,
 	  "partitioner": "rw_sql",
 	  
-	  "client_key_selector": "uniform",
-	  "client_zipf_coefficient": 0.75,   
+	  "client_key_selector": "zipf",
+	  "client_zipf_coefficient": 1.1,   
 	  
 	  "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
 	  "client_num_keys": 10000000,
@@ -93,7 +93,7 @@
 			  "_max_dep_depth": -2, 
 		  "rts_mode": 0, 
 	
-		  "p1_decision_timeout": 10,	
+		  "p1_decision_timeout": 0,	
 		  "read_dep": "one-honest",
 		  "read_quorum": "one-honest",
 		  "read_messages": "read-quorum",
@@ -158,24 +158,24 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
-  "_client_total": [
+  "client_total": [
     [30]
   ],
-  "_client_processes_per_client_node": [
+  "client_processes_per_client_node": [
     [8]
   ],
-  "_client_threads_per_process": [
+  "client_threads_per_process": [
     [1]
   ],
   
   "client_total": [
-    [1, 3, 5, 8, 10, 15, 20, 25, 30]
+    [5, 10, 15, 20, 25, 30, 40, 45, 25, 30]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8, 8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 1, 1, 1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 2, 2]
   ],
   
  
