@@ -175,6 +175,17 @@ TCPTransport::TCPTransport(double dropRate, double reorderRate,
     evthread_use_pthreads();
     event_set_log_callback(LogCallback);
     event_set_fatal_callback(FatalCallback);
+    
+    // auto cfg = event_config_new();
+    // // // event_config_init(cfg);
+    // event_config_set_flag(cfg, EVENT_BASE_FLAG_PRECISE_TIMER);
+    // // event_config_set_flag(cfg, EVENT_BASE_FLAG_EPOLL_DISALLOW_TIMERFD); //This flag is only supported on master branch of libevent, not on stable release.
+    // // //libeventBase = event_base_new_with_config(cfg);
+    // if ((libeventBase = event_base_new_with_config(cfg)) == NULL){
+    //     Panic("Failed to create an event base");
+    // }
+    // event_config_free(cfg);
+
 
     libeventBase = event_base_new();
     //tp2.emplace(); this works?

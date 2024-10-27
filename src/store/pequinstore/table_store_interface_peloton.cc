@@ -970,7 +970,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   Debug("Begin writeLat on core: %d", core);
   Latency_Start(&writeLats[core]);
 
-  if (commit_or_prepare) {
+  if (commit_or_prepare) { //TODO: Disable this check if validate proofs/sign messages is off.
     UW_ASSERT(commit_proof);
     Debug("Before timestamp asserts for apply table write");
     UW_ASSERT(ts == Timestamp(commit_proof->txn().timestamp()));

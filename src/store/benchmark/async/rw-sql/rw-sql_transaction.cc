@@ -47,7 +47,7 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
   
   max_random_size = value_categories < 0? UINT64_MAX : log(value_categories) / log(alpha_numeric_size);
 
-  Debug("New TX with %d ops. Read only? %d", numOps, readOnly);
+  Notice("New TX with %d ops. Read only? %d", numOps, readOnly);
  
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i

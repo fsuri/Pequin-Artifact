@@ -190,6 +190,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
      struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     exec_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Warning("STARTING NEW TX");
   }
 
     bcb(client_seq_num);
@@ -979,7 +980,9 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
         //Should not take more than 1 ms (already generous) to parse and prepare.
         auto duration = exec_end_ms - exec_start_ms;
-        //Warning("Transaction total execution latency in ms [%d]", duration/1000);
+        //Warning("  Transaction total execution latency in us [%d]", duration);
+
+        //Notice("Tx has %d deps", txn.deps().size());
     }
     
     uint64_t ns = Latency_End(&executeLatency);
@@ -1525,7 +1528,7 @@ void Client::Writeback(PendingRequest *req) {
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = commit_end_ms - commit_start_ms;
-    //Warning("Transaction commit latency in ms [%d]", duration/1000);
+    //Warning("     Transaction commit latency in us [%d]", duration);
   }
 
   //total_writebacks++;
