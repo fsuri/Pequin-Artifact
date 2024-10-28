@@ -195,7 +195,7 @@
   
   "project_name": "pequin-pg0",
   
-  "fault_tolerance": 0,
+  "fault_tolerance": 1,
   
   "_server_names": [
    
