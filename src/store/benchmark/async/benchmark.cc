@@ -1090,7 +1090,8 @@ int main(int argc, char **argv) {
     KeySelector *baseSelector;
     KeySelector *rangeSelector = new UniformKeySelector(keys, FLAGS_max_range); //doesn't make sense really to have a zipfean range selector - does not strongly correlate to contention. The bigger the range = the bigger contention
 
-    auto maxBase = FLAGS_rw_no_wrap? FLAGS_num_keys_per_table - FLAGS_max_range : FLAGS_num_keys_per_table;
+    auto maxBase = FLAGS_rw_no_wrap? FLAGS_num_keys_per_table - (FLAGS_max_range-1) : FLAGS_num_keys_per_table;
+    Notice("maxBase: %d", maxBase);
 
     //Note: "keys" is an empty/un-used argument for this setup.
     switch (keySelectionMode) {
@@ -1604,6 +1605,7 @@ int main(int argc, char **argv) {
                                         0,
                                         query_params);
 
+        Notice("Warmup secs: %d", FLAGS_warmup_secs);
         client = new pequinstore::Client(config, clientId,
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
@@ -1613,6 +1615,7 @@ int main(int argc, char **argv) {
                                           FLAGS_data_file_path, //table_registry
                                           keyManager, 
                                           FLAGS_indicus_phase1_decision_timeout,
+                                          FLAGS_warmup_secs,
 																					FLAGS_indicus_max_consecutive_abstains,
                                           FLAGS_sql_bench,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));

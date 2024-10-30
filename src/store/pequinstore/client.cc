@@ -51,7 +51,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
     uint64_t readQuorumSize, Parameters params, std::string &table_registry,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, bool sql_bench, TrueTime timeServer)
+    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t warmup_secs, uint64_t consecutiveMax, bool sql_bench,
+    TrueTime timeServer)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -109,6 +110,15 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
      sql_interpreter.RegisterTables(table_registry);
      sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
   }
+
+  Notice("Start Timer for %d warmup secs", warmup_secs);
+  transport->Timer(warmup_secs * 1000, [this](){
+    Notice("Warmup complete!!");
+    warmup_done = true;
+    for(auto &shard: bclient){
+      shard->WarmupDone();
+    }
+  });
 }
 
 Client::~Client()
@@ -522,6 +532,7 @@ void Client::Query(const std::string &query, query_callback qcb,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
       stats.Increment("QueryAttempts", 1);
+      if(warmup_done) stats.Increment("QueryAttempts_postwarmup", 1);
     }
 
 

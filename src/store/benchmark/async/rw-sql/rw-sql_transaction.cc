@@ -53,8 +53,6 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
 
-   
-
     uint64_t base = querySelector->baseSelector->GetKey(rand); //Choose which key to use as starting point for query i
     starts.push_back(base);
 
@@ -78,6 +76,9 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
       }
     }
     
+    Debug(" Next Scan. Table: %d. Base: %d.    Total num tables: %d. Total range: [0, %d]", table, base, querySelector->tableSelector->GetNumKeys(), querySelector->baseSelector->GetNumKeys());
+    
+    
 
     bool is_point = std::uniform_int_distribution<uint64_t>(1, 100)(rand) <= querySelector->point_op_freq;
 
@@ -89,8 +90,9 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
       uint64_t range = fixedRange? querySelector->rangeSelector->GetNumKeys() - 1 : querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
       uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
       ends.push_back(end);
+      Debug("Range: %d. Base: %d. End: %d", range, base, end);
     }
-   
+
   }
 }
 
@@ -163,9 +165,14 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
   Debug("TXN COMMIT STATUS: %d",commitRes);
 
-  // Panic("stop after one");
+  // if(count++ == 2){
+  //    Panic("stop after two"); //Expectation: First TX writes something. Second Transaction will need to do sync protocol.
 
-  //usleep(1000);
+  // }
+   // Panic("stop after one");
+
+ 
+  //usleep(1000); //sleep to simulate sequential access.
   return commitRes;
 }
 

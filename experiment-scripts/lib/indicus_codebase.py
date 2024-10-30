@@ -580,6 +580,12 @@ class IndicusCodebase(ExperimentCodebase):
             ## Simulate fault:
             if 'simulate_replica_failure' in config['replication_protocol_settings']:
                 replica_command += ' --pequin_simulate_replica_failure=%s' % (str(config['replication_protocol_settings']['simulate_replica_failure']).lower())
+            ## Simulate inconsistency:
+            if 'simulate_inconsistency' in config['replication_protocol_settings']:
+                replica_command += ' --pequin_simulate_inconsistency=%s' % (str(config['replication_protocol_settings']['simulate_inconsistency']).lower())
+            ## Disable prepare visibility for Pesto   
+            if 'disable_prepare_visibility' in config['replication_protocol_settings']:
+                replica_command += ' --pequin_disable_prepare_visibility=%s' % (str(config['replication_protocol_settings']['disable_prepare_visibility']).lower())
     
         if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options

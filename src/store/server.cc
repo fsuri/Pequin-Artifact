@@ -397,6 +397,8 @@ DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instea
 DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 //TODO: Active Snapshot set (optional), false
 DEFINE_bool(pequin_simulate_replica_failure, false, "simulate failure at replica 0");
+DEFINE_bool(pequin_simulate_inconsistency, false, "skip applying writes at 2 out of 6 replicas to create inconsistent state that requires sync.");
+DEFINE_bool(pequin_disable_prepare_visibility, false, "do not make prepared writes visible.");
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -860,12 +862,14 @@ int main(int argc, char **argv) {
 
       Debug("Starting new server object");
       Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());
+      if(FLAGS_pequin_simulate_replica_failure && config.n == 0) Panic("Cannot simulate inconsitency without replication");
       bool simulate_fault = FLAGS_pequin_simulate_replica_failure && (FLAGS_replica_idx == 0);
       Notice("Simulating Fault at this Replica? %d", simulate_fault);
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, FLAGS_rw_simulate_point_kv, simulate_fault); //TODO: Move to params.
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, 
+                                        FLAGS_rw_simulate_point_kv, simulate_fault, FLAGS_pequin_simulate_inconsistency, FLAGS_pequin_disable_prepare_visibility); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {
@@ -1176,7 +1180,7 @@ int main(int argc, char **argv) {
         const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
         uint64_t alpha_numeric_size = sizeof(ALPHA_NUMERIC) - 1; //Account for \0 terminator
         uint64_t max_random_size = FLAGS_value_categories < 0? UINT64_MAX : log(FLAGS_value_categories) / log(alpha_numeric_size);
-        Notice("Number of random chars: %d", max_random_size);
+        // Notice("Number of random chars: %d", max_random_size);
 
         // Skip loading relevant tables for this shard. //TODO: Assert that this is using RWSQLPartitioner
         std::vector<int> dummyTxnGroups;

@@ -254,6 +254,12 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
     total_msg = params.query_params.cacheReadSet? config->n : std::max(params.query_params.queryMessages, params.query_params.syncMessages);
     pendingQuery->num_designated_replies = std::max(params.query_params.queryMessages, params.query_params.syncMessages);
   }
+  //TODO: Enable this!! Note: Having it disabled ensures that our simulated_inconsistency waits for tail latency of sync. Otherwise it may succeed with the fastest 4 replies, since only 2 need to sync. 
+  if(false && queryReq.optimistic_txid()){ 
+    //If requesting optimisticID. Send to +f replicas to account for the fact that we might later need to send Sync to f additional. => Want to guarantee that all that Exec Sync have Query.
+    //Note: These replicas are not designated for reply however.
+    total_msg = std::min(config->n, (int) total_msg + config->f);
+  }
   
 
   UW_ASSERT(total_msg <= closestReplicas.size());
@@ -427,6 +433,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //TESTING:
 
     stats->Increment("NumSyncs");
+    if(warmup_done) stats->Increment("NumSyncs_postwarmup");
     Debug("Query: [%lu:%lu:%lu] about to sync", pendingQuery->query_seq_num, client_id, pendingQuery->retry_version);
          
          //TEST: //FIXME: REMOVE
@@ -911,6 +918,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         //Once SyncReplicas starts => turn off eager_mode = do not process any more outdated eager replies
         if(!pendingQuery->snapshot_mode && pendingQuery->resultsVerified.size() == maxWait){
             stats->Increment("FailEager", 1);
+            if(warmup_done) stats->Increment("FailEager_postwarmup");
             pendingQuery->snapshot_mode = true;
             //Note: If syncQuorum < resultQuorum then merged_ss will be ready before we end the eager path; 
             //      if syncQuorum >= syncQuorum, then sync will start as soon as it is ready. (we stay in eager mode so we keep processing messages)

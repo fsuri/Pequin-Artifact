@@ -80,8 +80,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 1,
-		  	"sig_batch_timeout": 0,
+		  "sig_batch": 4,
+		  	"sig_batch_timeout": 2,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -117,7 +117,7 @@
 		  "inject_failure_ms": 0,
 		  "inject_failure_freq": 100,
 		  "_inject_failure_type" : "client-crash",
-	  
+		  	  
 	  
 	 "_QUERY_ARGS_": 0,
 
@@ -131,8 +131,11 @@
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
 		  "eager_plus_snapshot": true,
+		  
 		  "query_point_eager_exec": false,
 		  "force_read_from_snapshot": false,
+		 
+		  "simulate_inconsistency": true,
 		   
 		  "query_read_prepared": true,
 		  "query_cache_read_set": false,
@@ -143,8 +146,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 2,
-		  "non_monotonicity_grace": 5, 
+		  "monotonicity_grace": 1,
+		  "non_monotonicity_grace": 4, 
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -160,13 +163,13 @@
   
  
   "client_total": [
-    [1, 5]
+    [30]
   ],
   "client_processes_per_client_node": [
-    [8, 8]
+    [8]
   ],
   "client_threads_per_process": [
-    [1, 1]
+    [1]
   ],
   
  
@@ -182,9 +185,9 @@
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 60,
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
   
   "default_remote_shell": "bash",
   

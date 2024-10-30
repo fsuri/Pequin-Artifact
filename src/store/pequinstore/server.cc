@@ -57,13 +57,15 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
                KeyManager *keyManager, Parameters params,
                std::string &table_registry_path, uint64_t timeDelta,
                OCCType occType, Partitioner *part,
-               unsigned int batchTimeoutMicro, bool sql_bench, bool simulate_point_kv, bool simulate_replica_failure,
+               unsigned int batchTimeoutMicro, bool sql_bench, 
+               bool simulate_point_kv, bool simulate_replica_failure, bool simulate_inconsistency, bool disable_prepare_visibility,
                TrueTime timeServer)
     : PingServer(transport), config(config), groupIdx(groupIdx), idx(idx),
       numShards(numShards), numGroups(numGroups), id(groupIdx * config.n + idx),
       transport(transport), occType(occType), part(part), params(params),
       keyManager(keyManager), timeDelta(timeDelta), timeServer(timeServer),
-      sql_bench(sql_bench), simulate_point_kv(simulate_point_kv), simulate_replica_failure(simulate_replica_failure) {
+      sql_bench(sql_bench), 
+      simulate_point_kv(simulate_point_kv), simulate_replica_failure(simulate_replica_failure), simulate_inconsistency(simulate_inconsistency), disable_prepare_visibility(disable_prepare_visibility) {
 
   ongoing = ongoingMap(100000);
   p1MetaData = p1MetaDataMap(100000);
@@ -1949,6 +1951,11 @@ void Server::HandleWriteback(const TransportAddress &remote,
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
 
+        if(simulate_inconsistency){
+          Panic("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
+          return; // this mode not supported with inconsistency simulation because we pass dummy remote.
+        }
+
          ooMap::accessor oo;
         ooMessages.insert(oo, msg.txn_digest());
         auto &ooMsg = oo->second;
@@ -1997,8 +2004,56 @@ void Server::HandleWriteback(const TransportAddress &remote,
     }
   }
 
-  Debug("WRITEBACK[%s] with decision %d. Begin Validation",
-      BytesToHex(*txnDigest, 16).c_str(), msg.decision());
+  if(simulate_inconsistency){
+    //Occasionally drop some of the prepare/commit and rely on sync.. 
+    uint64_t target_replica = txn->client_id() % config.n; //find "lead replica"
+    bool drop_at_this_replica = false;
+    for(int i = 0; i < 2; ++i){ //Drop at 2 replicas.
+       if((target_replica + i) % config.n == idx) drop_at_this_replica = true;
+    }
+    // drop_at_this_replica &= msg.decision() == proto::COMMIT;
+    // Notice("Target replica: %d. Drop on this replica[%d]? %d.", target_replica, idx, drop_at_this_replica);
+    if(drop_at_this_replica){ //only drop commit.
+
+      // auto [itr, first] = dropped_c.insert(*txnDigest); 
+      // if(first){ //only drop initial. Allow via sync or fallback
+      //   Debug("Dropping Commit of Txn[%s]. From client: %d", BytesToHex(*txnDigest, 16).c_str(), txn->client_id());
+      //   stats.Increment("dropped_c_" + std::to_string(idx));
+      //   return;
+      // }
+
+      //Note: Rather than "dropping" commit, we will delay it until sync has happened
+      droppedMap::accessor d;
+      bool first = dropped_c.insert(d, *txnDigest);
+      if(first){
+       
+        bool already_simul_sync = supplied_sync.find(*txnDigest) != supplied_sync.end(); //if simul already happened. Then just apply.
+
+        if(!already_simul_sync && msg.decision() == proto::COMMIT){
+
+         proto::Writeback *wb_copy;
+          if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+            wb_copy = &msg; //already allocated
+          }
+          else{
+            wb_copy = new proto::Writeback(msg);
+          }
+          d->second = wb_copy;
+          Debug("Dropping Commit of Txn[%s]. From client: %d", BytesToHex(*txnDigest, 16).c_str(), txn->client_id());
+          stats.Increment("dropped_c_" + std::to_string(idx));
+          return;
+        }
+        else{ //otherwise, mark Tx as dropped, but continue anyways.
+          d->second = nullptr;
+           //continue applying.
+           d.release();
+        }
+      }
+    }
+  }
+
+
+  Debug("WRITEBACK[%s] with decision %d. Begin Validation", BytesToHex(*txnDigest, 16).c_str(), msg.decision());
 
   //Verify Writeback Proofs + Call WritebackCallback
   ManageWritebackValidation(msg, txnDigest, txn);
@@ -2165,6 +2220,27 @@ void Server::HandleAbort(const TransportAddress &remote,
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet) {
+
+  // return; //Test perf if we don't simulate but we don't prepare.
+  if(simulate_inconsistency){
+    //Occasionally drop some of the prepare/commit and rely on sync.. Drop at 2 replicas.
+    uint64_t target_replica = txn.client_id() % config.n; //find "lead replica"
+    bool drop_at_this_replica = false;
+    for(int i = 0; i < 2; ++i){ //Drop at 2 replicas.
+       if((target_replica + i) % config.n == idx) drop_at_this_replica = true;
+    }
+    // Notice("Target replica: %d. Drop on this replica[%d]? %d", target_replica, idx, drop_at_this_replica);
+    if(drop_at_this_replica){
+      auto [_, first] = dropped_p.insert(txnDigest);
+      if(first){ //only drop initial. Allow via sync or fallback
+        Debug("Dropping Prepare of Txn[%s]", BytesToHex(txnDigest, 16).c_str());
+        stats.Increment("dropped_p_" + std::to_string(idx));
+        return;
+      }
+    }
+  }
+
+
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
   
   Timestamp ts = Timestamp(txn.timestamp());
@@ -2187,12 +2263,6 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   preparedMap::accessor a;
   bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
-
-  ///Test section
-  //TODO: Occasionally drop some of the prepare/commit and rely on sync.
-  // bool drop = (txn.client_id() + 1) % (idx +1 ); // drop 1/nth of traffic   //Since client also accesses replica by modulo order, dropping here should cause client to trigger sync. //TODO: Test this with 1 client
-  // if(drop) first_prepare = !first_prepare; //drop on first, but allow to pass on second!
-  ///
 
   if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
@@ -2308,6 +2378,8 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   Debug("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
+  if(disable_prepare_visibility) return; //Don't apply Writes.
+
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
       UW_ASSERT(ongoingTxn);
@@ -2392,11 +2464,8 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof));
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
-
-  // bool drop = (txn->client_id() + 1) % (idx + 1) == 0; // drop 1/nth of traffic   //Since client also accesses replica by modulo order, dropping here should cause client to trigger sync. //TODO: Test this with 1 client
-  // if(drop) first_commit = !first_commit; //drop on first, but allow to pass on second!
-  // Debug("Dropping? %d", drop);
-  // if(!first_commit) return;// already was inserted
+  
+  if(!first_commit) return;// already was inserted
 
   proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
 
@@ -2426,8 +2495,11 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     Value val;
     val.proof = proof;
 
-    committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+    // committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+    auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
     Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+    if(!first_commit) return;// already was inserted
+
 
     CommitToStore(proof, txn, txnDigest, ts, val);
 

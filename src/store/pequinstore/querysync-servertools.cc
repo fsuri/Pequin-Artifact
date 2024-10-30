@@ -102,14 +102,16 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
     } 
     if(read_materialized){
         //Warning("READ FROM MATERIALIZED SNAPSHOT NOT YET STABLE TESTED");
-        if(query_md->retry_version > 0){
+        bool TESTING_MAT=false;
+        if(TESTING_MAT) {// || query_md->retry_version > 0){
             for(auto const &[tx, _]: query_md->merged_ss_msg->merged_txns()){
                 materializedMap::const_accessor mat;
                 bool found = materialized.find(mat, tx);
                 mat.release();
-                if(!found) Panic("Tx[%s] has not been successfully materialized before starting exec");
+                if(!found) Panic("Tx[%s] has not been successfully materialized before starting exec", BytesToHex(tx, 16).c_str());
             }
         }
+        Debug("Exec on Materialized Snapshot. Query[%lu:%lu]. Ts[%lu:%lu]. Query cmd: %s", query_md->query_seq_num, query_md->client_id, query_md->ts.getTimestamp(), query_md->ts.getID(), query_md->query_cmd.c_str());
 
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
     } 
@@ -374,6 +376,44 @@ bool Server::CheckPresence(const std::string &tx_id, const std::string &query_re
     // }
     // o.release(); 
 
+    //BEGIN SIMULATE INCONSISTENCY
+   //If we simulate inconsistency: If it is a txn that "should be dropped" then request sync up to once. Note: It can happen that we already prepared Tx. If so, this is an unecessary sync.
+   //However: If it is prepared even though it was a drop candidate, then sync mustve already happened once! (or fallback)
+   //Why don't we simply remove/not put in ongoing? => Then it wouldn't be present for p2 or wb
+    if(simulate_inconsistency){
+        if(has_txn_locally && preparing){
+
+            //Check if this replica is target for simulated drop. If so, force_simulated sync once.!
+            uint64_t target_replica = txn->client_id() % config.n; //find "lead replica"
+            bool drop_at_this_replica = false;
+            for(int i = 0; i < 2; ++i){ //Drop at 2 replicas.
+                if((target_replica + i) % config.n == idx) drop_at_this_replica = true;
+            }
+            Debug("Txn[%s]. Target replica: %d. Drop on this replica[%d]? %d", BytesToHex(tx_id, 16).c_str(), target_replica, idx, drop_at_this_replica);
+
+            if(drop_at_this_replica){
+                auto [_, first] = force_simul_sync.insert(tx_id);
+                if(first){ //only drop initial. Allow via sync or fallback
+                    preparedMap::const_accessor a;
+                    bool is_prepared = prepared.find(a, tx_id);
+                    a.release();
+                    if(!is_prepared){ //If Txn is Prepared (i.e. it must've already been synced on since it was a drop candidate. )
+                        Debug("Force simul sync of Txn[%s]", BytesToHex(tx_id, 16).c_str());
+                        has_txn_locally = false;
+                    }
+                    else{
+                        Debug("Txn[%s] is already prepared. Won't sync.", BytesToHex(tx_id, 16).c_str());
+                    }
+                }
+            }
+        }
+    }
+    //END
+
+
+
+
+
      //1) If we have never seen the Txn, we must request it
      if(TEST_SYNC || !has_txn_locally){                                      //TODO: TEST_SYNC will trigger message sync, but won't cause Query to wait for it. 
         Debug("Query: [%lu:%lu:%lu] requests Tx_id %s", query_md->query_seq_num, query_md->client_id, query_md->retry_version, BytesToHex(tx_id, 16).c_str());
@@ -542,7 +582,7 @@ void Server::ForceMaterialization(const proto::ConcurrencyControl::Result &resul
 
     //Only Materialize if not already. 
     if(result == proto::ConcurrencyControl::COMMIT || result == proto::ConcurrencyControl::WAIT){
-        Debug("Txn[%s] is already applied via Prepare (Commit/Wait: %d). No need to forcefully materialize", BytesToHex(txnDigest, 16).c_str(), result);
+        Debug("Txn[%s] is already applied via Prepare (Commit/Wait. Res: %d). No need to forcefully materialize", BytesToHex(txnDigest, 16).c_str(), result);
         //Note: In this case, Tx did Prepare, and thus add to materialize
         return; 
     }
@@ -865,7 +905,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
             Debug("QueryId[%s] is still waiting on (%d) transactions and (%d) TS", BytesToHex(missingTxns.query_id, 16).c_str(), missingTxns.missing_txns.size(), missingTxns.missing_ts.size());
             if(was_present && missingTxns.missing_txns.empty() && missingTxns.missing_ts.empty()){  //don't wake up unless there is NO missing TX OR TS
                    //Note: was_present -> only call this the first time missing_txn goes empty: present captures the fact that map was non-empty before erase.
-                Debug("Wake QueryId[%s]!",  BytesToHex(missingTxns.query_id, 16).c_str());
+                Debug("Ready to wake QueryId[%s]!",  BytesToHex(missingTxns.query_id, 16).c_str());
                 queries_to_wake[missingTxns.query_id] = missingTxns.retry_version;
             }
             else if(is_abort) queries_to_rm_txn[missingTxns.query_id] = missingTxns.retry_version;
@@ -881,7 +921,24 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
     w.release();
 
    
-    //4) Try to wake all ready queries.
+
+    //6 For all other queries that are still waiting, but not ready to wake: Erase txn from snapshot if abort
+    for(auto &[queryId, retry_version]: queries_to_rm_txn){
+        queryMetaDataMap::accessor q;
+        bool queryActive = queryMetaData.find(q, queryId);
+        if(queryActive){
+            QueryMetaData *query_md = q->second;
+
+            if(query_md->is_waiting && query_md->retry_version == retry_version){ 
+                //6) Erase txn from snapshot if abort.
+                Debug("Remove TX[%s] from merged_ss of Query[%lu:%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), query_md->client_id, query_md->query_seq_num, query_md->retry_version);
+                query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
+            }
+        }
+        q.release();
+    }
+
+     //4) Try to wake all ready queries.
     for(auto &[queryId, retry_version]: queries_to_wake){
         queryMetaDataMap::accessor q;
         bool queryActive = queryMetaData.find(q, queryId);
@@ -901,22 +958,6 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
                     HandleSyncCallback(q, query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
-        }
-        q.release();
-    }
-
-    //6 For all other queries that are still waiting, but not ready to wake: Erase txn from snapshot if abort
-    for(auto &[queryId, retry_version]: queries_to_rm_txn){
-        queryMetaDataMap::accessor q;
-        bool queryActive = queryMetaData.find(q, queryId);
-        if(queryActive){
-            QueryMetaData *query_md = q->second;
-
-            if(query_md->is_waiting && query_md->retry_version == retry_version){ 
-                //6) Erase txn from snapshot if abort.
-                Debug("Remove TX[%s] from merged_ss of Query[%lu:%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), query_md->client_id, query_md->query_seq_num, query_md->retry_version);
-                query_md->merged_ss_msg->mutable_merged_txns()->erase(txnDigest); 
-            }
         }
         q.release();
     }
