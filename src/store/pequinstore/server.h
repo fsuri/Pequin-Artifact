@@ -328,6 +328,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         query_cmd = _query_cmd;
         ts = timestamp;
         if(original_client == nullptr) original_client = remote.clone();
+        // Debug("QueryMD[%d:%d] (client:query-seq). Curr req id: %d. Proposed req id: %d", client_id, query_seq_num, req_id, _req_id);
         req_id = std::max(req_id, _req_id); //if we already received a retry, keep it's req_id.
       }
       void RegisterWaitingSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
@@ -339,7 +340,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool failure;
 
       TransportAddress *original_client;
-      uint64_t req_id;  //can use this as implicit retry version.
+      uint64_t req_id = 0;  //can use this as implicit retry version.
       uint64_t query_seq_num;
       uint64_t client_id;
 

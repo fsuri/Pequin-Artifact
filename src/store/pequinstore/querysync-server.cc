@@ -72,7 +72,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         Timestamp ts(query->timestamp()); 
         if (CheckHighWatermark(ts)) {
             // ignore request if beyond high watermark
-            Debug("Query timestamp beyond high watermark.");
+             Debug("IGNORE Query[%lu:%lu:%d] (client:q-seq:retry-ver). Timestamp above Watermark", query->client_id(), query->query_seq_num(), query->retry_version());
             delete query;
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
@@ -83,6 +83,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
     //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){
+        Debug("IGNORE Query[%lu:%lu:%d] (client:q-seq:retry-ver). Below WM: %d", query->client_id(), query->query_seq_num(), query->retry_version(), qw->second);
         delete query;
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
         return;
@@ -100,8 +101,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // else{
     //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     // }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes)", 
-            query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", 
+            query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -130,6 +131,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             }
         }
         if(!valid){
+            Debug("INVALID Query[%lu:%lu:%d] (client:q-seq:retry-ver).", query->client_id(), query->query_seq_num(), query->retry_version());
             delete query;
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
@@ -164,6 +166,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         if(new_insert){
             //UW_ASSERT(query->retry_version() == 0); // We might get them out of order with multi-threading
             q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params, query->retry_version());
+            
+            // Debug("\n Insert QueryMd Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", 
+            //             query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
+
         }
         re_check = !new_insert;
     }
@@ -173,6 +179,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(!query->query_cmd().empty()){ //If queryMetaData was inserted by Sync first, or we received retry first (i.e. query has not been processed yet), set query.
         //UW_ASSERT(query->has_query_cmd()); 
         //We avoid re-sending query_cmd in retry messages (but might have to wait for first query attempt in case multithreading violates FIFO)
+        // Debug("Setting QueryMD [%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
         query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  //Keep current req_id if it's greater (i.e. belongs to retry that is waiting for original query)
     }
 
@@ -216,7 +223,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
-        Debug("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        // Debug("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d. New req_id: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version, msg.req_id());
         if(query->retry_version()>1) Warning("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
@@ -515,6 +522,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, merged_ss->client_id()) && qw->second >= merged_ss->query_seq_num()){
     //if(clientQueryWatermark[merged_ss->client_id()] >= merged_ss->query_seq_num()){
+        Debug("IGNORE Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver). Below WM: %d", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version(), qw->second);
         delete merged_ss; 
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
         return;
@@ -578,6 +586,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->ClearMetaData(*queryId);
+        Debug("Sync Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) update retry version. Clear Meta Data", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
         query_md->req_id = msg.req_id();
           //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.
         queryMissingTxns.erase(QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
@@ -586,6 +595,8 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     query_md->started_sync = true;
     query_md->designated_for_reply = msg.designated_for_reply();
+
+    Debug("Process Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver) or register waiting for Query", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
 
     if(query_md->has_query){
         ProcessSync(q, remote, merged_ss, queryId, query_md);
@@ -680,7 +691,6 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     if(!replica_requests.empty()){
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
         //query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
-        q.release();
         Debug("Sync State incomplete for Query[%lu:%lu:%d]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version()); 
         for(auto const &[replica_idx, replica_req] : replica_requests){
             if(replica_idx == idx) Panic("Should never request from self");
@@ -700,9 +710,12 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
         return HandleSyncCallback(q, query_md, *queryId);
     }
 
+
     //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
     Debug("Query[%s][ver:%d] is waiting!", BytesToHex(*queryId, 16).c_str(), query_md->retry_version);
-    
+
+    q.release();
+
     if(TEST_MATERIALIZE) TEST_MATERIALIZE_f();
        
     //delete merged_ss; // ==> Deleting only upon ClearMetaData or delete query_md 
@@ -841,7 +854,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
             }
 
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-            Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+            Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id()); 
             //delete queryResultReply;
             
             if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
@@ -1152,7 +1165,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     //Check if other replica had aborted (If so, exclude this tx from snapshot; Alternatively could fail sync eagerly, but that seems unecessary)
     if(txn_info.abort()){ 
-        stats.Increment("Sync_abort", 1);
+        stats.Increment("Supply_abort", 1);
         Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
         UW_ASSERT(txn_info.has_abort_proof());
         // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
@@ -1185,7 +1198,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     //Check if other replica supplied commit
     if(txn_info.has_commit_proof()){   
-         stats.Increment("Sync_commit", 1);
+         stats.Increment("Supply_commit", 1);
          //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
         Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         proto::CommittedProof *proof = txn_info.release_commit_proof();
@@ -1266,7 +1279,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
     }
 
     Debug("Sync for Tx[%s] must have prepare.", BytesToHex(txn_id, 16).c_str());
-    stats.Increment("Sync_prepare", 1);
+    stats.Increment("Supply_prepare", 1);
 
     //If not committed/aborted ==> Check if locally present.
     //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData

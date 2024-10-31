@@ -173,7 +173,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  try{
+  //try{
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     UW_ASSERT(sql_stmt_list);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -187,10 +187,10 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
       Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
           (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
     }
-  }
-  catch(...){
-    Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
-  }
+  // }
+  // catch(...){
+  //   Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
+  // }
 
 
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());

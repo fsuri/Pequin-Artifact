@@ -114,6 +114,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
         Debug("Exec on Materialized Snapshot. Query[%lu:%lu]. Ts[%lu:%lu]. Query cmd: %s", query_md->query_seq_num, query_md->client_id, query_md->ts.getTimestamp(), query_md->ts.getID(), query_md->query_cmd.c_str());
 
         serialized_result = table_store->ExecReadQueryOnMaterializedSnapshot(query_md->query_cmd, query_md->ts, queryReadSetMgr, query_md->merged_ss_msg->merged_txns());
+        Debug("Finish exec on Materialized Snapshot. Query[%lu:%lu]. Ts[%lu:%lu].", query_md->query_seq_num, query_md->client_id, query_md->ts.getTimestamp(), query_md->ts.getID());
     } 
 
     //                                                         //

@@ -761,8 +761,9 @@ void TimestampOrderingTransactionManager::PerformDelete(
     PELOTON_ASSERT(res == true);
   }
 
-  new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
   tile_group_header->GetSpinLatch(old_location.offset).Unlock();
+  new_tile_group_header->GetSpinLatch(new_location.offset).Unlock();
+  
 
   current_txn->RecordDelete(old_location);
 }
@@ -988,7 +989,15 @@ ResultType TimestampOrderingTransactionManager::CommitTransaction(TransactionCon
 ResultType TimestampOrderingTransactionManager::AbortTransaction(
     TransactionContext *const current_txn) {
   // a pre-declared read-only transaction will never abort.
-  PELOTON_ASSERT(!current_txn->IsReadOnly());
+  UW_ASSERT(!current_txn->IsReadOnly());
+  // PELOTON_ASSERT(!current_txn->IsReadOnly());
+  
+  current_txn->SetResult(ResultType::ABORTED);
+  EndTransaction(current_txn);
+
+  return ResultType::ABORTED;
+
+ 
 
   LOG_TRACE("Aborting peloton txn : %" PRId64, current_txn->GetTransactionId());
   auto storage_manager = storage::StorageManager::GetInstance();

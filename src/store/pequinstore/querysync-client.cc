@@ -511,7 +511,6 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
     for (size_t i = 0; i < total_msg; ++i) {
         syncMsg.set_designated_for_reply(i < num_designated_replies); //only designate num_designated_replies many replicas for exec replies.
-
         Debug("[group %i] Sending Query Sync Msg to replica %lu. Designated for reply? %d", group, group * config->n + GetNthClosestReplica(i), syncMsg.designated_for_reply());
         transport->SendMessageToReplica(this, group, GetNthClosestReplica(i), syncMsg);
     }
@@ -522,7 +521,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
 
 void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
 
-
+    Debug("[group %i] Received QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
 
     //0) find PendingQuery object via request id
      auto itr = this->pendingQueries.find(queryResult.req_id());
@@ -534,7 +533,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
     PendingQuery *pendingQuery = itr->second;
     if(pendingQuery->done) return; //this is a stale request; (Query finished, but Txn not yet)
     
-    Debug("[group %i] Received QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
+    Debug("[group %i] Processing QueryResult Reply for req-id [%lu]", group, queryResult.req_id());
     // if(!pendingQuery->query_manager){
     //     Debug("[group %i] is not Transaction Manager for request %lu", group, queryResult.req_id());
     //     return;
@@ -731,6 +730,11 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         }
         //END
 
+        // //FIXME: REMOVE. Testing only
+        // Notice("  TESTING Read set:");
+        // for(auto &read: replica_result->query_read_set().read_set()){
+        //     Notice("  Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());
+        // }
 
         Result_mgr &result_mgr = pendingQuery->result_freq[validated_result_hash][replica_result->query_result()]; //[validated_result_hash];  //Could flatten this into 2D structure if make result part of result_hash... But we need access to result
         matching_res = ++result_mgr.freq; //map should be default initialized to 0.

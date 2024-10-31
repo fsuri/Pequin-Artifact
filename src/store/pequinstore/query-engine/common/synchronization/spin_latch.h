@@ -13,6 +13,7 @@
 #pragma once
 
 #include <atomic>
+#include <iostream>
 
 #include "../../common/platform.h"
 #include "../../common/macros.h"
@@ -32,6 +33,7 @@ class SpinLatch {
   SpinLatch() : state_(LatchState::Unlocked) {}
 
   void Lock() {
+    // std::cerr << "Taking lock on core: " << sched_getcpu() << " this: " << this << std::endl;
     while (!TryLock()) {
       _mm_pause();  // helps the cpu to detect busy-wait loop
     }
@@ -47,6 +49,7 @@ class SpinLatch {
   }
 
   void Unlock() {
+    // std::cerr << "Unlocking on core: " << sched_getcpu() << " this: " << this << std::endl;
     state_.store(LatchState::Unlocked, std::memory_order_release);
   }
 
