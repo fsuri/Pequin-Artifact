@@ -972,7 +972,7 @@ def generate_gnuplot_script_lot(config, script_file, line_type='points'):
             line_type))
 
 def generate_lot_plot(config, plots_directory, plot_name, lot_data, lot_times):
-    #return # commented out for now to reduce memory
+    return # commented out for now to reduce memory
     plot_name = plot_name.replace('_', '-')
     plot_csv_file = os.path.join(plots_directory, '%s.csv' % plot_name)
     generate_csv_for_lot_plot(plot_csv_file, lot_data, lot_times)
@@ -982,7 +982,7 @@ def generate_lot_plot(config, plots_directory, plot_name, lot_data, lot_times):
         plot_script_file)
 
 def generate_tot_plot(config, plots_directory, plot_name, lot_data, lot_times):
-    #return # commented out for now to reduce memory
+    return # commented out for now to reduce memory
     plot_name = plot_name.replace('_', '-')
     plot_csv_file = os.path.join(plots_directory, '%s.csv' % plot_name)
     generate_csv_for_tot_plot(plot_csv_file, lot_data, lot_times)

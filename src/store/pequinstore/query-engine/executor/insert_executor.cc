@@ -339,7 +339,15 @@ bool InsertExecutor::InsertNewVersion(const planner::ProjectInfo *project_info, 
       size_t indirection_offset = tile_group_header->GetIndirectionOffset(old_location.offset);
       new_tile_group->GetHeader()->SetIndirectionOffset(new_location.offset, indirection_offset);
       std::mutex &m = target_table->active_indirection_mutexes_[indirection_offset % 32];
-      m.lock();
+      m.lock(); //TODO: Hold this lock much earlier... (starting in data table)
+
+    //  //FIXME: REMOVE. Identify current row
+    //   auto key = new_tile_group->GetValue(new_location.offset, 0);
+    //   // auto val = new_tile_group->GetValue(new_location.offset, 1);
+    //   Notice("\n Data Table txn[%lu:%lu] Row-key[%s]. PerformUpdate. Commit (or prepare) ? %d. Old_location[%d:%d] -> New_Location[%d:%d]. Indirection_offset: %d", 
+    //           current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), key.ToString().c_str(),
+    //           current_txn->GetCommitOrPrepare(),old_location.block, old_location.offset,  new_location.block, new_location.offset, indirection_offset);
+
 
       transaction_manager.PerformUpdate(current_txn, old_location, new_location);
       

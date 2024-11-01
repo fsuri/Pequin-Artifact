@@ -108,7 +108,7 @@
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
-		  "no_fallback": true,
+		  "no_fallback": false,
 		  "all_to_all_fb" : false,
 		  "relayP1_timeout" : 100,
 		  "replica_gossip": false,
@@ -162,23 +162,23 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
  
-  "client_total": [
-    [10]
+  "_client_total": [
+    [15]
   ],
-  "client_processes_per_client_node": [
+  "_client_processes_per_client_node": [
     [8]
   ],
-  "client_threads_per_process": [
+  "_client_threads_per_process": [
     [1]
   ],
   
-  "_client_total": [
+  "client_total": [
     [3, 5, 8, 12, 15, 20]
   ],
-  "_client_processes_per_client_node": [
+  "client_processes_per_client_node": [
     [8, 8, 8, 8, 8, 8]
   ],
-  "_client_threads_per_process": [
+  "client_threads_per_process": [
     [1, 1, 1, 1, 1, 1]
   ],
   

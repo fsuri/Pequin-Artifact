@@ -635,6 +635,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         if(PRINT_SNAPSHOT_READ_SET){
         if(pendingQuery->snapshot_mode && pendingQuery->retry_version >= 1){
             //TESTING:
+            Notice("[group %i] Received Valid QueryResult Reply for request [%lu : %lu] from replica %lu.", group, pendingQuery->query_seq_num, pendingQuery->retry_version, replica_result->replica_id());
             Notice("TESTING Read set:");
             for(auto &read: replica_result->query_read_set().read_set()){
                 Notice("Read key %s with version [%lu:%lu]", read.key().c_str(), read.readtime().timestamp(), read.readtime().id());

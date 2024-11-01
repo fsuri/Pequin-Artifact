@@ -506,25 +506,50 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     peloton::storage::TileGroupHeader *curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
     //Find the right location to insert in linked list.
 
-   
     auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
     auto head_ts = curr_ts;
     auto new_ts = new_tile_group_header->GetBasilTimestamp(new_location.offset);
 
+    // Notice("txn[%lu:%lu] New_Location[%d:%d]. Ind_Location[%d:%d], HeadTS[%lu:%lu]",
+    //           current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), 
+    //           new_location.block, new_location.offset, curr_pointer.block, curr_pointer.offset, head_ts.getTimestamp(), head_ts.getID());
+
+    //   //FIXME: REMOVE: Print the linked list for visualization.
+    // auto n_pointer = curr_pointer;
+    // auto n_tile_group_h = curr_tile_group_header;
+    // auto n_ts = curr_ts;
+    // int max = 5;
+    // //Print the linked list. TS and locations.
+    // while(!n_pointer.IsNull() && max-- > 0){
+    //   n_tile_group_h = storage_manager->GetTileGroup(n_pointer.block)->GetHeader();
+    //   n_ts = n_tile_group_h->GetBasilTimestamp(n_pointer.offset);
+    //   //Print 
+    //   Notice("txn[%lu:%lu] New_Location[%d:%d]. NextTS[%lu:%lu]. NextLoc[%d:%d]",
+    //       current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), 
+    //       new_location.block, new_location.offset, n_ts.getTimestamp(), n_ts.getID(), n_pointer.block, n_pointer.offset);
+
+    //   n_pointer = n_tile_group_h->GetNextItemPointer(n_pointer.offset);
+    // }
   
     while (new_ts < curr_ts) {
       // Update current pointer and the associated header
       // std::cerr << "Iterate through while loop" << std::endl;
       if (curr_tile_group_header->GetNextItemPointer(curr_pointer.offset).IsNull()) {
+        Debug("Breaking because next of curr pointer = null");
         break;
       }
       
       curr_pointer = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
       curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
       curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);    
+
+      //  Notice("txn[%lu:%lu] New_Location[%d:%d]. CurrTS[%lu:%lu]"
+      //         current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), 
+      //         new_location.block, new_location.offset, head_ts.getTimestamp(), head_ts.getID());
     }
     //Invariant: //TS >= Curr_ts => New tuple should be put *before* curr_pointer (Head is "left" in linked list) OR new tuple goes at end of linked list
 
+    // UW_ASSERT(new_tile_group_header->GetPrevItemPointer(new_location.offset).IsNull()); //check 
     
     Debug("Curr ts is [%lu:%lu]. New ts is [%lu:%lu]", curr_ts.getTimestamp() ,curr_ts.getID(), new_ts.getTimestamp(),new_ts.getID());
 
@@ -532,31 +557,46 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     //However, I think we can get away with simply linking in a safe order: Link new tuple links before changing existing tuple links. Change prev before next.
     //
     if(new_ts < curr_ts){ //Curr was tail => add us to right
+      // Notice("Setting prev pointer");
       new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
       curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
     }
     else if(new_ts > curr_ts || (new_ts == curr_ts && current_txn->GetCommitOrPrepare())){ // Add us to left
-
+        //Notice("Setting next ptr from new to curr");
         new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
 
         //if curr node is head
         bool is_head = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull();
+        // if(curr_pointer == *index_entry_ptr) UW_ASSERT(is_head);
 
         if(is_head){ //if curr node is head
+          //Notice("Current is head");
           curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
         }
         else{  //need to link to parent as well.
           auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
           auto prev_tile_group_header = storage_manager->GetTileGroup(prev_loc.block)->GetHeader();
       
+          //Notice("Setting prev pointer");
           new_tile_group_header->SetPrevItemPointer(new_location.offset, prev_loc);
           curr_tile_group_header->SetPrevItemPointer(curr_pointer.offset, new_location);
           prev_tile_group_header->SetNextItemPointer(prev_loc.offset, new_location);  //link next ptr from existing linked list last.
         }
     }
+    // else if(new_ts == curr_ts && current_txn->GetCommitOrPrepare()){
+    //    //TODO: Instead of adding duplicate... Just upgrade it here???? (commit status + proof) and then drop the new tuple!!
+    //   Debug("Upgrading tuple[%d:%d] from prepared to committed", curr_pointer.block, curr_pointer.offset);
+    //   auto proof = current_txn->GetCommittedProof();
+    //   UW_ASSERT(proof);
+    //   curr_tile_group_header->SetCommittedProof(curr_pointer.offset, proof);
+    //   curr_tile_group_header->SetCommitOrPrepare(curr_pointer.offset, true);
+    //   curr_tile_group_header->SetMaterialize(curr_pointer.offset, false);
+    // }
+    //FIXME: TODO: Fix the cornercase where == is able to even get to PerformUpdate by fixing the atomicity of data_table and insert_executor. Hold mutex the whole time!!
     else{
       UW_ASSERT(new_ts == curr_ts); //Do nothing. Must be a prepare/force-mat, ignore.
     }
+    
 
     // if (new_ts > curr_ts) {
     //   if (!curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset).IsNull()) {
@@ -593,13 +633,17 @@ void TimestampOrderingTransactionManager::PerformUpdate(
     new_tile_group_header->SetTransactionId(new_location.offset, transaction_id);
     new_tile_group_header->SetLastReaderCommitId(new_location.offset, current_txn->GetCommitId());
 
-    COMPILER_MEMORY_FENCE;
+    // COMPILER_MEMORY_FENCE;
     // new_tile_group_header->GetSpinLatch(new_location.offset).Lock();
     // curr_tile_group_header->GetSpinLatch(curr_pointer.offset).Lock();
 
+    
 
     //If new tuple has become head => update index entry pointer
-    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) >  head_ts) {
+    if (new_tile_group_header->GetBasilTimestamp(new_location.offset) > head_ts || (new_tile_group_header->GetBasilTimestamp(new_location.offset) == head_ts && current_txn->GetCommitOrPrepare())) {
+
+      UW_ASSERT(new_tile_group_header->GetPrevItemPointer(new_location.offset).IsNull()); //check 
+      
       Debug("[Core: %d] Updating the head pointer of linked list. From [%p: %lu %lu] -> [%p: %lu %lu]", sched_getcpu(), index_entry_ptr, index_entry_ptr->block, index_entry_ptr->offset, &new_location, new_location.block, new_location.offset);
       COMPILER_MEMORY_FENCE;
 
@@ -614,6 +658,29 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       // std::cerr << "Record update else case" << std::endl;
       current_txn->RecordUpdate(new_location);
     }
+
+
+  
+    //      //FIXME: REMOVE: Print the linked list for visualization.
+    // Notice("Linked list after insertion.");
+
+    // n_pointer = *index_entry_ptr;
+    // n_tile_group_h = storage_manager->GetTileGroup(n_pointer.block)->GetHeader();
+    // n_ts = n_tile_group_h->GetBasilTimestamp(n_pointer.offset);
+   
+    // max = 5;
+    // //Print the linked list. TS and locations.
+    // while(!n_pointer.IsNull() && max-- > 0){
+    //   n_tile_group_h = storage_manager->GetTileGroup(n_pointer.block)->GetHeader();
+    //   n_ts = n_tile_group_h->GetBasilTimestamp(n_pointer.offset);
+    //   //Print 
+    //   Notice("txn[%lu:%lu] New_Location[%d:%d]. NextTS[%lu:%lu]. NextLoc[%d:%d]",
+    //       current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), 
+    //       new_location.block, new_location.offset, n_ts.getTimestamp(), n_ts.getID(), n_pointer.block, n_pointer.offset);
+
+    //   n_pointer = n_tile_group_h->GetNextItemPointer(n_pointer.offset);
+    // }
+  
 
     //FIXME: JUST TESTING GC: Garbage collect all tuples beyond the last 10 after the new location.
   // auto start_pointer = new_location;

@@ -891,7 +891,7 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 void Client::RetryQuery(PendingQuery *pendingQuery){
 
   if(params.query_params.retryLimit > -1 && pendingQuery->version >= params.query_params.retryLimit){
-    Panic("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
+    Warning("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
     stats.Increment("Exceeded_Retry_Limit");
     //throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
 
