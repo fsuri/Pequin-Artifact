@@ -502,6 +502,7 @@ void ShardClient::SyncReplicas(PendingQuery *pendingQuery){
     //if(pendingQuery->retry_version) Notice("Num_sync_messages: %d", num_designated_replies);
     if(params.query_params.optimisticTxID && !pendingQuery->retry_version){
         num_designated_replies += config->f;  //If using optimisticTxID for sync send to f additional replicas to guarantee result. (If retry is on, then we always use determinstic ones.)
+        //TODO: Shouldn't we send to f additional always? because replicas can plausably have different result due to reading committed (or ignoring abort) instead of reading from snapshot?
     }
     num_designated_replies = std::min((uint64_t) config->n, num_designated_replies); //send at most n messages.
     pendingQuery->num_designated_replies = num_designated_replies;
@@ -808,40 +809,71 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         // }
     
         //Record the dependencies.
-        //if using eager exec: TODO:/FIXME: not yet implemented
-            //3 options: 1) only allow running with caching; 2) accept only f+1 deps (may be unreasonable); 3) run with eager+snapshot, and check on demand whether it is in f+1 snapshot msg 
-            //Currently using option 3!
-
+            //4 options: //TODO: CLEAN ALL OF THIS CODE UP
+            //1) only allow running with caching; 
+            //2) accept only f+1 deps (may be unreasonable)
+            //3) run with eager+snapshot, and check on demand whether it is in f+1 snapshot msg 
+            //4) pick dependency if enough replicas vote for it (at least f+1), AND not enough replicas implicitly vote gainst it (i.e. no more than 2f+1 vote for it)
+                //This works because  we now wait for 3f+1 matching results for SemanticCC, if we get < f+1 deps, then dep must be unecessary (several correct replicas think its committed)
+            //Currently using option 4! 
+          
         //If using Snapshot: Accept a single replicas dependency vote if the txn is in the merged snapshot (and thus f+1 replicas HAVE the tx)
         for(auto &dep: *replica_result->mutable_query_read_set()->mutable_deps()){ //For normal Tx-id
             Debug("TESTING: Received Dep: %s", BytesToHex(dep.write().prepared_txn_digest(), 16).c_str());
-            if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
-                auto itr = pendingQuery->merged_ss.merged_ts().find(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()));
-                if(itr != pendingQuery->merged_ss.merged_ts().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
-                //if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
-                    dep.mutable_write()->clear_prepared_timestamp();
-                    result_mgr.merged_deps.insert(dep.release_write());
-                } 
-            }
-            else{
-                auto itr = pendingQuery->merged_ss.merged_txns().find(dep.write().prepared_txn_digest());
-                if(itr != pendingQuery->merged_ss.merged_txns().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
-                //if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())){
-                     result_mgr.merged_deps.insert(dep.release_write());
-                } 
-            }            
+            result_mgr.dep_candidates[dep.write().prepared_txn_digest()]++; //count votes for this dep
+        
+            //OLD: Only include if its in merged ss. Problem: For eager exec, merged_ss might not yet be formed, causing us to not record any deps.
+            // if(dep.write().has_prepared_timestamp()){ //I.e. using optimisticTxID
+            //     auto itr = pendingQuery->merged_ss.merged_ts().find(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()));
+            //     if(itr != pendingQuery->merged_ss.merged_ts().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
+            //     //if(pendingQuery->merged_ss.merged_ts().count(MergeTimestampId(dep.write().prepared_timestamp().timestamp(), dep.write().prepared_timestamp().id()))){
+            //         dep.mutable_write()->clear_prepared_timestamp();
+            //         result_mgr.merged_deps.insert(dep.release_write());
+            //         stats->Increment("dep_ts_included");
+            //     } 
+            //     else{
+            //         stats->Increment("dep_ts_ignored");
+            //     }
+            // }
+            // else{
+            //     auto itr = pendingQuery->merged_ss.merged_txns().find(dep.write().prepared_txn_digest());
+            //     if(itr != pendingQuery->merged_ss.merged_txns().end() && itr->second.prepared()){ //Check whether tx was recorded in snapshot (as prepared)
+            //     //if(pendingQuery->merged_ss.merged_txns().count(dep.write().prepared_txn_digest())){
+            //          result_mgr.merged_deps.insert(dep.release_write());
+            //          stats->Increment("dep_tx_included");
+            //     } 
+            //     else{
+            //         stats->Increment("dep_tx_ignored");
+            //     }
+            // }            
         }
 
          //Set deps to merged deps == recorded dependencies from f+1 replicas -> one correct replica reported upper bound on deps
         if(matching_res == params.query_params.resultQuorum){
             proto::ReadSet *query_read_set = replica_result->mutable_query_read_set();
             query_read_set->clear_deps(); //Reset and override with merged deps
-            for(auto write: result_mgr.merged_deps){
-                Debug("TEST: Adding dep %s", BytesToHex(write->prepared_txn_digest(), 16).c_str());
-                proto::Dependency *add_dep = query_read_set->add_deps();
-                add_dep->set_involved_group(group);
-                add_dep->set_allocated_write(write);
+
+            for(auto &[dep, count]: result_mgr.dep_candidates){
+                //if less than 2f+1 vote for it, then dep cannot be necessary => at least one correct (out of 3f+1) thinks it must be committed
+                if(count >= 2*config->f + 1){ // only include dep if at least 2f+1 (out of 3f+1) vote for it.
+                    Debug("TEST: Adding dep %s", BytesToHex(dep, 16).c_str());
+                    proto::Dependency *add_dep = query_read_set->add_deps();
+                    add_dep->set_involved_group(group);
+                    add_dep->mutable_write()->set_prepared_txn_digest(std::move(dep));
+                    stats->Increment("deps_added");
+                }
             }
+            result_mgr.dep_candidates.clear();//clear so destructor does not delete again.
+
+            //OLD: record from pointer structure
+            // for(auto write: result_mgr.merged_deps){
+            //     Debug("TEST: Adding dep %s", BytesToHex(write->prepared_txn_digest(), 16).c_str());
+            //     proto::Dependency *add_dep = query_read_set->add_deps();
+            //     add_dep->set_involved_group(group);
+            //     add_dep->set_allocated_write(write);
+            //     stats->Increment("deps_added");
+            // }
+            // result_mgr.merged_deps.clear();//clear so destructor does not delete again.
         }  
     }
   

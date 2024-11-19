@@ -1003,6 +1003,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
           //add the new relevant dynamic deps
           for(auto &dep: dynamically_active_dependencies){
+            stats.Increment("dynamic_dep_semantic");
             Debug("Txn[%s]: Adding new dynamic dep: %s", BytesToHex(txnDigest, 16).c_str(), BytesToHex(dep, 16).c_str());
             auto new_dep = txn_mut.mutable_merged_read_set()->add_deps();
             new_dep->mutable_write()->set_prepared_txn_digest(std::move(dep));

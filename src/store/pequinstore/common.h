@@ -701,10 +701,12 @@ typedef struct QueryParameters {
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
         useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace), non_monotonicityGrace(non_monotonicityGrace) {
             //std::cerr << "eagerPlusSnapshot: " 
+        if(sql_mode){
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
             if(useSemanticCC) UW_ASSERT(sql_mode);
             if(useActiveReadSet) UW_ASSERT(useSemanticCC);
         }
+    }
 
 } QueryParameters;
 

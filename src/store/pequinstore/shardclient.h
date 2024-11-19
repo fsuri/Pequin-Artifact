@@ -249,12 +249,19 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
         merged_deps.clear();
         //merged_deps() = std::set<proto::Write*, decltype(&compDepWritePtr)>();
          rand_id = std::rand();
+         dep_candidates.clear();
       }
-      ~Result_mgr(){}
+      ~Result_mgr(){
+        for(auto write: merged_deps){
+          delete write;
+        }
+      }
       uint64_t rand_id;
       uint64_t freq; //Number of times the given result and result-hash (read set) were received
       // std::set<proto::Write*, decltype(&compDepWritePtr)> merged_deps;
-      std::set<proto::Write*> merged_deps;
+      std::set<proto::Write*> merged_deps; //TODO: This allows for duplicate deps; make unique
+
+      std::map<std::string, uint64_t> dep_candidates;
 
       //TODO: FIXME: Need to enforce that min_table_version is no smaller than max_table_version - bound. Note: max_table_version must be < TX.TS 
       //This is to ensure that a byzantine replica cannot give arbitrarily small or large table versions
