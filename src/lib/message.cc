@@ -111,7 +111,7 @@ _Message_VA(enum Message_Type type, FILE *fp,
             struct tm *tm = localtime(&tv.tv_sec);
             fprintf(fp,
                     "%04d%02d%02d-%02d%02d%02d-%04d %05d ",
-                    1900+tm->tm_year, tm->tm_mon, tm->tm_mday,
+                    1900+tm->tm_year, tm->tm_mon+1, tm->tm_mday,
                     tm->tm_hour, tm->tm_min, tm->tm_sec,
                     (int)(tv.tv_usec / 100), getpid());
         } else if (TIMESTAMP_BASE62) {

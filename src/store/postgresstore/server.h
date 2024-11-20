@@ -46,6 +46,8 @@
 #include "tbb/concurrent_hash_map.h"
 
 namespace postgresstore {
+// static bool TEST_PG_REPLICATED = false;
+static bool TEST_PG_REPLICATED = true;
 
 typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_callback;
 // typedef std::function<void()> execute_timeout_callback;

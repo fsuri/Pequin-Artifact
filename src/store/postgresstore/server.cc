@@ -43,14 +43,26 @@ Server::Server(Transport* tp): tp(tp) {
 
   Notice("Starting PG-store");
  
-  //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
-  std::string db_name = "db1";
+  // //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
+  // std::string db_name = "db1";
  
-  // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
-  // port should match the one that appears when executing "pg_lsclusters -h"
-  std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
-  //std::string connection_str = "sudo -u postgres psql -U postgres --host localhost:5432 -d bench -c 'sql'";// + host + ":" + port + " -d bench -c '" + sql + "'"; 
+  // // password should match the one created in Pequin-Artifact/pg_setup/postgres_service.sh script
+  // // port should match the one that appears when executing "pg_lsclusters -h"
+  // std::string connection_str = "host=localhost user=pequin_user password=123 dbname=" + db_name + " port=5432";
+  // //std::string connection_str = "sudo -u postgres psql -U postgres --host localhost:5432 -d bench -c 'sql'";// + host + ":" + port + " -d bench -c '" + sql + "'"; 
   
+
+
+  std::string port="5432";
+  if (TEST_PG_REPLICATED){
+    port="5433";
+  }
+  // std::string connection_str = "host=localhost dbname=postgres port="+port;
+  std::string connection_str = "host=localhost user=pequin_user password=123 dbname=db1 port="+port;
+
+
+
+
   Notice("Connection string: %s", connection_str.c_str());
  
   connectionPool = tao::pq::connection_pool::create(connection_str);

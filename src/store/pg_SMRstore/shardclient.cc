@@ -370,7 +370,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int repli
   Debug("Handling a sql_rpc reply");
 
   const uint64_t &req_id = reply.req_id();
-  Debug("sql_rpc reply for req id: %lu. Status: %d", req_id, reply.status());
+  Debug("sql_rpc reply for req id: %lu. Status: %d from replica %d", req_id, reply.status(), replica_id);
 
   auto itr = pendingSQL_RPCs.find(req_id);
   if(itr == pendingSQL_RPCs.end()){

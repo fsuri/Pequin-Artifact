@@ -25,9 +25,9 @@
  
   "_TPCC_SQL_ARGS_" :0,
   	  "_note: parititoner is unused currently": 0,
-  	  "tpcc_run_sequential": false,
+  	  "tpcc_run_sequential": true,
 	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 20,
+	  "tpcc_num_warehouses": 10,
 	  
 	  "_tpcc_stock_level_ratio": 0,
 	  "_tpcc_delivery_ratio": 0,
@@ -89,7 +89,7 @@
       
     }
   ],
-  "experiment_name": "pg-smr",
+  "experiment_name": "pg-smr-wis",
   "_experiment_name": "pequin",
   "codebase_name": "indicus",
 
@@ -107,7 +107,7 @@
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
-  "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "_client_debug_output": false,
   "client_debug_output": "store/pg_SMRstore/*",
@@ -121,11 +121,10 @@
   "client_ramp_up": 5,
   
   "default_remote_shell": "bash",
-  
-  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
-  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "_server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "_client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
   
   "project_name": "pequin-pg0",
   

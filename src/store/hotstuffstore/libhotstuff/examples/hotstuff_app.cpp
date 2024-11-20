@@ -127,7 +127,7 @@ class HotStuffApp: public HotStuff {
         assert(fin.cmd_height >= 1);
         //Assert fin come in order
         if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
-            std::cerr << "smr execute called out of order" << std::endl;  //TODO: This is not necessarily true at follower replicas... But it shouldn't impact anything since we are running "fakeSMR"
+            // std::cerr << "smr execute called out of order" << std::endl;  //TODO: This is not necessarily true at follower replicas... But it shouldn't impact anything since we are running "fakeSMR"
             assert(false);
         }
         last_block = fin.cmd_height;
@@ -273,17 +273,17 @@ void HotStuffApp::interface_propose(const string &hash,  std::function<void(cons
         seq_mutex.lock();
             assert(fin.cmd_height >= 1);
 
-            if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
-                std::cerr << "smr execute called out of order" << std::endl;
-                assert(false);
-            }
+            // if(fin.cmd_height < last_block){ //Note. Don't check ==, multiple fin from same block might be invoked
+            //     std::cerr << "smr execute called out of order" << std::endl;
+            //     assert(false);
+            // }
             last_block = fin.cmd_height;
          
             uint32_t seqnum = last_seq++; //return current seq_num, and increment.
 
         //    uint32_t seqnum = (fin.cmd_height - 1) * blk_size + fin.cmd_idx;
         //    assert(blk_size == 1);
-        std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
+        // std::cerr << "Execute height " << fin.cmd_height << " idx: " << fin.cmd_idx << ". Seq no:  " << seqnum << std::endl;
         seq_mutex.unlock();
             cb(hash, seqnum);
     });

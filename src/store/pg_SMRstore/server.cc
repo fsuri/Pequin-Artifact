@@ -458,12 +458,21 @@ void Server::Execute_Callback_OLD(const string& type, const string& msg, std::fu
       reply->set_sql_res("");
     } 
     else if (std::regex_match(e.sqlstate, std::regex("23..."))){ // Application errors
-    Notice("An integrity exception caught while using postgres.: %s", e.what());
+      Notice("An integrity exception caught while using postgres.: %s", e.what());
       reply->set_status(REPLY_OK); 
       reply->set_sql_res("");
     }
+    else if (std::regex_match(e.sqlstate, std::regex("25..."))){ // Invalid transaction state
+      if (idx==0){
+        Panic("An Invalid transaction state exception caught while using postgres.: %s", e.what());
+      }
+      Debug("An Invalid transaction state exception caught while using postgres.: %s", e.what());
+      reply->set_status(REPLY_FAIL);
+      reply->set_sql_res("");
+    }
     else{
-      Panic("Unexpected postgres exception: %s", e.what());
+      std::cerr<< e.sqlstate <<"\n";
+      Panic("Unexpected postgres exception: %s, code: %s", e.what(),e.sqlstate);
     }
   }
   catch (const std::exception &e) {

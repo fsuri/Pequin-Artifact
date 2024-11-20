@@ -35,13 +35,23 @@ namespace postgresstore {
 
 Client::Client(std::string connection_str, std::string experiment_name, std::uint64_t id) : client_id(id), txn_id(0UL) {
   Notice("Initializing PostgreSQL client with id [%lu]", client_id);
+
+  std::string port="5432";
+  if (TEST_PG_REPLICATED){
+    port="5433";
+  }
+  // worked from terminal (for replication); 
+  //  psql -h us-east-1-0.pg-smr-wis.pequin-pg0.wisc.cloudlab.us -U pequin_user -p 5433 -d db1
+
   //connection_str = "host=us-east-1-0.postgres-test.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
   //connection_str = "postgres://pequin_user:123@us-east-1-0.postgres-test.pequin-pg0.utah.cloudlab.us:5432/db1";
   
   //connection_str = "host=us-east-1-0.pequin.pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
   //TODO: Parameterize further
-  connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";
- 
+  // connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us dbname=postgres port="+port;
+  connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port="+port;
+  // connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.wisc.cloudlab.us user=pequin_user password=123 dbname=db1 port="+port;
+
   Notice("Connection string: %s", connection_str.c_str());
   connection = tao::pq::connection::create(connection_str);
  
@@ -57,6 +67,8 @@ Client::~Client()
  */
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     uint32_t timeout, bool retry) {
+  Debug("Begin Txn...");
+
   transaction = connection->transaction();
   txn_id++;
   bcb(txn_id);
@@ -83,7 +95,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     transaction->commit();
     transaction = nullptr; //reset txn
     stats.Increment("num_commit", 1);
-    Debug("Commit success!");
+    Debug("Commit success! :)");
     ccb(COMMITTED);
   } catch (const std::exception &e) {
     const std::string &error_message = e.what();
@@ -112,62 +124,71 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 inline void Client::Query(const std::string &query_statement, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
   
-  Debug("Query: %s", query_statement.c_str());
-  try {
-    if (transaction == nullptr) {
-      Warning("Transaction has already been terminated. ReplyFail");
-      qcb(REPLY_FAIL, nullptr);
-      return;
-    }
-   
-    tao::pq::result result = [this, &query_statement]() {
-      return transaction->execute(query_statement);
-    }();
-    Debug("Completed Query execution: %s", query_statement.c_str());
-    stats.Increment("queries_issued", 1);
-    taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
-    qcb(REPLY_OK, tao_res);
-  } catch (const std::exception &e) {
-    Notice("Query[%s] exec failed: %s", query_statement.c_str(), e.what());
-    // Maybe not needed (rollback)
-    transaction->rollback();
-
-    transaction = nullptr;
-    qcb(REPLY_FAIL, nullptr);
-  }
+    Debug("Processing Query Statement: %s", query_statement.c_str());
+    this->SQLRequest(const_cast<std::string &>(query_statement), qcb, qtcb, timeout);
 }
 
 // Execute the write operation and return the result.
 inline void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write) {
-  
-  Debug("Write: %s", write_statement.c_str());
+  Debug("Processing Write Statement: %s", write_statement.c_str());
+  this->SQLRequest(write_statement, wcb, wtcb, timeout);
+}
+
+
+void printResult(const tao::pq::result sql_res){
+  std::cerr << "Shir: number of cols:   "<< sql_res.columns() <<"\n" ;
+
+  if(sql_res.columns() == 0) {
+    std::cerr << "Shir; empty result, e.g.:  inserts\n" ;
+    return;
+  }
+  if (sql_res.empty()){
+    std::cerr << "Shir: empty res\n" ;
+  }
+    for( const auto& row : sql_res ) {
+      for( const auto& field : row ) {
+        std::string field_str = field.as<std::string>();
+        std::cerr << "Row:  "<< field_str <<"\n";
+      }
+    }
+}
+
+
+
+void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
+
+  if (statement.find("INSERT") == 0 && statement.back() == ';'){
+    statement.pop_back(); // Remove the last character
+    statement= statement +" ON CONFLICT DO NOTHING;";
+  }
+
   try {
     if (transaction == nullptr) {
-      Warning("Transaction has already been terminated. ReplyFail");
-      wcb(REPLY_FAIL, nullptr);
+      Debug("Transaction has already been terminated. ReplyFail");
+      scb(REPLY_FAIL, nullptr);
       return;
     }
 
-    tao::pq::result result = transaction->execute(write_statement);
-    Debug("Completed Write execution: %s", write_statement.c_str());
-    stats.Increment("writes_issued", 1);
+    tao::pq::result result = transaction->execute(statement);
+    // printResult(result);
+    // Debug("Completed SQLRequest execution: %s", statement.c_str());
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res = new taopq_wrapper::TaoPQQueryResultWrapper(std::make_unique<tao::pq::result>(std::move(result)));
-    wcb(REPLY_OK, tao_res);
+    // Debug("Completed creating result for: %s", statement.c_str());
+    scb(REPLY_OK, tao_res);
   } catch (const tao::pq::integrity_constraint_violation &e) {
-    Notice("Write[%s] exec failed with integrity violation: %s", write_statement.c_str(), e.what());
+    Notice("Write[%s] exec failed with integrity violation: %s", statement.c_str(), e.what());
     auto result = new taopq_wrapper::TaoPQQueryResultWrapper();
-    wcb(REPLY_OK, result);
+    scb(REPLY_OK, result);
   } catch (const tao::pq::transaction_rollback &e) {
     Notice("Transaction rollback: %s", e.what());
     transaction->rollback();
     transaction = nullptr;
-    wcb(REPLY_FAIL, nullptr);
+    scb(REPLY_FAIL, nullptr);
   } catch (const tao::pq::in_failed_sql_transaction &e) {
-    Panic("In failed sql transaction: %s", e.what());
-    transaction->rollback();
+    Notice("In failed sql transaction: %s", e.what());
     transaction = nullptr;
-    wcb(REPLY_FAIL, nullptr);
+    scb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {
     Panic("Tx write failed with uncovered exception: %s", e.what());
   }

@@ -8,7 +8,7 @@ DATA=$(pwd)/tmp-$CLUSTERID
 # echo $DATA
 PGV=12
 USER=postgres
-
+pin_pg=false
 
 display_banner() {
     local banner_text="$1"
@@ -20,10 +20,11 @@ display_banner() {
 }
 
 setting_system() {
+
+    echo "Try setting system configs"
+
     su - $USER -c "echo \"CREATE USER pequin_user WITH PASSWORD '123'\" | psql"
     #su - $USER -c "echo \"ALTER USER pequin_user WITH SUPERUSER\" | psql"
-
-    echo "Try settin system configss"
 
     su - $USER -c "echo \"ALTER SYSTEM SET max_connections = 250;\" | psql"
     # su - $USER -c "echo \"ALTER SYSTEM SET max_worker_processes = 16;\" | psql"
@@ -54,8 +55,24 @@ setting_system() {
     sudo sed -i "${m_line}s/#/""/" /etc/postgresql/12/pgdata/postgresql.conf
     cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen
 
+    # sudo -u postgres taskset -c 1 /usr/lib/postgresql/12/bin/postgres --config-file=/etc/postgresql/12/pgdata/postgresql.conf
+    # sudo -u postgres taskset -c 1 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # taskset -c 1 /usr/lib/postgresql/12/bin/postgres --config-file=/etc/postgresql/12/pgdata/postgresql.conf
+# 
+# CONFIG FILE:   /etc/postgresql/12/pgdata/postgresql.conf
+
+
     echo "Restart Postgres"
     sudo systemctl restart postgresql
+    # echo "Stopping Postgres"
+
+    # sudo systemctl stop postgresql
+
+    # echo "TaskSeting Postgres"
+
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+
 }
 
 setting_db() {
@@ -213,14 +230,30 @@ if [[ -n $output ]] ; then
     echo $output
 else
     echo "No cluster exists, moving on to creating pgdata cluster"
+    # exit -1
     # creating a PostgreSQL cluster in a ramdisk (in order to run experiments that are not bias by slow disk memory)
     mkdir -p $DATA/db $DATA/log || true
-    sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
-    
 
-    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+    ### Comment this to cancel mounting
+    sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
+
+    # sudo systemctl stop postgresql
+
+    # sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID --start-conf=manual -s $DATA/socket -p 5432
+    # sudo -u postgres taskset -c 10-19 pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+
+
+    # exit -1
+
+
     sudo rsync -avz $DATA/db/ $DATA/dbinit/
     sudo sed -i '89s/^/local   all             all                                     trust\n/' /etc/postgresql/12/pgdata/pg_hba.conf
+
+    # echo "Here1"
+    # sudo systemctl stop postgresql
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # echo "Here2"
 
     # Start the PostgreSQL cluster
     sudo pg_ctlcluster $PGV $CLUSTERID start
@@ -228,6 +261,17 @@ else
     # Setting the system
     setting_system
   
+
+
+    if [ "$pin_pg" = true ] ; then
+
+        PIDS=$(pgrep -u postgres) 
+        for PID in $PIDS; do
+            sudo taskset -p -p 0xFFC00 $PID
+        done
+        
+    fi
+
     # Setting the databases
     for i in $(seq 1 $db_num);
     do

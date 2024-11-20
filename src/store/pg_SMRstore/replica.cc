@@ -525,14 +525,13 @@ void Replica::HandleRequest_noPacked_shir(const TransportAddress &remote, const 
   proposedCounter++;
   Debug("Execb proposed");
 
-  proposeBubble();
-  proposeBubble();
-  proposeBubble();
-  proposeBubble();
+  // proposeBubble();
+  // proposeBubble();
+  // proposeBubble();
 
   //Start Timer for dummy TX upon receiving the first Request
-  if (false){
-  // if (this->firstReceive){
+  // if (false){
+  if (this->firstReceive){
     this->firstReceive=false;
     Debug("Starting dummies Timer");
     transport->Timer(0, [this, pc = proposedCounter](){
@@ -684,7 +683,7 @@ void Replica::executeSlots_unpacked() {
   }
   
   
-  Debug("No more new sequenced requests");
+  Debug("No more new sequenced requests (unpacked)");
 }
 
 void Replica::ProcessReplies(const std::string &digest, const std::vector<::google::protobuf::Message*> &replies){
