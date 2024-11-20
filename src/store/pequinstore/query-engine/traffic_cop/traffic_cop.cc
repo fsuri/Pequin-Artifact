@@ -51,6 +51,7 @@ void TrafficCop::Reset() {
 
 TrafficCop::~TrafficCop() {
   // Abort all running transactions
+  Warning("Destroying Traffic Cop. Aborting all Txn");
   while (!tcop_txn_state_.empty()) {
     AbortQueryHelper();
   }
@@ -1156,6 +1157,7 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
       LOG_TRACE("select query, finish setting");
     }
   } catch (Exception &e) {
+    Panic("Fail PrepareStatement");
     error_message_ = e.what();
     ProcessInvalidStatement();
     return nullptr;
@@ -1437,6 +1439,7 @@ ResultType TrafficCop::ExecuteStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail ExecuteStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1517,6 +1520,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail ExecReadStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1592,6 +1596,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail ExecReadStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1668,6 +1673,7 @@ ResultType TrafficCop::ExecuteSnapshotReadStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail ExecSnapshotStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1746,6 +1752,7 @@ ResultType TrafficCop::ExecuteFindSnapshotStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail FindSnapshotStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1823,6 +1830,7 @@ ResultType TrafficCop::ExecuteEagerExecAndSnapshotStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail EagerExecStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1896,6 +1904,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail PurgeStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -1958,6 +1967,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail WriteStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }
@@ -2031,6 +2041,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     }
 
   } catch (Exception &e) {
+     Panic("Fail PointReadStatement");
     error_message_ = e.what();
     return ResultType::FAILURE;
   }

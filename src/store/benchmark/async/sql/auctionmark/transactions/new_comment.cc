@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  std::cerr << std::endl << "NEW COMMENT" << std::endl;
+  std::cerr << "NEW COMMENT" << std::endl;
   ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
@@ -52,7 +52,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
-  Debug("NEW COMMENT");
+  Notice("NEW COMMENT EXEC");
 
   client.Begin(timeout);
 
@@ -64,7 +64,15 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
   if(queryResult->empty()){
     Panic("item does not exist?");
   }
-  deserialize(ic_id, queryResult);
+
+   try{
+    deserialize(ic_id, queryResult);
+  }
+  catch(...){
+    Panic("deserialize num_item comments failed");
+  }
+  
+  Debug("Num comments: %d. query: %s", ic_id, statement.c_str());
   ++ic_id;
 
   uint64_t current_time = GetProcTimestamp({profile.get_loader_start_time(), profile.get_client_start_time()});
@@ -76,10 +84,12 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
 
   if(queryResult->rows_affected() == 0){ //Note: Original benchbase code does not use a blind write, and throws a UserAbort if its duplicated. I've changed it here: To me this makes more sense.
     //Note: this case should not be possible unless there was a concurrency error. And if there was a concurrency error, then semantically speaking we should be retrying TX and not aborting!!
-    Panic("this case should not trigger");
+    Warning("this case should not trigger for Pequin (It can trigger for other systems!). stmt: %s", statement.c_str());
     Debug("Item comment id %d already exists for item %s and seller %s", ic_id, item_id.c_str(), seller_id.c_str());
-    client.Abort(timeout);
-    return ABORTED_USER;
+
+   client.Abort(timeout); //make sure Tx is marked as aborted (if not already)
+    throw std::exception(); //Trigger TX system abort & retry
+    // return ABORTED_USER;
   }
 
    //updateItemComments

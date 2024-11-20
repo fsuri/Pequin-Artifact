@@ -43,7 +43,8 @@ enum KeySelection {
 
 class RWSQLClient : public SyncTransactionBenchClient {
  public:
-  RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool readOnly,
+  RWSQLClient(uint64_t numOps, QuerySelector *querySelector, bool readOnly, uint64_t readOnlyRate, bool readSecondaryCondition, 
+      bool fixedRange, int32_t value_size, uint64_t value_categories, bool scanAsPoint, bool execPointScanParallel,
       SyncClient &client, Transport &transport, uint64_t id, 
       int numRequests, int expDuration, uint64_t delay, 
       int warmupSec, int cooldownSec, int tputInterval,
@@ -64,10 +65,17 @@ class RWSQLClient : public SyncTransactionBenchClient {
   QuerySelector *querySelector;
   uint64_t numOps; //number of
 
+  bool readOnly;
+  uint64_t readOnlyRate;
+  bool readSecondaryCondition;
+  bool fixedRange;
+  int32_t value_size;
+  uint64_t value_categories;
+  bool scanAsPoint;
+  bool execPointScanParallel;
+
 
   uint64_t tid = 0;
-  bool readOnly;
-
 };
 
 } //namespace rw

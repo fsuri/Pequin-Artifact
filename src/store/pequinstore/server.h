@@ -116,7 +116,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   Server(const transport::Configuration &config, int groupIdx, int idx,
       int numShards, int numGroups,
       Transport *transport, KeyManager *keyManager, Parameters params, std::string &table_registry_path,
-      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false,
+      uint64_t timeDelta, OCCType occType, Partitioner *part, unsigned int batchTimeoutMS, bool sql_bench = false, 
+      bool simulate_point_kv = false, bool simulate_replica_failure = false, bool simulate_inconsistency = false, bool disable_prepare_visibility = false,
       TrueTime timeServer = TrueTime(0, 0));
   virtual ~Server();
 
@@ -157,6 +158,18 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual inline Stats &GetStats() override { return stats; }
 
  private:
+    bool simulate_point_kv;
+    bool simulate_replica_failure;
+    bool simulate_inconsistency;
+    tbb::concurrent_unordered_set<std::string> dropped_p;
+    //tbb::concurrent_unordered_set<std::string> dropped_c;
+
+    typedef tbb::concurrent_hash_map<std::string, proto::Writeback*> droppedMap; //map from query_id -> QueryMetaData
+    droppedMap dropped_c;
+    // tbb::concurrent_unordered_set<std::string> dropped_c;
+    tbb::concurrent_unordered_set<std::string> force_simul_sync;
+    tbb::concurrent_unordered_set<std::string> supplied_sync;
+    bool disable_prepare_visibility;
 
    uint64_t total_lock_time_ms =0 ;
 
@@ -294,6 +307,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         if(merged_ss_msg != nullptr) delete merged_ss_msg; //Delete obsolete sync snapshot
       }
       void ClearMetaData(const std::string &queryId){
+        Debug("Clear all meta data for queryId[%s]", BytesToHex(queryId, 16).c_str());
         queryResultReply->Clear(); //FIXME: Confirm that all data that is cleared is re-set
         merged_ss.clear();
         //merged_ss.Clear();
@@ -314,6 +328,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
         query_cmd = _query_cmd;
         ts = timestamp;
         if(original_client == nullptr) original_client = remote.clone();
+        // Debug("QueryMD[%d:%d] (client:query-seq). Curr req id: %d. Proposed req id: %d", client_id, query_seq_num, req_id, _req_id);
         req_id = std::max(req_id, _req_id); //if we already received a retry, keep it's req_id.
       }
       void RegisterWaitingSync(proto::MergedSnapshot *_merged_ss_msg, const TransportAddress &remote){
@@ -325,7 +340,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool failure;
 
       TransportAddress *original_client;
-      uint64_t req_id;  //can use this as implicit retry version.
+      uint64_t req_id = 0;  //can use this as implicit retry version.
       uint64_t query_seq_num;
       uint64_t client_id;
 
@@ -528,8 +543,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //FALLBACK helper datastructures
 
     struct P1MetaData {
-        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
-        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false) {}
+        P1MetaData(): conflict(nullptr), hasP1(false), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), forceMaterialize(false), alreadyForceMaterialized(false) {}
+        P1MetaData(proto::ConcurrencyControl::Result result): result(result), conflict(nullptr), hasP1(true), sub_original(false), hasSignedP1(false), reqId(0), fallbacks_interested(false), 
+                                                              forceMaterialize(false), alreadyForceMaterialized(false) {}
         ~P1MetaData(){
           if(signed_txn != nullptr) delete signed_txn;
           if(original != nullptr) delete original;

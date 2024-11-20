@@ -72,7 +72,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         Timestamp ts(query->timestamp()); 
         if (CheckHighWatermark(ts)) {
             // ignore request if beyond high watermark
-            Debug("Query timestamp beyond high watermark.");
+             Debug("IGNORE Query[%lu:%lu:%d] (client:q-seq:retry-ver). Timestamp above Watermark", query->client_id(), query->query_seq_num(), query->retry_version());
             delete query;
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
@@ -83,6 +83,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, query->client_id()) && qw->second >= query->query_seq_num()){
     //if(clientQueryWatermark[query->client_id()] >= query->query_seq_num()){
+        Debug("IGNORE Query[%lu:%lu:%d] (client:q-seq:retry-ver). Below WM: %d", query->client_id(), query->query_seq_num(), query->retry_version(), qw->second);
         delete query;
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
         return;
@@ -100,8 +101,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     // else{
     //     queryId =  "[" + std::to_string(query->query_seq_num()) + ":" + std::to_string(query->client_id()) + "]";
     // }
-     Debug("\n Received Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes)", 
-            query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str());
+     Debug("\n Received Query Request Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", 
+            query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
    
     //TODO: Ideally check whether already have result or retry version is outdated Before VerifyClientQuery.
 
@@ -130,6 +131,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
             }
         }
         if(!valid){
+            Debug("INVALID Query[%lu:%lu:%d] (client:q-seq:retry-ver).", query->client_id(), query->query_seq_num(), query->retry_version());
             delete query;
             if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
             return;
@@ -164,6 +166,10 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         if(new_insert){
             //UW_ASSERT(query->retry_version() == 0); // We might get them out of order with multi-threading
             q->second = new QueryMetaData(query->query_cmd(), query->timestamp(), remote, msg.req_id(), query->query_seq_num(), query->client_id(), &params.query_params, query->retry_version());
+            
+            // Debug("\n Insert QueryMd Query[%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", 
+            //             query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
+
         }
         re_check = !new_insert;
     }
@@ -173,6 +179,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(!query->query_cmd().empty()){ //If queryMetaData was inserted by Sync first, or we received retry first (i.e. query has not been processed yet), set query.
         //UW_ASSERT(query->has_query_cmd()); 
         //We avoid re-sending query_cmd in retry messages (but might have to wait for first query attempt in case multithreading violates FIFO)
+        // Debug("Setting QueryMD [%lu:%lu:%d] (client:q-seq:retry-ver), queryId: %s (bytes). Req-id: %d", query->client_id(), query->query_seq_num(), query->retry_version(), BytesToHex(queryId, 16).c_str(), msg.req_id());
         query_md->SetQuery(query->query_cmd(), query->timestamp(), remote, msg.req_id());  //Keep current req_id if it's greater (i.e. belongs to retry that is waiting for original query)
     }
 
@@ -216,7 +223,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 
     //6) Update retry version and reset MetaData if new; skip if old/existing retry version.
     if(query->retry_version() > query_md->retry_version){     
-        Debug("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version);
+        // Debug("Retrying Query [%lu:%lu] %s. Retry version: %d. Last version: %d. New req_id: %d", query->client_id(), query->query_seq_num(), query_md->query_cmd.c_str(), query->retry_version(), query_md->retry_version, msg.req_id());
         if(query->retry_version()>1) Warning("Investigate what is causing retry");
         query_md->ClearMetaData(queryId); //start new sync round
         query_md->req_id = msg.req_id();
@@ -275,7 +282,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
         //Note: If eager exec on && caching read set --> all must execute.
         Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         ExecQueryEagerly(q, query_md, queryId);
-         Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
+
+        Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
 
         return;
@@ -327,13 +335,46 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     // auto duration2 = microseconds_end2 - microseconds_start;
     // Warning("PointQuery exec PRE duration: %d us. Q[%s] [%lu:%lu]", duration2, query->query_cmd().c_str(), query->client_id(), query->query_seq_num());
     
+    if(simulate_point_kv){ //WARNING: FIXME: This is only Test/Profile logic -> TODO: Implement KV-store version directly. 
+        //Read committed value.
+         std::pair<Timestamp, Server::Value> tsVal;
+        //find committed write value to read from
+        Debug("Simulate point kv for key: %s", query->primary_enc_key().c_str());
+        bool committed_exists = store.get(query->primary_enc_key(), ts, tsVal);
+        UW_ASSERT(committed_exists);
 
-    table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+        //Create dummy result.
+        sql::QueryResultProtoBuilder queryResultBuilder;
+        RowProto *row = queryResultBuilder.new_row();
+            
+        queryResultBuilder.add_column("key");
+        queryResultBuilder.add_column("value");
+                
+        std::string key = query->primary_enc_key();
+        queryResultBuilder.AddToRow(row, key); 
+
+        //std::string value = "101"; //TODO: Make a value of the right size...
+        std::string value = tsVal.second.val;
+        queryResultBuilder.AddToRow(row, value); 
+            
+        write->set_committed_value(queryResultBuilder.get_result()->SerializeAsString()); // Note: This "clears" the builder
+
+        tsVal.first.serialize(write->mutable_committed_timestamp());
+
+        *pointQueryReply->mutable_proof() = *tsVal.second.proof;
+        
+    }
+    
+
+    if(!simulate_point_kv){
+        table_store->ExecPointRead(query->query_cmd(), enc_primary_key, ts, write, committedProof);
+    
    
-    if(write->has_committed_value()){ 
-        UW_ASSERT(committedProof); //proof must exist
-        *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
-    } 
+        if(write->has_committed_value()){ 
+            UW_ASSERT(committedProof); //proof must exist
+            *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
+        } 
+    }
 
     // Notice("Query[%lu:%lu] read set. committed[%lu:%lu], prepared[%lu][%lu]", ts.getTimestamp(), ts.getID(), 
     //             write->committed_timestamp().timestamp(), write->committed_timestamp().id(),
@@ -481,6 +522,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
     clientQueryWatermarkMap::const_accessor qw;
     if(clientQueryWatermark.find(qw, merged_ss->client_id()) && qw->second >= merged_ss->query_seq_num()){
     //if(clientQueryWatermark[merged_ss->client_id()] >= merged_ss->query_seq_num()){
+        Debug("IGNORE Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver). Below WM: %d", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version(), qw->second);
         delete merged_ss; 
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeSyncClientProposalMessage(&msg);
         return;
@@ -544,6 +586,7 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     if(merged_ss->retry_version() > query_md->retry_version){ 
         query_md->ClearMetaData(*queryId);
+        Debug("Sync Request Query[%lu:%lu:%d] (client:q-seq:retry-ver) update retry version. Clear Meta Data", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
         query_md->req_id = msg.req_id();
           //Delete current missingTxns.   -- NOTE: Currently NOT necessary for correctness, because UpdateWaitingQueries checks whether retry version is still current. But good for garbage collection.
         queryMissingTxns.erase(QueryRetryId(*queryId, query_md->retry_version, (params.query_params.signClientQueries && params.query_params.cacheReadSet && params.hashDigest)));
@@ -552,6 +595,8 @@ void Server::HandleSync(const TransportAddress &remote, proto::SyncClientProposa
 
     query_md->started_sync = true;
     query_md->designated_for_reply = msg.designated_for_reply();
+
+    Debug("Process Sync Proposal for Query[%lu:%lu:%d] (client:q-seq:retry-ver) or register waiting for Query", merged_ss->client_id(), merged_ss->query_seq_num(), merged_ss->retry_version());
 
     if(query_md->has_query){
         ProcessSync(q, remote, merged_ss, queryId, query_md);
@@ -587,6 +632,8 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     // If missing empty after checking snapshot -> erase again
     
      //Note: SetWaiting needs to pass query_retry_id, not queryId.
+    query_md->is_waiting = true; //Note: Tentatively needs to set first before registering waiters. If not actually waiting, correct after!
+    //TODO: is _waiting_ still necessary now that Update orchestration is on a per retry basis?
 
     //Using normal tx-id
     if(!query_md->useOptimisticTxId){
@@ -644,7 +691,6 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     if(!replica_requests.empty()){
     //if there are missng txn, i.e. replica_requests not empty ==> send out sync requests.
         //query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
-        q.release();
         Debug("Sync State incomplete for Query[%lu:%lu:%d]", merged_ss->query_seq_num(), merged_ss->client_id(), merged_ss->retry_version()); 
         for(auto const &[replica_idx, replica_req] : replica_requests){
             if(replica_idx == idx) Panic("Should never request from self");
@@ -655,15 +701,21 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
         stats.Increment("RequestMissing");
     }
 
-    Debug("Query[%d][ver:%d] has been fullyMat? %d", *queryId, query_md->retry_version, fullyMaterialized);
+    Debug("Query[%s][ver:%d] has been fullyMat? %d", BytesToHex(*queryId, 16).c_str(), query_md->retry_version, fullyMaterialized);
     
     //else: if no missing Txns & all already materialized   
     //Note: fullyMaterialized == missing_txns.empty() && missing_ts.empty()
-    if(fullyMaterialized) return HandleSyncCallback(q, query_md, *queryId);
+    if(fullyMaterialized){
+        query_md->is_waiting = false;
+        return HandleSyncCallback(q, query_md, *queryId);
+    }
 
-    query_md->is_waiting = true; //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
-    //TODO: is _waiting_ still necessary now that Update orchestration is on a per retry basis?
-    
+
+    //Note: If query is waiting, but (byz) client supplied wrong/insufficient replicas to sync from ==> query loses liveness.
+    Debug("Query[%s][ver:%d] is waiting!", BytesToHex(*queryId, 16).c_str(), query_md->retry_version);
+
+    q.release();
+
     if(TEST_MATERIALIZE) TEST_MATERIALIZE_f();
        
     //delete merged_ss; // ==> Deleting only upon ClearMetaData or delete query_md 
@@ -691,6 +743,8 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     //std::string result(ExecQuery(queryReadSetMgr, query_md, true)); //TODO: Call the Read from Snapshot interface.
     query_md->queryResultReply->mutable_result()->set_query_result(ExecQuery(queryReadSetMgr, query_md, true));
     query_md->has_result = true; 
+
+    Debug("Finished Execution for Query[%lu:%lu].", query_md->query_seq_num, query_md->client_id);
    
     //Note: Blackbox might do multi-replica coordination to compute result and full read-set (though read set can actually be reported directly by each shard...)
     //Client waits to receive SyncReply from all shards ==> with read set, or read set hash. ==> in Tx_manager (marked by query) reply also include the result
@@ -709,6 +763,7 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     else{
         query_md->failure = false;
     
+        Debug("Send Query Reply. Query[%lu:%lu]", query_md->query_seq_num, query_md->client_id);
         SendQueryReply(query_md);
             //query_md->queryResultReply->mutable_result()->set_query_result(result);
         //TODO: If not query_manager => don't need to send the result. Only need read set
@@ -760,7 +815,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
 
         result = queryResultReply->release_result();   //Temporarily release result in order to sign.
 
-        //TODO: FIXME: If want to be able to dispatch it again, need to somehow keep lock longer...
+        //TODO: FIXME: If want to be able to dispatch it again, need to somehow keep lock longer...  This current version is not safe.
         if(false) { //params.queryReplyBatch){
             TransportAddress *remoteCopy = query_md->original_client->clone();
             auto sendCB = [this, remoteCopy, queryResultReply]() {
@@ -799,7 +854,7 @@ void Server::SendQueryReply(QueryMetaData *query_md){
             }
 
             this->transport->SendMessage(this, *query_md->original_client, *queryResultReply);
-             Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id());
+            Debug("Sent Signed Query Result for Query[%lu:%lu]", result->query_seq_num(), result->client_id()); 
             //delete queryResultReply;
             
             if(params.query_params.cacheReadSet){ //Restore read set and deps to be cached
@@ -880,9 +935,14 @@ void Server::HandleRequestTx(const TransportAddress &remote, proto::RequestMissi
     //Check requested Tx-ids
     for(auto const &txn_id : req_txn.missing_txn()){
         Debug("Replica %d is requesting txn_id [%s]", req_txn.replica_idx(), BytesToHex(txn_id, 16).c_str());
-        proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
-        CheckLocalAvailability(txn_id, txn_info);
-        //CheckLocalAvailability(txn_id, supply_txn);
+        // proto::TxnInfo &txn_info = (*supply_txn.mutable_txns())[txn_id];
+        // CheckLocalAvailability(txn_id, txn_info);
+        // //CheckLocalAvailability(txn_id, supply_txn);
+
+        //Re-factor to use repeated.
+        proto::TxnInfo *txn_info = supply_txn.add_txns();
+        txn_info->set_txn_id(txn_id);
+        CheckLocalAvailability(txn_id, *txn_info);
     }
 
     //Check requested optimistic Tx-ids (TS)
@@ -1034,7 +1094,15 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
                     //TODO: Turn supply map into repeated TxnInfo; move tx-id into txninfo; add map from Ts to txinfo
                     // OR: Easier: Add optional tx-id field to tx-info. add map.
     bool stop = false;
-    for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
+    // for(auto &[txn_id, txn_info] : *supply_txn->mutable_txns()){
+    //     Debug("Trying to locally apply tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
+    //     ProcessSuppliedTxn(txn_id, txn_info, stop);   
+    //     if(stop) break;
+    // }
+    //Re-factor from map to repeated field
+    for(auto &txn_info : *supply_txn->mutable_txns()){
+        UW_ASSERT(txn_info.has_txn_id());
+        const std::string &txn_id = txn_info.txn_id();
         Debug("Trying to locally apply tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         ProcessSuppliedTxn(txn_id, txn_info, stop);   
         if(stop) break;
@@ -1059,9 +1127,20 @@ void Server::HandleSupplyTx(const TransportAddress &remote, proto::SupplyMissing
 //NOTE: All calls to UpdateWaiting must wake waitingQueriesTS too!
 void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop){
      //check if locally committed; if not, check cert and apply
-        
+
     Debug("Received supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
 
+    // bool first_supply = false;
+    // if(simulate_inconsistency){
+    //     auto [_, first] = supplied_sync.insert(txn_id);
+    //     first_supply = first;
+    // }
+    auto [_, first] = supplied_sync.insert(txn_id);
+    if(!first){
+        Debug("Already processed supply for txn[%s]", BytesToHex(txn_id, 16).c_str());
+        return;
+    }
+        
     auto itr = committed.find(txn_id);
     if(!TEST_SYNC && itr != committed.end()){
         Debug("Already have committed tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
@@ -1086,6 +1165,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     //Check if other replica had aborted (If so, exclude this tx from snapshot; Alternatively could fail sync eagerly, but that seems unecessary)
     if(txn_info.abort()){ 
+        stats.Increment("Supply_abort", 1);
         Debug("Replica indicates that previously prepared Tx is now aborted. tx-id: %s", BytesToHex(txn_id, 16).c_str());
         UW_ASSERT(txn_info.has_abort_proof());
         // Only trust the abort vote if there is a proof attached, or if there is f+1 supply messages that say the same...
@@ -1118,6 +1198,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
     //Check if other replica supplied commit
     if(txn_info.has_commit_proof()){   
+         stats.Increment("Supply_commit", 1);
          //TODO: it's possible for the txn to be in process of committing while entering this branch; that's fine safety wise, but can cause redundant verification. Might want to hold a lock to avoid (if it happens)
         Debug("Trying to commit tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
         proto::CommittedProof *proof = txn_info.release_commit_proof();
@@ -1162,7 +1243,7 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
                 //Note: Mcb will be called on network thread --> dispatch to worker again.
                 auto f = [this, txn_id, proof]() mutable{
                     Debug("Via supply: Committing proof for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-                    if(committed.find(txn_id) != committed.end()) return (void*) true; //duplicate, do nothing. TODO: Forward to all interested clients and empty it?
+                    // if(committed.find(txn_id) != committed.end()) return (void*) true; //duplicate, do nothing. TODO: Forward to all interested clients and empty it?
                     CommitWithProof(txn_id, proof);
                     return (void*) true;
                 };
@@ -1174,15 +1255,119 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         return;
     } 
 
+    //SIMULATION CODE: If we previously dropped a commit, and are now syncing on prepare. Make sure the dropped commit is getting applied still. Otherwise it will never happen. 
+    //Effectively, we just "delay" the commit to force a sync!
+    if(simulate_inconsistency){
+        droppedMap::accessor d;
+        bool previously_dropped_c = dropped_c.find(d, txn_id);
+        if(previously_dropped_c){
+            proto::Writeback *wb = d->second;
+            d->second = nullptr;
+            d.release();
+            if(wb){
+                sockaddr_in addr;
+                TCPTransportAddress dummy(addr); //TODO: Cache the remote addres also...
+                Debug("Invoke the previously delayed Writeback for txn: [%s]", BytesToHex(txn_id, 16).c_str());
+                HandleWriteback(dummy, *wb);
+                //If we previously allocated the wb -> delete it here.
+                if(!(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))){
+                    delete wb;
+                }
+                //return; //Could return here, but it might be faster to just let sync apply.
+            }
+        }
+    }
+
+    Debug("Sync for Tx[%s] must have prepare.", BytesToHex(txn_id, 16).c_str());
+    stats.Increment("Supply_prepare", 1);
+
     //If not committed/aborted ==> Check if locally present.
     //Just check if ongoing. (Ongoing is added before prepare is finished) -- Since onging might be a temporary ongoing that gets removed again due to invalidity -> check P1MetaData
     p1MetaDataMap::const_accessor c;
     if(!TEST_SYNC && p1MetaData.find(c, txn_id)){
-        c.release();
-        Debug("Via sync. Already started P1 handling for tx-id: [%s]", BytesToHex(txn_id, 16).c_str());
-        if(txn_info.has_p1()){
-             RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
-             return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+        // c.release();
+        
+        bool previously_simulated_drop;
+        if(simulate_inconsistency){
+            previously_simulated_drop = dropped_p.find(txn_id) != dropped_p.end();
+        }
+        //
+        if(previously_simulated_drop){ //If we previously had done Prepare but simulated drop: Now finish the job. To distinguish for CC result, just apply writes. Note: only do this once (on "first supply")
+            Debug("Previously simulated drop of prepare for Tx-id [%s]. Now trying to apply. Has P1 res? %d. AlreadyFmat? %d", BytesToHex(txn_id, 16).c_str(), c->second.hasP1, c->second.alreadyForceMaterialized);
+            UW_Assert(txn_info.has_p1());
+            if(c->second.hasP1){//} && !c->second.alreadyForceMaterialized){  //alreadyForceMat will have been set during an earlier "register" but it won't actually happen
+            
+                auto result = c->second.result;
+                c.release();
+
+                UW_ASSERT(result != proto::ConcurrencyControl::ABORT); //if it was Abort, then we would've already materialized it. Sync shouldn't happen. Or we already applied abort.
+                bool force_mat = result == proto::ConcurrencyControl::ABSTAIN;
+
+                Debug("Trying to apply writes of Tx-id [%s]. Result:%d", BytesToHex(txn_id, 16).c_str(), result);
+        
+                const std::string &txnDigest = txn_id;
+
+                ongoingMap::const_accessor o;
+                auto ongoingItr = ongoing.find(o, txnDigest);
+                if(!ongoingItr){
+                //if(ongoingItr == ongoing.end()){
+                    Debug("Already concurrently Committed/Aborted txn[%s]", BytesToHex(txnDigest, 16).c_str());
+                    return;
+                }
+                proto::Transaction *ongoingTxn = o->second.txn; //const
+                o.release();
+
+                Timestamp ts = Timestamp(ongoingTxn->timestamp());
+                
+
+                preparedMap::accessor a;
+                bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));  //TODO: Might not want to do this in forceMat case?
+
+                if(!first_prepare) return;
+                a.release();
+
+                Debug("Have not prepared Tx-id [%s] successfully before. Writing now!", BytesToHex(txn_id, 16).c_str());
+    
+                // auto &tx = txn_info.p1().txn();
+                // Timestamp ts(tx.timestamp());
+                auto f = [this, force_mat, ongoingTxn, ts, txnDigest](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
+                    UW_ASSERT(ongoingTxn);
+                    
+                    std::vector<std::string> locally_relevant_table_changes = ApplyTableWrites(*ongoingTxn, ts, txnDigest, nullptr, false, force_mat);
+                    
+                    std::pair<Timestamp, const proto::Transaction *> pWrite = std::make_pair(ts, ongoingTxn);
+                    //Apply TableVersion 
+                    for(auto table: locally_relevant_table_changes){   //TODO: Ideally also only update Writes in RecordReadPredicatesAndWrites for the relevant table changes
+                        Debug("Preparing TableVersion or TableColVersion: %s with TS: [%lu:%lu]", table.c_str(), ts.getTimestamp(), ts.getID());
+                        std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[std::move(table)];
+                        std::unique_lock lock(x.first);
+                        x.second.insert(pWrite);
+                    }
+                    return (void*) true;
+                };
+                transport->DispatchTP_noCB(std::move(f));
+
+                return;
+
+            }
+            c.release();
+            // 
+              //If we simulated drop, then we can't rely on P1 finishing. We must do the work.
+              //TODO: Ideally ProcesSPrepare should do it..
+              //But if it doesn't work, then do the following:
+              //If p1MetaData = commit/wait => Call Prepare (this is not forceMat)
+              //If p1MetaData = abstain => ForceMat
+              //If p1Meta = abort => should aleady be materialized..
+              Debug("Tx-id is in skip case. [%s]. It must explicitly be prepared!!", BytesToHex(txn_id, 16).c_str());
+            // }
+        }
+        else{
+            c.release();
+            Debug("Via sync. Already started P1 handling for tx-id: [%s]. Just Register ForceMat", BytesToHex(txn_id, 16).c_str());
+            if(txn_info.has_p1()){
+                RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
+                return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
+            }
         }
         // if(c->second.hasP1){
         //     // Panic("This line shouldn't be necessary anymore: RegisterForceMaterialization should take care of it?");
@@ -1195,11 +1380,12 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         // return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
     } 
     //c.release();
-    
+
+    Debug("About to check if Sync for Tx[%s] has prepare.", BytesToHex(txn_id, 16).c_str());
 
     //2) Check whether other replica supplies P1 -- If so, try to validate and prepare ourselves     
     //Otherwise: Validate ourselves.
-    else if(txn_info.has_p1()){
+    if(txn_info.has_p1()){
         // Handle incoming p1 as a normal P1 and Update Waiting Queries. ==> If update waiting queries is done as part of Prepare (whether visible or invisible) nothing else is necessary)
            
          Debug("Received Phase1 message");

@@ -173,7 +173,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
   auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
-  try{
+  //try{
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     UW_ASSERT(sql_stmt_list);
     // PELOTON_ASSERT(sql_stmt_list);
@@ -187,10 +187,10 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
       Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
           (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
     }
-  }
-  catch(...){
-    Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
-  }
+  // }
+  // catch(...){
+  //   Panic("Exception parse/preparing query: %s", query_statement.substr(0, 1000).c_str());
+  // }
 
 
   Debug("Finished preparing statement: %s", query_statement.substr(0, 1000).c_str());
@@ -970,7 +970,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   Debug("Begin writeLat on core: %d", core);
   Latency_Start(&writeLats[core]);
 
-  if (commit_or_prepare) {
+  if (commit_or_prepare) { //TODO: Disable this check if validate proofs/sign messages is off.
     UW_ASSERT(commit_proof);
     Debug("Before timestamp asserts for apply table write");
     UW_ASSERT(ts == Timestamp(commit_proof->txn().timestamp()));
@@ -1046,7 +1046,8 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   
     // //Should not take more than 1 ms (already generous) to parse and prepare.
     // auto duration = microseconds_end - microseconds_start;
-    // if(duration > 1000){
+    // if(ts.getID() % 5 == 0){ //Print for every 6th client
+    // //if(duration > 1000){
     //   Warning("ApplyTableWrite exceeded 1000us: %d", duration); 
     // }
   }
@@ -1278,7 +1279,8 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
  
   // //Should not take more than 1 ms (already generous) to parse and prepare.
   // auto duration = microseconds_end - microseconds_start;
-  // if(duration > 2000){
+  // if(ts.getID() % 5 == 0){ //Print for every 6th client
+  // //if(duration > 2000){
   //   Warning("ScanRead exceeded 2000us: %d us", duration); 
   // }
 

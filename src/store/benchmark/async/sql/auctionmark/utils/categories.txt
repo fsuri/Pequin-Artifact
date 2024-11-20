@@ -1879,9 +1879,9 @@ Business &amp; Industrial	Packing &amp; Shipping	Bags	Flat Poly Bags		4275
 Business &amp; Industrial	Packing &amp; Shipping	Bags	Merchandise Bags		564
 Business &amp; Industrial	Packing &amp; Shipping	Bags	Recloseable &amp; Zipper Bags		3245
 Business &amp; Industrial	Packing &amp; Shipping	Bags	Other		1152
-Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Small - 3/16"	1263
-Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Medium - 5/16"	137
-Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Large - 1/2"	307
+Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Small - 3/16in	1263
+Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Medium - 5/16in	137
+Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Large - 1/2in	307
 Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Bubble Cushioning Wrap	Other	211
 Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Foam Wrap		177
 Business &amp; Industrial	Packing &amp; Shipping	Cushioning Wrap	Tissue Paper		64
@@ -1897,9 +1897,9 @@ Business &amp; Industrial	Packing &amp; Shipping	Packing Tape &amp; Dispensers	P
 Business &amp; Industrial	Packing &amp; Shipping	Packing Tape &amp; Dispensers	Other		870
 Business &amp; Industrial	Packing &amp; Shipping	Postage Meters			74
 Business &amp; Industrial	Packing &amp; Shipping	Postage Meter Supplies			206
-Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	4" - 14" Long		2234
-Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	15" - 20" Long		417
-Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	21" - 48" Long		178
+Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	4in - 14in Long		2234
+Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	15in - 20in Long		417
+Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	21in - 48in Long		178
 Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	Flat		156
 Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	Tall		51
 Business &amp; Industrial	Packing &amp; Shipping	Shipping Boxes	Other		804
@@ -11116,12 +11116,12 @@ Health &amp; Beauty	Shaving &amp; Hair Removal	Laser Hair Removal			279
 Health &amp; Beauty	Shaving &amp; Hair Removal	Razors &amp; Razor Blades	Men's		3249
 Health &amp; Beauty	Shaving &amp; Hair Removal	Razors &amp; Razor Blades	Women's		895
 Health &amp; Beauty	Shaving &amp; Hair Removal	Razors &amp; Razor Blades	Straight Razors		1731
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	4.5" or less		46
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	5"		205
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	5.5"		621
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	6"		925
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	6.5"		60
-Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	7" &amp; up		66
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	4.5in or less		46
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	5in		205
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	5.5in		621
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	6in		925
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	6.5in		60
+Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	7in &amp; up		66
 Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	Thinning Shears		196
 Health &amp; Beauty	Shaving &amp; Hair Removal	Scissors &amp; Shears	Other		1230
 Health &amp; Beauty	Shaving &amp; Hair Removal	Shaving Brushes &amp; Mugs			597

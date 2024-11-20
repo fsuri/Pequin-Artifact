@@ -316,8 +316,7 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
     return INVALID_ITEMPOINTER;
   }
 
-  auto result =
-      InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
+  auto result = InsertTuple(tuple, location, transaction, index_entry_ptr, check_fk);
   if (result == false) {
     return INVALID_ITEMPOINTER;
   }

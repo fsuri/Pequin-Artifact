@@ -432,7 +432,16 @@ bool DataTable::CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_p
 
     //If current version is prepared => purge it
     if (transaction->GetUndoDelete() && is_prepared) {
+
+      // auto key = curr_tile_group->GetValue(curr_pointer.offset, 0);
+      // Notice("txn[%lu:%lu] Row-key[%s]. Purge_Location[%d:%d]. Indirection offset: %d",
+      //         transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(), key.ToString().c_str(),
+      //         curr_pointer.block, curr_pointer.offset, indirection_offset);
+
       PurgeRowVersion(index_entry_ptr, curr_tile_group_header, curr_pointer, transaction);
+      // Notice("txn[%lu:%lu] Row-key[%s]. FINISHED Purge_Location[%d:%d]. Indirection offset: %d",
+      //         transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(), key.ToString().c_str(),
+      //         curr_pointer.block, curr_pointer.offset, indirection_offset);
     }
     //Writing again.  (either current version is prepared => and we upgrade to committed. Or current version is committed => and nothing should happen)
     else {
@@ -452,65 +461,79 @@ bool DataTable::CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_p
 }
 void DataTable::PurgeRowVersion(ItemPointer *index_entry_ptr, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction){
 
+    
+
+      // //FIXME: REMOVE: Print the linked list for visualization.
+      // auto n_pointer = *index_entry_ptr;
+      // auto n_tile_group_h = this->GetTileGroupById(n_pointer.block)->GetHeader();
+      // auto n_ts = n_tile_group_h->GetBasilTimestamp(n_pointer.offset);
+      // Notice("txn[%lu:%lu] Purge_Location[%d:%d]. Ind_Location[%d:%d], HeadTS[%lu:%lu]",
+      //       transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(), 
+      //       curr_pointer.block, curr_pointer.offset, n_pointer.block, n_pointer.offset, n_ts.getTimestamp(), n_ts.getID());
+
+      // int max = 5;
+      // //Print the linked list. TS and locations.
+      // while(!n_tile_group_h->GetNextItemPointer(n_pointer.offset).IsNull() && max-- > 0){
+      //   //Print 
+      //   Notice("txn[%lu:%lu] NextTS[%lu:%lu]. NextLoc[%d:%d]",
+      //       transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(), 
+      //       n_ts.getTimestamp(), n_ts.getID(), n_pointer.block, n_pointer.offset);
+
+      //   n_pointer = n_tile_group_h->GetNextItemPointer(n_pointer.offset);
+      //   n_tile_group_h = this->GetTileGroupById(n_pointer.block)->GetHeader();
+      //   n_ts = n_tile_group_h->GetBasilTimestamp(n_pointer.offset);
+      // }
+  
+
+
+
+
         Debug("In UndoDelete for Purge [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16));
         // Purge this tuple
 
         // Set Purge flag. Note: In theory don't need to adjust any of the linked lists to remove purged versions, but we do it for read efficiency
         Debug("Table[%s]. Purging [txn: %s]. [%lu:%lu]", table_name.c_str(), pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str(), curr_pointer.block, curr_pointer.offset);
         curr_tile_group_header->SetPurged(curr_pointer.offset, true);
+
+        // return;
+        //Note: we are currently holding the mutex in CheckRowVersionUpdate.
+    
         // Set the linked list pointers
         auto prev_loc = curr_tile_group_header->GetPrevItemPointer(curr_pointer.offset);
         auto next_loc = curr_tile_group_header->GetNextItemPointer(curr_pointer.offset);
         
         // NEW: For purge set the tile group header locks
 
-        if (!prev_loc.IsNull() && !next_loc.IsNull()) {
-          Debug("Updating both pointers (purge inbetween) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
-          //std::cerr << "Updating both pointers" << std::endl;
+        if (!prev_loc.IsNull() && !next_loc.IsNull()) { //If curr position is a middle item => remove and re-link next/prev to point to each other.
+          Debug("Purging middle item: Updating both pointers [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          
-          // prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
-          // next_tgh->GetSpinLatch(next_loc.offset).Lock();
-          
-          //d::cerr << "next loc" << next_loc.block << ", " << next_loc.offset << std::endl;
           next_tgh->SetPrevItemPointer(next_loc.offset, prev_loc);
           prev_tgh->SetNextItemPointer(prev_loc.offset, next_loc);
-          
-
-          // prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
-          // next_tgh->GetSpinLatch(next_loc.offset).Unlock();
-
-        } else if (prev_loc.IsNull() && !next_loc.IsNull()) {
+        } 
+        else if (prev_loc.IsNull() && !next_loc.IsNull()) { //If curr position is the current head, and the list is not empty. Elevate next to head.
           //std::cerr << "Updating head pointer" << std::endl;
           Debug("Updating head pointer (purge latest) [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto next_tgh = this->GetTileGroupById(next_loc.block)->GetHeader();
-          //next_tgh->GetSpinLatch(next_loc.offset).Lock();
-          
-          next_tgh->SetPrevItemPointer(next_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
+         
+          next_tgh->SetPrevItemPointer(next_loc.offset, INVALID_ITEMPOINTER); //ItemPointer(INVALID_OID, INVALID_OID));
           ItemPointer *index_entry_ptr = next_tgh->GetIndirection(next_loc.offset);
-          COMPILER_MEMORY_FENCE;
+          
+          // COMPILER_MEMORY_FENCE;
 
           // Set the index header in an atomic way.
           // We do it atomically because we don't want any one to see a half-done pointer. In case of contention, no one can update this
           // pointer when we are updating it because we are holding the write lock. This update should success in its first trial.
           UNUSED_ATTRIBUTE auto res = AtomicUpdateItemPointer(index_entry_ptr, next_loc);
           PELOTON_ASSERT(res == true);
-          
-          //next_tgh->GetSpinLatch(next_loc.offset).Unlock();
-
-        } else if (next_loc.IsNull() && !prev_loc.IsNull()) {
-          //std::cerr << "Updating prev pointer" << std::endl;
-          Debug("Updating prev pointer [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+        } 
+        else if (next_loc.IsNull() && !prev_loc.IsNull()) { //if curr position is the tail and its not the only item in LL => remove it.
+          Debug("Purging tail [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           auto prev_tgh = this->GetTileGroupById(prev_loc.block)->GetHeader();
-          //prev_tgh->GetSpinLatch(prev_loc.offset).Lock();
-
-          prev_tgh->SetNextItemPointer(prev_loc.offset, ItemPointer(INVALID_OID, INVALID_OID));
-
-          //prev_tgh->GetSpinLatch(prev_loc.offset).Unlock();
+          prev_tgh->SetNextItemPointer(prev_loc.offset, INVALID_ITEMPOINTER);
         }
-        else{
-          Debug("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
+        else{ //if curr position is the ONLY item in the linked list: Do nothing. We wan't to keep it in the index.
+          Notice("Not updating anything: [txn: %s]", pequinstore::BytesToHex(*transaction->GetTxnDig(), 16).c_str());
           UW_ASSERT(next_loc.IsNull() && prev_loc.IsNull());  //Current tuple = head and tail of list
           //Note: If the only item in the linked list is purged, then we just keep it as part of the linked list. Note: versions *are* marked purged.
 
@@ -649,8 +672,12 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
       exists = false;  //TODO: Always set false.
       // return INVALID_ITEMPOINTER;
     }
+
     //if(transaction->GetBasilTimestamp().getTimestamp() > 0) Notice("Inserted tuple[%s] to tile-group-header:offset [%lu:%lu]", tuple->GetInfo().c_str(), location.block, location.offset); //don't print during load time
-   
+
+    // if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0) Notice("Data Table txn[%lu:%lu]. Insert new. Commit (or prepare) ? %d", transaction->GetBasilTimestamp().getTimestamp(), transaction->GetBasilTimestamp().getID(), transaction->GetCommitOrPrepare());
+
+
     if(transaction->GetTxnDig() && transaction->GetBasilTimestamp().getTimestamp() > 0)  atomic_index.unlock();
 
     return location; //*old_location;
@@ -685,6 +712,11 @@ ItemPointer DataTable::InsertTuple(const storage::Tuple *tuple,
         LOG_TRACE("Failed to get tuple slot.");
         return INVALID_ITEMPOINTER;
       }
+
+      // //Check whether prev is Null by default.
+      // auto new_header = this->GetTileGroupById(location.block)->GetHeader();
+      // UW_ASSERT(new_header->GetPrevItemPointer(location.offset).IsNull());
+  
 
       SetPequinMetaData(location, transaction);
 

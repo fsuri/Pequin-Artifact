@@ -211,18 +211,27 @@ def calculate_statistics_for_run(config, local_out_directory, run):
 
                                         opTime = 0.0
                                         if x + 2 < len(opCols):
-                                            if 'input_latency_scale' in config:
-                                                opTime = float(opCols[x+2]) / config['input_latency_scale']
-                                            else:
-                                                opTime = float(opCols[x+2]) / 1e9
-                                            if 'output_latency_scale' in config:
-                                                opTime = opTime * config['output_latency_scale']
-                                            else:
-                                                opTime = opTime * 1e3
+                                            try:
+                                                if 'input_latency_scale' in config:
+                                                    opTime = float(opCols[x+2]) / config['input_latency_scale']
+                                                else:
+                                                    opTime = float(opCols[x+2]) / 1e9
+                                                if 'output_latency_scale' in config:
+                                                    opTime = opTime * config['output_latency_scale']
+                                                else:
+                                                    opTime = opTime * 1e3
+                                            except ValueError:
+                                                print('Invalid row: ', opCols)
+                                                break #skip this row
 
                                         cid = 0
                                         if x + 3 < len(opCols):
-                                            cid = int(opCols[x + 3])
+                                            #cid = int(opCols[x + 3])
+                                            try:
+                                                cid = int(opCols[x + 3])
+                                            except ValueError:
+                                                print('Invalid row: ', opCols)
+                                                break #skip this row
 
                                         if cid not in op_latencies:
                                             op_latencies[cid] = {}
@@ -459,6 +468,8 @@ def calculate_statistics_for_run(config, local_out_directory, run):
     stats['read_write_ratio'] = 1
     if 'total_writes' in stats:
         total_ops = stats['total_writes'] + stats['total_reads']
+        if not 'total_recon_reads' in stats:
+            stats['total_recon_reads'] = 0
         stats['read_write_ratio_nr'] = (stats['total_reads'] - stats['total_recon_reads']) / (total_ops - stats['total_recon_reads'])
         stats['read_write_ratio'] = stats['total_reads'] / total_ops
 

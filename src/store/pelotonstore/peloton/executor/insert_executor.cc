@@ -69,8 +69,8 @@ bool InsertExecutor::DExecute() {
   auto current_txn = executor_context_->GetTransaction();
 
   if (!target_table) {
-    transaction_manager.SetTransactionResult(current_txn,
-                                             peloton_peloton::ResultType::FAILURE);
+    std::cerr << "Target table false" << std::endl;
+    transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::FAILURE);
     return false;
   }
 
@@ -92,6 +92,7 @@ bool InsertExecutor::DExecute() {
   // Inserting a logical tile.
   if (children_.size() == 1) {
     if (!children_[0]->Execute()) {
+      std::cerr << "child failed" << std::endl;
       return false;
     }
 
@@ -118,16 +119,15 @@ bool InsertExecutor::DExecute() {
 
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
-      peloton_peloton::ItemPointer location =
-          target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
+      peloton_peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
-      // it is possible that some concurrent transactions have inserted the same
-      // tuple.
-      // in this case, abort the transaction.
+      // it is possible that some concurrent transactions have inserted the same tuple. in this case, abort the transaction. //FIXME: Aborting TX is the wrong semantics for duplicate Insert!!
       if (location.block == INVALID_OID) {
-        transaction_manager.SetTransactionResult(current_txn,
-                                                 peloton_peloton::ResultType::FAILURE);
-        return false;
+        //transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::FAILURE);
+        //return false;
+         //std::cerr << "Duplicate insert (child 1)" << std::endl;
+        //transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::DUPLICATE); //Note: This works too, but then TX status stays "Duplicate" which we don't want
+        return false; //Leave TX result as success. Let application handle what to do with empty insert.
       }
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
@@ -208,8 +208,7 @@ bool InsertExecutor::DExecute() {
 
       auto new_tuple = tuple;
       if (trigger_list != nullptr) {
-        LOG_TRACE("size of trigger list in target table: %d",
-                  trigger_list->GetTriggerListSize());
+        LOG_TRACE("size of trigger list in target table: %d", trigger_list->GetTriggerListSize());
         if (trigger_list->HasTriggerType(TriggerType::BEFORE_INSERT_ROW)) {
           LOG_TRACE("target table has per-row-before-insert triggers!");
           LOG_TRACE("address of the origin tuple before firing triggers: 0x%lx",
@@ -218,21 +217,20 @@ bool InsertExecutor::DExecute() {
                                      current_txn,
                                      const_cast<storage::Tuple *>(tuple),
                                      executor_context_, nullptr, &new_tuple);
-          LOG_TRACE("address of the new tuple after firing triggers: 0x%lx",
-                    long(new_tuple));
+          LOG_TRACE("address of the new tuple after firing triggers: 0x%lx",long(new_tuple));
         }
       }
 
       if (new_tuple == nullptr) {
         // trigger doesn't allow this tuple to be inserted
         LOG_TRACE("this tuple is rejected by trigger");
+        std::cerr << "trigger rejects insert" << std::endl;
         continue;
       }
 
       // Carry out insertion
       ItemPointer *index_entry_ptr = nullptr;
-      ItemPointer location =
-          target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);
+      ItemPointer location = target_table->InsertTuple(new_tuple, current_txn, &index_entry_ptr);
       if (new_tuple->GetColumnCount() > 2) {
         type::Value val = (new_tuple->GetValue(2));
         LOG_TRACE("value: %s", val.GetInfo().c_str());
@@ -240,15 +238,17 @@ bool InsertExecutor::DExecute() {
 
       if (location.block == INVALID_OID) {
         LOG_TRACE("Failed to Insert. Set txn failure.");
-        transaction_manager.SetTransactionResult(current_txn,
-                                                 ResultType::FAILURE);
+        // transaction_manager.SetTransactionResult(current_txn, ResultType::FAILURE); //FIXME: FS: These are wrong semantics. If an Insert fails, the TXN shouldn't necessarily abort!
+        // return false;
+
+        //std::cerr << "Duplicate insert (child 0)" << std::endl;
+        //transaction_manager.SetTransactionResult(current_txn, peloton_peloton::ResultType::DUPLICATE); //Note: This works too, but then TX status stays "Duplicate"
         return false;
       }
 
       transaction_manager.PerformInsert(current_txn, location, index_entry_ptr);
 
-      LOG_TRACE("Number of tuples in table after insert: %lu",
-                target_table->GetTupleCount());
+      LOG_TRACE("Number of tuples in table after insert: %lu", target_table->GetTupleCount());
 
       executor_context_->num_processed += 1;  // insert one
 

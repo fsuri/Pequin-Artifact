@@ -114,7 +114,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t 
       }
     };
     
-    Notice("Trying to commit txn: [%lu:%lu]", client_id, client_seq_num);
+    Debug("Trying to commit txn: [%lu:%lu]", client_id, client_seq_num);
     bclient[0]->Commit(client_id, client_seq_num, tccb, ctcb, timeout);
   });
 }

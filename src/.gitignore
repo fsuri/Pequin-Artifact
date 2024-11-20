@@ -97,6 +97,8 @@ bft_tapir/client
 create_keys/create_key
 keys
 
+jars/
+
 callgrind*
 ################################################################################
 # vim

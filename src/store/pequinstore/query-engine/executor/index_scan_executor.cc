@@ -517,7 +517,7 @@ bool IndexScanExecutor::ExecPrimaryIndexLookup() {
 
   Debug("Query[%lu:%lu]Primary Index Scan on Table [%s]. Number of rows to check: %d", current_txn->GetBasilTimestamp().getTimestamp(), current_txn->GetBasilTimestamp().getID(), table_->GetName().c_str(), tuple_location_ptrs.size());
   
-  //if(tuple_location_ptrs.size() > 200) Warning("Potentially inefficient PRIMARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
+  // if(tuple_location_ptrs.size() > 10) Warning("Potentially inefficient PRIMARY scan on table %s. Rows to check %d. Sanity check!", table_->GetName().c_str(), tuple_location_ptrs.size());
  
   if(current_txn->IsPointRead()) UW_ASSERT(tuple_location_ptrs.size() == 1);
   // for every tuple that is found in the index.
@@ -679,7 +679,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     //if(timestamp.getID() == 0) Notice("Check next row. Current Txn TS: [%lu, %lu]", timestamp.getTimestamp(), timestamp.getID());
    
     // Get the head of the version chain (latest version)
-    tile_group_header->GetSpinLatch(tuple_location.offset).Lock(); //TODO//FIXME: This latch is useless. 
+    // tile_group_header->GetSpinLatch(tuple_location.offset).Lock(); //TODO//FIXME: This latch is useless. 
     ItemPointer *head = tile_group_header->GetIndirection(tuple_location.offset);
 
     //Note for Primary index scan: Since we are not holding a lock during reads, the tuple_location might not be the head even for primary index scan. We are simply "correcting" to the header if possible.
@@ -699,7 +699,7 @@ void IndexScanExecutor::CheckRow(ItemPointer tuple_location, concurrency::Transa
     tuple_location = *head;
     tile_group_header = head_tile_group_header;
 
-    tile_group_header->GetSpinLatch(tuple_location.offset).Unlock();
+    // tile_group_header->GetSpinLatch(tuple_location.offset).Unlock();
     // auto curr_tuple_id = location.offset;
 
     //std::cerr << "Head timestamp is " << tuple_timestamp.getTimestamp() << ", " << tuple_timestamp.getID() << std::endl;

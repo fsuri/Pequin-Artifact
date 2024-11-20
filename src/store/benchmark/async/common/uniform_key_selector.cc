@@ -25,6 +25,7 @@
  *
  **********************************************************************/
 #include "store/benchmark/async/common/uniform_key_selector.h"
+#include "lib/assert.h"
 
 #include <cstdlib>
 
@@ -42,5 +43,6 @@ UniformKeySelector::~UniformKeySelector() {
 }
 
 int UniformKeySelector::GetKey(std::mt19937 &rand) {
+  UW_ASSERT(GetNumKeys() > 0);
   return rand() % GetNumKeys();
 }

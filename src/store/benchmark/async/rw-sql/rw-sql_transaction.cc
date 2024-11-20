@@ -29,13 +29,26 @@
 #include "store/common/query_result/query_result.h"
 #include "rw-sql_transaction.h"
 
+#include <functional>
+
 namespace rwsql {
 
+const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const uint64_t alpha_numeric_size = sizeof(ALPHA_NUMERIC) - 1; //Account for \0 terminator
 
-RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readOnly) 
-    : SyncTransaction(10000), querySelector(querySelector), numOps(numOps), readOnly(readOnly), numKeys((int) querySelector->numKeys){
+static std::map<uint64_t, uint64_t> table_freq;
+static std::map<uint64_t, uint64_t> base_freq;
+static uint64_t periodic = 0;
+
+RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
+                                     int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
+    : SyncTransaction(10000), rand(rand), querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), 
+      value_size(value_size), value_categories(value_categories), scanAsPoint(scanAsPoint), execPointScanParallel(execPointScanParallel), numKeys((int) querySelector->numKeys){
   
-  // std::cout << "New TX with numOps " << numOps << std::endl;
+  max_random_size = value_categories < 0? UINT64_MAX : log(value_categories) / log(alpha_numeric_size);
+
+  Notice("New TX with %d ops. Read only? %d", numOps, readOnly);
+ 
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
@@ -43,24 +56,44 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
     uint64_t base = querySelector->baseSelector->GetKey(rand); //Choose which key to use as starting point for query i
     starts.push_back(base);
 
+    if(false){
+      Notice(" Next Scan. Table: %d. Base: %d.    Total num tables: %d. Total range: [0, %d]", table, base, querySelector->tableSelector->GetNumKeys(), querySelector->baseSelector->GetNumKeys());
+      UW_ASSERT(table < querySelector->tableSelector->GetNumKeys());
+
+      table_freq[table]++;
+      base_freq[base]++;
+      periodic++;
+      if(periodic % 1000 == 0){
+        Notice(" PRINTING TABLE FREQUENCIES:");
+        for(auto &[tbl, freq]: table_freq){
+          Notice("   Table: %d. Accessed: %d times", tbl, freq);
+        }
+
+        Notice(" PRINTING base FREQUENCIES:");
+        for(auto &[base, freq]: base_freq){
+          Notice("   Base: %d. Accessed: %d times", base, freq);
+        }
+      }
+    }
+    
+    Debug(" Next Scan. Table: %d. Base: %d.    Total num tables: %d. Total range: [0, %d]", table, base, querySelector->tableSelector->GetNumKeys(), querySelector->baseSelector->GetNumKeys());
+    
+    
+
     bool is_point = std::uniform_int_distribution<uint64_t>(1, 100)(rand) <= querySelector->point_op_freq;
 
     if(is_point){
       ends.push_back(base);
     }
     else{ //do a scan
-      uint64_t range = querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
+      //if using fixedRange => always pick the maxRange
+      uint64_t range = fixedRange? querySelector->rangeSelector->GetNumKeys() - 1 : querySelector->rangeSelector->GetKey(rand); //Choose the number of keys to read (in addition to base) for query i
       uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
       ends.push_back(end);
+      Debug("Range: %d. Base: %d. End: %d", range, base, end);
     }
-   
-  }
 
-  // starts.push_back(94);
-  // ends.push_back(3);
-  // starts.push_back(0);
-  // ends.push_back(2);
-  
+  }
 }
 
 RWSQLTransaction::~RWSQLTransaction() {
@@ -107,48 +140,276 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
     }
     UW_ASSERT(left_bound >= 0 && left_bound < querySelector->numKeys && right_bound >= 0 && right_bound < querySelector->numKeys);
 
+    if(scanAsPoint){
+      ExecutePointStatements(client, table_name, left_bound, right_bound);
+    }
+    else{
+      ExecuteScanStatement(client, table_name, left_bound, right_bound);
+    }
+    //TODO: Re-factor into Submit/Get logic so its naturally parallelizable between queries?
+
     //std::string statement = GenerateStatement(table_name, left_bound, right_bound);
-    statements.push_back(GenerateStatement(table_name, left_bound, right_bound));  
-    std::string &statement = statements.back();
+    // statements.push_back(GenerateStatement(table_name, left_bound, right_bound));  
+    // std::string &statement = statements.back();
 
-    Debug("Start new RW-SQL Request: %s", statement);
+    // Debug("Start new RW-SQL Request: %s", statement);
 
-    SubmitStatement(client, statement, i);
+    // SubmitStatement(client, statement, i);
     //Note: Updates will not conflict on TableVersion -- Because we are not changing primary key, which is the search condition.  
   }
 
-  GetResults(client);
+  //GetResults(client);
 
-    // client.Abort(timeout);
-    // return ABORTED_USER;
-  //if(++count == 3) Panic("stop testing");
   
-
   transaction_status_t commitRes = client.Commit(timeout);
 
   Debug("TXN COMMIT STATUS: %d",commitRes);
 
-  //Panic("stop after one");
+  // if(count++ == 2){
+  //    Panic("stop after two"); //Expectation: First TX writes something. Second Transaction will need to do sync protocol.
 
-  //usleep(1000);
+  // }
+   // Panic("stop after one");
+
+ 
+  //usleep(1000); //sleep to simulate sequential access.
   return commitRes;
 }
 
+std::pair<uint64_t, std::string> RWSQLTransaction::GenerateSecondaryCondition(){
+  std::pair<uint64_t, std::string> cond_pair = {0, ""};
+
+  if(!readSecondaryCondition) return cond_pair;
+
+  bool value_is_numeric = value_size < 0;
+
+  if(value_is_numeric){
+    //pick a random value within the categories;
+    uint64_t upper_val = value_categories < 0? UINT64_MAX : value_categories;
+    uint64_t val = std::uniform_int_distribution<size_t>(0, upper_val)(rand);
+    cond_pair.first = val;
+  }
+  else{
+    //make up to #FLAGS_value_categories many different strings
+    //make the length = value_size.    Note: max categories = min(#alphanumeric^size, value_categories)
+    //If no categories => just generate random string.
+    std::string val;
+
+     //Instead of random alpha numerics: pick category as int, and concat with a string.
+    val = std::string(value_size, '0');
+    uint64_t upper_val = value_categories < 0? UINT64_MAX : value_categories; //TODO: Replace UINT64_MAX with num_keys.
+    uint64_t cat = std::uniform_int_distribution<size_t>(0, upper_val)(rand);
+    //uint64_t cat = value_categories > 0 ? j  % value_categories : j ; //if no categories, pick i.
+    val = std::to_string(cat) + val;
+    val.resize(value_size);
+
+
+    // for(int i = 0; i < value_size; ++i){
+    //   if(i > max_random_size){ //if exhausted random categories.
+    //     val += "0";
+    //     continue;
+    //   }
+    //   int idx = std::uniform_int_distribution<size_t>(0, alpha_numeric_size-1)(rand);
+    //   val += ALPHA_NUMERIC[idx];
+    // }
+    cond_pair.second = val;
+  }
+  return cond_pair;
+}
+
+void RWSQLTransaction::ExecuteScanStatement(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound){
+
+  std::string statement;
+
+
+  if(POINT_READS_ENABLED && left_bound == right_bound){
+    statement = fmt::format("SELECT * FROM {0} WHERE key = {1}", table_name, left_bound);
+  }
+  else if(left_bound <= right_bound){
+    statement = fmt::format("SELECT * FROM {0} WHERE key >= {1} AND key <= {2}", table_name, left_bound, right_bound);
+  } 
+  else{
+    statement = fmt::format("SELECT * FROM {0} WHERE key >= {1} OR key <= {2}", table_name, left_bound, right_bound);
+  }
+
+  if(readSecondaryCondition){
+    //generate a random category.
+    auto cond_pair = GenerateSecondaryCondition();
+    bool value_is_numeric = value_size < 0;
+    if(value_is_numeric){
+      statement += fmt::format(" AND value = {}", cond_pair.first);
+    }
+    else{
+      statement += fmt::format(" AND value = '{}'", cond_pair.second);
+    }
+  }
+
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  client.Query(statement, queryResult, timeout);
+
+  Debug("Query: %s found %d rows", statement.c_str(), queryResult->size());
+  
+  if(readOnly) return; //nothing more to do.
+
+  //Otherwise, apply all the updates. //Note: Result already only includes those keys that meet the conditional.
+  int num_res = queryResult->size();
+  for(int i=0; i<num_res; ++i){
+    uint64_t key;
+    deserialize(key, queryResult, i, 0);
+    Update(client, table_name, key, queryResult, i);
+  }
+}
+
+//////////////////////////////// Point handling
+void RWSQLTransaction::ExecutePointStatements(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound){
+
+  auto cond_pair = GenerateSecondaryCondition();
+
+  std::string statement;
+  std::unique_ptr<const query_result::QueryResult> queryResult;
+  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+
+  std::vector<int> idxs;
+
+  auto idx = left_bound;
+  while(idx != right_bound){
+    idxs.push_back(idx);
+
+    statement = fmt::format("SELECT * FROM {0} WHERE key = {1}", table_name, idx);
+
+    Debug("Execute Query: %s", statement.c_str());
+
+    if(execPointScanParallel){
+      client.Query(statement, timeout);
+    }
+    else{
+      client.Query(statement, queryResult, timeout);
+      Debug("Finished Query: %s. Result size? %d", statement.c_str(), queryResult->size());
+      ProcessPointResult(client, table_name, idx, queryResult, cond_pair);
+    }
+    idx = (idx + 1) % numKeys;
+  }
+
+  if(execPointScanParallel){
+    client.Wait(results);
+    UW_ASSERT(results.size() == idxs.size());
+    for(int i=0; i < idxs.size(); ++ i){
+      ProcessPointResult(client, table_name, idxs[i], results[i], cond_pair);
+    }
+  }
+ 
+}
+
+void RWSQLTransaction::ProcessPointResult(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, 
+                                            const std::pair<uint64_t, std::string> &cond_pair){
+  if(readOnly) return;
+
+  try{
+
+  if(readSecondaryCondition){
+    //Check if value matches condition
+    bool value_is_numeric = value_size < 0;
+    if(value_is_numeric){
+      uint64_t val;
+      deserialize(val, queryResult, 0, 1); //TODO: Can we avoid duplicate deserialization here and after?
+      Debug("Point read key: %d. val: %d", key, val);
+      if(val != cond_pair.first) return;
+    }
+    else{
+      std::string val;  
+      deserialize(val, queryResult, 0, 1);
+      Debug("Point read key: %d. val: %s", key, val.c_str());
+      if(val != cond_pair.second) return;
+      Debug("Succeeded condition for key: %d. val: %s", key, val.c_str());
+    }
+  }
+
+  }
+  catch(...){
+    Panic("Debug deserialization");
+  }
+  
+  
+  Update(client, table_name, key, queryResult, 0);
+}
+
+void RWSQLTransaction::Update(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, uint64_t row){
+   //Note: this function can be used both for Scan/Point consumption.
+  std::string statement;
+
+  try{
+  if(value_size < 0){ //using numeric val
+    uint64_t val;
+    deserialize(val, queryResult, row, 1);
+    Debug("Read key: %d. val: %d", key, val);
+    if(value_categories < 0){
+      val+=1;
+    }
+    else{
+      srand(val);
+      val = std::rand() % value_categories;
+    }
+    statement = fmt::format("INSERT INTO {0} VALUES ({1}, {2})", table_name, key, val);
+  }
+  else{ //using string val
+    //Create new random string using the current value as seed.
+    std::string val;
+    deserialize(val, queryResult, row, 1);
+    Debug("Read key: %d. val: %s", key, val.c_str());
+    std::hash<std::string> hasher;
+    size_t hashValue = hasher(val);
+    srand(hashValue);
+
+    val.clear();
+    val = std::string(value_size, '0');
+    uint64_t cat = std::rand();
+    if(value_categories >= 0) cat = cat % value_categories;
+    val = std::to_string(cat) + val;
+    val.resize(value_size);
+
+
+    // for(int i = 0; i < value_size; ++i){
+    //   if(i > max_random_size){ //if exhausted random categories.
+    //     val += "0";
+    //     continue;
+    //   }
+    //   int idx = std::rand() % alpha_numeric_size;
+    //   val += ALPHA_NUMERIC[idx];
+    // }
+    statement = fmt::format("INSERT INTO {0} VALUES ({1}, '{2}')", table_name, key, val);
+  }
+  }
+  catch(...){
+    Panic("Debug crash in update logic");
+  }
+
+  Debug("Issue write: %s", statement.c_str());
+ 
+  //Issue blind write. 
+  std::unique_ptr<const query_result::QueryResult> dummyResult; //make this call synchronous -- we know because its a blind write it will return directly.
+  client.Write(statement, dummyResult, timeout, true); //blind-write
+}
+
+
+//////////////////////////////////
 
 std::string RWSQLTransaction::GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound){
 
+  std::string statement;
+
   if(readOnly){
-    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("SELECT * FROM {0} WHERE key = {1};", table_name, left_bound);
-    if(left_bound <= right_bound) return fmt::format("SELECT * FROM {0} WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
-    else return fmt::format("SELECT * FROM {0} WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound);
+    if(POINT_READS_ENABLED && left_bound == right_bound) statement = fmt::format("SELECT * FROM {0} WHERE key = {1}", table_name, left_bound);
+    if(left_bound <= right_bound) statement = fmt::format("SELECT * FROM {0} WHERE key >= {1} AND key <= {2}", table_name, left_bound, right_bound);
+    else statement = fmt::format("SELECT * FROM {0} WHERE key >= {1} OR key <= {2}", table_name, left_bound, right_bound);
   }
   else{
-    if(POINT_READS_ENABLED && left_bound == right_bound) return fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table_name, left_bound);
+    if(POINT_READS_ENABLED && left_bound == right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table_name, left_bound);
     // if(left_bound == right_bound) query = fmt::format("UPDATE {0} SET value = value + 1 WHERE key = {1};", table, left_bound); // POINT QUERY -- TODO: FOR NOW DISABLE
-    if(left_bound <= right_bound) return fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
-    else return fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound); 
+    if(left_bound <= right_bound) statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} AND key <= {2};", table_name, left_bound, right_bound);
+    else statement = fmt::format("UPDATE {0} SET value = value + 1 WHERE key >= {1} OR key <= {2};", table_name, left_bound, right_bound); 
   }
   
+  return statement;
 }
 
 void RWSQLTransaction::SubmitStatement(SyncClient &client, std::string &statement, const int &i){

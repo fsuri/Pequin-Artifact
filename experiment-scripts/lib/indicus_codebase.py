@@ -166,6 +166,9 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += " --pequin_query_point_eager_exec=%s" % str(config['replication_protocol_settings']['query_point_eager_exec']).lower()
             if 'eager_plus_snapshot' in config['replication_protocol_settings']:
                 client_command += " --pequin_eager_plus_snapshot=%s" % str(config['replication_protocol_settings']['eager_plus_snapshot']).lower()
+            if 'simulate_fail_eager_plus_snapshot' in config['replication_protocol_settings']:
+                client_command += " --pequin_simulate_fail_eager_plus_snapshot=%s" % str(config['replication_protocol_settings']['simulate_fail_eager_plus_snapshot']).lower()
+            
 
             ## Read protocol settings
             if 'query_read_prepared' in config['replication_protocol_settings']:
@@ -274,10 +277,23 @@ class IndicusCodebase(ExperimentCodebase):
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
 
             if config['benchmark_name'] == 'rw-sql':
+                client_command += ' --rw_read_only_rate %d' % config['rw_read_only_rate']
+                client_command += ' --rw_secondary_condition=%s' % (str(config['rw_secondary_condition']).lower())
+
                 client_command += ' --num_tables %d' % config['num_tables']
                 client_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+                client_command += ' --value_size %d' % config['value_size']
+                client_command += ' --value_categories %d' % config['value_categories']
+
+                if 'disable_wraparound' in config:
+                    client_command += ' --rw_no_wrap=%s' % (str(config['disable_wraparound']).lower())
+                client_command += ' --fixed_range=%s' % (str(config['fixed_range']).lower())
                 client_command += ' --max_range %d' % config['max_range']
                 client_command += ' --point_op_freq %d' % config['point_op_freq']
+
+                client_command += ' --scan_as_point=%s' % (str(config['scan_as_point']).lower())
+                client_command += ' --scan_as_point_parallel=%s' % (str(config['scan_as_point_parallel']).lower())
+                client_command += ' --rw_simulate_point_kv=%s' % (str(config['rw_simulate_point_kv']).lower())
 
         elif config['benchmark_name'] == 'tpcc' or config['benchmark_name'] == 'tpcc-sync' or config['benchmark_name'] == 'tpcc-sql':
             client_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
@@ -560,6 +576,16 @@ class IndicusCodebase(ExperimentCodebase):
             ## Multi-threading for queries
             if 'parallel_queries' in config['replication_protocol_settings']:
                 replica_command += " --pequin_parallel_queries=%s" % str(config['replication_protocol_settings']['parallel_queries']).lower()
+
+            ## Simulate fault:
+            if 'simulate_replica_failure' in config['replication_protocol_settings']:
+                replica_command += ' --pequin_simulate_replica_failure=%s' % (str(config['replication_protocol_settings']['simulate_replica_failure']).lower())
+            ## Simulate inconsistency:
+            if 'simulate_inconsistency' in config['replication_protocol_settings']:
+                replica_command += ' --pequin_simulate_inconsistency=%s' % (str(config['replication_protocol_settings']['simulate_inconsistency']).lower())
+            ## Disable prepare visibility for Pesto   
+            if 'disable_prepare_visibility' in config['replication_protocol_settings']:
+                replica_command += ' --pequin_disable_prepare_visibility=%s' % (str(config['replication_protocol_settings']['disable_prepare_visibility']).lower())
     
         if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options
@@ -608,10 +634,12 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --data_file_path %s' % config['smallbank_data_file_path']
         elif config['benchmark_name'] == 'rw-sql':
             replica_command += ' --num_tables %d' % config['num_tables']
-            replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table']
+            replica_command += ' --num_keys_per_table %d' % config['num_keys_per_table'] 
+            replica_command += ' --value_size %d' % config['value_size']
+            replica_command += ' --value_categories %d' % config['value_categories']  
+            replica_command += ' --rw_simulate_point_kv=%s' % (str(config['rw_simulate_point_kv']).lower())
         elif config['benchmark_name'] == 'tpcc-sql':
              replica_command += ' --tpcc_num_warehouses %d' % config['tpcc_num_warehouses']
-        
         
         if 'partitioner' in config:
             replica_command += ' --partitioner %s' % config['partitioner']

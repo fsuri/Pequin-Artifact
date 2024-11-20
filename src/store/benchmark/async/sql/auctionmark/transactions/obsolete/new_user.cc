@@ -57,7 +57,7 @@ transaction_status_t NewUser::Execute(SyncClient &client) {
   Debug("User ID: %lu", u_id);
 
   // (2) Insert new User
-  std::string statement_values = fmt::format("VALUES ({}, 0, 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {});",
+  std::string statement_values = fmt::format("VALUES ({}, 0, 0, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
       u_id, u_r_id, attributes[0], attributes[1], attributes[2], attributes[3], attributes[4], attributes[5], attributes[6], attributes[7]);
   statement = "INSERT INTO USER (u_id, u_rating, u_balance, u_created, u_r_id, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, u_sttar5, u_sattr6, u_sattr 7) " + statement_values;
   client.Write(statement, queryResult, timeout);

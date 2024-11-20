@@ -51,7 +51,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     const std::vector<int> &closestReplicas, bool pingReplicas, Transport *transport,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
     uint64_t readQuorumSize, Parameters params, std::string &table_registry,
-    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t consecutiveMax, bool sql_bench, TrueTime timeServer)
+    KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t warmup_secs, uint64_t consecutiveMax, bool sql_bench,
+    TrueTime timeServer)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -109,6 +110,15 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
      sql_interpreter.RegisterTables(table_registry);
      sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
   }
+
+  Notice("Start Timer for %d warmup secs", warmup_secs);
+  transport->Timer(warmup_secs * 1000, [this](){
+    Notice("Warmup complete!!");
+    warmup_done = true;
+    for(auto &shard: bclient){
+      shard->WarmupDone();
+    }
+  });
 }
 
 Client::~Client()
@@ -190,6 +200,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
      struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
     exec_start_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Warning("STARTING NEW TX");
   }
 
     bcb(client_seq_num);
@@ -521,6 +532,7 @@ void Client::Query(const std::string &query, query_callback qcb,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
       stats.Increment("QueryAttempts", 1);
+      if(warmup_done) stats.Increment("QueryAttempts_postwarmup", 1);
     }
 
 
@@ -879,7 +891,7 @@ void Client::ClearQuery(PendingQuery *pendingQuery){
 void Client::RetryQuery(PendingQuery *pendingQuery){
 
   if(params.query_params.retryLimit > -1 && pendingQuery->version >= params.query_params.retryLimit){
-    Panic("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
+    Warning("Exceeded Retry Limit for Query[%lu:%lu:%lu]. Limit: %d", client_id, pendingQuery->queryMsg.query_seq_num(), pendingQuery->version, params.query_params.retryLimit);
     stats.Increment("Exceeded_Retry_Limit");
     //throw std::runtime_error("Exceeded Retry Limit"); //Application will catch exception and turn it into a SystemAbort
 
@@ -979,7 +991,9 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
         //Should not take more than 1 ms (already generous) to parse and prepare.
         auto duration = exec_end_ms - exec_start_ms;
-        //Warning("Transaction total execution latency in ms [%d]", duration/1000);
+        //Warning("  Transaction total execution latency in us [%d]", duration);
+
+        //Notice("Tx has %d deps", txn.deps().size());
     }
     
     uint64_t ns = Latency_End(&executeLatency);
@@ -1525,7 +1539,7 @@ void Client::Writeback(PendingRequest *req) {
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = commit_end_ms - commit_start_ms;
-    //Warning("Transaction commit latency in ms [%d]", duration/1000);
+    //Warning("     Transaction commit latency in us [%d]", duration);
   }
 
   //total_writebacks++;

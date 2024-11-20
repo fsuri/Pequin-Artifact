@@ -946,7 +946,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     Debug("Calling TryPrepare for txn[%s] on MainThread %d", BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
 
     //New: Now waking after applyTablewrite
-    CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true, 1); //is_abort = false //non_blocking = true, only wake TS => Check for waiting queries in non-blocking fashion.
+    // CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id(), false, true, 1); //is_abort = false //non_blocking = true, only wake TS => Check for waiting queries in non-blocking fashion.
     //NOTE: If want to incorporate the result from prepare (in case it is abort), then need to move this after Occ Check.
 
     //current_views[txnDigest] = 0;

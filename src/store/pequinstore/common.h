@@ -668,6 +668,7 @@ typedef struct QueryParameters {
     const bool eagerExec;   //Perform eager execution on Queries
     const bool eagerPointExec;  //Perform query style eager execution on point queries (instead of using proof)
     const bool eagerPlusSnapshot; //Perform eager exec and snapshot simultaneously
+    const bool simulateFailEagerPlusSnapshot; //Simulate a failure of eager to trigger snapshot path
 
     const bool forceReadFromSnapshot; //Force read to only read versions present in the snapshot (no newer committed)
     
@@ -691,17 +692,21 @@ typedef struct QueryParameters {
     const uint64_t non_monotonicityGrace; //second grace: writes within are not considered monotonic, but still accepted.
 
     QueryParameters(bool sql_mode, uint64_t syncQuorum, uint64_t queryMessages, uint64_t mergeThreshold, uint64_t syncMessages, uint64_t resultQuorum, uint32_t retryLimit, size_t snapshotPrepared_k,
-        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool forceReadFromSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
+        bool eagerExec_, bool eagerPointExec, bool eagerPlusSnapshot_, bool simulateFailEagerPlusSnapshot, bool forceReadFromSnapshot, bool readPrepared, bool cacheReadSet, bool optimisticTxID, 
+        bool compressOptimisticTxIDs, bool mergeActiveAtClient, 
         bool signClientQueries, bool signReplicaToReplicaSync, bool parallel_queries, bool useSemanticCC, bool useActiveReadSet, uint64_t monotonicityGrace, uint64_t non_monotonicityGrace) : 
         sql_mode(sql_mode), syncQuorum(syncQuorum), queryMessages(queryMessages), mergeThreshold(mergeThreshold), syncMessages(syncMessages), resultQuorum(resultQuorum), retryLimit(retryLimit), snapshotPrepared_k(snapshotPrepared_k),
-        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), forceReadFromSnapshot(forceReadFromSnapshot), readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
+        eagerExec(eagerExec_), eagerPointExec(eagerPointExec), eagerPlusSnapshot((eagerExec_ && eagerPlusSnapshot_)), simulateFailEagerPlusSnapshot(simulateFailEagerPlusSnapshot), forceReadFromSnapshot(forceReadFromSnapshot), 
+        readPrepared(readPrepared), cacheReadSet(cacheReadSet), optimisticTxID(optimisticTxID), compressOptimisticTxIDs(compressOptimisticTxIDs), mergeActiveAtClient(mergeActiveAtClient), 
         signClientQueries(signClientQueries), signReplicaToReplicaSync(signReplicaToReplicaSync), parallel_queries(parallel_queries), 
         useSemanticCC((useSemanticCC && sql_mode)), useActiveReadSet(useActiveReadSet), useColVersions(false), monotonicityGrace(monotonicityGrace), non_monotonicityGrace(non_monotonicityGrace) {
             //std::cerr << "eagerPlusSnapshot: " 
+        if(sql_mode){
             if(eagerPlusSnapshot) UW_ASSERT(eagerExec); 
             if(useSemanticCC) UW_ASSERT(sql_mode);
             if(useActiveReadSet) UW_ASSERT(useSemanticCC);
         }
+    }
 
 } QueryParameters;
 

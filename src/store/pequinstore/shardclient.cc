@@ -37,6 +37,8 @@
 
 namespace pequinstore {
 
+static uint64_t p1_timer_start;
+
 ShardClient::ShardClient(transport::Configuration *config, Transport *transport,
     uint64_t client_id, int group, const std::vector<int> &closestReplicas_,
     bool pingReplicas, uint64_t readMessages, uint64_t readQuorumSize,
@@ -202,9 +204,9 @@ void ShardClient::Put(uint64_t id, const std::string &key,
 //       result_callback rcb, result_timeout_callback rtcb, uint32_t timeout, bool retry) {
 // }
 
+static uint64_t commit_start;
 
 //////////// Commit Protocol 
-
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
   phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
   uint64_t reqId = lastReqId++;
@@ -229,6 +231,10 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
       ptcb(REPLY_TIMEOUT);
   });
 
+  //  struct timespec ts_start;
+  //   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //   commit_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   // create prepare request
   phase1.Clear();
   phase1.set_req_id(reqId);
@@ -243,7 +249,6 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   else{
     *phase1.mutable_txn() = transaction;
   }
-
 
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
        phase1.set_crash_failure(true);
@@ -271,6 +276,8 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
     // start_time = (tv.tv_sec*1000000+tv.tv_usec);  //in microseconds
 }
 
+static uint64_t p2_start;
+
 void ShardClient::Phase2(uint64_t id,
     const proto::Transaction &txn, const std::string &txnDigest,
     proto::CommitDecision decision,
@@ -279,6 +286,11 @@ void ShardClient::Phase2(uint64_t id,
   Debug("[group %i] Sending PHASE2 [%lu]", group, id);
   uint64_t reqId = lastReqId++;
   client_seq_num_mapping[id].pendingP2_id = reqId;
+
+    //Notice("Starting P2");
+    //  struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // p2_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // uint64_t special_id = reqId << 8 + client_id;
   // std::cerr << "special ID: " << special_id << std::endl;
@@ -1088,7 +1100,16 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
 void ShardClient::HandlePhase1Reply(proto::Phase1Reply &reply) {
 
+  //  struct timespec ts_start;
+  //   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //   uint64_t p1_reply = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    //Notice(" P1 reply after %d us", p1_reply - commit_start);
+
   ProcessP1R(reply);
+
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t p1_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // Notice("P1 processing took %d us", p1_end - p1_reply);
 }
 
 void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB *pendingFB, const std::string *txnDigest){
@@ -1168,8 +1189,8 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     UW_ASSERT(!pendingPhase1->p1ReplySigs.empty());
   }
 
-  //FIXME: REMOVE TEST
-  if(!hasSigned) UW_ASSERT(cc->ccr() == proto::ConcurrencyControl::ABORT);
+  // //FIXME: REMOVE TEST
+  // if(!hasSigned) UW_ASSERT(cc->ccr() == proto::ConcurrencyControl::ABORT);
 
   //Keep track of conflicts.
   if(reply.has_abstain_conflict()){
@@ -1229,6 +1250,11 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
       }
       else{
         if (!pendingPhase1->decisionTimeoutStarted){
+          Debug(" P1 SLOW COMMIT. Start timer of duration: %d", phase1DecisionTimeout);
+          // struct timespec ts_start;
+          // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+          // p1_timer_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
           if(!FB_path){
             uint64_t reqId = reply.req_id();
             pendingPhase1->decisionTimeout = new Timeout(transport,
@@ -1237,6 +1263,15 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
                   if (itr == pendingPhase1s.end()) {
                     return;
                   }
+
+                //   struct timespec ts_start;
+                //   clock_gettime(CLOCK_MONOTONIC, &ts_start);
+                //   uint64_t p1_timer_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+                //  uint64_t duration = p1_timer_end - p1_timer_start;
+                //     uint64_t duration_ms = duration/1000;
+                //   Notice("Trigger P1 SLOW TIMER. %d us after starting timer. %d", duration, duration_ms);
+                //   stats->Increment("duration_ms_"+std::to_string(duration_ms), 1);
+
                   Debug("P1Validator STATE: SLOW_COMMIT_TENTATIVE - Execute TIMER");
                   itr->second->decision = proto::COMMIT;
                   itr->second->fast = false;
@@ -1459,6 +1494,10 @@ void ShardClient::HandlePhase2Reply(const proto::Phase2Reply &reply) {
 
 void ShardClient::HandlePhase2Reply_MultiView(const proto::Phase2Reply &reply) {
 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t p2_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //Notice("P2 Reply %d us after starting P2", p2_end-p2_start);
   //std::cerr << "Received P2R for Req Id:" << reply.req_id() << " mapping to TxnId["  << test_mapping[reply.req_id()] << "]"<< std::endl;
 
   auto itr = this->pendingPhase2s.find(reply.req_id());

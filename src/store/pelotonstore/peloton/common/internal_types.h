@@ -878,6 +878,7 @@ enum class ResultType {
   UNKNOWN = 5,
   QUEUING = 6,
   TO_ABORT = 7,
+  DUPLICATE = 8
 };
 std::string ResultTypeToString(ResultType type);
 ResultType StringToResultType(const std::string &str);

@@ -94,9 +94,9 @@ void LocalBatchSigner::SignBatch() {
 
   //stats.IncrementList("sig_batch", batchSize);
   //stats.Add("sig_batch_sizes", batchSize);
-  struct timeval curr;
-  gettimeofday(&curr, NULL);
-  uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
+  // struct timeval curr;
+  // gettimeofday(&curr, NULL);
+  // uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
   //stats.Add("sig_batch_sizes_ts",  currMicros);
   SignMessages(pendingBatchMessages, keyManager->GetPrivateKey(id), id,
     pendingBatchSignedMessages, merkleBranchFactor);
@@ -111,8 +111,7 @@ void LocalBatchSigner::SignBatch() {
 void LocalBatchSigner::AdjustBatchSize() {
   batchSize = (0.75 * batchSize) + (0.25 * messagesBatchedInterval);
   messagesBatchedInterval = 0;
-  transport->TimerMicro(batchTimeoutMicro, std::bind(&LocalBatchSigner::AdjustBatchSize,
-        this));
+  transport->TimerMicro(batchTimeoutMicro, std::bind(&LocalBatchSigner::AdjustBatchSize, this));
 }
 
 
@@ -213,6 +212,9 @@ void LocalBatchSigner::AdjustBatchSize() {
 //   }
 // }
 
+static uint64_t periodic = 0;
+static uint64_t batch_start = 0;
+
 void LocalBatchSigner::asyncMessageToSign(::google::protobuf::Message* msg,
     proto::SignedMessage *signedMessage, signedCallback cb, bool finishBatch) {
 
@@ -231,6 +233,13 @@ void LocalBatchSigner::asyncMessageToSign(::google::protobuf::Message* msg,
     transport->DispatchTP_noCB(std::move(f));
 
   } else {
+
+    //  if(periodic % 100 == 0 && batch_start == 0){
+    //     struct timespec ts_start;
+    //     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    //     batch_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    //   }
+
     //std::unique_lock<std::mutex> lock(batchMutex);
     Debug("Adding to Sig batch");
     messagesBatchedInterval++;
@@ -239,10 +248,9 @@ void LocalBatchSigner::asyncMessageToSign(::google::protobuf::Message* msg,
     //Batch.push_back(std::move(triplet));
     Batch.enqueue(triplet);
 
-
     if (finishBatch || Batch.size_approx() >= batchSize) {
       Debug("Batch is full, sending");
-      if (batchTimerRunning && false) {
+      if (batchTimerRunning && false) { //TODO: Re-enable? Currently not cancelling batch timers. If batch timer expires it will simply try to batch whatever is present (maybe nothing)
         transport->CancelTimer(batchTimerId);
         batchTimerRunning = false;
       }
@@ -275,7 +283,7 @@ void LocalBatchSigner::asyncMessageToSign(::google::protobuf::Message* msg,
     }
     else if (!batchTimerRunning) {
           batchTimerRunning = true;
-          Debug("Starting batch timer");
+          Debug("Starting batch timer with timeout: %d", batchTimeoutMicro);
 
           //batchTimerId = transport->TimerMicro(batchTimeoutMicro, [this]() { //XXX: only need ID if we cancel them.
           transport->TimerMicro(batchTimeoutMicro, [this]() {
@@ -313,14 +321,24 @@ void LocalBatchSigner::asyncMessageToSign(::google::protobuf::Message* msg,
 // managecallback takes as arg the callback list runs those callbacks.
 void* LocalBatchSigner::asyncSignBatch2(std::vector<Triplet> _Batch) {
 
+  //Profiling machinery.
+  // if(periodic % 100 == 0){
+  //     struct timespec ts_start;
+  //     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  //     uint64_t batch_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  //     Notice("Batch wait time: %d. Batch size: %d", batch_end - batch_start, _Batch.size());
+  //     batch_start = 0;
+  // }
+  //  periodic++;
+
   uint64_t batchSize = _Batch.size();
   {
   //std::lock_guard<std::mutex> lk(stat_mutex);
     //stats.IncrementList("sig_batch", batchSize);
     //stats.Add("sig_batch_sizes", batchSize);
-    struct timeval curr;
-    gettimeofday(&curr, NULL);
-    uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
+    // struct timeval curr;
+    // gettimeofday(&curr, NULL);
+    // uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
     //stats.Add("sig_batch_sizes_ts",  currMicros);
   }
   Debug("(CPU:%d) Signing batch", sched_getcpu());
@@ -344,9 +362,9 @@ std::vector<signedCallback> _pendingBatchCallbacks) {
   //std::lock_guard<std::mutex> lk(stat_mutex);
     stats.IncrementList("sig_batch", batchSize);
     //stats.Add("sig_batch_sizes", batchSize);
-    struct timeval curr;
-    gettimeofday(&curr, NULL);
-    uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
+    // struct timeval curr;
+    // gettimeofday(&curr, NULL);
+    // uint64_t currMicros = curr.tv_sec * 1000000ULL + curr.tv_usec;
     //stats.Add("sig_batch_sizes_ts",  currMicros);
   }
   Debug("(CPU:%d) Signing batch", sched_getcpu());

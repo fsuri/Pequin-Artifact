@@ -63,7 +63,7 @@ class Server : public App, public ::Server {
 public:
   Server(const transport::Configuration& config, KeyManager *keyManager, std::string &table_registry_path, 
     int groupIdx, int idx, int numShards, int numGroups, bool signMessages, bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp,
-    bool localConfig, TrueTime timeServer = TrueTime(0, 0));
+    bool localConfig, int SMR_mode, TrueTime timeServer = TrueTime(0, 0));
   ~Server();
 
   void RegisterTables(std::string &table_registry);

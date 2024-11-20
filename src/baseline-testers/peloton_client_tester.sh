@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CLIENTS=1
+CLIENTS=5
 F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r4.config"
@@ -11,7 +11,7 @@ ZIPF=0.0
 NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-SMR_MODE=1
+SMR_MODE=0
 
 SQL_BENCH="true"
 
@@ -19,8 +19,8 @@ SQL_BENCH="true"
 #FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 
 
-BENCHMARK="tpcc-sql"
-FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
+#BENCHMARK="tpcc-sql"
+#FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 
 
 # BENCHMARK="tpcc-sql"
@@ -29,8 +29,8 @@ FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 # BENCHMARK="seats-sql"
 # FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 
-#BENCHMARK="auctionmark-sql"
-#FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
+BENCHMARK="auctionmark-sql"
+FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
 
 
 while getopts c:f:g:p:s:d:z:o:k:b: option; do

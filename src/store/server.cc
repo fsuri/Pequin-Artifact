@@ -396,6 +396,9 @@ DEFINE_uint64(pequin_non_monotonicity_grace, 20, "(ms) SECOND graceperiod for wr
 DEFINE_bool(pequin_use_col_versions, false, "use col versions for updates instead of table version"); //TODO: Don't ever use this with SemanticCC, not useful.
 DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 //TODO: Active Snapshot set (optional), false
+DEFINE_bool(pequin_simulate_replica_failure, false, "simulate failure at replica 0");
+DEFINE_bool(pequin_simulate_inconsistency, false, "skip applying writes at 2 out of 6 replicas to create inconsistent state that requires sync.");
+DEFINE_bool(pequin_disable_prepare_visibility, false, "do not make prepared writes visible.");
 
 //Baseline settings
 DEFINE_string(bftsmart_codebase_dir, "", "path to directory containing bftsmart configurations");
@@ -476,9 +479,16 @@ DEFINE_bool(local_config, true, "this flag determines whether to use local or re
 DEFINE_string(keys_path, "", "path to file containing keys in the system");
 DEFINE_uint64(num_keys, 1, "number of keys to generate");
 DEFINE_string(data_file_path, "", "path to file containing key-value pairs to be loaded");
-DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Tabe args");
+DEFINE_bool(sql_bench, false, "Load not just key-value pairs, but also Tables. Input file is JSON Table args");
+
+//For RW-SQL
 DEFINE_uint64(num_tables, 1, "number of tables to generate");
-DEFINE_uint64(num_keys_per_table, 10, "number of keys to generate per table");
+DEFINE_uint64(num_keys_per_table, 1000, "number of keys to generate per table");
+DEFINE_int32(value_size, 10, "-1 = value is int, > 0, value is string => if value is string: size of the value strings"); //Currently not supported. Requires rw-sql input that is value String and not bigint
+DEFINE_int32(value_categories, 50, "number of unique states value can be in; -1 = unlimited");
+DEFINE_bool(rw_simulate_point_kv, false, "whether to simulate point read execution in Pesto by not invoking the Table store, but just storing in the KV store");
+
+
 
 Server *server = nullptr;
 TransportReceiver *replica = nullptr;
@@ -619,7 +629,10 @@ int main(int argc, char **argv) {
       break;
     }
     case RW_SQL:
+    {
       part = new RWSQLPartitioner(FLAGS_num_tables);
+      break;
+    }
     default:
       NOT_REACHABLE();
   }
@@ -683,7 +696,7 @@ int main(int argc, char **argv) {
       TableWriter table_writer(FLAGS_data_file_path, false);
 
       //Set up a bunch of Tables: Num_tables many; with num_items...
-      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", "INT"}};
+      const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", (FLAGS_value_size < 0 ? "INT" : "VARCHAR")}}; //switch value type depending on FLAG
       const std::vector<uint32_t> &primary_key_col_idx = {0};
           //Create Table
           
@@ -811,6 +824,7 @@ int main(int argc, char **argv) {
                                                  FLAGS_pequin_query_eager_exec,
                                                  FLAGS_pequin_query_point_eager_exec,
                                                  FLAGS_pequin_eager_plus_snapshot,
+                                                 false, //simulateFailEagerPlusSnapshot is a client only flag.
                                                  FLAGS_pequin_force_read_from_snapshot,
                                                  FLAGS_pequin_query_read_prepared,
                                                  FLAGS_pequin_query_cache_read_set,
@@ -847,11 +861,15 @@ int main(int argc, char **argv) {
                                       query_params);
 
       Debug("Starting new server object");
-      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());;
+      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());
+      if(FLAGS_pequin_simulate_replica_failure && config.n == 0) Panic("Cannot simulate inconsitency without replication");
+      bool simulate_fault = FLAGS_pequin_simulate_replica_failure && (FLAGS_replica_idx == 0);
+      Notice("Simulating Fault at this Replica? %d", simulate_fault);
       server = new pequinstore::Server(config, FLAGS_group_idx,
                                         FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
                                         &keyManager, params, FLAGS_data_file_path, timeDelta, pequinOCCType, part,
-                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench); //TODO: Move to params.
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, 
+                                        FLAGS_rw_simulate_point_kv, simulate_fault, FLAGS_pequin_simulate_inconsistency, FLAGS_pequin_disable_prepare_visibility); //TODO: Move to params.
       break;
   }
   case PROTO_INDICUS: {
@@ -935,7 +953,7 @@ int main(int argc, char **argv) {
       server = new pg_SMRstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config, FLAGS_pg_SMR_mode, client_total);
 
       replica = new pg_SMRstore::Replica(config, &keyManager,
                                        dynamic_cast<pg_SMRstore::App *>(server),
@@ -955,7 +973,7 @@ int main(int argc, char **argv) {
       server = new pelotonstore::Server(config, &keyManager, FLAGS_data_file_path, 
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
-                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config);
+                                     FLAGS_indicus_watermark_time_delta, part, tport, FLAGS_local_config, FLAGS_pg_SMR_mode);
 
       replica = new pelotonstore::Replica(config, &keyManager,
                                        dynamic_cast<pelotonstore::App *>(server),
@@ -1159,17 +1177,59 @@ int main(int argc, char **argv) {
       //If Table has no pre-generated data: Generate some (This is done for RW-SQL)
       if(!table_args.contains("row_data_path")) { //RW-SQL ==> generate rows 
 
+        const char ALPHA_NUMERIC[] = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        uint64_t alpha_numeric_size = sizeof(ALPHA_NUMERIC) - 1; //Account for \0 terminator
+        uint64_t max_random_size = FLAGS_value_categories < 0? UINT64_MAX : log(FLAGS_value_categories) / log(alpha_numeric_size);
+        // Notice("Number of random chars: %d", max_random_size);
+
         // Skip loading relevant tables for this shard. //TODO: Assert that this is using RWSQLPartitioner
         std::vector<int> dummyTxnGroups;
         if ((*part)(table_name, "", FLAGS_num_shards, FLAGS_group_idx, dummyTxnGroups, false) % FLAGS_num_groups != FLAGS_group_idx) continue;
+
+        bool value_is_string = FLAGS_value_size >= 0;
+
+        static int max_segment_size = 20000; //TODO: Each time we reach max_semgent size, dispatch and create a new segment.
+        //This way we will pipeline the loading process
 
         //std::vector<std::vector<std::string>> values;
         row_segment_t *values = new row_segment_t();
         for(int j=0; j<FLAGS_num_keys_per_table; ++j){
             //values.emplace_back(std::initializer_list<string>{"", ""};)
-            values->push_back({std::to_string(j), std::to_string(j+100)});
+            if(values->size() == max_segment_size){ //If current segment is full => dispach job and create a new segment.
+              server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+              values = new row_segment_t();
+            }
+
+            if(value_is_string){
+              std::string val =""; 
+              //make up to #FLAGS_value_categories many different strings
+
+              //Instead of random alpha numerics: pick category as int, and concat with a string.
+              val = std::string(FLAGS_value_size, '0');
+              uint64_t cat = FLAGS_value_categories > 0 ? j  % FLAGS_value_categories : j ; //if no categories, pick i.
+              val = std::to_string(cat) + val;
+              val.resize(FLAGS_value_size);
+
+              // //make the length = value_size.    Note: max categories = min(#alphanumeric^size, value_categories)
+              // for(int i = 0; i < FLAGS_value_size; ++i){
+              //   if(i > max_random_size){ //if exhausted random categories.
+              //     val += "0";
+              //     continue;
+              //   }
+              //   int idx = std::uniform_int_distribution<size_t>(0, alpha_numeric_size-1)(unused);
+              //   //Notice("Alpha numeric size: %d. Idx: %d", alpha_numeric_size-1, idx);
+              //   //std::cerr << "next char: " << ALPHA_NUMERIC[idx] << std::endl;
+              //   val += ALPHA_NUMERIC[idx];
+              // }
+              //Notice(" val: %s", val.c_str());
+              values->push_back({std::to_string(j), val}); 
+            }
+            else{ //value is int
+              uint64_t val = FLAGS_value_categories > 0 ? j  % FLAGS_value_categories : j ; //if no categories, pick i.
+              values->push_back({std::to_string(j), std::to_string(val)}); 
+            }
         }
-        server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx);
+        server->LoadTableRows(table_name, column_names_and_types, values, primary_key_col_idx); //Load the last segment
 
         continue;
       }

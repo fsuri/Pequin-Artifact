@@ -32,7 +32,7 @@ namespace auctionmark {
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile(profile) {
    
-    std::cerr << std::endl << "GET ITEM" << std::endl;
+    std::cerr << "GET ITEM" << std::endl;
     //std::cerr << "ItemInfo: " << ItemInfo().get_item_id().to_string() << std::endl;
     // auto itemInfo_opt = profile.get_random_available_item();
     // UW_ASSERT(itemInfo_opt.has_value());
@@ -79,7 +79,12 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   } 
 
   ItemRow ir;
+  try{
   deserialize(ir, results[0]);
+  }
+  catch(...){
+    Panic("deserialize ItemRow failed");
+  }
 
   Debug("COMMIT");
   auto tx_result = client.Commit(timeout);

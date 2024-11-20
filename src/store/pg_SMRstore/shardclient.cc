@@ -55,6 +55,7 @@ ShardClient::ShardClient(const transport::Configuration& config, Transport *tran
   }
 
   Notice("SMR_mode: %d", SMR_mode);
+  if(SMR_mode > 0) UW_ASSERT(signMessages); //Must sign messages with SMR mode: Otherwise fakeSMR is bugged in HandleSQL_RPC reply
 
   if(SMR_mode == 2){
     Debug("created bftsmart agent in shard client!");
@@ -175,6 +176,9 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
   // //TEST
   // transport->SendMessageToReplica(this, 0, sql_rpc);
   // return;
+  // //TEST
+  // transport->SendMessageToReplica(this, 0, sql_rpc);
+  // return;
 
   // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -227,6 +231,9 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
       });
   ptc.timeout->Start();
 
+  // // //TEST
+  // transport->SendMessageToReplica(this, 0, try_commit);
+  // return;
   // // //TEST
   // transport->SendMessageToReplica(this, 0, try_commit);
   // return;

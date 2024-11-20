@@ -43,11 +43,24 @@ using namespace std;
 Server::Server(const transport::Configuration& config, KeyManager *keyManager,
   int groupIdx, int idx, int numShards, int numGroups, bool signMessages,
   bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp, bool localConfig,
-  TrueTime timeServer) : config(config), keyManager(keyManager),
+  int SMR_mode, uint64_t num_clients, TrueTime timeServer) : config(config), keyManager(keyManager),
   groupIdx(groupIdx), idx(idx), id(groupIdx * config.n + idx),
   numShards(numShards), numGroups(numGroups), signMessages(signMessages),
   validateProofs(validateProofs),  timeDelta(timeDelta), part(part), tp(tp), localConfig(localConfig), timeServer(timeServer) {
 
+  //tp->AddIndexedThreads(number_of_threads);
+
+      //thread 0 is doing messages
+    //thread 1 is doing parsing.  //TODO: Move these onto same thread
+    //TODO: Configure based off SMR mode
+    //TODO: add offset param  (make offset = num cores - num_threads)
+    //If SMR mode = 0: use 7 threads and offset = 1   => might be better with 6 as well? Maybe just use 6 for even comparison?
+    if(SMR_mode == 0) number_of_threads = 7;
+    if(SMR_mode == 1) number_of_threads = 6;  
+    //If SMR mode = 2 => same I assume. check!
+    if(SMR_mode == 2) number_of_threads = 7;
+
+  number_of_threads = num_clients; //give each client it's own thread. //Note: Relies on the fact that client ids must be between 0 and num_clients-1
   tp->AddIndexedThreads(number_of_threads);
 
   //separate for local configuration we set up different db name for each servers, otherwise they can share the db name
@@ -664,7 +677,10 @@ std::string Server::createResult(const tao::pq::result &sql_res){
     for( const auto& row : sql_res ) {
       RowProto *new_row = res_builder.new_row();
       for( const auto& field : row ) {
-        std::string field_str = field.as<std::string>();
+        std::string field_str; //This is a HACK. If the result is Null, we should propagate the "null-ness" to frontend. It will work fine here because only string values will be null/empty
+        if(!field.is_null()){
+           field_str = field.as<std::string>();
+        }
         res_builder.AddToRow(new_row,field_str);
       }
     }

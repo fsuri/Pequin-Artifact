@@ -512,7 +512,7 @@ std::vector<int> GenerateFlightTable(TableWriter &writer, std::vector<std::vecto
           // https://github.com/cmu-db/benchbase/blob/main/src/main/java/com/oltpbenchmark/benchmarks/seats/procedures/LoadConfig.java#L55
           seats_sql::CachedFlight cf;
           cf.flight_id = f_id; cf.airline_id = f_al_id; cf.depart_ap_id = dep_ap_id; cf.arrive_ap_id = arr_ap_id; cf.depart_time = dep_time;
-          if (cached_flights.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) cached_flights.pop();
+          //if (cached_flights.size() == seats_sql::CACHE_LIMIT_FLIGHT_IDS) cached_flights.pop(); //load only the last 10k flights
           cached_flights.push(cf);
 
           values.push_back(std::to_string(dep_ap_id));

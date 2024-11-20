@@ -55,7 +55,7 @@ class Server : public App, public ::Server {
 public:
   Server(const transport::Configuration& config, KeyManager *keyManager, int groupIdx, int idx, int numShards,
     int numGroups, bool signMessages, bool validateProofs, uint64_t timeDelta, Partitioner *part, Transport* tp,
-    bool localConfig, TrueTime timeServer = TrueTime(0, 0));
+    bool localConfig, int SMR_mode, uint64_t num_clients, TrueTime timeServer = TrueTime(0, 0));
   ~Server();
 
   std::vector<::google::protobuf::Message*> Execute(const std::string& type, const std::string& msg);

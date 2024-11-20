@@ -82,6 +82,7 @@ class Client : public ::Client {
       uint64_t readMessages, uint64_t readQuorumSize,
       Parameters params, std::string &table_registry,
       KeyManager *keyManager, uint64_t phase1DecisionTimeout,
+      uint64_t warmup_secs,
       uint64_t consecutiveMax = 1UL,
       bool sql_bench = false,
       TrueTime timeserver = TrueTime(0,0));
@@ -125,6 +126,8 @@ class Client : public ::Client {
    int fast_path_counter;
    int total_counter;
    std::unordered_set<uint64_t> conflict_ids;
+
+   bool warmup_done = false;
 
   //Query protocol structures and functions
 

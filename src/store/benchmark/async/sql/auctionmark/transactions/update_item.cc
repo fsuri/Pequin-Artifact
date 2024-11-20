@@ -31,7 +31,7 @@ namespace auctionmark {
 
 UpdateItem::UpdateItem(uint32_t timeout,  AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   
-  std::cerr << std::endl << "UPDATE ITEM" << std::endl;
+  std::cerr << "UPDATE ITEM" << std::endl;
   ItemInfo itemInfo = *profile.get_random_available_item();
   UserId sellerId = itemInfo.get_seller_id();
   description = RandomAString(50, 255, gen);

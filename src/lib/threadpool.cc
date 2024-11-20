@@ -119,6 +119,7 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       load_running = true;
     }
 
+
     Notice("Threadpool running with %d main thread, and %d worker threads \n", 1, end-start);
     for (uint32_t i = start - use_load_bonus; i < end; i++) {
       UW_ASSERT(i >= 0);
@@ -146,6 +147,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             std::function<void *()> job;
 
             main_thread_request_list.wait_dequeue(job);
+            //while(!main_thread_request_list.try_dequeue(job)){} //non-blocking spin version.
+
              Debug("Main Thread %d running job on CPU %d", i, sched_getcpu());
             //Notice("Main Thread %d running job on CPU %d", i, sched_getcpu());
 
@@ -178,6 +181,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
             }
 
             std::pair<std::function<void *()>, EventInfo *> job;
+            
+            //while(!worker_thread_request_list.try_dequeue(job)){} //non-blocking spin version
             worker_thread_request_list.wait_dequeue(job);
            // Debug("popped job on CPU %d.", i);
             Debug("Worker Thread %d running job on CPU %d", i, sched_getcpu());
@@ -457,9 +462,11 @@ void ThreadPool::add_n_indexed(int num_threads) {
     Notice("Total Num_cpus on client downregulated to: %d \n", num_cpus);
   }
 
-  uint64_t offset = 1; // skip first core
-  num_threads = num_threads - offset;
- 
+  uint64_t offset = 0;
+  if(num_threads < num_cpus){
+    offset = num_cpus - num_threads; //if we are using less than #num_cpu threads, offset them to account for network/main thread.
+  }
+  
   running = true;
   for (uint32_t i = 0; i < num_threads; i++) { 
     uint64_t worker_id = total_indexed_workers + i;

@@ -78,7 +78,7 @@ class GCManager {
   virtual void RecycleTransaction(
                       concurrency::TransactionContext *txn UNUSED_ATTRIBUTE) {}
 
- protected:
+//  protected:
   void CheckAndReclaimVarlenColumns(storage::TileGroup *tile_group,
                                     oid_t tuple_id);
 

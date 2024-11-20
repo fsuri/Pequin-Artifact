@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   
-  std::cerr << std::endl << "NEW FEEDBACK" << std::endl;
+  std::cerr << "NEW FEEDBACK" << std::endl;
   ItemInfo itemInfo = *profile.get_random_completed_item();
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);

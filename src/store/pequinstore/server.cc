@@ -57,13 +57,15 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
                KeyManager *keyManager, Parameters params,
                std::string &table_registry_path, uint64_t timeDelta,
                OCCType occType, Partitioner *part,
-               unsigned int batchTimeoutMicro, bool sql_bench,
+               unsigned int batchTimeoutMicro, bool sql_bench, 
+               bool simulate_point_kv, bool simulate_replica_failure, bool simulate_inconsistency, bool disable_prepare_visibility,
                TrueTime timeServer)
     : PingServer(transport), config(config), groupIdx(groupIdx), idx(idx),
       numShards(numShards), numGroups(numGroups), id(groupIdx * config.n + idx),
       transport(transport), occType(occType), part(part), params(params),
       keyManager(keyManager), timeDelta(timeDelta), timeServer(timeServer),
-      sql_bench(sql_bench) {
+      sql_bench(sql_bench), 
+      simulate_point_kv(simulate_point_kv), simulate_replica_failure(simulate_replica_failure), simulate_inconsistency(simulate_inconsistency), disable_prepare_visibility(disable_prepare_visibility) {
 
   ongoing = ongoingMap(100000);
   p1MetaData = p1MetaDataMap(100000);
@@ -322,6 +324,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   std::cerr.sync_with_stdio(true);
 }
 
+
 Server::~Server() {
   std::cerr << "KVStore size: " << store.KVStore_size() << std::endl;
   std::cerr << "ReadStore size: " << store.ReadStore_size() << std::endl;
@@ -407,6 +410,9 @@ void ParseProto(::google::protobuf::Message *msg, std::string &data) {
 
 // Upcall from Network layer with new message. Called by TCPReadableCallback(..)
 void Server::ReceiveMessage(const TransportAddress &remote, const std::string &type, const std::string &data, void *meta_data) {
+
+  //Simulate Failure: Just ignore all messages.  -- Don't crash or else TCP will drop causing panic at client?
+  if(simulate_replica_failure) return; //Ignore all messages
 
   if (params.dispatchMessageReceive) {
     Debug("Dispatching message handling to Support Main Thread");
@@ -823,12 +829,38 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
     std::string genesis_txn_dig = TransactionDigest(genesis_proof->txn(), params.hashDigest); //("");
     //std::string genesis_tx_dig("");
 
-    
     Debug("Dispatch Table Loading for table: %s. Segment [%d] with %d rows", table_name.c_str(), segment_no, row_segment->size());
+
+    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment, load_cc, primary_key_col_idx](){
+      //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
+                  //Note: Partitioning has already been checked: For RW-SQL it happens at server.cc level. For all others it happens in ParseFromCSV.
+      if(load_cc){
+        Debug("Load segment %d of table %s", segment_no, table_name.c_str());
+        for(auto &row: *row_segment){
+      
+          //Load it into CC-store
+          std::vector<const std::string*> primary_cols;
+          for(auto i: primary_key_col_idx){
+            primary_cols.push_back(&(row[i]));
+          }
+          std::string enc_key = EncodeTableRow(table_name, primary_cols);
+        
+          if(simulate_point_kv){
+            //Debug("Loading key: %s. With value: %s", enc_key.c_str(), row[1].c_str());
+            Load(enc_key, row[1], Timestamp());
+            continue;
+          }
+          Load(enc_key, "", Timestamp());
+        }
+      }
+
+      if(simulate_point_kv) return (void*) true; //Don't need to load into peloton
+      
+    
     //Put this into dispatch: (pass gensiss proof)
 
     //TODO: Pass a pointer to row segment instead of it... (TODO: Allocate row segment and then delete)
-    auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
+    // auto f = [this, genesis_proof, genesis_ts, genesis_txn_dig, table_name, segment_no, row_segment](){
       Debug("Loading Table: %s [Segment: %d]. On core %d", table_name.c_str(), segment_no, sched_getcpu());
 
       table_store->LoadTable(table_store->sql_interpreter.GenerateLoadStatement(table_name, *row_segment, segment_no), genesis_txn_dig, genesis_ts, genesis_proof);
@@ -845,22 +877,6 @@ void Server::LoadTableRows(const std::string &table_name, const std::vector<std:
       f();
     }
    
-    //Load it into CC-Store (Note: Only if we haven't already done it while reading from CSV)
-                //Note: Partitioning has already been checked: For RW-SQL it happens at server.cc level. For all others it happens in ParseFromCSV.
-    if(load_cc){
-      Debug("Load segment %d of table %s", segment_no, table_name.c_str());
-      for(auto &row: *row_segment){
-    
-        //Load it into CC-store
-        std::vector<const std::string*> primary_cols;
-        for(auto i: primary_key_col_idx){
-          primary_cols.push_back(&(row[i]));
-        }
-        std::string enc_key = EncodeTableRow(table_name, primary_cols);
-        Load(enc_key, "", Timestamp());
-      }
-    }
-
   return;
 }
 
@@ -1935,6 +1951,11 @@ void Server::HandleWriteback(const TransportAddress &remote,
             " txn_digest previously.", BytesToHex(msg.txn_digest(), 16).c_str());
         Warning("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
 
+        if(simulate_inconsistency){
+          Panic("Cannot process Writeback because ongoing does not contain tx for this request. Should not happen with TCP.... CPU %d", sched_getcpu());
+          return; // this mode not supported with inconsistency simulation because we pass dummy remote.
+        }
+
          ooMap::accessor oo;
         ooMessages.insert(oo, msg.txn_digest());
         auto &ooMsg = oo->second;
@@ -1983,8 +2004,56 @@ void Server::HandleWriteback(const TransportAddress &remote,
     }
   }
 
-  Debug("WRITEBACK[%s] with decision %d. Begin Validation",
-      BytesToHex(*txnDigest, 16).c_str(), msg.decision());
+  if(simulate_inconsistency){
+    //Occasionally drop some of the prepare/commit and rely on sync.. 
+    uint64_t target_replica = txn->client_id() % config.n; //find "lead replica"
+    bool drop_at_this_replica = false;
+    for(int i = 0; i < 2; ++i){ //Drop at 2 replicas.
+       if((target_replica + i) % config.n == idx) drop_at_this_replica = true;
+    }
+    // drop_at_this_replica &= msg.decision() == proto::COMMIT;
+    // Notice("Target replica: %d. Drop on this replica[%d]? %d.", target_replica, idx, drop_at_this_replica);
+    if(drop_at_this_replica){ //only drop commit.
+
+      // auto [itr, first] = dropped_c.insert(*txnDigest); 
+      // if(first){ //only drop initial. Allow via sync or fallback
+      //   Debug("Dropping Commit of Txn[%s]. From client: %d", BytesToHex(*txnDigest, 16).c_str(), txn->client_id());
+      //   stats.Increment("dropped_c_" + std::to_string(idx));
+      //   return;
+      // }
+
+      //Note: Rather than "dropping" commit, we will delay it until sync has happened
+      droppedMap::accessor d;
+      bool first = dropped_c.insert(d, *txnDigest);
+      if(first){
+       
+        bool already_simul_sync = supplied_sync.find(*txnDigest) != supplied_sync.end(); //if simul already happened. Then just apply.
+
+        if(!already_simul_sync && msg.decision() == proto::COMMIT){
+
+         proto::Writeback *wb_copy;
+          if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive)){
+            wb_copy = &msg; //already allocated
+          }
+          else{
+            wb_copy = new proto::Writeback(msg);
+          }
+          d->second = wb_copy;
+          Debug("Dropping Commit of Txn[%s]. From client: %d", BytesToHex(*txnDigest, 16).c_str(), txn->client_id());
+          stats.Increment("dropped_c_" + std::to_string(idx));
+          return;
+        }
+        else{ //otherwise, mark Tx as dropped, but continue anyways.
+          d->second = nullptr;
+           //continue applying.
+           d.release();
+        }
+      }
+    }
+  }
+
+
+  Debug("WRITEBACK[%s] with decision %d. Begin Validation", BytesToHex(*txnDigest, 16).c_str(), msg.decision());
 
   //Verify Writeback Proofs + Call WritebackCallback
   ManageWritebackValidation(msg, txnDigest, txn);
@@ -2151,6 +2220,27 @@ void Server::HandleAbort(const TransportAddress &remote,
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet) {
+
+  // return; //Test perf if we don't simulate but we don't prepare.
+  if(simulate_inconsistency){
+    //Occasionally drop some of the prepare/commit and rely on sync.. Drop at 2 replicas.
+    uint64_t target_replica = txn.client_id() % config.n; //find "lead replica"
+    bool drop_at_this_replica = false;
+    for(int i = 0; i < 2; ++i){ //Drop at 2 replicas.
+       if((target_replica + i) % config.n == idx) drop_at_this_replica = true;
+    }
+    // Notice("Target replica: %d. Drop on this replica[%d]? %d", target_replica, idx, drop_at_this_replica);
+    if(drop_at_this_replica){
+      auto [_, first] = dropped_p.insert(txnDigest);
+      if(first){ //only drop initial. Allow via sync or fallback
+        Debug("Dropping Prepare of Txn[%s]", BytesToHex(txnDigest, 16).c_str());
+        stats.Increment("dropped_p_" + std::to_string(idx));
+        return;
+      }
+    }
+  }
+
+
   Debug("PREPARE[%s] agreed to commit with ts %lu.%lu.",BytesToHex(txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id());
   
   Timestamp ts = Timestamp(txn.timestamp());
@@ -2173,6 +2263,7 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   preparedMap::accessor a;
   bool first_prepare = prepared.insert(a, std::make_pair(txnDigest, std::make_pair(ts, ongoingTxn)));
+
   if(!first_prepare) return; //Already inserted all Read/Write Sets.
 
   // Debug("PREPARE: TESTING MERGED READ");
@@ -2287,6 +2378,8 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 
   Debug("Prepare Txn[%s][%lu:%lu]", BytesToHex(txnDigest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
+  if(disable_prepare_visibility) return; //Don't apply Writes.
+
   if(ASYNC_WRITES){
     auto f = [this, ongoingTxn, ts, txnDigest, pWrite](){   //not very safe: Need to rely on fact that ongoingTxn won't be deleted => maybe make a copy?
       UW_ASSERT(ongoingTxn);
@@ -2336,6 +2429,10 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
 void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
       proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view) {
 
+      //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
   
   proto::CommittedProof *proof = nullptr;
   if (params.validateProofs) {
@@ -2364,9 +2461,11 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   Value val;
   val.proof = proof;
 
-  auto [committedItr, first] = committed.insert(std::make_pair(txnDigest, proof));
+  auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof));
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
   //auto committedItr =committed.emplace(txnDigest, proof);
+  
+  if(!first_commit) return;// already was inserted
 
   proto::Transaction* txn_ref = params.validateProofs? proof->mutable_txn() : txn;
 
@@ -2380,6 +2479,9 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   CleanQueries(txn_ref);
   //CheckWaitingQueries(txnDigest, txn->timestamp().timestamp(), txn->timestamp().id()); //Now waking after applyTablewrite
 
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t microseconds_end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  // if(ts.getID() % 5) Notice("[CPU: %d. Commit time: %d us", sched_getcpu(), microseconds_end - microseconds_start);
 }
 
 //Note: This might be called on a different thread than mainthread. Thus insertion into committed + Clean are concurrent. Safe because proof comes with its own owned tx, which is not used by any other thread.
@@ -2393,8 +2495,11 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     Value val;
     val.proof = proof;
 
-    committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+    // committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
+    auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
     Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
+    if(!first_commit) return;// already was inserted
+
 
     CommitToStore(proof, txn, txnDigest, ts, val);
 
