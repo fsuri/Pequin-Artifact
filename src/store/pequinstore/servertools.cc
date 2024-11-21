@@ -211,11 +211,6 @@ void Server::ManageDispatchAbort(const TransportAddress &remote, const std::stri
       transport->DispatchTP_main(std::move(f));
     }
   }
-
-
-
- 
-
 }
 
 void Server::ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data){

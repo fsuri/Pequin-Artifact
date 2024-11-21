@@ -253,10 +253,11 @@ void Server::ReceiveMessageInternal(const TransportAddress &remote,
     ManageDispatchWriteback(remote, data);
 
   } else if (type == abort.GetTypeName()) {
-    abort.ParseFromString(data);
-    HandleAbort(remote, abort);
-
-  } else if (type == ping.GetTypeName()) {
+    // abort.ParseFromString(data);
+    // HandleAbort(remote, abort);
+    ManageDispatchAbort(remote, data);
+  }
+  else if (type == ping.GetTypeName()) {
     ping.ParseFromString(data);
     Debug("Ping is called");
     HandlePingMessage(this, remote, ping);
@@ -1354,6 +1355,9 @@ void Server::HandleAbort(const TransportAddress &remote,
   else{
     //No RTS
   }
+
+
+  if(params.multiThreading || (params.mainThreadDispatching && !params.dispatchMessageReceive))  FreeAbortMessage(&msg);
 }
 
 

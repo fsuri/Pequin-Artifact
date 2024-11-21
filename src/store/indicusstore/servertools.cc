@@ -186,6 +186,28 @@ void Server::ManageDispatchWriteback(const TransportAddress &remote, const std::
       }
 }
 
+void Server::ManageDispatchAbort(const TransportAddress &remote, const std::string &data){
+
+  if(!params.multiThreading && (!params.mainThreadDispatching || params.dispatchMessageReceive)){
+    abort.ParseFromString(data);
+    HandleAbort(remote, abort);
+  }
+  else{
+    proto::Abort *ab = GetUnusedAbortMessage();
+    ab->ParseFromString(data);
+    if(!params.mainThreadDispatching || params.dispatchMessageReceive){
+      HandleAbort(remote, *ab);
+    }
+    else{ //mainthreadDispatching = true && dispatchMsgReceive= false.
+      auto f = [this, &remote, ab](){
+        this->HandleAbort(remote, *ab);
+        return (void*) true;
+      };
+      transport->DispatchTP_main(std::move(f));
+    }
+  }
+}
+
 void Server::ManageDispatchPhase1FB(const TransportAddress &remote, const std::string &data){
     if(!params.mainThreadDispatching || (params.dispatchMessageReceive && !params.parallel_CCC) && (!params.multiThreading || !params.signClientProposals)){
       phase1FB.ParseFromString(data);
@@ -1198,6 +1220,10 @@ proto::Writeback *Server::GetUnusedWBmessage() {
   // return msg;
 }
 
+proto::Abort *Server::GetUnusedAbortMessage(){
+  return new proto::Abort();
+}
+
 void Server::FreeReadReply(proto::ReadReply *reply) {
   delete reply;
   // std::unique_lock<std::mutex> lock(readReplyProtoMutex);
@@ -1248,6 +1274,10 @@ void Server::FreeWBmessage(proto::Writeback *msg) {
   // std::unique_lock<std::mutex> lock(WBProtoMutex);
   // //Latency_End(&waitOnProtoLock);
   // WBmessages.push_back(msg);
+}
+
+void Server::FreeAbortMessage(const proto::Abort *msg) {
+  delete msg;
 }
 
 
