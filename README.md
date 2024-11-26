@@ -1,10 +1,10 @@
 # BFT Query Processing -- Pequin Artifact 
 This is the repository for the code artifact of "Pequin: Spicing up BFT with Query Processing".
 
-For all questions about the artifact please e-mail (or message over google hangouts) Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about 1) building the codebase or 2) running TxBFTSmart, additionally please
-CC Zheng Wang <zw494@cornell.edu>. For questions about 3) running TxHotstuff,
-please CC Yunhao Zhang <yz2327@cornell.edu>, and 4) for questions about the
-experiment scripts or Cloudlab, please  CC Matthew Burke <matthelb@cs.cornell.edu>.
+For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
+1) Peloton: <giridhn@berkeley.edu>
+2) CockroachDB: <liam0215@gmail.com>
+
 
 
 # Table of Contents
@@ -19,14 +19,15 @@ experiment scripts or Cloudlab, please  CC Matthew Burke <matthelb@cs.cornell.ed
 
 ### General
 
-This artifact contains, and allows to reproduce, experiments for all figures included in the paper "Basil: Breaking up BFT with ACID transactions". 
+This artifact contains, and allows to reproduce, experiments for all figures included in the paper "Pesto: Cooking up high performance BFT Queries". 
 
-It contains a prototype implemententation of Basil, a replicated Byzantine Fault Tolerant key-value store offering interactive transactions and sharding. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Basil prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Basil prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defences against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony.
+It contains a prototype implemententation of Pesto, a replicated Byzantine Fault Tolerant Database offering a interactive transaction using a SQL interface. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Pesto prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Basil prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defences against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony.
 
-# Prototypes: Basil, TAPIR, TxHotstuff and TxBFTSmart
+# Prototypes: Pesto, Peloton, Peloton-HS and Peloton-Smart
 
 This repository includes the prototype code used for "Basil: Breaking up BFT with ACID (transactions)" as well as "TAPIR -- the Transaction Application Protocol for Inconsistent Replication." 
 
+The codebase builds on Basil and TAPIR. 
 TAPIR is a protocol for linearizable distributed transactions built using replication with no consistency guarantees. By enforcing consistency only at the transaction layer, TAPIR eliminates coordination at the replication layer, enabling TAPIR to provide the same transaction model and consistency guarantees as existing systems, like Spanner, with better latency and throughput.
 More information on TAPIR can be found here: https://github.com/UWSysLab/tapir.
 
@@ -41,15 +42,23 @@ Basils current codebase (Indicus) was modified beyond some of the results report
 
 In addition to Basil, this artifact contains prototype implementations for three baselines: 1) An extension of the original codebase for Tapir, a Crash Failure replicated and sharded key-value store, as well as 2) TxHotstuff and 3) TxBFTSmart, two Byzantine Fault Tolerant replicated and sharded key-value stores built atop 3rd party implementations of consensus modules. 
 
+## Benchmarks:
+
+TPCC
+
+Auction
+
+Seats
+
+YCSB-Tables
+
 ### Concrete claims in the paper
 
-- **Main claim 1**: Basil's throughput is within a small factor (within 4x on TPCC, 3x on Smallbank, and 2x on Retwis)  of that of Tapir, a state of the art Crash Fault Tolerant database. 
+- **Main claim 1**: Pesto's throughput is within a small factor (within TODOx on TPCC, TODOx on Auctionmark, and TODOx on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine.
 
-- **Main claim 2**: Basil achieves higher throughput and lower latency than both BFT baselines (>5x over TxHotstuff on TPCC, 4x on Smallbank, and close to 5x on Retwis; close to 4x over TxBFTSmart on TPCC, 3x on Smallbank, and 4x on Retwis).
+- **Main claim 2**: Pesto achieves higher throughput and lower latency than both BFT baselines (>5x over TxHotstuff on TPCC, 4x on Smallbank, and close to 5x on Retwis; close to 4x over TxBFTSmart on TPCC, 3x on Smallbank, and 4x on Retwis).
 
    All comparisons for claims 1 and 2 are made in the absence of failures.
-
-- **Main claim 3**: The throughput of correct clients in Basil is robust to simulated attack by Byzantine Clients. With 30% Byzantine clients, throughput experienced by correct clients drops by less than 25% in the worst-case.
 
 - **Supplementary**: All other microbenchmarks reported realistically represent Basil.
 
@@ -57,8 +66,8 @@ In addition to Basil, this artifact contains prototype implementations for three
 ## Artifact Organization <a name="artifact"></a>
 
 The core prototype logic of each system is located in the following folders: 
-1. `src/store/indicusstore`: Contains the source code implementing the Basil protype logic (Indicus).
-2. `src/store/tapirstore`: Contains the source code implementing the Tapir protype logic. Tapir makes use of the Inconsistent Replication module located under `/src/replication/ir`
+1. `src/store/pequinstore`: Contains the source code implementing the Pesto protype logic (Pequin).
+2. `src/store/pelotonstore`: Contains the source code implementing the Tapir protype logic. Tapir makes use of the Inconsistent Replication module located under `/src/replication/ir`
 3. `src/store/hotstuffstore`: Contains the source code implementing the TxHotstuff protype. Includes `/libhotstuff`, which contains the Hotstuff SMR module.
 4. `src/store/bftsmartstore`: Contains the source code implementing the TxBFTSmart protype. Includes `/library`, which contains the BFTSmart SMR module.
 
@@ -71,7 +80,7 @@ The ReadMe is organized into the following high level sections:
 
 1. *Installing pre-requisites and building binaries*
 
-   To build Basil and baseline source code several dependencies must be installed. Refer to section "Installing Dependencies" for detailed instructions on how to install dependencies and compile the code. You may skip this step if you choose to use a dedicated Cloudlab "control" machine using *our* supplied fully configured disk images. Note that, if you choose to use a control machine but not use our images, you will have to follow the Installation guide too, and additionally create your own disk images. More on disk images can be found in section "Setting up Cloudlab".
+   To build Pesto and baseline source code several dependencies must be installed. Refer to section "Installing Dependencies" for detailed instructions on how to install dependencies and compile the code. You may skip this step if you choose to use a dedicated Cloudlab "control" machine using *our* supplied fully configured disk images. Note that, if you choose to use a control machine but not use our images, you will have to follow the Installation guide too, and additionally create your own disk images. More on disk images can be found in section "Setting up Cloudlab".
   
 
 2. *Setting up experiments on Cloudlab* 
@@ -83,6 +92,8 @@ The ReadMe is organized into the following high level sections:
 
      To reproduce our results you will need to build the code, and run the supplied experiment scripts using the supplied experiment configurations. Section "Running Experiments" includes instructions for using the experiment scripts, modifying the configurations, and parsing the output. TxHotstuff and TxBFTSmart require additional configuration steps, also detailed in section "Running Experiments".
      
+
+TODO: END HERE. Refer to the different sub files.
 
 ## Installing Dependencies (Skip if using Cloudlab control machine using supplied images) <a name="installing"></a>
 

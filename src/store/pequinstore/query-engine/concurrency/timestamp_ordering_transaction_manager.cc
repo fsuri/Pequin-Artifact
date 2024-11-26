@@ -561,7 +561,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
       new_tile_group_header->SetPrevItemPointer(new_location.offset, curr_pointer);
       curr_tile_group_header->SetNextItemPointer(curr_pointer.offset, new_location);
     }
-    else if(new_ts > curr_ts || (new_ts == curr_ts && current_txn->GetCommitOrPrepare())){ // Add us to left
+    else if(new_ts > curr_ts || (new_ts == curr_ts && current_txn->GetCommitOrPrepare())){ // Add us to left //TODO: If is duplicate commit (i.e. not upgrade) can ignore
         //Notice("Setting next ptr from new to curr");
         new_tile_group_header->SetNextItemPointer(new_location.offset, curr_pointer);
 
