@@ -324,7 +324,7 @@ First, download the installation script:
  Alternatively, you may download the latest Intel BaseKit version from https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html?operatingsystem=linux&distributions=online (Note that you need to ensure the version is compatible with our code). 
  
  Next, execute the installation script
-2. `sudo bash l_BaseKit_p_2021.3.0.3219.sh`
+2. `sudo bash l_BaseKit_p_2024.2.1.100.sh`
 (To run the installation script you may have to manually install `apt -y install ncurses-term` if you do not have it already).
 
 Follow the installation instructions: 
@@ -439,16 +439,9 @@ Run server:
 
 `./server-tester.sh`
 
-Alternatively run manually:
-   
-`DEBUG=store/indicusstore/* store/server --config_path shard-r0.config --group_idx 0 --num_groups 1 --num_shards 1 --replica_idx 0 --protocol indicus --num_keys 1 --debug_stats --indicus_key_path keys &> server.out`
-
-Run client:
+Then run client:
 
 `./client-tester.sh`
-   
-Alternatively run manually:
-`store/benchmark/async/benchmark --config_path shard-r0.config --num_groups 1 --num_shards 1 --protocol_mode indicus --num_keys 1 --benchmark rw --num_ops_txn 2 --exp_duration 10 --client_id 0 --warmup_secs 0 --cooldown_secs 0 --key_selector zipf --zipf_coefficient 0.0 --stats_file "stats-0.json" --indicus_key_path keys &> client-0.out`
 
-The client should finish within 10 seconds and the output file `client-0.out` should include summary of the transactions committed at the end. If running manually, cancel the server afterwards using `ctrl C`. 
+The client should finish within 10 seconds and the output file `client-0.out` should include summary of the transactions committed at the end.
 

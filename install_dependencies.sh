@@ -216,8 +216,10 @@ read -p "Press enter to continue -- Manual interaction required for the next ste
 echo "Installing Intel TBB"
 echo ""
 apt -y install ncurses-term
-wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
-sudo bash l_BaseKit_p_2021.3.0.3219.sh
+wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e6ff8e9c-ee28-47fb-abd7-5c524c983e1c/l_BaseKit_p_2024.2.1.100.sh --no-check-certificate
+sudo bash l_BaseKit_p_2024.2.1.100.sh
+#wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
+#sudo bash l_BaseKit_p_2021.3.0.3219.sh
 cd ~
 source /opt/intel/oneapi/setvars.sh
 echo source /opt/intel/oneapi/setvars.sh --force >>~/.bashrc
