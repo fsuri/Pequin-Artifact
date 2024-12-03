@@ -240,6 +240,15 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       return;
     }
 
+    //Wrap all inserts in ON CONFLICT DO NOTHING. //Assumption: Doesn't end with semicolon. If it does, TODO: remove it.
+    if(write_statement.find("INSERT INTO") != std::string::npos){
+      if (write_statement.back() == ';') {
+        write_statement.pop_back();
+      }
+      write_statement += " ON CONFLICT DO NOTHING;";
+    }
+
+    Debug("Processing Write Statement: %s", write_statement.c_str());
     tao::pq::result result = tr->execute(write_statement);
     stats.Increment("writes_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =

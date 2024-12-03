@@ -165,6 +165,10 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     std::string enable_merge_queue = "SET CLUSTER SETTING kv.range_merge.queue_enabled = true;";
     Notice("Issuing SQL command %s", enable_merge_queue.c_str());
     exec_sql(enable_merge_queue);
+    // Experimental: reduce Raft batch size
+    // std::string set_batch = "SET CLUSTER SETTING kv.transaction.write_pipelining.max_batch_size = 1;";
+    // Notice("Issuing SQL command %s", set_batch.c_str());
+    // exec_sql(set_batch);
   }
   if (idx == config.n - 1) {
     // If node is the last one in the group, serve as load balancer

@@ -204,6 +204,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                 if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                         print("Disabling HT and Turbo; sourcing TBB")
                         cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                        #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
                         #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                         run_remote_command_async(cmd1, config['emulab_user'], client_host)
                         cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'

@@ -164,13 +164,12 @@ const std::string protocol_args[] = {
   "indicus",
   "pbft",
   "hotstuff",
-  "hotstuffpg",
   "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
   "augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
   "pg-smr",
-  "peloton-smr"
+  "peloton-smr",
   "crdb"
 };
 const protocol_t protos[] {
