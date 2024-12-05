@@ -35,12 +35,9 @@
 
 namespace postgresstore {
 
-static bool TEST_PG_REPLICATED = true;
-// static bool TEST_PG_REPLICATED = false;
-
 class Client : public ::Client {
  public:
-  Client(std::string connection_str, std::string experiment_name, std::uint64_t id);
+  Client(std::string connection_str, std::string experiment_name, bool pg_replicated, std::uint64_t id);
   virtual ~Client();
 
 // Begin a transaction.

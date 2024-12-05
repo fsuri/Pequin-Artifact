@@ -32,6 +32,9 @@ setting_system() {
     echo "Try setting system configs"
     
     echo "CREATE USER pequin_user WITH PASSWORD '123'" | psql postgres -h localhost -p 5433 
+    echo "ALTER SYSTEM SET log_statement TO 'none'" | psql postgres -h localhost -p 5433 
+    echo "ALTER SYSTEM SET log_min_error_statement = panic" | psql postgres -h localhost -p 5433 
+    
     echo "ALTER SYSTEM SET max_connections = 250" | psql postgres -h localhost -p 5433 
     echo "ALTER SYSTEM SET work_mem = '4GB'" | psql postgres -h localhost -p 5433 
     echo "ALTER SYSTEM SET shared_buffers='30GB'" | psql postgres -h localhost -p 5433 
@@ -45,8 +48,6 @@ setting_system() {
 
 }
 
-
-# SELECT CREATE DATABASE tmp WHERE NOT EXISTS 
 
 setting_db() {
     local dbname="$1"
@@ -62,7 +63,7 @@ setting_db() {
     echo "ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE" | psql postgres -h localhost -p 5433 
     echo "ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE" | psql postgres -h localhost -p 5433 
     echo "ALTER DATABASE $dbname SET ENABLE_NESTLOOP TO TRUE" | psql postgres -h localhost -p 5433 
-    echo "ALTER DATABASE $dbname SET lock_timeout = 100 " | psql postgres -h localhost -p 5433 
+    # echo "ALTER DATABASE $dbname SET lock_timeout = 100 " | psql postgres -h localhost -p 5433 
 
 
     # su - $USER -c "echo \"GRANT pg_read_server_files TO pequin_user;\" | psql -d $dbname"
@@ -72,9 +73,6 @@ setting_db() {
 
 
 display_banner "Initializing Postgres Primary Server - Part II" 
-
-# /usr/lib/postgresql/12/bin/pg_ctl -D $DATA/db stop
-# /usr/lib/postgresql/12/bin/pg_ctl -D $DATA/db start
 
 
 # psql postgres -h localhost -p 5433 
@@ -118,5 +116,5 @@ sudo sed -i "${m_line}s/#/""/" $CONF
 cat $CONF| grep -n  "synchronous_standby_names"
 
 
-/usr/lib/postgresql/12/bin/pg_ctl -D $DATA/db restart
+/usr/lib/postgresql/12/bin/pg_ctl -D $DATA/db restart >/dev/null
 

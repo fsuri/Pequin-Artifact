@@ -39,7 +39,7 @@ namespace postgresstore {
 
 using namespace std;
 
-Server::Server(Transport* tp): tp(tp) {
+Server::Server(Transport* tp, bool pg_replicated): tp(tp) {
 
   Notice("Starting PG-store");
  
@@ -54,7 +54,7 @@ Server::Server(Transport* tp): tp(tp) {
 
 
   std::string port="5432";
-  if (TEST_PG_REPLICATED){
+  if (pg_replicated){
     port="5433";
   }
   // std::string connection_str = "host=localhost dbname=postgres port="+port;

@@ -36,7 +36,7 @@
 namespace pg_SMRstore {
 
 static bool TEST_DUMMY_RESULT = false;
-const uint64_t number_of_threads = 16;
+static uint64_t number_of_threads = 16;
 
 using namespace std;
 

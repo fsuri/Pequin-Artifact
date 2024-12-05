@@ -192,6 +192,8 @@ DEFINE_bool(ping_replicas, false, "determine latency to replicas via pings");
 
 DEFINE_string(experiment_name, "pequin", "Cloudlab experiment name");
 
+DEFINE_bool(pg_replicated, true, "postgres operates in replication mode");
+
 DEFINE_bool(tapir_sync_commit, true, "wait until commit phase completes before"
     " sending additional transactions (for TAPIR)");
 
@@ -1742,7 +1744,7 @@ int main(int argc, char **argv) {
     }
 
     case PROTO_POSTGRES: {
-      client = new postgresstore::Client(FLAGS_connection_str, FLAGS_experiment_name, clientId);
+      client = new postgresstore::Client(FLAGS_connection_str, FLAGS_experiment_name, FLAGS_pg_replicated, clientId);
       break;
     }
 

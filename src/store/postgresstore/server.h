@@ -46,15 +46,13 @@
 #include "tbb/concurrent_hash_map.h"
 
 namespace postgresstore {
-// static bool TEST_PG_REPLICATED = false;
-static bool TEST_PG_REPLICATED = true;
 
 typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_callback;
 // typedef std::function<void()> execute_timeout_callback;
 
 class Server : public ::Server {
 public:
-  Server(Transport* tp);
+  Server(Transport* tp, bool pg_replicated);
   ~Server();
 
   void Load(const std::string &key, const std::string &value,

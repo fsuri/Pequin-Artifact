@@ -14,33 +14,19 @@
   "num_groups": [1],
   
   "pg_replicated": false,
-  
+
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "tpcc-sql",
-  "benchmark_schema_file_path": "/users/shir/benchmark_data/sql-tpcc-tables-schema.json",
+  "benchmark_name": "auctionmark-sql",
+  "benchmark_schema_file_path": "/users/shir/benchmark_data/sql-auctionmark-tables-schema.json",
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "server_load_time": 60,
   
- 
-  "_TPCC_SQL_ARGS_" :0,
-  	  "_note: parititoner is unused currently": 0,
-	  "partitioner": "warehouse",
-	  "tpcc_num_warehouses": 20,
-	  "tpcc_num_warehouses": 20,
-	  
-	  "tpcc_stock_level_ratio": 4,
-	  "tpcc_delivery_ratio": 4,
-	  "tpcc_order_status_ratio": 4,
-	  "tpcc_payment_ratio": 44,
-	  "tpcc_new_order_ratio": 44,
-	  
-	  "tpcc_c_c_id": 0,
-  	  "tpcc_c_c_last": 0,
+   "_AUCTIONMARK_SQL_ARGS_" :0,
+  	  "scale_factor": 1,
 
-
- 
+  
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
@@ -69,10 +55,10 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [2]
+    [1]
   ],
   "client_processes_per_client_node": [
-    [2]
+    [1]
   ],
   "client_threads_per_process": [
     [1]

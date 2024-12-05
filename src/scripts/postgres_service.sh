@@ -86,7 +86,7 @@ setting_db() {
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d $dbname"
-    su - $USER -c "echo \"ALTER DATABASE $dbname SET lock_timeout = 100 ;\" | psql -d $dbname"
+    # su - $USER -c "echo \"ALTER DATABASE $dbname SET lock_timeout = 100 ;\" | psql -d $dbname"
 }
 
 unistall_flag=false

@@ -33,11 +33,11 @@
 
 namespace postgresstore {
 
-Client::Client(std::string connection_str, std::string experiment_name, std::uint64_t id) : client_id(id), txn_id(0UL) {
+Client::Client(std::string connection_str, std::string experiment_name, bool pg_replicated, std::uint64_t id) : client_id(id), txn_id(0UL) {
   Notice("Initializing PostgreSQL client with id [%lu]", client_id);
 
   std::string port="5432";
-  if (TEST_PG_REPLICATED){
+  if (pg_replicated){
     port="5433";
   }
   // worked from terminal (for replication); 
@@ -158,8 +158,10 @@ void printResult(const tao::pq::result sql_res){
 
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
 
-  if (statement.find("INSERT") == 0 && statement.back() == ';'){
-    statement.pop_back(); // Remove the last character
+  if (statement.find("INSERT") == 0){
+    if(statement.back() == ';'){
+      statement.pop_back(); // Remove the last character
+    }
     statement= statement +" ON CONFLICT DO NOTHING;";
   }
 
@@ -187,6 +189,10 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
     scb(REPLY_FAIL, nullptr);
   } catch (const tao::pq::in_failed_sql_transaction &e) {
     Notice("In failed sql transaction: %s", e.what());
+    transaction = nullptr;
+    scb(REPLY_FAIL, nullptr);
+  } catch (const tao::pq::lock_not_available &e) {
+    Notice("In lock timeout: %s", e.what());
     transaction = nullptr;
     scb(REPLY_FAIL, nullptr);
   } catch (const std::exception &e) {
