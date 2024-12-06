@@ -62,21 +62,21 @@
       
     }
   ],
-  "experiment_name": "pequin",
+  "experiment_name": "pg-smr",
   "codebase_name": "indicus",
 
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
-  
+ 
   "client_total": [
-    [8, 8, 40]
+    [8, 7, 8, 7]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8]
+    [8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [3, 4, 5]
+    [3, 4, 4, 5]
   ],
    
   "_client_total": [

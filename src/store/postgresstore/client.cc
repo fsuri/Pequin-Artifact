@@ -178,7 +178,13 @@ inline void Client::Write(std::string &write_statement, write_callback wcb,
     transaction->rollback();
     transaction = nullptr;
     wcb(REPLY_FAIL, nullptr);
-  } catch (const std::exception &e) {
+  } catch (const tao::pq::lock_not_available &e) {
+    Notice("In lock timeout: %s", e.what());
+    transaction->rollback();
+    transaction = nullptr;
+    wcb(REPLY_FAIL, nullptr);
+  }
+  catch (const std::exception &e) {
     Panic("Tx write failed with uncovered exception: %s", e.what());
   }
 }

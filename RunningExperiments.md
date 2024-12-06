@@ -51,7 +51,7 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
    4. Finally, run `./config_remote.sh` 
    5. This will upload the necessary configurations for the Hotstuff Consensus module to the Cloudlab machines. -->
 
-3. **BFTSmart**
+2. **BFTSmart**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. Build BFT-Smart using `./build_bftsmart.sh`. You only need to do this *once*.
    3. Navigate to `Pequin-Artifact/src/scripts/bftsmart-configs` 
@@ -66,6 +66,69 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
    3. For example: `./one_step_config.sh /home/floriansuri/Research/Projects/Pequin/Pequin-Artifact fs435 pequin pequin-pg0 utah.cloudlab.us`
    4. This will upload the necessary configurations for the BFTSmart Conesnsus module to the Cloudlab machines.
       - Troubleshooting: Make sure files `server-hosts` and `client-hosts` in `/src/scripts/` do not contain empty lines at the end -->
+
+
+3. **Postgres**
+
+
+#### Setting up Postgres (old)
+
+The following steps are necessary to run Postgres.  **TODO**: Use new shir script...
+   > :warning: **[NOTE]**: These steps have already been completed on our pre-supplied postgres image. However, you will need to adjust the paths in the `postgresql_copy.conf`, `pg_hba_copy.conf` files to match the current cloudlab user, and not fs435.
+First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
+1. Uninstall existing Postgres state: run `./postgres_service.sh -u`
+2. If creating a disk iamge, also run `sudo groupadd postgres` and `sudo userdel postgres`
+3. Install postgres and initialize a first time: run `./postgres_service.sh -n 1`. This will delete the default main cluster, and create a new one (pgdata) with config files located in `/etc/postgres/12/pgdata`
+4. Modify the config files as described here (https://www.bigbinary.com/blog/configure-postgresql-to-allow-remote-connection) in order to enable remote connections
+   - Specifically, modify `postgresql.conf` by replacing the line `listen_address = local host` with `listen_address = '*'`
+   - And add the following line to the end of `pg_hba.conf`: `host    all             all              0.0.0.0/0                       md5`
+   - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.
+
+
+### Setting up Postgres-PB and Postgres (new)
+
+WARNING: USE branch 'merged_shir'
+
+To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
+For this, we have an extra script. Currently, all the setup steps need to be performed manually, and between each experiment run -- we are working on a version that automates this.
+
+#### Pre-configuring 
+First, you must modify scripts and the client connection string according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
+
+In client.cc make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
+`connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
+E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
+
+Additionally, modify the following scripts accordingly to your experiment host names.
+- `upload_data_remote.sh`
+- `init_postgres_replicated.sh`
+- `postgres_primary2.sh`
+- `postgres_replica.sh`
+- `init_postgres.sh` (only for unreplicated postgres)
+
+#### Uploading helper scripts:
+- If you have not already Modify the script `scripts/init_postgres_replicated.sh` according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
+- Invoke `./scripts/init_postgres_replicated.sh` to upload our replication helper scripts to the primary and backup replicas.
+- Likewise, for unreplicated postgres, invoke `./scripts/init_postgres.sh`
+- This needs to be only done once!
+
+### Automatic. 
+
+<!-- Outdated manual instructions -->
+<!-- #### Configuring replication (before each experiment)
+- Next, you will need to active the primary backup setup. To do so, you will have to log into the machines, and manually invoke the helper scripts. You need to do this before *each* experiment. Resetting the cluster setup ensures that Postgres starts from a clean slate each time, and does not retain prior state.
+- SSH into the primary machine and run:
+    - `./postgres_primary.sh`, followed by `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db start`. And finally run `./postgres_primary2.sh`. (NOTE: packaging these script into a single script somehow did not properly instantiate the service. Please bear with the detour!)
+- SSH into the backup machine and run:
+    - `./postgres_replica.sh`
+
+Now you are ready to run an experiment via the python script as usual. E.g. `python3 experiment-scripts/run_multiple_experiments.py Postgres-TPCC.json`
+
+#### Tearing down replication (after each experiment):
+- After you finish your experiment (and *before* you run another) you must stop the current Postgres cluster
+- SSH into the backup machine and run `/usr/lib/postgres/12/bin/pg_ctl -D ~/replica/db stop`
+- SSH into the primary machine and run `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db stop` followed by `sudo unmount primary` -->
+
 
 ### 3) Using the experiment scripts
 
@@ -166,14 +229,17 @@ Next, we will go over each included experiment individually to provide some poin
 ### 5) Reproducing experiment claims 1-by-1
 
 TODO: 
-1. Confirm profile public
+<!-- 1. Confirm profile public --> 
+1. Clean up postgres instructions
 2. Clean up configs, document exactly what to run  -> Some of them don't have series etc..
 3. Clean up results below   --> Show full series? Or just peak points?
+Nice to have:
 4. Include our example results?  --> Cleanly pick out what to report
 5. Parse output example pics, make new
+Optional:
 6. Add Wan instructions -> how to modify server_names/server_regions
 7. Add CRDB instructions (different branch, what to run?)
-8. Add postgres instructions
+
 
 
 **TODO CHANGE ** 
@@ -186,6 +252,9 @@ To directly compare against the numbers reported in our paper please refer to th
 
 >: notice: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes). These should have none, if very little impact on performances, but we acknowledge it nonetheless for completeness. The main claims/takewayas remain consistent.
 
+>: notice: For low number of clients latency on all systems is always a bit higher than under load. Some system artifact we haven't been able to debug -- CPU/network just becomes faster
+
+
 #### **1 - Workloads**:
 We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 systems: Tapir (Crash Failure baseline), Basil (our system), TxHotstuff (BFT baseline), and TxBFTSmart (BFT baseline). All systems were evaluated using 3 shards each, but use different replication factors.
 
@@ -194,183 +263,297 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
    Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/1-Workloads/1.Tapir`. Reported peak results were roughly:
    
    
-      1 shard. Batch size: b=4. For low points we use smaller reply batch size (b=1)
+      1 shard. Batch size: b=4. For low points we use smaller reply batch size (b=1); very small batch timer (2ms = often 4ms with libevent?)
     
-      - TPCC: Throughput: ~1.75k tx/s, Latency: ~17 ms   [(90, 11), (278, 11), (441, 11.5), (850, 12), (1310, 12), (1600, 13), (1750, 17), (1750, 20)]
-      - Auctionmark: Throughput: ~ 3.5k tx/s, Latency: ~5 ms
-            181.86666666666667,5.651118882331378
-            1145.2,4.48992095124578
-            2288.0,4.494836372042541
-            2846.3,5.41614082079659
-            3315.5333333333333,6.201233886644683
-            3477.2,7.3916135152709055
-            3568.233333333333,8.651927164852822
-            3572.9,10.083055122374917
-      - Seats: Throughput: ~3.8k tx/s, Latency: ~5 ms
-            158.56666666666666,6.460393124027748
-            1051.2666666666667,4.869627870220052
-            2376.5333333333333,4.307861259593806
-            3028.766666666667,5.077261458668545
-            3710.8333333333335,5.524417753882776
-            3958.7,6.475080138117731
-            4055.133333333333,7.584025830897463
-            4095.5333333333333,10.014489233262253
-            4123.133333333333,11.939639504988119
+            Ankle point: 1784 -17  ==> All relative comparisons/numbers in paper are ankle points!!
+      - TPCC: Peak Throughput: ~1.75k tx/s, Stable Latency: ~12 ms  
+
+            Data points used (rounded)
+
+            For 10 and above we used b=4; below we used b=1
+
+            | #Clients    |  1    |   3    |     5  |    10   |     15  |       20       30      35    40     45
+            |-------------|-------|--------|--------|---------|---------|----------|
+            | Tput (tx/s) |  90   |  278   |  441   |  850    |  1311   |  1605   |   1784 | 1768 | 1742 | 1705
+            | Lat (ms)    |  11.3 |  11.1  |  11.6  |  12.1   |  11.8   |  12.8   |   17.3 | 20.4 | 23.7 | 27.2
+            
+
+      - Auctionmark: Peak Throughput: ~ 3.5k tx/s, Stable Latency: ~5 ms
+
+          b=4 for 15 and above, below b=1
+
+            | #Clients    | 1      |  5      | 10      |   15        20         25        30       35
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  182   |  1145   |  2288   |  2846    |  3315   |  3477   |   3568 | 3573
+            | Lat (ms)    |  5.6   |  4.5    |  4.5    |  5.4     |  6.2    |  7.4    |   8.6  | 10
+            
 
 
-    1. **Pesto-unreplicated**: 
+      - Seats: Peak Throughput: ~3.8k tx/s, Stable Latency: ~5 ms
+
+         b=4 for 15 and up 
+
+            | #Clients    |  1        5        10        15        20         25          30      40   50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  159   |  1051   |  2376   |  3029    |  3711   |  3958   |  4055 |  4095  | 4123
+            | Lat (ms)    |  6.4   |  4.8    |  4.3    |  5.1     |  5.5    |  6.4    |   7.6  | 10    | 11.9
+
+    
+
+
+    2. **Pesto-unreplicated**: 
 
     > ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
  
    Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/1-Workloads/1.Tapir`.  Reported peak results were roughly:
    
-      - TPCC: Throughput: ~1.3k tx/s, Latency: ~10 ms
-            132.4,7.7
-            441.0,6.98
-            745.56,6.89
-            1124.7,9.14
-            1337.233,11.536
-            1379.16,14.92
-            1337.333,23.1
-            1327.53,27.175
+      - TPCC: Throughput: ~1.3k tx/s, Latency: ~11 ms
+
+          For 10 and above we used b=4; below we used b=1
+
+          | #Clients    |   1    |    3  |    5    |     10       15         20        30       35
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  132   |  441   |  745   |  1125    |  1337   |  1379   |  1337 |  1328  
+            | Lat (ms)    |  7.7   |  7    |  6.9    |  9.1     |  11.5    |  14.9    |  23.1  | 27.2 
+
 
       - Auctionmark: Throughput: ~ 3.5k tx/s, Latency: ~5 ms
-            218.26666666666668,4.701092610873549
-            1623.5666666666666,3.1576124453364
-            2946.633333333333,3.479485323205014
-            3352.5333333333333,4.590664352062122
-            3412.5,6.013314738705739
-            3462.366666666667,7.414186408381549
-            3487.3,8.842139348808534
-            3444.3,10.451634559755734
+        
+           batching for 20 and above
+
+        | #Clients    |       1        5        10        15         20         25      30       35   
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  218   |  1624   |  2947   |  3353    |  3413   |  3462   | 3487   | 3444 | 
+            | Lat (ms)    |  4.7   |  3.2    |  3.5    |  4.6     |  6      |  7.4    |   8.8  | 10.4  
+
 
       - Seats: Throughput: ~3.7k tx/s, Latency: ~5 ms
-            195.96666666666667,5.21003190559619
-            1415.7666666666667,3.6086892643797235
-            2582.0333333333333,3.959822536308593
-            3570.5,4.296230994379873
-            3808.633333333333,5.371277252969131
-            3789.9666666666667,6.7510636486248785
-            3804.7,8.071857575025625
-            3799.8,10.782525409582961
-            3827.1666666666665,12.850248863510867
 
+            batch for 15 and above 
+
+        | #Clients    |      1         5        10       15        20          25         30    40       50 
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  196   |  1416   |  2898  |  3570    |  3808   |  3790   |  3805 |  3800  | 3827
+            | Lat (ms)    |  5.2   |  3.6    |  3.5   |  4.3     |  5.4    |  6.7    |   8.1 | 10.8   | 12.9
+
+    
      1 shard. Batch size: 4.
 
-   2. **Peloton**: 
+   3. **Peloton**: 
+
+Peloton and Peloton-SMR variants use the same store (postgresstore)
+- If SMR_mode = 0, nothing to do
+- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
+- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
    
    Use the configurations under `/experiment-configs/1-Workloads/2.Basil`. Reported peak results were roughly:
    
       - TPCC: Throughput: ~1.8k tx/s, Latency: ~10 ms
-            135.23333333333332,7.598810577766823
-            857.6,5.982487969294155
-            1300.9,7.89806902190791
-            1632.4,12.609155282099977
-            1715.1666666666667,15.024038285181225
-            1776.8666666666666,17.396248073031177
-            1752.1666666666667,23.593050801769234
-            1711.0333333333333,30.184363536517893
+
+        | #Clients    |     1   |     5         10       20         25        30       40        50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  135   |  858   |  1301   |  1632    |  1715   |  1777   |  1752  |  1711  
+            | Lat (ms)    |  7.6   |  6    |  7.9    |  12.6     |  15    |  17.4    |   23.6  | 30.2 
+
+    
       - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
-            255.6,4.01789482876891
-            1847.5666666666666,2.7558623640283617
-            2985.4666666666667,3.392422981220133
-            4208.133333333333,4.811993764725453
-            4581.966666666666,5.525464856728187
-            4762.733333333334,6.384084599515685
-            4857.1,8.355362394933877
-            4850.8,10.46486223187241
+
+        | #Clients    |      1        5         10        20        25          30       40        50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  256   |  1848   |  2985   |  4208    |  4582   |  4763   |  4857  |  4851  
+            | Lat (ms)    |  4     |  2.8    |  3.4    |  4.8     |  5.5    |  6.4    |   8.4  | 10.5
+
+    
       - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
-            224.66666666666666,4.554963655637982
-            1688.4333333333334,3.0263124226205758
-            2818.3333333333335,3.628395646114726
-            4020.9333333333334,5.096026616962894
-            4426.9,5.7906600588598485
-            4737.366666666667,6.495255042576395
-            4994.4,8.219759351607134
-            5036.0,10.194848784226899
+
+        | #Clients    |      1         5        10         20         25        30      40         50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  225   |  1688   |  2818   |  4021    |  4427   |  4840   |  4994 |  5036
+            | Lat (ms)    |  4.5   |  3      |  3.6    |  5.1     |  5.8    |  6.4    |   8.2 | 10.2
+
         
-   > **[NOTE]** On both Smallbank and Retwis throughput has decreased (and Latency has increased) ever so slightly since the reported paper results, as the system now additionally implements failure handling, which is optimistically triggered even under absence of failures. To disable this option set the JSON value `"no_fallback" : "true"`. We note, that none of the baseline systems (implement and) run with failure handling.\
+   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
+
+ 3.5 **Peloton + Reply Sigs**: 
+   
+      batch size = 4 for all
+   
+      - TPCC: Throughput: ~1.8k tx/s, Latency: ~10 ms
+
+        | #Clients    |      5         10       20         25        30      
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  589   |  1030   |  1376    |  1407   |  1502   
+            | Lat (ms)    |  8.7   |  10     |  15      |  18.3   |  20.6    | 
+
+    
+      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+
+        | #Clients    |       5       10     20     25    30  40    50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  900    2153    3321    3771       4087    4323   4426
+            | Lat (ms)    |  5.7     4.7     6.1   6.7         7.5     9.4     13.8
+
+    
+      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+
+        | #Clients    |      5     10        20         25       30      40    60
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  745    1851     3279      3414     3951    4460   4573
+            | Lat (ms)    |  6.8     5.5      6.3       7.5    7.8     9.2     13.5 
+
+        
+   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
+
          
-   3. **Peloton-HS:** 
+   4. **Peloton-HS:** 
    
    **TODO: ADAPT HS config. Batch size upper limited now.
    Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). 
    <!-- Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment.  -->
 
+   >: notice: HotStuff cant be run with too few clients because it is pipelined (e.g. for 1 and 5 clients = no progress). 
+    -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput 
+    It needs more clients to get anything done... which of course is bad for contention.
+
     Reply batch: 4. HS batch: upper cap 200, dynamic. Smaller reply batch for low points
    
      Reported peak results were roughly:
-      - TPCC: Throughput: ~700 tx/s, Latency: ~50 ms
-            222.63333333333333,46.39264367030992
-            429.56666666666666,48.05163183378598
-            613.8333333333334,50.45306469660602
-            683.5666666666667,60.52371194431171
-            757.6666666666666,68.34968513110427
-            789.1,79.02168311789802
-            762.9,98.70227120251671
 
+     Ankle point:  758, 68
+      - TPCC: Throughput: ~768 tx/s, Latency: ~50 ms
+
+        | #Clients    |      10     |  20  |   30  |   40      |  50    |  60    | 72
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  223   |  430   |  614   |  684    |  758   |  789   |  763 
+            | Lat (ms)    |  46.4  |  48    |  50.5  |  60.5   |  68.3  |  79    |   99
+
+    
       - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
-            601.9333333333333,25.687391239173774
-            813.8333333333334,25.307709258734384
-            1647.5666666666666,24.92126374849778
-            2280.233333333333,25.667724193912903
-            2702.4666666666667,28.360611000555053
-            2989.3333333333335,30.729749905553074
-            3147.0,31.769659862376866
-            3304.366666666667,37.04388037613865
 
+        | #Clients    |      15        20      40        60        75          90      100       120
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  602   |  814   |  1648   |  2280    |  2702   |  2989   |  3147 |  3304
+            | Lat (ms)    |  25.7  |  25.3  |  24.9   |  25.7    |  28.4   |  30.7   |  31.8 | 37   
+
+    
       - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
-            696.0,29.562138365181994
-            1087.5,28.374220607356325
-            1479.4666666666667,27.808293656835794
-            1850.9,27.776949550651036
-            2198.6666666666665,28.070529100682233
-            2496.233333333333,29.672947317665287
-            2912.4666666666667,31.77467012737198
-            3155.9,32.59227778391795
-            3420.266666666667,36.10471840182051
 
-     
+        | #Clients    |      20       30        40        50         60      72         90      100     120 
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  696   |  1088   |  1494   |  1860    |  2199  |  2496   |  2912 |  3156 | 3420
+            | Lat (ms)    |  29.6  |  28.4   |  27.5   |  27.6    |  28    |  29.7   | 31.8  |  32.6 | 36.1
+    
+            
       
    > :warning: **[WARNING]**: Hotstuffs performance can be quite volatile with respect to total number of clients and the batch size specified. Since the Hotstuff protocol uses a pipelined consensus mechanism, it requires at least `batch_size x 4` active client requests per shard at any given time for progress. Using too few clients, and too large of a batch size will get Hotstuff stuck. In turn, using too many total clients will result in contention that is too high, causing exponential backoffs which leads to few active clients, hence slowing down the remaining active clients. These slow downs in turn lead to more contention and aborts, resulting in no throughput. The configs provided by us roughly capture the window of balance that allows for peak throughput. \  
       
-   4. **Peloton-Smart**: 
+   5. **Peloton-Smart**: 
    
    Use the configurations under `/experiment-configs/1-Workloads/4.TxBFTSmart`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). Note, that you must re-run `src/scripts/one_step_config.sh` **after** updating the batch size and **before** starting an experiment. 
       
       Reported peak results were roughly:
+
+      Ankle point: 785, 39.4   
       - TPCC: Throughput: ~750 tx/s, Latency: ~30 ms
-            178.06666666666666,28.922753199363534
-            332.8666666666667,30.934467799419185
-            592.3,34.812599585851764
-            785.4333333333333,39.37133954237575
-            806.5333333333333,51.34253368895685
-            897.4666666666667,69.40972963720101
+
+      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+
+        | #Clients    |     5   |    10        20       30        40       50
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  178   |  333   |  592   |  785    |  807   |  897  
+            | Lat (ms)    |  28.9  |  30.9  |  34.8  |  39.4   |  51.3  |  69.4
+
 
       - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
-            283.56666666666666,18.186046237921712
-            835.3666666666667,18.463802453613184
-            1619.1666666666667,18.98782907755018
-            2104.366666666667,19.452951259317924
-            2820.733333333333,21.717673930278178
-            3045.3,24.142060169321034
-            3218.5,28.514813953870846
-            3271.366666666667,31.15478014878593
+
+        | #Clients    |      5       10      15       30        40        60         72       90       100 
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  284   | 578    | 839   |  1619   |  2104    |  2821   |  3045   |  3219 |  3271
+            | Lat (ms)    |  18.2   | 17.8 |  18.4    |  19    |  19.5  |  21.7   |  24.1   | 28.5  | 31.1
+    
 
       - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
-            238.46666666666667,21.517294067654458
-            736.7,20.921652582145605
-            1510.1666666666667,20.431796933826288
-            2016.7,20.39091972954166
-            2842.0,21.70230429985925
-            3073.3,24.080755491046542
-            3354.6,27.595135217273796
-            3425.266666666667,30.03642106528932
 
-   > **[OPTIONAL NOTE]** **If you read, read fully**: To change batch size in BFTSmart navigate to  `src/store/bftsmartstore/library/java-config/system.config` and change line `system.totalordermulticast.maxbatchsize = <batch_size>`. Use 16 for TPCC and 64 for Smallbank/Retwis for optimal results. However, explicitly setting this batch size is not necessary, as long as the currently configured `<batch_size>` is `>=` the desired one. This is because BFTSmart performs optimally with a batch timeout of 0, and hence the batch size set *only* dictates an upper bound for consensus batches. Using a larger batch size has no effect. Hence, our reported optimal batch sizes of 16 and 64 respectively correspond to the upper bound after which no further improvements are seen. By default our configurations are set to `<batch_size> = 64`, so no further edits are necessary. \
+
+        | #Clients    |     5        10       15         30        40       60         72      90       100
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  238   |  498   | 743   |  1510   |  2017    |  2842   |  3073   |  3355 |  3425
+            | Lat (ms)    |  21.5  |  20.6  |  20.4   |  20.4    |  21.7   |  24.1   |  27.6 | 30
+
+
+   > **[OPTIONAL NOTE]** **If you read, read fully**: To change batch size in BFTSmart navigate to  `src/store/bftsmartstore/library/java-config/system.config` and change line `system.totalordermulticast.maxbatchsize = <batch_size>`. However, explicitly setting this batch size is not necessary, as long as the currently configured `<batch_size>` is `>=` the desired one. This is because BFTSmart performs optimally with a batch timeout of 0, and hence the batch size set *only* dictates an upper bound for consensus batches. Using a larger batch size has no effect. By default our configurations are set to (upper bound) `<batch_size> = 64`.
    > **[Troubleshooting]**: If you run into any issues (specifically the error: “SSLHandShakeException: No Appropriate Protocol” ) with running BFT-Smart please comment out the following in your `java-11-openjdk-amd64/conf/security/java.security` file: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
 
+      
+   6. **Postgres**: 
+   
+    TODO: Use the postgres config instructions
+      
+      Reported peak results were roughly:
+
+      Ankle point: 785, 39.4   
+      - TPCC: Throughput: ~750 tx/s, Latency: ~30 ms
+
+      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+
+        | #Clients    |      1   |   3       5     8       12       16   24      28     32
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  94     447    858   1325      1614   1676   1781   1671   1584
+            | Lat (ms)    |  10.9   6.9    6      6.2     7.7     10      13.8   17.2   20.8
+
+
+      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+
+        | #Clients    |      1        3        5       8        12      16      24       32    40
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  279      1309    2625     4760    6027     6530    6941    6774   6648
+            | Lat (ms)    |  3.7       2.3     1.9      1.7     2        2.5     3.5    4.8    6.1
+    
+
+      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+
+
+        | #Clients    |     1        3       5          8        12         16      24      32     40
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  392    1279     2884       5364     6663      7444    7967    7969   7768
+            | Lat (ms)    |  2.6     2.4     1.8        1.5       1.8       2.2      3.1    4.1    5.3
+
+
+
+     7. **Postgres-PB**: 
+   
+    TODO: Use the postgres primary backup config instructions
+      
+
+      - TPCC:   Ankle point: 1998, 17.2
+      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+
+            -- contention bottleneck, at high load starts to abort a lot.
+        | #Clients    |      1       5         10       20        30        40    50      60     70
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  81   |  431   |  790   |   1198    |  1238   | 1257    1216  1099    1117
+            | Lat (ms)    | 12.7      11.9    13       17.2        25.1     33       42.5  56.4    64.2
+
+
+      - Auctionmark: Ankle Throughput: ~6084 tx/s Latency: ~8.4
+
+        | #Clients    |     1         5       10          20        30        40         50     60     70
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) | 190   | 1022    | 2187   |  4529   |  5720    |  6012   |  6084   |  6059 |  6014
+            | Lat (ms)    |  5.4   | 5    |   4.7    |  4.5    |  5.3  |     6.8   |    8.4   |  10.2  | 11.9
+    
+
+      - Seats: Ankle 7695, 6.7
+
+
+        | #Clients    |    1        5          10        20        30         40       50        60      70
+            |-----------|--------|--------|---------|---------|---------|----------|
+            | Tput (tx/s) |  233   |  1182   | 2499   |  5447   |  6911    |  7471   |  7695   | 7612 |  7617
+            | Lat (ms)    |  4.4      4.3      4.1        3.7      4.4         5.5     6.7        8.1     9.7
+
+
 2. Sharding
+
 
     Note: Need to set sharding in config. + increase number of server names. + need to upload data to all
   Pesto: 1    1784
@@ -381,6 +564,11 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
   CRDB 5   1095
   CRDB 9   1357
 
+ > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
+ > **[NOTE]** CockroachDB (like most databases) only allows for sequential execution of operations within a transaction. This results in high transaction latencies (relative to Pesto) for TPC-C, whose New-Order transaction might issue up to ~45 operations. Pesto, in contrast, can execute many of these operations in parallel, reducing execution latency. Our Peloton baselines strike a midpoint: although execution on the DB itself must be sequential within a transaction, clients do not connect to the DB directly (like for CRDB) but send a message to a replica proxy, which then invokes the DB. This allows clients to send independent operations in parallel, thus sidestepping network and amortizing consensus latency. 
+
+> **[NOTE]** We cannot shard the Peloton baselines. The DB is effectively a blackbox and does not have innate support for sharding. CRDB, in contrast, explicitly supports sharding which is why we selected it for this experiment. Pesto's commit process supports sharding organically, as it integrates concurrency control and 2PC. Our Pesto prototype, however, does not support distributed queries (i.e. it supports only queries that are satisfied by a single shard); we thus can currently only shard TPC-C, but not Seats or Auctionmark.
+
   Basil-3 (taken from paper, link): 4862
 
 3. Point/Scan
@@ -389,7 +577,7 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
 
      |  Type    | r=2    |  r=10  |  r=100  |  r=1000 | r=10000 | r=100000 | 
     |-----------|--------|--------|---------|---------|---------|----------|
-    | Point     |  3ms   |  4.7   |  25.5   |  222    |  2133   |  21076   |  
+    | Point     |  3ms   |  4.7   |  25.5   |  222    |  2133   |  21076   |     
     | Scan      |  3.3ms |  3.4   |  4.9    |  20     |  128    |  1200    |  
     | Scan-Cond |  3.3   |  3.3   |  3.5    |  5.3    |  19.4   |  199     |  
            
@@ -413,125 +601,136 @@ Notes:
 
 We implement a microbenchmark based on the YCSB framework~\cite{Cooper} consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended \changebars{uniform access pattern \textit{U}}{uniformly random access of tables and ranges (denoted as \\textit{U-<config>})}, and a very highly contended Zipfian access pattern \changebars{\textit{Z} with coefficient 1.1}{ with coefficient $\theta = 1.1$ (denoted as \textit{Z-<config>}).} Figure \ref{fig:snapshot} shows the results.
 
-    U-Ideal
-        3085.3,2.6625252600071305
-        3944.5666666666666,2.6027597881305087
-        5879.5,2.61965296056921
-        6910.933333333333,2.9726187605388565
-        6974.766666666666,3.6831213807295824
-        7008.333333333333,4.400973759381689
 
+TODO: ADD DISCUSSION FROM NOTES
+
+Zipfian is highly contended, so with the random exp backoff there can decent variance in results.
+
+    U-Ideal
+
+        | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3085 |  3945 |  5880  |  6911 |  6975  |  7008   
+        | Lat (ms)    |  2.6  |  2.6  |  2.6   |  3    |  3.7   |  4.4 
+
+     
     U-FailEager
-        3403.9,3.6258263909143427
-        4470.633333333333,3.6806188790700793
-        5306.533333333334,3.8766536133822447
-        6140.2,4.1887115258406356
-        6309.266666666666,4.89301109553144
-        6369.133333333333,5.656184800422873
+
+          | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3404 |  4471 |  5307  |  6140 |  6309  |  6369   
+        | Lat (ms)    |  3.6  |  3.6  |  3.9   |  4.2  |  4.9   |  5.7 
+
 
     U-Incon
-        3120.8,3.9537740474344183
-        4431.9,3.71209211465361
-        5400.166666666667,3.8083516032282954
-        5976.866666666667,4.302687122840285
-        6495.633333333333,4.751396949253087
-        6657.5,5.409917157366379
-        6651.866666666667,6.190094172472891
+
+          | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3121 |  4432 |  5400  |  5977  |  6496  |  6658 | 6652   
+        | Lat (ms)    |  3.9  |  3.7  |  3.8   |  4.3   |  4.8   |  5.4  | 6.2 
+
+
+    > **[NOTE]** We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
 
     Z-Ideal
-        884.0333333333333,3.486958087704084
-        1485.1333333333334,3.4600094318130807
-        2318.6666666666665,4.444073823864289
-        2695.266666666667,5.830738896435727
-        2860.9,7.339708944970696
-        2884.1,9.160298857899056
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  884 |  1485 |  2319  | 2695 |  2861 |  2884   
+        | Lat (ms)    |  3.5 |  3.5  |  4.4   |  5.8 | 7.3   |  9.2 
+
+
 
     Z-FailEager
-        621.2666666666667,4.969251898433308
-        1034.3666666666666,4.97552628142825
-        1581.5666666666666,6.5304591830884995
-        1822.8666666666666,8.545650005869875
-        1951.1666666666667,10.732646452737677
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  621 |  1034 |  1582  |  1823 |  1951     
+        | Lat (ms)    |  5   |  5    |  6.5   |  8.5  |  10.7   
+
 
     Z-Incon
-        601.0666666666667,5.136533679902397
-        996.3333333333334,5.165673841619271
-        1333.2333333333333,6.225236245368404
-        1408.4333333333334,8.98078345180224
-        1497.8666666666666,10.58349523012729
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  601  |  996  |  1333 |  1408 |  1498     
+        | Lat (ms)    |  5.1  |  5.1  |  6.2  |  9    |  10.5   
+
+
 
 5. Failure
 
+TODO: ADD DISCUSSION FROM NOTES
+
 We evaluate two configurations: \one \textit{Failure-NoFP} illustrates the effect of a failure when the fast path is disabled.\fs{; this is equivalent to no replica failure (omitted for clarity).} \two \textit{Failure-FP} shows the impact of a failed fast path when using a very conservative timeout of $\approx 4ms$. \fs{I actually set the config to 2ms. However, due to an implementation artifact in our event library~\cite{libevent}\fs{cite!}, timers only have granularity of 4ms, so often it takes 4ms rather than 2ms.}\fs{Note to self: This also explains why the tiny micro-second sized batch timers don't matter, because often it is 4ms}\fs{technically, slow and fast path could be done in parallel, but it would hurt resource util}
 
-    U-Ideal
-        3085.3,2.6625252600071305
-        3944.5666666666666,2.6027597881305087
-        5879.5,2.61965296056921
-        6910.933333333333,2.9726187605388565
-        6974.766666666666,3.6831213807295824
-        7008.333333333333,4.400973759381689
+    U-Ideal -- Same as before. Don't need to re-run!!!
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3085 |  3945 |  5880  |  6911 |  6975  |  7008   
+        | Lat (ms)    |  2.6  |  2.6  |  2.6   |  3    |  3.7   |  4.4 
+     
     U-NoFP
-        3038.1,4.062033146593814
-        4009.1666666666665,4.104449738316358
-        4566.8,4.730496422695687
-        5156.1,4.988341325653109
-        5520.466666666666,5.59225211145193
-        5816.066666666667,6.194081734643115
-        5952.333333333333,6.918401643433947
-        6018.2,7.700072951242341
 
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3038 |  4009 |  4567  |  5156 |  5520  |  5816  | 5932 | 6018   
+        | Lat (ms)    |  4.1  |  4.1  |  4.7   |  5    |  5.6   |  6.2   | 6.9  | 7.7
+
+      
     U-FP
-        3138.866666666667,8.203125417560479
-        3800.766666666667,8.129580194311675
-        4351.133333333333,8.285170670438353
-        4871.266666666666,8.457651446482094
-        5355.4,8.654936726139347
-        5322.733333333334,9.441486938828424
-        5274.76,12.1165608593
 
-    Z-Ideal
-        884.0333333333333,3.486958087704084
-        1485.1333333333334,3.4600094318130807
-        2318.6666666666665,4.444073823864289
-        2695.266666666667,5.830738896435727
-        2860.9,7.339708944970696
-        2884.1,9.160298857899056
+        > **[NOTE]** We configured the Timeout to be 2ms on paper, but it turns out that the timer precision of the event library we use (libevent) is only 4ms. So in practice, we observe that timeouts are 4ms most of the time. Libevent can be configured to use nanosecond timer granularity, but this increases overall overheads and distorts comparison to existing results.
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  3139 |  3801 |  4351  |  4871 |  5355  |  5323 | 5275   
+        | Lat (ms)    |  8.2  |  8.1  |  8.3   |  8.5  |  8.7   |  9.4  |  12.1 
+
+
+    Z-Ideal -- Same as before. Don't need to re-run!!!
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  884 |  1485 |  2319  | 2695 |  2861 |  2884   
+        | Lat (ms)    |  3.5 |  3.5  |  4.4   |  5.8 | 7.3   |  9.2 
+       
 
     Z-NoFP
-        1029.8666666666666,4.36995320604609
-        1543.9333333333334,4.329290170948659
-        1886.3,4.646078368216438
-        2279.8,5.491120755885018
-        2521.366666666667,6.230152160732936
-        2615.4333333333334,7.445336514701196
-        2725.3333333333335,8.372658022015655
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  1030 |  1544 |  1886  |  2280 |  2521  |  2615 | 2725   
+        | Lat (ms)    |  4.4  |  4.3  |  4.6   |  5.5  |  6.2   |  7.4  | 8.4
+
 
     Z-FP
-        943.0333333333333,8.649087485560779
-        1435.7333333333333,8.893966979081538
-        1624.833333333333, 9.137412705262077
-        1772.5666666666666, 9.31571337320646
-        2080.766666666667, 10.094280388654822
-        2116.2,10.592781144315282
+
+      | #Clients    | c=5    |
+        |-----------|--------|--------|---------|---------|---------|----------|
+        | Tput (tx/s) |  943 |  1436 |  1625 |  1773 |  2081  |  2116   
+        | Lat (ms)    |  8.6  |  8.9 |  9.1  |  9.3  |  10.1  |  10.6 
+
+       
+
+## Other experiments, not in the paper
+
+#### TODO: WAN instructions
+
+set up server names according to region fields.
+Specify regions
+emulate wan = true
+
+We ran 3 setups for Pesto: LAN, Regional, Contintental.
+Reg = 3 clusters, 10ms apart
+Con = 3 clusters, east and west coast
+
+Latency hurts tpcc a lot since its contention bound. Hurts Auction and Seats less.
+Affects baselines MUCH worse though (since they have high consensus latency) so we opt to omit. Pesto benefit *improves* as latency grows.
 
 
-<!-- Bonus instructions for postgres -->
 
-#### Setting up Postgres
-
-The following steps are necessary to run Postgres.  **TODO**: Use new shir script...
-   > :warning: **[NOTE]**: These steps have already been completed on our pre-supplied postgres image. However, you will need to adjust the paths in the `postgresql_copy.conf`, `pg_hba_copy.conf` files to match the current cloudlab user, and not fs435.
-First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
-1. Uninstall existing Postgres state: run `./postgres_service.sh -u`
-2. If creating a disk iamge, also run `sudo groupadd postgres` and `sudo userdel postgres`
-3. Install postgres and initialize a first time: run `./postgres_service.sh -n 1`. This will delete the default main cluster, and create a new one (pgdata) with config files located in `/etc/postgres/12/pgdata`
-4. Modify the config files as described here (https://www.bigbinary.com/blog/configure-postgresql-to-allow-remote-connection) in order to enable remote connections
-   - Specifically, modify `postgresql.conf` by replacing the line `listen_address = local host` with `listen_address = '*'`
-   - And add the following line to the end of `pg_hba.conf`: `host    all             all              0.0.0.0/0                       md5`
-   - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.
-
-#### Running PG_SMR store
+#### Running PG_SMR store -- really bad perf
 - If SMR_mode = 0, nothing to do
 - If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
 - If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
@@ -539,7 +738,7 @@ First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh
 
 
 
-#### TODO: WAN instructions
+
 
 
 
