@@ -258,6 +258,11 @@ To directly compare against the numbers reported in our paper please refer to th
 #### **1 - Workloads**:
 We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 systems: Tapir (Crash Failure baseline), Basil (our system), TxHotstuff (BFT baseline), and TxBFTSmart (BFT baseline). All systems were evaluated using 3 shards each, but use different replication factors.
 
+  | #Clients     | 1    | 3    | 5    | 10   | 15   | 20   | 30   | 35   | 40   | 45   |
+            |--------------|------|------|------|------|------|------|------|------|------|------|
+            | **Tput (tx/s)** | 90   | 278  | 441  | 850  | 1311 | 1605 | 1784 | 1768 | 1742 | 1705 |
+            | **Lat (ms)**    | 11.3 | 11.1 | 11.6 | 12.1 | 11.8 | 12.8 | 17.3 | 20.4 | 23.7 | 27.2 |
+
    1. **Pesto**: 
  
    Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/`. Reported results were roughly:
@@ -271,11 +276,6 @@ We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 sys
             Data points used (rounded)
 
             For 10 and above we used b=4; below we used b=1
-
-            | #Clients     | 1    | 3    | 5    | 10   | 15   | 20   | 30   | 35   | 40   | 45   |
-            |--------------|------|------|------|------|------|------|------|------|------|------|
-            | **Tput (tx/s)** | 90   | 278  | 441  | 850  | 1311 | 1605 | 1784 | 1768 | 1742 | 1705 |
-            | **Lat (ms)**    | 11.3 | 11.1 | 11.6 | 12.1 | 11.8 | 12.8 | 17.3 | 20.4 | 23.7 | 27.2 |
 
 
             | #Clients    |  1    |   3    |   5    |   10   |   15   |   20   |   30   |   35    40     45
