@@ -78,7 +78,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   //Update a customer's balance and reflect payment on district/warehouse sales statistics
   //Type: Light-weight read-write Tx, high frequency. (Uses Non-primar key access to CUSTOMER table)
   Debug("PAYMENT (parallel)");
-  std::cerr << "PAYMENT (parallel)" << std::endl;
   Debug("Amount: %u", h_amount);
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;

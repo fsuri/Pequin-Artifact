@@ -53,7 +53,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
-    std::cerr << "FIND_FLIGHTS" << std::endl;
+    // std::cerr << "FIND_FLIGHTS" << std::endl;
     Debug("FIND_FLIGHTS");
     client.Begin(timeout);
     std::vector<std::string> nearby_airports;

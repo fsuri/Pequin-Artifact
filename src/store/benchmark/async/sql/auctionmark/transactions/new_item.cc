@@ -39,8 +39,8 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
  
   item_id = itemId.encode();
   seller_id = sellerId.encode();
-  std::cerr << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
-  std::cerr << "client id: " << profile.get_client_id() << std::endl;
+//  std::cerr << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
+//  std::cerr << "client id: " << profile.get_client_id() << std::endl;
 
 
   name = RandomAString(6, 32, gen);
@@ -152,7 +152,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   //CATEGORY
   queryResult = std::move(results[offset]);
   if (queryResult->empty()) {
-    std::cerr << "category not found: " << category_id << std::endl;
+//    std::cerr << "category not found: " << category_id << std::endl;
     client.Abort(timeout);
     return ABORTED_USER;
   }
@@ -187,7 +187,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     std::string i_id;
     deserialize(i_id, queryResult, i);
     if(i_id == item_id){
-      std::cerr << "ITEM ALREADY EXISTS" << std::endl;
+//      std::cerr << "ITEM ALREADY EXISTS" << std::endl;
       //Update Cache
       ItemRecord item_rec(item_id, seller_id, name, initial_price, 0, end_date, ItemStatus::OPEN);
       ItemId itemId = profile.processItemRecord(item_rec);

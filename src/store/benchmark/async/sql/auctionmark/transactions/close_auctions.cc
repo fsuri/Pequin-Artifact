@@ -32,7 +32,7 @@ namespace auctionmark {
 CloseAuctions::CloseAuctions(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile)
 {
   Panic("Pequinstore cannot yet implement CloseAuctions with rounds>1 as this requires read-your-own-write semantics (Next auction round needs to reflect the new status, or else we will re-read the same)");
-  std::cerr << std::endl << "CLOSE AUCTION" << std::endl;
+//  std::cerr << std::endl << "CLOSE AUCTION" << std::endl;
   //generate params
   start_time = profile.get_last_close_auctions_time();
   end_time = profile.update_and_get_last_close_auctions_time();
@@ -60,9 +60,9 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
   int round = CLOSE_AUCTIONS_ROUNDS;
 
   uint64_t current_time = GetProcTimestamp(benchmark_times);
-  std::cerr << "last auction: " << start_time << std::endl;
-  std::cerr << "this auction: " << end_time << std::endl;
-  std::cerr << "current time: " << current_time << std::endl;
+//  std::cerr << "last auction: " << start_time << std::endl;
+//  std::cerr << "this auction: " << end_time << std::endl;
+//  std::cerr << "current time: " << current_time << std::endl;
   
   std::string getDueItems = fmt::format("SELECT {} FROM {} WHERE i_start_date >= {} AND i_start_date <= {} AND i_status = {} "
                                         "ORDER BY i_id ASC LIMIT {}", ITEM_COLUMNS_STR, TABLE_ITEM, start_time, end_time, ItemStatus::OPEN, CLOSE_AUCTIONS_ITEMS_PER_ROUND);
@@ -75,12 +75,12 @@ transaction_status_t CloseAuctions::Execute(SyncClient &client) {
                                        //TODO: Add redundant inputs?
 
   while(round-- > 0){
-    std::cerr << "round: " << (CLOSE_AUCTIONS_ROUNDS - round) << std::endl;
+//    std::cerr << "round: " << (CLOSE_AUCTIONS_ROUNDS - round) << std::endl;
     client.Query(getDueItems, queryResult, timeout);
     //skip first row of result. If don't have any, break
     if(queryResult->empty()) break;
 
-    std::cerr << "PROCESSING #items: " << queryResult->size() << std::endl;
+//    std::cerr << "PROCESSING #items: " << queryResult->size() << std::endl;
     //For row in result:
     for(int i = 1; i<queryResult->size(); ++i){
       getDueItemRow dir;

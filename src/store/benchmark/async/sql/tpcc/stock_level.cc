@@ -49,7 +49,6 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
 
   //Determine the number of recently sold items with stock below a given threshold
   //Type: Heavy read-only Tx, low frequency
-  std::cerr << "STOCK_LEVEL (parallel)" << std::endl;
   Debug("STOCK_LEVEL (parallel)");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
@@ -68,7 +67,6 @@ transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
   if(join_free_version){
       query = fmt::format("SELECT ol_i_id FROM {} WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} ", ORDER_LINE_TABLE, w_id, d_id, next_o_id, next_o_id - 20);
       client.Query(query, queryResult, timeout);  
-      std::cerr << "result size: " << queryResult->size() << std::endl;
 
       //For each unique item.
       std::set<uint32_t> stockItems;

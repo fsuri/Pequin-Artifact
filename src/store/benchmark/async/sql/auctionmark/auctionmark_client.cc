@@ -66,13 +66,13 @@ AuctionMarkClient::AuctionMarkClient(
   profile.update_and_get_current_time();
   UW_ASSERT((double) scale_factor == profile.get_scale_factor());
 
-  std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
-  std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!
+  Debug("loader start time (scaled): %lu", profile.get_loader_start_time());
+  Debug("client start time (scaled): %lu", profile.get_client_start_time());
 
-  std::cerr << "pending comment size at start: " << profile.num_pending_comment_responses() << std::endl;
-  std::cerr << "available items start: " << profile.get_available_items_count() << std::endl;
-  std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
-  std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
+  Debug("pending comment size at start: %d", profile.num_pending_comment_responses());
+  Debug("available items start: %d", profile.get_available_items_count());
+  Debug("items waiting for purchase at start: %d", profile.get_waiting_for_purchase_items_count());
+  Debug("completed items at start: %d", profile.get_completed_items_count());
 
   // std::cerr << "total: " << num_clients << std::endl;
   // std::cerr << "client id: " << client_id << std::endl;
@@ -97,8 +97,8 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
     int real_time_seconds = CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR;
     try {
       if (need_close_auctions && now - profile.get_last_close_auctions_time() >= real_time_seconds * MILLISECONDS_IN_A_SECOND) {
-        std::cerr << "last close auction time (scaled):" << profile.get_last_close_auctions_time() << std::endl;
-        std::cerr << "current time (scaled):" << now << std::endl;
+        // std::cerr << "last close auction time (scaled):" << profile.get_last_close_auctions_time() << std::endl;
+        // std::cerr << "current time (scaled):" << now << std::endl;
         lastOp = "close_auctions";
         return new CloseAuctions(GetTimeout(), profile, gen);
       } 
@@ -144,8 +144,8 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
         Panic("Invalid transaction type %d", ttype);
       }
     } catch (std::exception &e) {
-      std::cerr << "auctionmark_client: caught exception when initializing transaction" << std::endl;
-      std::cerr << e.what() << std::endl;
+      // std::cerr << "auctionmark_client: caught exception when initializing transaction" << std::endl;
+      // std::cerr << e.what() << std::endl;
       continue;
     }
   }

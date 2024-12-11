@@ -32,7 +32,7 @@ namespace auctionmark {
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile(profile) {
    
-    std::cerr << "GET ITEM" << std::endl;
+//    std::cerr << "GET ITEM" << std::endl;
     //std::cerr << "ItemInfo: " << ItemInfo().get_item_id().to_string() << std::endl;
     // auto itemInfo_opt = profile.get_random_available_item();
     // UW_ASSERT(itemInfo_opt.has_value());

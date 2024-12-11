@@ -127,19 +127,17 @@ Client::~Client() {}
 // Begin a transaction.
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
-  Notice("Begin Transaction");
   try {
     if (tr != nullptr) {
-      Panic("why is tr not nullptr???");
+      Panic("transaction pointer was not reset before beginning new transaction");
     }
     // Create a new Tx
     tr = conn->transaction(tao::pq::isolation_level::serializable,
                            tao::pq::access_mode::read_write);
     // TODO replace with some Tx ID
-    // std::cout << "begin " << '\n';
     bcb(420);
   } catch (const std::exception &e) {
-    std::cerr << "Tx begin Failed" << '\n';
+    std::cerr << "Tx Begin Failed" << '\n';
     std::cerr << e.what() << '\n';
   }
 }
@@ -248,7 +246,6 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       write_statement += " ON CONFLICT DO NOTHING;";
     }
 
-    Debug("Processing Write Statement: %s", write_statement.c_str());
     tao::pq::result result = tr->execute(write_statement);
     stats.Increment("writes_issued", 1);
     taopq_wrapper::TaoPQQueryResultWrapper *tao_res =

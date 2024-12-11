@@ -96,7 +96,7 @@ transaction_status_t SQLNewOrderSequential::Execute(SyncClient &client) {
   //std::cerr << "NEW_ORDER" << std::endl;
   Debug("Warehouse: %u", w_id); 
 
-  std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
+  // std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
 
   client.Begin(timeout);
 

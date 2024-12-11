@@ -13,7 +13,7 @@ SQLDeleteReservation::SQLDeleteReservation(uint32_t timeout, std::mt19937 &gen, 
         SEATSReservation r = profile.delete_reservations.front();
         profile.delete_reservations.pop();
 
-        std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
+        // std::cerr << "DELETE_RESERVATION: " << r.r_id  << std::endl;
         Debug("DELETE_RESERVATION");
         c_id = r.c_id; //Default: Delete using Customer Id
         flight = r.flight;

@@ -36,7 +36,7 @@
   
   
    
-    "client_abort_backoff": 2,
+    "client_abort_backoff": 5,
     "client_retry_aborted": true,
     "client_max_attempts": -1,
     "client_max_backoff": 250,
@@ -140,22 +140,22 @@
     "codebase_name": "indicus",
   
     "client_total": [
-      [12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78]
+      [45]
     ],
     "client_processes_per_client_node": [
-      [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+      [40]
     ],
     "client_threads_per_process": [
-      [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+      [1]
     ],
-  
+
     "client_nodes_per_server": 1,
     "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
     "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7], 
-    "_client_debug_output": false,
-    "client_debug_output": "store/cockroachdb/*",
-    "_server_debug_output": false, 
-    "server_debug_output": "store/cockroachdb/*",
+    "client_debug_output": false,
+    "_client_debug_output": "store/cockroachdb/*",
+    "server_debug_output": false, 
+    "_server_debug_output": "store/cockroachdb/*",
     "server_debug_stats": false,
     "client_debug_stats": false,
     "client_experiment_length": 120,
