@@ -950,6 +950,7 @@ int main(int argc, char **argv) {
 
      // HotStuffPG
   case PROTO_PG_SMR: {
+      Panic("PG_SMR store is currently deprecated"); //TODO: Sync code with pelotonstore (revert to pre shir merge)
       Notice("Using [%s] server config", FLAGS_local_config ? "LOCAL" : "REMOTE");
    
       server = new pg_SMRstore::Server(config, &keyManager,

@@ -191,7 +191,6 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
     client_processes = []
     total = 0
     for i in range(len(config['server_names'])):
-    # for i in range(4):
         for j in range(config['client_nodes_per_server']):
             if is_exp_local(config):
                 os.makedirs(os.path.join(local_exp_directory,
@@ -294,9 +293,9 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #config['replication_protocol_settings']['hyper_threading']
             if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                 print("Disabling HT and Turbo; sourcing TBB")
-                # cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
                 #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
-                cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
+                #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                 run_remote_command_async(cmd1, config['emulab_user'], server_host)
                 cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)
@@ -331,10 +330,10 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                 else:
                     print("using non-replicated postgres")
                     # Dropping old pg cluster (if exists)
-                    cmd7 = 'sudo /users/shir/postgres_service.sh -r'
+                    cmd7 = 'sudo ./postgres_service.sh -r'
                     run_remote_command_sync(cmd7, config['emulab_user'], server_host)
                     # Creating a single db per machine
-                    cmd8 = 'sudo /users/shir/postgres_service.sh -n 1'
+                    cmd8 = 'sudo ./postgres_service.sh -n 1'
                     run_remote_command_sync(cmd8, config['emulab_user'], server_host)
                     cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
                     run_remote_command_sync(cmd11, config['emulab_user'], server_host)
@@ -342,13 +341,25 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
                     run_remote_command_sync(cmd12, config['emulab_user'], server_host)
                     print("Waiting for the setup")
 
+                    # # Dropping old pg cluster (if exists)
+                    # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
+                    # run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                    # # Creating a single db per machine
+                    # cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
+                    # run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                    # cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
+                    # run_remote_command_sync(cmd11, config['emulab_user'], server_host)
+                    # cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
+                    # run_remote_command_sync(cmd12, config['emulab_user'], server_host)
+                    # print("Waiting for the setup")
+
 
             
             ## set-up dbs for pg-smr
             if config['replication_protocol'] == 'pg-smr':
-                cmd7 = 'sudo /users/shir/postgres_service.sh -r > /dev/null 2>&1;'
+                cmd7 = 'sudo ./postgres_service.sh -r > /dev/null 2>&1;'
                 # # Creating a single db per machine
-                cmd8 = 'sudo /users/shir/postgres_service.sh -n 1 > /dev/null 2>&1;'
+                cmd8 = 'sudo ./postgres_service.sh -n 1 > /dev/null 2>&1;'
                 cmd11 = 'sudo pg_ctlcluster 12 pgdata stop;'
                 cmd12 = 'sudo pg_ctlcluster 12 pgdata start;'
                 #cmd13 = 'echo \"Finished PG setup\";'
@@ -586,7 +597,6 @@ def run_experiment(config_file, client_config_idx, executor):
         if not 'client_cdf_plot_blacklist' in config:
             config['client_cdf_plot_blacklist'] = []
         if not 'client_total' in config:
-            # config['client_total'] = config['client_nodes_per_server'] * config['client_processes_per_client_node'] * 4
             config['client_total'] = config['client_nodes_per_server'] * config['client_processes_per_client_node'] * len(config['server_names'])
 
         wan = 'server_emulate_wan' in config and (config['server_emulate_wan'] and (not 'run_locally' in config or not config['run_locally']))

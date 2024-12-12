@@ -1,1 +1,1 @@
-#define REMOTE_CONFIG_DIR "/users/shir/config_pghs/"
+#define REMOTE_CONFIG_DIR "/users/fs435/config_pghs/"

@@ -70,10 +70,36 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
 
 3. **Postgres**
 
+> :warning: The experiments reported in the paper were performed with a less clean, manual setup. The new scripts described below should simply processing, but if you run into issues, reach out to us and or follow the old manual instructions
 
-#### Setting up Postgres (old)
+To run an experiment with Postgres you will first need to start a database on your server. 
+To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
 
-The following steps are necessary to run Postgres.  **TODO**: Use new shir script...
+#### Pre-configuring 
+First, you must modify scripts and the client connection string according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
+
+In `src/store/postgresstore/client.cc` make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
+`connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
+E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
+
+Additionally, modify the following scripts accordingly to your experiment host names.
+- `init_postgres_replicated.sh`
+- `postgres_primary2.sh`
+- `postgres_replica.sh`
+- `init_postgres.sh` (only for unreplicated postgres)
+
+#### Uploading helper scripts:
+- If you have not already Modify the script `scripts/init_postgres_replicated.sh` according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
+- For unreplicated Postgres, simply invoke `./scripts/init_postgres.sh`
+- For primary-backup Postgres invoke `./scripts/init_postgres_replicated.sh` 
+- This will upload our replication helper scripts to the primary and backup replicas.
+- This needs to be only done once!
+
+During the experiment, our experiment scripts will invoke the uploaded helper scripts automatically to setup the required Postgres environment
+
+**Manual Instructions** (OLD) -- You can ignore this if the above scripts work fine!
+
+The following steps are necessary to run Postgres. 
    > :warning: **[NOTE]**: These steps have already been completed on our pre-supplied postgres image. However, you will need to adjust the paths in the `postgresql_copy.conf`, `pg_hba_copy.conf` files to match the current cloudlab user, and not fs435.
 First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
 1. Uninstall existing Postgres state: run `./postgres_service.sh -u`
@@ -84,50 +110,6 @@ First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh
    - And add the following line to the end of `pg_hba.conf`: `host    all             all              0.0.0.0/0                       md5`
    - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.
 
-
-### Setting up Postgres-PB and Postgres (new)
-
-WARNING: USE branch 'merged_shir'
-
-To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
-For this, we have an extra script. Currently, all the setup steps need to be performed manually, and between each experiment run -- we are working on a version that automates this.
-
-#### Pre-configuring 
-First, you must modify scripts and the client connection string according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
-
-In client.cc make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
-`connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
-E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
-
-Additionally, modify the following scripts accordingly to your experiment host names.
-- `upload_data_remote.sh`
-- `init_postgres_replicated.sh`
-- `postgres_primary2.sh`
-- `postgres_replica.sh`
-- `init_postgres.sh` (only for unreplicated postgres)
-
-#### Uploading helper scripts:
-- If you have not already Modify the script `scripts/init_postgres_replicated.sh` according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
-- Invoke `./scripts/init_postgres_replicated.sh` to upload our replication helper scripts to the primary and backup replicas.
-- Likewise, for unreplicated postgres, invoke `./scripts/init_postgres.sh`
-- This needs to be only done once!
-
-### Automatic. 
-
-<!-- Outdated manual instructions -->
-<!-- #### Configuring replication (before each experiment)
-- Next, you will need to active the primary backup setup. To do so, you will have to log into the machines, and manually invoke the helper scripts. You need to do this before *each* experiment. Resetting the cluster setup ensures that Postgres starts from a clean slate each time, and does not retain prior state.
-- SSH into the primary machine and run:
-    - `./postgres_primary.sh`, followed by `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db start`. And finally run `./postgres_primary2.sh`. (NOTE: packaging these script into a single script somehow did not properly instantiate the service. Please bear with the detour!)
-- SSH into the backup machine and run:
-    - `./postgres_replica.sh`
-
-Now you are ready to run an experiment via the python script as usual. E.g. `python3 experiment-scripts/run_multiple_experiments.py Postgres-TPCC.json`
-
-#### Tearing down replication (after each experiment):
-- After you finish your experiment (and *before* you run another) you must stop the current Postgres cluster
-- SSH into the backup machine and run `/usr/lib/postgres/12/bin/pg_ctl -D ~/replica/db stop`
-- SSH into the primary machine and run `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db stop` followed by `sudo unmount primary` -->
 
 
 ### 3) Using the experiment scripts
@@ -147,6 +129,12 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
    - Set the value field to your local path (on your machine or the control machine) to the source directory 
 6. `"emulab_user": "<cloudlab-username>"`
    - Set the field `<cloudlab-user>`. 
+7. `"benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",`
+    - change the user name (fs435) to your <cloudlab-username>
+    - note: the file itself depends on which workload you are using
+8. `"bftsmart_codebase_dir" : "/users/fs435"`
+    - change the user name (fs435) to your <cloudlab-username>
+    - this is only applicable to BFTSmart configs
 
 #### **Optional** Modifications 
 1. Experiment duration:
@@ -227,17 +215,6 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/71878eec-8e34-4ded-b8b6-0b5aa98c6abb)
 
 
-
-
-
-TODO: 
-1. Clean up postgres instructions
-2. Add CRDB instructions (different branch, what to run?)
-
-Optional:
-6. Add Wan instructions -> how to modify server_names/server_regions
-
-
 ### 5) Reproducing experiment claims 1-by-1
 
 Next, we will go over each included experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
@@ -270,6 +247,8 @@ All systems using signatures (Pesto, Pesto-unreplcited, Peloton-HS, Peloton-Smar
 
 Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point.
 
+> :warning: Make sure you have correctly set the  `"benchmark_schema_file_path"` as described above!
+   
 1. **Pesto**: 
 
 Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/<workload>/LAN`. 
@@ -492,7 +471,9 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
 5. **Peloton-Smart**: 
 
 Before running Peloton-Smart, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
-   
+
+> :warning:  Make sure to adjust the `"bftsmart_codebase_dir"` path to reflect your cloudlab-username!
+  
 You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). BFTSmart uses dynamically sized batches, and in our experience performs best with an upper bound of 64 and no batch timeout.
 
 We use a reply batch size of 4 throughout (param `ebatch`).
@@ -859,23 +840,33 @@ The reported results on the Zipfian workoad Z were:
 
 ## Other experiments, not in the paper
 
-#### TODO: WAN instructions
+#### WAN instructions
+Our experiment setup allows simulation of wide area network (WAN) latencies. 
+We opted to omit WAN experiments in the paper as 1) contention bottlecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and 2) the Peloton-SMR prototypes perform extremely poorly as latency rises.
 
-set up server names according to region fields.
-Specify regions
-emulate wan = true
+If you are nonetheless interested in using the codebase to simulate WAN experiments, you need to do the following:
 
-We ran 3 setups for Pesto: LAN, Regional, Contintental.
-Reg = 3 clusters, 10ms apart
-Con = 3 clusters, east and west coast
+1. (Optional) Give your CloudLab servers names that are indicative of their location. Update the `server_names` field in your config file accordingly
+2. Configure the `server_regions` parameter. Group server names into the region you want to assign them to.
+3. Configure the `region_rtt_latencies` parameter. Specify, for each region, what are the latencies to all other regions.
+4. Set `emulate_wan` to true. 
 
-Latency hurts tpcc a lot since its contention bound. Hurts Auction and Seats less.
-Affects baselines MUCH worse though (since they have high consensus latency) so we opt to omit. Pesto benefit *improves* as latency grows.
+This will allow the experiment scripts to automatically configure `tc` on all servers (and clients) according to the specified latencies.
+Note: After running an experiment in WAN mode, the `tc` setup remains active even if you set `emulate_wan` back to false. 
+This is an oversight on the experiment scripts, so please keep this in mind if you're switching back to LAN. In that case, you may need to re-start your servers, or manually disable `tc`.
+
+Our `experiment-configs` include experiments for Pesto on three latency setups.
+
+1. LAN: no simulated latency
+2. REG: servers are split into a "regional" setup, in which clusters are 10ms apart
+3. CON: servers are distributed across North America (contintental) into three locations (US east coast, and 2 locations on US west coast). 
+> **Note**: Our experiment configs by default name the third region `eu-west`, but are configured to be the US west coast. Please disregard the naming!
+
+TPCC performance is affected heavily as latency increases as it is contention bound. Auctionmark and Seats are affeted less.
 
 
+#### Running PG_SMR store -- currently deprecated
+In addition to layering Peloton atop SMR, we also explored layering Postgres atop SMR. Unfortunately, this results in odd performance behaviors that we have been unable to debug.
+You may play around with `pg_SMRstore` if you are interested. However, active support is deprecated.
 
-#### Running PG_SMR store -- really bad perf
-- If SMR_mode = 0, nothing to do
-- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
-- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
-
+PG-SMR supports three modes: 0 runs Postgres via a server proxy, but without SMR. 1 runs Postgres atop HotStuff, and 2 runs Postgres atop BFTSmart

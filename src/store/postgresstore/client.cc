@@ -125,6 +125,7 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
   
     Debug("Processing Query Statement: %s", query_statement.c_str());
+    stats.Increment("queries_issued", 1);
     this->SQLRequest(const_cast<std::string &>(query_statement), qcb, qtcb, timeout);
 }
 
@@ -132,19 +133,20 @@ inline void Client::Query(const std::string &query_statement, query_callback qcb
 inline void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write) {
   Debug("Processing Write Statement: %s", write_statement.c_str());
+   stats.Increment("writes_issued", 1);
   this->SQLRequest(write_statement, wcb, wtcb, timeout);
 }
 
 
 void printResult(const tao::pq::result sql_res){
-  std::cerr << "Shir: number of cols:   "<< sql_res.columns() <<"\n" ;
+  std::cerr << "number of cols:   "<< sql_res.columns() <<"\n" ;
 
   if(sql_res.columns() == 0) {
-    std::cerr << "Shir; empty result, e.g.:  inserts\n" ;
+    std::cerr << "empty result, e.g.:  inserts\n" ;
     return;
   }
   if (sql_res.empty()){
-    std::cerr << "Shir: empty res\n" ;
+    std::cerr << "empty res\n" ;
   }
     for( const auto& row : sql_res ) {
       for( const auto& field : row ) {
@@ -158,7 +160,7 @@ void printResult(const tao::pq::result sql_res){
 
 void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout){
 
-  if (statement.find("INSERT") == 0){
+  if (statement.find("INSERT") != std::string::npos){
     if(statement.back() == ';'){
       statement.pop_back(); // Remove the last character
     }
@@ -193,16 +195,13 @@ void Client::SQLRequest(std::string &statement, sql_callback scb, sql_timeout_ca
     scb(REPLY_FAIL, nullptr);
   } catch (const tao::pq::lock_not_available &e) {
     Notice("In lock timeout: %s", e.what());
-    transaction = nullptr;
-    wcb(REPLY_FAIL, nullptr);
-  } catch (const tao::pq::lock_not_available &e) {
-    Notice("In lock timeout: %s", e.what());
     transaction->rollback();
     transaction = nullptr;
-    wcb(REPLY_FAIL, nullptr);
-  }
+    scb(REPLY_FAIL, nullptr);
+  } 
   catch (const std::exception &e) {
     Panic("Tx write failed with uncovered exception: %s", e.what());
   }
 }
+
 } // namespace postgresqlstore

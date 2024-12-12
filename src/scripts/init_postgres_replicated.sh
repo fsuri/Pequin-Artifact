@@ -1,12 +1,11 @@
+
 #!/bin/bash
 
 
 declare -a arr_servers=("us-east-1-0" "us-east-1-1")
 
-USER="shir"
-# EXP_NAME="pg-smr-wis"
-EXP_NAME="pg-smr"
-# CLUSTER_NAME="wisc"
+USER="fs435"
+EXP_NAME="pequin"
 CLUSTER_NAME="utah"
 PROJECT_NAME="pequin"
 

@@ -16,7 +16,9 @@
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "rw-sql",
-  "benchmark_schema_file_path": "/users/shir/rw-sql.json",
+  "benchmark_schema_file_path": "/users/fs435/rw-sql.json",
+  
+  "bftsmart_codebase_dir" : "/users/fs435",
   
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
@@ -52,6 +54,7 @@
     	
     	"local_config": "false",
  	"fake_SMR": "true",
+ 	"SMR_mode": 0,
   
         "message_transport_type": "tcp",
 	"watermark_time_delta": 30000,
@@ -76,7 +79,7 @@
       
     }
   ],
-  "experiment_name": "pg-smr",
+  "experiment_name": "pequin",
   "codebase_name": "indicus",
 
   "_client total is the upper bound on total client processes": 0,
@@ -96,9 +99,9 @@
   "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
-  "_client_debug_output": "store/hotstuffpgstore/*",
+  "_client_debug_output": "store/pg_SMRstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/hotstuffpgstore/*",
+  "_server_debug_output": "store/pg_SMRstore/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   
@@ -248,14 +251,14 @@
   "output_latency_scale": 1000,
   "_src_commit_hash": "threadpool_test",
   "stats_file_name": "stats.json",
-  "base_local_exp_directory":  "/home/sc3348/Pesto/tests_output",
+  "base_local_exp_directory":  "/home/fs435/Projects/Pequin/output",
   "base_mounted_fs_path": "/mnt/extra",
-  "base_remote_bin_directory_nfs": "/users/shir/indicus",
+  "base_remote_bin_directory_nfs": "/users/fs435/indicus",
   "base_remote_exp_directory": "/mnt/extra/experiments",
   "bin_directory_name": "bin",
   "client_bin_name": "benchmark",
   "client_name_format_str": "client-%d-%d",
-  "emulab_user": "shir",
+  "emulab_user": "fs435",
   "max_bandwidth": "1gibps",
   "max_file_descriptors": 65535,
   "max_retries": 1,
@@ -263,7 +266,7 @@
   "out_directory_name": "out",
   "server_bin_name": "server",
   "server_port": 7087,
-  "src_directory": "/home/sc3348/Pesto/Pequin-Artifact/src",
+  "src_directory": "/home/fs435/Projects/Pequin/Pequin-Artifact/src",
   "make_collect_bins": [
     "store/benchmark/async/benchmark",
     "store/server"

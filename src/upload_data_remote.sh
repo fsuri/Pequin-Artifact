@@ -9,22 +9,19 @@
 
 
 ## declare an array variable
-# declare -a arr_servers=("us-east-1-0" "us-east-1-1" "us-east-1-2" "eu-west-1-0")
-declare -a arr_servers=("us-east-1-0")
+declare -a arr_servers=("us-east-1-0" "us-east-1-1" "us-east-1-2" "eu-west-1-0" "eu-west-1-1" "eu-west-1-2")
+#declare -a arr_servers=("us-east-1-0")
 
 #declare -a arr_clients=("client-0-0" "client-0-1" "client-0-2" "client-0-3" "client-0-4" "client-0-5") ##Use this for postgres
-# declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0" "client-3-0") ##Use this otherwise
-declare -a arr_clients=("client-0-0" "client-1-0") ##Use this otherwise
+declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0" "client-3-0" "client-4-0" "client-5-0") ##Use this otherwise
+#declare -a arr_clients=("client-0-0" "client-1-0") ##Use this otherwise
 # declare -a arr_clients=("client-0-0")
 
 FIRST_TIME_CONNECTION=0
 
-USER="shir"
-# EXP_NAME="pequin"
-# EXP_NAME="pg-smr-wis"
-EXP_NAME="pg-smr"
+USER="fs435"
+EXP_NAME="pequin"
 PROJECT_NAME="pequin"
-# CLUSTER_NAME="wisc"
 CLUSTER_NAME="utah"
 BENCHMARK_NAME="tpcc"
 NUM_SHARDS=1
