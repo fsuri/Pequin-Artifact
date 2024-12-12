@@ -224,7 +224,8 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/7a4c841d-fded-4660-9ddb-0b71401233da)
    
    Latency: 
-   ![image](https://github.com/user-attachments/assets/1279b1b7-ab8d-4668-8b1f-a3f82de5ff96)
+   ![image](https://github.com/user-attachments/assets/71878eec-8e34-4ded-b8b6-0b5aa98c6abb)
+
 
 
 
