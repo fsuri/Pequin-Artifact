@@ -232,10 +232,11 @@ To parse experiment results you have 2 options:
 
 TODO: 
 1. Clean up postgres instructions
+2. Add CRDB instructions (different branch, what to run?)
 
 Optional:
 6. Add Wan instructions -> how to modify server_names/server_regions
-7. Add CRDB instructions (different branch, what to run?)
+
 
 ### 5) Reproducing experiment claims 1-by-1
 
