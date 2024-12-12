@@ -162,16 +162,7 @@
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   
 
-  "client_total": [
-    [20, 25, 30, 35, 40, 45, 25, 30]
-  ],
-  "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
-  ],
-  "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 2, 2]
-  ],
-  
+
   "_NOTE: to run with clients > 45 use client_nodes per server =2":false,
   "_client_total": [
     [45, 50, 60, 63]
@@ -185,8 +176,7 @@
   
 
 
-
-  "client_nodes_per_server": 1,
+  "client_nodes_per_server": 2,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],

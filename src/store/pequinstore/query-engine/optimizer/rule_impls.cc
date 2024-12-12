@@ -427,9 +427,10 @@ void GetToIndexScan::Transform(
         }
       }
      
+
       //std::cerr << "is primary? " << is_primary_index << ". min_distance: " << min_distance << std::endl;
-      //If index fully covers the condition. //Give preference to primary key.
-      if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;
+      //If index fully covers the condition (i.e. if all index keys are present in search condition). //Give preference to primary key.
+      if(index_key_column_id_list.size() == index_col_set.size()) min_distance = is_primary_index? -2 : -1;   //Note: For point read this should ensure that you always pick primary index scan!
      
      // std::cerr << "is primary? " << is_primary_index << ". min_distance (if match): " << min_distance << std::endl;
 

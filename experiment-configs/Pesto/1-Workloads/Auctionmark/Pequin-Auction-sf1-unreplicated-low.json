@@ -15,45 +15,21 @@
   
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "rw-sql",
-  "benchmark_schema_file_path": "/users/fs435/rw-sql.json",
+  "benchmark_name": "auctionmark-sql",
+  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-auctionmark-tables-schema.json",
   
-   "server_load_time": 15,
+   "_server_load_time": 15,
+   "server_load_time": 8,
   
-  "_RW_SQL_ARGS_" :0,
-  	  "_note: parititoner is unused currently": 0,
-	  "partitioner": "rw_sql",
-	  
-	  "client_key_selector": "uniform",
-	  "client_zipf_coefficient": 0.75,   
-	  
-	  "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
-	  "client_num_keys": 10000000,
-	  "rw_num_ops_txn": 1,
-	  
-	  "num_tables": 10,
-	  "num_keys_per_table": 1000000,
-	  "value_size": -1,
-	  "value_categories": 100,
-	  
-	  "rw_read_only": false,
-	  "rw_read_only_rate": 0,
-	  "rw_secondary_condition": false,
-	  "disable_wraparound": true,
-	  "fixed_range": true,
-	  "max_range": 10,
-	  "point_op_freq": 0,
-	  
-	  "scan_as_point": false,
-	  "scan_as_point_parallel": false,
-	  "rw_simulate_point_kv": false,
+   "_AUCTIONMARK_SQL_ARGS_" :0,
+  	  "scale_factor": 1,
 
 
  
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
-  "client_max_backoff": 300,
+  "client_max_backoff": 250,
   "client_rand_sleep": 2,
   "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
   "client_message_timeout": 10000,
@@ -80,8 +56,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 4,
-		  	"sig_batch_timeout": 10,
+		  "sig_batch": 1,
+		  	"sig_batch_timeout": 2,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -93,8 +69,7 @@
 			  "_max_dep_depth": -2, 
 		  "rts_mode": 0, 
 	
-		  "_2s is a high timeout. It's roughly 2x > the tail latency difference between last 2 replies": false,
-		  "p1_decision_timeout": 2,	
+		  "p1_decision_timeout": 10,	
 		  "read_dep": "one-honest",
 		  "read_quorum": "one-honest",
 		  "read_messages": "read-quorum",
@@ -105,7 +80,7 @@
 		  "dispatchMessageReceive": false,
 		  "parallel_reads": true,     
 		  "parallel_CCC": false,
-		  "dispatchCallbacks": false,
+		  "dispatchCallbacks": true,
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
@@ -118,8 +93,6 @@
 		  "inject_failure_ms": 0,
 		  "inject_failure_freq": 100,
 		  "_inject_failure_type" : "client-crash",
-		  
-		  "simulate_replica_failure":true,
 	  
 	  
 	 "_QUERY_ARGS_": 0,
@@ -133,8 +106,8 @@
 		  "retry_limit": 2,
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
-		  "eager_plus_snapshot": true,
 		  "query_point_eager_exec": false,
+		  "eager_plus_snapshot": true,
 		  "force_read_from_snapshot": false,
 		   
 		  "query_read_prepared": true,
@@ -146,8 +119,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 1,
-		  "non_monotonicity_grace": 3, 
+		  "monotonicity_grace": 10,
+		  "non_monotonicity_grace": 30,
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -160,31 +133,17 @@
 
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
-  
-
-  "client_total": [
-    [20, 25, 30, 35, 40, 45, 25, 30]
+    
+     
+   "client_total": [
+    [1, 5, 10, 15]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
-  ],
-  "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 2, 2]
-  ],
-  
-  "_NOTE: to run with clients > 45 use client_nodes per server =2":false,
-  "_client_total": [
-    [45, 50, 60, 63]
-  ],
-  "_client_processes_per_client_node": [
     [8, 8, 8, 8]
   ],
-  "_client_threads_per_process": [
+  "client_threads_per_process": [
     [1, 1, 1, 1]
   ],
-  
-
-
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
@@ -193,13 +152,13 @@
   "client_debug_output": false,
   "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/*",
+  "_server_debug_output": "store/pequinstore/query-engine/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 60,
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
   
   "default_remote_shell": "bash",
   
@@ -210,20 +169,8 @@
   
   "project_name": "pequin-pg0",
   
-  "fault_tolerance": 1,
+  "fault_tolerance": 0,
   
-  "_server_names": [
-   
-    ["us-east-1-0"] 
-	
-  ],
-
-  "_server_regions": [
-   
-    {
-      "us-east-1": ["us-east-1-0"]
-    }
-  ],
   
   "server_names": [
    
@@ -232,105 +179,32 @@
 	
   ],
 
-  "server_regions": [
+ 
+ "server_regions": [
    
     {
-      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"]
+      "us-east-1": ["us-east-1-0", "us-east-1-1"],
+      "us-west-1": ["us-east-1-2", "eu-west-1-2"],
+      "eu-west-1": ["eu-west-1-0", "eu-west-1-1"]
     }
   ],
   
-   "_server_names": [
-   
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
-    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
-    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2"] 
-	
-  ],
-  
-   "_server_regions": [
-   
-    {
-      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
-      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
-        "ap-northeast-1-2"],
-      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"]
-    }
-  ],
-
-  
-  "_server_names": [
-   
-    ["us-east-1-0", "us-east-1-1", "us-east-1-2", "eu-west-1-0",
-    "eu-west-1-1", "eu-west-1-2", "ap-northeast-1-0", "ap-northeast-1-1",
-    "ap-northeast-1-2", "us-west-1-0", "us-west-1-1", "us-west-1-2", "eu-central-1-0", "eu-central-1-1", "eu-central-1-2", "ap-southeast-2-0",
-    "ap-southeast-2-1", "ap-southeast-2-2"] 
-	
-  ],
-
-  "_server_regions": [
-   
-    {
-      "us-east-1": ["us-east-1-0", "us-east-1-1", "us-east-1-2"],
-      "eu-west-1": ["eu-west-1-0", "eu-west-1-1", "eu-west-1-2"],
-      "ap-northeast-1": ["ap-northeast-1-0", "ap-northeast-1-1",
-        "ap-northeast-1-2"],
-      "us-west-1": ["us-west-1-0", "us-west-1-1", "us-west-1-2"],
-"eu-central-1": ["eu-central-1-0", "eu-central-1-1", "eu-central-1-2"],
-      "ap-southeast-2": ["ap-southeast-2-0", "ap-southeast-2-1", "ap-southeast-2-2"]
-    }
-  ],
-
 
   "region_rtt_latencies": {
     "us-east-1": {
       "us-east-1": 0,
-      "eu-west-1": 73,
-      "ap-northeast-1": 160,
-      "us-west-1": 63,
-      "eu-central-1": 87,
-      "ap-southeast-2": 199 
-    },
-    "eu-west-1": {
-      "us-east-1": 73,
-      "eu-west-1": 0,
-      "ap-northeast-1": 220,
-      "us-west-1": 145,
-      "eu-central-1": 26,
-      "ap-southeast-2":  255
-    },
-    "ap-northeast-1": {
-      "us-east-1": 160,
-      "eu-west-1": 220,
-      "ap-northeast-1": 0,
-      "us-west-1": 115,
-      "eu-central-1": 243,
-      "ap-southeast-2": 106
+      "us-west-1": 0,
+      "eu-west-1": 0
     },
     "us-west-1": {
-      "us-east-1": 63,
-      "eu-west-1": 145,
-      "ap-northeast-1": 115,
+      "us-east-1": 0,
       "us-west-1": 0,
-      "eu-central-1": 148,
-      "ap-southeast-2": 139
+      "eu-west-1": 22
     },
-    "eu-central-1": {
-      "us-east-1": 87,
-      "eu-west-1": 26,
-      "ap-northeast-1": 243,
-      "us-west-1": 148,
-      "eu-central-1": 0,
-      "ap-southeast-2": 177
-    },
-    "ap-southeast-2": {
-      "us-east-1": 199,
-      "eu-west-1": 255,
-      "ap-northeast-1": 106,
-      "us-west-1": 139,
-      "eu-central-1": 177,
-      "ap-southeast-2": 0
+    "eu-west-1": {
+      "us-east-1": 0,
+      "us-west-1": 0,
+      "eu-west-1": 0
     }
   },
   "server_emulate_wan": false,

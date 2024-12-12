@@ -34,7 +34,7 @@ Simply specify which benchmark you are uploading, and to how many shards (1, 2 o
 E.g. use `./upload_data_remote -b 'tpcc' -s 2` to upload TPC-C data to 2 shards. 
 TPC-C and 1 shard are default parameters.
 
-### 2) Pre-configurations for Hotstuff and BFTSmart
+### 2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
 When evaluating Peloton-HS and Peloton-Smart you will need to complete the following pre-configuration steps before running an experiment script:
 
@@ -224,10 +224,6 @@ To parse experiment results you have 2 options:
    ![image](https://user-images.githubusercontent.com/42611410/129566828-694cf8e2-2c25-4e5b-941e-9a745340ea74.png)
 
 
-Next, we will go over each included experiment individually to provide some pointers.
-
-### 5) Reproducing experiment claims 1-by-1
-
 TODO: 
 <!-- 1. Confirm profile public --> 
 1. Clean up postgres instructions
@@ -240,358 +236,453 @@ Optional:
 6. Add Wan instructions -> how to modify server_names/server_regions
 7. Add CRDB instructions (different branch, what to run?)
 
+### 5) Reproducing experiment claims 1-by-1
 
+Next, we will go over each included experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
 
-**TODO CHANGE ** 
+<!-- **TODO CHANGE ** 
 We have included our experiment outputs for easy cross-validation of the claimed througput (and latency) numbers under `/sample-output/ValidatedResults`. 
-To directly compare against the numbers reported in our paper please refer to the figures there or the supplied results -- we include rough numbers below as well. 
+To directly compare against the numbers reported in our paper please refer to the figures there or the supplied results -- we include rough numbers below as well.  -->
 
-> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running (see instructions above).
+> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies), built all binaries, and created benchmark data before running (see instructions above).
 
->: notice: When running with very few clients the average latency is typically higher than at moderate load (this appears to be the case for all systems). This appears to be a protocol-independent system artifact that we have been unable to resolve so far.
+> **Notice**: When running experiments with load load (i.e. few clients) we observe that the average latency is typically higher than at moderate load (this is the case for all systems). This appears to be a protocol-independent system artifact that we have been unable to resolve so far. CPU and/or network speeds seem to increase under load.
 
->: notice: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes). These should have none, if very little impact on performances, but we acknowledge it nonetheless for completeness. The main claims/takewayas remain consistent.
-
->: notice: For low number of clients latency on all systems is always a bit higher than under load. Some system artifact we haven't been able to debug -- CPU/network just becomes faster
+> **Notice**: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes). These should have none, if very little impact on performances, but we acknowledge it nonetheless for completeness. The main claims/takewayas remain consistent.
 
 
 #### **1 - Workloads**:
-We report evaluation results for 3 workloads (TPCC, Smallbank, Retwis) and 4 systems: Tapir (Crash Failure baseline), Basil (our system), TxHotstuff (BFT baseline), and TxBFTSmart (BFT baseline). All systems were evaluated using 3 shards each, but use different replication factors.
+We report evaluation results for 3 workloads (TPCC, Auctionmark, and Seats) over 7 system setups: 
+1. **Pesto** -- our system. A BFT DB.
+2. **Pesto-unreplicated** -- Pesto but run with f=0, i.e. a single replica
+3. **Peloton** -- an unreplicated SQL DB. Pesto uses Peloton as foundation for its execution engine, so this is provides an apples-to-apples comparison of Pesto's overheads
+  3.5. **Peloton-signed** -- Peloton, but augmented to reply to clients with signed messages. This illustrates the impact of signatures (an overhead that Pesto incurs)
+4. **Peloton-HS** -- Peloton (with reply signatures) run atop a BFT consensus protocol, HotStuff.
+5. **Peloton-Smart** -- Peloton (with reply signatures) run atop a BFT consensus protocol, BFTSmart.
+6. **Postgres** -- an unreplicated SQL DB of production grade.
+7. **Postgres-PB** - Postgres, but run in primary backup mode. Writes are synchronously replicated to a backup.
 
-  | #Clients     | 1    | 3    | 5    | 10   | 15   | 20   | 30   | 35   | 40   | 45   |
-            |--------------|------|------|------|------|------|------|------|------|------|------|
-            | **Tput (tx/s)** | 90   | 278  | 441  | 850  | 1311 | 1605 | 1784 | 1768 | 1742 | 1705 |
-            | **Lat (ms)**    | 11.3 | 11.1 | 11.6 | 12.1 | 11.8 | 12.8 | 17.3 | 20.4 | 23.7 | 27.2 |
+All systems were evaluated using a single shard, but use different replication factors. For f=1, Pesto uses 6 replicas (5f+1), while Peloton-HS and Peloton-Smart use 4 (3f+1). All unreplicated systems use 1 replica. Postgres-PB uses 2 replicas (one primary, one backup).
 
-   1. **Pesto**: 
- 
-   Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/`. Reported results were roughly:
-   
-   
-      1 shard. Batch size: b=4. For low points we use smaller reply batch size (b=1); very small batch timer (2ms = often 4ms with libevent?)
-    
-            Ankle point: 1784 -17  ==> All relative comparisons/numbers in paper are ankle points!!
-      - TPCC: Peak Throughput: ~1.75k tx/s, Stable Latency: ~12 ms  
+All systems using signatures (Pesto, Pesto-unreplcited, Peloton-HS, Peloton-Smart) are augmented to make use of the reply batching scheme proposed in Basil: replicas may batch together replies to clients and create a single signature to amortize costs. We defer exact details to Basil. We use a varying reply batch size (either b=1, or b=4) depending on the load; for low load, it is better to not batch to avoid incurring a batch timeout.
 
-            Data points used (rounded)
+Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point.
 
-            For 10 and above we used b=4; below we used b=1
+1. **Pesto**: 
 
+Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/<workload>/LAN`. 
+Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal point):
 
-            | #Clients    |  1    |   3    |   5    |   10   |   15   |   20   |   30   |   35    40     45
-            |-------------|-------|--------|--------|--------|--------|--------|----------------------------|
-            | Tput (tx/s) |  90   |  278   |  441   |  850   |  1311  |  1605  |   1784 | 1768 | 1742 | 1705
-            | Lat (ms)    |  11.3 |  11.1  |  11.6  |  12.1  |  11.8  |  12.8  |   17.3 | 20.4 | 23.7 | 27.2
-            
+    - TPCC: Peak Throughput: ~1.75k tx/s, Ankle Latency: ~17 ms  
 
-      - Auctionmark: Peak Throughput: ~ 3.5k tx/s, Stable Latency: ~5 ms
+        Config file: `/experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh.json`
+        Use: `/experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-low.json` for low load
 
-          b=4 for 15 and above, below b=1
+        For #Clients < 10 we used a reply batch size of b=1; for 10 and above we used b=4.  
+        <!-- very small batch timer (2ms = often 4ms with libevent?) -->
 
-            | #Clients    | 1      |  5      | 10      |   15        20         25        30       35
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  182   |  1145   |  2288   |  2846    |  3315   |  3477   |   3568 | 3573
-            | Lat (ms)    |  5.6   |  4.5    |  4.5    |  5.4     |  6.2    |  7.4    |   8.6  | 10
-            
-
-
-      - Seats: Peak Throughput: ~3.8k tx/s, Stable Latency: ~5 ms
-
-         b=4 for 15 and up 
-
-            | #Clients    |  1        5        10        15        20         25          30      40   50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  159   |  1051   |  2376   |  3029    |  3711   |  3958   |  4055 |  4095  | 4123
-            | Lat (ms)    |  6.4   |  4.8    |  4.3    |  5.1     |  5.5    |  6.4    |   7.6  | 10    | 11.9
-
-    
-
-
-    2. **Pesto-unreplicated**: 
-
-    > ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
- 
-   Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/1-Workloads/1.Tapir`.  Reported peak results were roughly:
-   
-      - TPCC: Throughput: ~1.3k tx/s, Latency: ~11 ms
-
-          For 10 and above we used b=4; below we used b=1
-
-          | #Clients    |   1    |    3  |    5    |     10       15         20        30       35
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  132   |  441   |  745   |  1125    |  1337   |  1379   |  1337 |  1328  
-            | Lat (ms)    |  7.7   |  7    |  6.9    |  9.1     |  11.5    |  14.9    |  23.1  | 27.2 
-
-
-      - Auctionmark: Throughput: ~ 3.5k tx/s, Latency: ~5 ms
+        | #Clients    |   1   |   3   |   5   |   10  |   15   |   20   |   30  |   35  |   40  |   45  |
+        |-------------|-------|-------|-------|-------|--------|--------|-------|-------|-------|-------|
+        | Tput (tx/s) |  90   |  278  |  441  |  850  |  1311  |  1605  |  1784 |  1768 |  1742 |  1705 |
+        | Lat (ms)    |  11.3 |  11.1 |  11.6 |  12.1 |  11.8  |  12.8  |  17.3 |  20.4 |  23.7 |  27.2 |
         
-           batching for 20 and above
 
-        | #Clients    |       1        5        10        15         20         25      30       35   
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  218   |  1624   |  2947   |  3353    |  3413   |  3462   | 3487   | 3444 | 
-            | Lat (ms)    |  4.7   |  3.2    |  3.5    |  4.6     |  6      |  7.4    |   8.8  | 10.4  
+    - Auctionmark: Peak Throughput: ~ 3.5k tx/s, Ankle Latency: ~7 ms
+
+        Config file: `/experiment-configs/Pesto/1-Workloads/Auctionmark/Pequin-Auction-sf1.json`
+        Use `/experiment-configs/Pesto/1-Workloads/Auctionmark/Pequin-Auction-sf1-low.json` for low load
+
+        For #Clients < 15 we used a reply batch size of b=1; for 15 and above we used b=4.  
+    
+        | #Clients    |   1   |   5   |   10   |   15   |   20   |   25   |   30   |   35  |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|-------|
+        | Tput (tx/s) |  182  |  1145 |  2288  |  2846  |  3315  |  3477  |  3568  |  3573 |
+        | Lat (ms)    |  5.6  |  4.5  |  4.5   |  5.4   |  6.2   |  7.4   |  8.6   |  10   |
+        
 
 
-      - Seats: Throughput: ~3.7k tx/s, Latency: ~5 ms
+    - Seats: Peak Throughput: ~4k tx/s, Ankle Latency: ~7 ms
 
-            batch for 15 and above 
+        Config file: `/experiment-configs/Pesto/1-Workloads/Seats/Pequin-Seats-sf1.json`
+        Use `/experiment-configs/Pesto/1-Workloads/Seats/Pequin-Seats-sf1-low.json` for low load
 
-        | #Clients    |      1         5        10       15        20          25         30    40       50 
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  196   |  1416   |  2898  |  3570    |  3808   |  3790   |  3805 |  3800  | 3827
-            | Lat (ms)    |  5.2   |  3.6    |  3.5   |  4.3     |  5.4    |  6.7    |   8.1 | 10.8   | 12.9
+        For #Clients < 15 we used a reply batch size of b=1; for 15 and above we used b=4.  
+
+        | #Clients    |   1   |   5   |   10   |   15   |   20   |   25   |   30   |   40   |   50   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  159  |  1051 |  2376  |  3029  |  3711  |  3958  |  4055  |  4095  |  4123  |
+        | Lat (ms)    |  6.4  |  4.8  |  4.3   |  5.1   |  5.5   |  6.4   |  7.6   |  10    |  11.9  |
 
     
-     1 shard. Batch size: 4.
 
-   3. **Peloton**: 
 
-Peloton and Peloton-SMR variants use the same store (postgresstore)
-- If SMR_mode = 0, nothing to do
+2. **Pesto-unreplicated**: 
+
+> ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
+
+
+    - TPCC: Peak Throughput: ~1.3k tx/s, Ankle Latency: ~12 ms
+
+        Config file: `/experiment-configs/Pesto/1-Workloads/TPCC/LAN/unreplicated/Pequin-unreplicated-TPCC-SQL-20wh.json`
+        Use `/experiment-configs/Pesto/1-Workloads/TPCC/LAN/unreplicated/Pequin-unreplicated-TPCC-SQL-20wh-low.json` for low load
+
+        For #Clients < 10 we used a reply batch size of b=1; for 10 and above we used b=4.  
+
+        | #Clients    |   1   |   3   |   5   |   10   |   15   |   20   |   30   |   35   |
+        |-----------  |-------|-------|-------|--------|--------|--------|------- |--------|
+        | Tput (tx/s) |  132  |  441  |  745  |  1125  |  1337  |  1379  |  1337  |  1328  | 
+        | Lat (ms)    |  7.7  |  7    |  6.9  |  9.1   |  11.5  |  14.9  |  23.1  |  27.2  |
+
+
+    - Auctionmark: Peak Throughput: ~ 3.5k tx/s, Ankle Latency: ~6 ms
+    
+        Config file: `/experiment-configs/Pesto/1-Workloads/Auctionmark/Pequin-Auction-sf1-unreplicated.json`
+        Use `/experiment-configs/Pesto/1-Workloads/Auctionmark/Pequin-Auction-sf1-unreplicated-low.json` for low load
+
+        For #Clients < 20 we used a reply batch size of b=1; for 20 and above we used b=4.  
+
+        | #Clients    |   1   |   5   |   10   |   15   |   20   |   25   |   30   |   35   |   
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  218  |  1624 |  2947  |  3353  |  3413  |  3462  |  3487  |  3444  | 
+        | Lat (ms)    |  4.7  |  3.2  |  3.5   |  4.6   |  6     |  7.4   |  8.8   |  10.4  |  
+
+
+    - Seats: Peak Throughput: ~3.8k tx/s, Ankle Latency: ~5 ms
+
+        Config file: `/experiment-configs/Pesto/1-Workloads/Seats/Pequin-unreplicated-Seats-sf1.json`
+        Use `/experiment-configs/Pesto/1-Workloads/Seats/Pequin-unreplicated-Seats-sf1-low.json` for low load
+        
+        For #Clients < 15 we used a reply batch size of b=1; for 15 and above we used b=4.  
+
+        | #Clients    |   1   |   5   |   10   |   15   |   20   |   25   |   30   |   40   |   50   | 
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  196  |  1416 |  2898  |  3570  |  3808  |  3790  |  3805  |  3800  |  3827  |
+        | Lat (ms)    |  5.2  |  3.6  |  3.5   |  4.3   |  5.4   |  6.7   |  8.1   |  10.8  |  12.9  |
+
+
+
+3. **Peloton**: 
+
+> **Note**: Peloton and its Peloton-SMR variants use the same store (postgresstore). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
+<!-- - If SMR_mode = 0, nothing to do
 - If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
-- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
+- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us` -->
    
-   Use the configurations under `/experiment-configs/1-Workloads/2.Basil`. Reported peak results were roughly:
-   
-      - TPCC: Throughput: ~1.8k tx/s, Latency: ~10 ms
+    - TPCC: Peak Throughput: ~1.8k tx/s, Ankle Latency: ~13 ms
 
-        | #Clients    |     1   |     5         10       20         25        30       40        50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  135   |  858   |  1301   |  1632    |  1715   |  1777   |  1752  |  1711  
-            | Lat (ms)    |  7.6   |  6    |  7.9    |  12.6     |  15    |  17.4    |   23.6  | 30.2 
+        Config file: `/experiment-configs/Peloton/TPCC/1-LAN/Peloton-TPCC-20wh.json`
+
+        | #Clients    |   1   |   5   |   10   |   20   |   25   |   30   |   40   |   50   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  135  |  858  |  1301  |  1632  |  1715  |  1777  |  1752  |  1711  
+        | Lat (ms)    |  7.6  |  6    |  7.9   |  12.6  |  15    |  17.4  |  23.6  |  30.2 
 
     
-      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+    - Auctionmark: Peak Throughput: ~4.8k tx/s, Ankle Latency: ~6 ms
 
-        | #Clients    |      1        5         10        20        25          30       40        50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  256   |  1848   |  2985   |  4208    |  4582   |  4763   |  4857  |  4851  
-            | Lat (ms)    |  4     |  2.8    |  3.4    |  4.8     |  5.5    |  6.4    |   8.4  | 10.5
+        Config file: `/experiment-configs/Peloton/Auctionmark/1-LAN/Peloton-Auction.json`
+
+        | #Clients    |   1   |   5   |   10   |   20   |   25   |   30   |   40   |   50   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  256  |  1848 |  2985  |  4208  |  4582  |  4763  |  4857  |  4851  |  
+        | Lat (ms)    |  4    |  2.8  |  3.4   |  4.8   |  5.5   |  6.4   |  8.4   |  10.5  |
 
     
-      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+    - Seats: Peak Throughput: ~5 k tx/s, Ankle Latency: ~6 ms
 
-        | #Clients    |      1         5        10         20         25        30      40         50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  225   |  1688   |  2818   |  4021    |  4427   |  4840   |  4994 |  5036
-            | Lat (ms)    |  4.5   |  3      |  3.6    |  5.1     |  5.8    |  6.4    |   8.2 | 10.2
+        Config file: `/experiment-configs/Peloton/Seats/1-LAN/Peloton-Seats.json`
+
+        | #Clients    |   1   |   5   |   10   |   20   |   25   |   30   |   40   |   50   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  225  |  1688 |  2818  |  4021  |  4427  |  4840  |  4994  |  5036  |
+        | Lat (ms)    |  4.5  |  3    |  3.6   |  5.1   |  5.8   |  6.4   |   8.2  |  10.2  |
 
         
    > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
 
- 3.5 **Peloton + Reply Sigs**: 
+ 3.5 **Peloton + Reply Sigs**:  
+ 
+    This system configuration is not shown in the paper, but we include it here for completeness. You may skip it
    
-      batch size = 4 for all
+    We used a reply batch size of b=4 across all experiments.
    
-      - TPCC: Throughput: ~1.8k tx/s, Latency: ~10 ms
+    - TPCC: Peak Throughput: ~1.5k tx/s, Ankle Latency: ~17 ms
 
-        | #Clients    |      5         10       20         25        30      
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  589   |  1030   |  1376    |  1407   |  1502   
-            | Lat (ms)    |  8.7   |  10     |  15      |  18.3   |  20.6    | 
+        Config file: `/experiment-configs/Peloton/TPCC/1-LAN/Peloton-Sigs-TPCC-20wh.json`
+
+        | #Clients    |   5   |   10   |   20   |   25   |   30   |      
+        |-------------|-------|--------|--------|--------|--------|
+        | Tput (tx/s) |  589  |  1030  |  1376  |  1407  |  1502  | 
+        | Lat (ms)    |  8.7  |  10    |  15    |  18.3  |  20.6  | 
 
     
-      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+    - Auctionmark: Peak Throughput: ~4.4k tx/s, Ankle Latency: ~8 ms
 
-        | #Clients    |       5       10     20     25    30  40    50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  900    2153    3321    3771       4087    4323   4426
-            | Lat (ms)    |  5.7     4.7     6.1   6.7         7.5     9.4     13.8
+        Config file: `/experiment-configs/Peloton/Auctionmark/1-LAN/Peloton-Sigs-Auction.json`
+
+        | #Clients    |   5   |   10   |   20   |   25   |   30   |   40   |   60   |
+        |-------------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  900  |  2153  |  3321  |  3771  |  4087  |  4323  |  4426  |
+        | Lat (ms)    |  5.7  |  4.7   |  6.1   |  6.7   |  7.5   |  9.4   |  13.8  |
 
     
-      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+    - Seats: Peak Throughput: ~4.5 k tx/s, Ankle Latency: ~8 ms
 
-        | #Clients    |      5     10        20         25       30      40    60
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  745    1851     3279      3414     3951    4460   4573
-            | Lat (ms)    |  6.8     5.5      6.3       7.5    7.8     9.2     13.5 
+        Config file: `/experiment-configs/Peloton/Seats/1-LAN/Peloton-Sigs-Seats.json`
 
+        | #Clients    |   5   |   10   |   20   |   25   |   30   |   40   |   60   |
+        |-------------|-------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  745  |  1851  |  3279  |  3414  |  3951  |  4460  |  4573  |
+        | Lat (ms)    |  6.8  |  5.5   |  6.3   |  7.5   |  7.8   |  9.2   |  13.5  |
         
    > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
 
          
-   4. **Peloton-HS:** 
+4. **Peloton-HS:** 
+
+   TODO: explain fake SMR
+   TODO: Explain how req can go in parallel through consensus
    
-   **TODO: ADAPT HS config. Batch size upper limited now.
-   Use the configurations under `/experiment-configs/1-Workloads/3.TxHotstuff`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). 
+
+   Before running Peloton-HS, you must configure Hotstuff using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
    <!-- Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment.  -->
 
-   >: notice: HotStuff cant be run with too few clients because it is pipelined (e.g. for 1 and 5 clients = no progress). 
-    -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput 
-    It needs more clients to get anything done... which of course is bad for contention.
+   > :warning: Due to its pipelined nature, HotStuff cannot be operated under very low load (i.e. for very few clients), or it will lose progress. This is because the HotStuff module does not implement a batch timer, yet requires 4 batches to be filled to "push" one proposal through the pipeline.
 
-    Reply batch: 4. HS batch: upper cap 200, dynamic. Smaller reply batch for low points
-   
-     Reported peak results were roughly:
+   Because HotStuff, by default, implements no batch timer, we augment HotStuff to make use of dynamic (upper bound) batch sizes as used by BFTSmart. We instantiate HotStuff with an upper-bound batch size of 200, but allow batches to form with dynamic smaller size whenever a new pipeline step is ready. This results in optimal latency, which is desirable for contended workloads (e.g. TPCC), while still amortizing costs as much as possible.
 
-     Ankle point:  758, 68
-      - TPCC: Throughput: ~768 tx/s, Latency: ~50 ms
+   We use a reply batch size of 4 throughout (param `ebatch`).
 
-        | #Clients    |      10     |  20  |   30  |   40      |  50    |  60    | 72
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  223   |  430   |  614   |  684    |  758   |  789   |  763 
-            | Lat (ms)    |  46.4  |  48    |  50.5  |  60.5   |  68.3  |  79    |   99
+   > **Note**: The SMR-based systems (Peloton-HS, and Peloton-Smart) have higher latency, and thus require *more* clients to reach high throughput (since clients are closed loop). On contention bottlenecked workloads (such as TPCC) this is unfortunately counterproductive, as more clients create more contention, which results in more aborts, and ultimately less throughput. Peloton-HS thus runs under tension: too few clients, and no progress is made; too many, and they interact destructively. 
+
+    - TPCC: Peak Throughput: ~790 tx/s, Ankle Latency: ~65 ms
+
+        Config file: `/experiment-configs/Peloton/TPCC/1-LAN/Peloton-HS-TPCC-20wh.json`
+    
+        | #Clients    |   10   |   20   |   30   |   40   |   50   |   60   |   72   |
+        |-------------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  223   |  430   |  614   |  684   |  758   |  789   |  763   |
+        | Lat (ms)    |  46.4  |  48    |  50.5  |  60.5  |  68.3  |  79    |  99    |
 
     
-      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+    - Auctionmark: Peak Throughput: ~3.3k tx/s, Ankle Latency: ~30 ms
 
-        | #Clients    |      15        20      40        60        75          90      100       120
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  602   |  814   |  1648   |  2280    |  2702   |  2989   |  3147 |  3304
-            | Lat (ms)    |  25.7  |  25.3  |  24.9   |  25.7    |  28.4   |  30.7   |  31.8 | 37   
+        Config file: `/experiment-configs/Peloton/Auctionmark/1-LAN/Peloton-HS-Auction.json`
+
+        | #Clients    |   15   |   20   |   40   |   60   |   75   |   90   |   100   |   120   |
+        |-------------|--------|--------|--------|--------|--------|--------|---------|---------|
+        | Tput (tx/s) |  602   |  814   |  1648  |  2280  |  2702  |  2989  |  3147   |  3304   |
+        | Lat (ms)    |  25.7  |  25.3  |  24.9  |  25.7  |  28.4  |  30.7  |  31.8   |  37     |  
 
     
-      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+    - Seats: Peak Throughput: ~3.4 k tx/s, Ankle Latency: ~30 ms
 
-        | #Clients    |      20       30        40        50         60      72         90      100     120 
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  696   |  1088   |  1494   |  1860    |  2199  |  2496   |  2912 |  3156 | 3420
-            | Lat (ms)    |  29.6  |  28.4   |  27.5   |  27.6    |  28    |  29.7   | 31.8  |  32.6 | 36.1
+        Config file: `/experiment-configs/Peloton/Seats/1-LAN/Peloton-HS-Seats.json`
+
+        | #Clients    |   20   |   30   |   40   |   50   |   60   |   72   |   90   |   100   |   120   | 
+        |-------------|--------|--------|--------|--------|--------|--------|--------|---------|---------|
+        | Tput (tx/s) |  696   |  1088  |  1494  |  1860  |  2199  |  2496  |  2912  |  3156   |  3420   |
+        | Lat (ms)    |  29.6  |  28.4  |  27.5  |  27.6  |  28    |  29.7  |  31.8  |  32.6   |  36.1   |
     
             
       
-   > :warning: **[WARNING]**: Hotstuffs performance can be quite volatile with respect to total number of clients and the batch size specified. Since the Hotstuff protocol uses a pipelined consensus mechanism, it requires at least `batch_size x 4` active client requests per shard at any given time for progress. Using too few clients, and too large of a batch size will get Hotstuff stuck. In turn, using too many total clients will result in contention that is too high, causing exponential backoffs which leads to few active clients, hence slowing down the remaining active clients. These slow downs in turn lead to more contention and aborts, resulting in no throughput. The configs provided by us roughly capture the window of balance that allows for peak throughput. \  
       
-   5. **Peloton-Smart**: 
+5. **Peloton-Smart**: 
+
+Before running Peloton-Smart, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
    
-   Use the configurations under `/experiment-configs/1-Workloads/4.TxBFTSmart`. Before running these configs, you must configure Hotstuff using the instructions from section "1) Pre-configurations for Hotstuff and BFTSmart" (see above). You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). Note, that you must re-run `src/scripts/one_step_config.sh` **after** updating the batch size and **before** starting an experiment. 
+You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). BFTSmart uses dynamically sized batches, and in our experience performs best with an upper bound of 64 and no batch timeout.
+
+We use a reply batch size of 4 throughout (param `ebatch`).
+
+ > **[OPTIONAL]** **If you read, read fully**: To change batch size in BFTSmart navigate to  `src/store/bftsmartstore/library/java-config/system.config` and change line `system.totalordermulticast.maxbatchsize = <batch_size>`. However, explicitly setting this batch size is not necessary, as long as the currently configured `<batch_size>` is `>=` the desired one. This is because BFTSmart performs optimally with a batch timeout of 0, and hence the batch size set *only* dictates an upper bound for consensus batches. Using a larger batch size has no effect. By default our configurations are set to (upper bound) `<batch_size> = 64`.
+   
+> **[Troubleshooting]**: If you run into any issues (specifically the error: “SSLHandShakeException: No Appropriate Protocol” ) with running BFT-Smart please comment out the following in your `java-11-openjdk-amd64/conf/security/java.security` file: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
       
-      Reported peak results were roughly:
+> **Note**: The SMR-based systems (Peloton-HS, and Peloton-Smart) have higher latency, and thus require *more* clients to reach high throughput (since clients are closed loop). On contention bottlenecked workloads (such as TPCC) this is unfortunately counterproductive, as more clients create more contention, which results in more aborts, and ultimately less throughput. 
+      
+     
+    - TPCC: Peak Throughput: ~900 tx/s, Ankle Latency: ~40 ms
 
-      Ankle point: 785, 39.4   
-      - TPCC: Throughput: ~750 tx/s, Latency: ~30 ms
-
-      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
-
-        | #Clients    |     5   |    10        20       30        40       50
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  178   |  333   |  592   |  785    |  807   |  897  
-            | Lat (ms)    |  28.9  |  30.9  |  34.8  |  39.4   |  51.3  |  69.4
+        Config file: `/experiment-configs/Peloton/TPCC/1-LAN/Peloton-BFTSMART-TPCC-20wh.json`
+    
+        | #Clients    |   5   |   10   |   20   |   30   |   40   |   60   |
+        |-------------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  178  |  333   |  592   |  785   |  807   |  897   |
+        | Lat (ms)    |  28.9 |  30.9  |  34.8  |  39.4  |  51.3  |  69.4  |
 
 
-      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
+    - Auctionmark: Peak Throughput: ~3.3k tx/s, Ankle Latency: ~23 ms
 
-        | #Clients    |      5       10      15       30        40        60         72       90       100 
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  284   | 578    | 839   |  1619   |  2104    |  2821   |  3045   |  3219 |  3271
-            | Lat (ms)    |  18.2   | 17.8 |  18.4    |  19    |  19.5  |  21.7   |  24.1   | 28.5  | 31.1
+        Config file: `/experiment-configs/Peloton/Auctionmark/1-LAN/Peloton-BFTSMART-Auction.json`
+
+
+        | #Clients    |   5   |   10   |   15   |   30   |   40   |   60   |   72   |   90   |   100   | 
+        |-------------|-------|--------|--------|--------|--------|--------|--------|--------|---------|
+        | Tput (tx/s) |  284  |  578   |  839   |  1619  |  2104  |  2821  |  3045  |  3219  |  3271   |
+        | Lat (ms)    |  18.2 |  17.8  |  18.4  |  19    |  19.5  |  21.7  |  24.1  |  28.5  |  31.1   |
     
 
-      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+    - Seats: Peak Throughput: ~3.4k tx/s, Ankle Latency: ~23 ms
+
+        Config file: `/experiment-configs/Peloton/Seats/1-LAN/Peloton-BFTSMART-Seats.json`
+
+        | #Clients    |   5   |   10   |   15   |   30   |   40   |   60   |   72   |   90   |   100   |
+        |-------------|-------|--------|--------|--------|--------|--------|--------|--------|---------|
+        | Tput (tx/s) |  238  |  498   |  743   |  1510  |  2017  |  2842  |  3073  |  3355  |  3425   |
+        | Lat (ms)    |  21.5 |  20.6  |  20.8  |  20.4  |  20.4  |  21.7  |  24.1  |  27.6  |  30     |
 
 
-        | #Clients    |     5        10       15         30        40       60         72      90       100
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  238   |  498   | 743   |  1510   |  2017    |  2842   |  3073   |  3355 |  3425
-            | Lat (ms)    |  21.5  |  20.6  |  20.4   |  20.4    |  21.7   |  24.1   |  27.6 | 30
 
-
-   > **[OPTIONAL NOTE]** **If you read, read fully**: To change batch size in BFTSmart navigate to  `src/store/bftsmartstore/library/java-config/system.config` and change line `system.totalordermulticast.maxbatchsize = <batch_size>`. However, explicitly setting this batch size is not necessary, as long as the currently configured `<batch_size>` is `>=` the desired one. This is because BFTSmart performs optimally with a batch timeout of 0, and hence the batch size set *only* dictates an upper bound for consensus batches. Using a larger batch size has no effect. By default our configurations are set to (upper bound) `<batch_size> = 64`.
-   > **[Troubleshooting]**: If you run into any issues (specifically the error: “SSLHandShakeException: No Appropriate Protocol” ) with running BFT-Smart please comment out the following in your `java-11-openjdk-amd64/conf/security/java.security` file: `jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, DH keySize < 1024 EC keySize < 224, 3DES_EDE_CBC, anon, NULL`
-
+TODO: CLEAN UP POSTGRES CONFIGS AND INSTRUCTIONS
       
-   6. **Postgres**: 
-   
-    TODO: Use the postgres config instructions
-      
-      Reported peak results were roughly:
+6. **Postgres**: 
 
-      Ankle point: 785, 39.4   
-      - TPCC: Throughput: ~750 tx/s, Latency: ~30 ms
-
-      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
-
-        | #Clients    |      1   |   3       5     8       12       16   24      28     32
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  94     447    858   1325      1614   1676   1781   1671   1584
-            | Lat (ms)    |  10.9   6.9    6      6.2     7.7     10      13.8   17.2   20.8
-
-
-      - Auctionmark: Throughput: ~4.8k tx/s Latency: ~5 ms
-
-        | #Clients    |      1        3        5       8        12      16      24       32    40
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  279      1309    2625     4760    6027     6530    6941    6774   6648
-            | Lat (ms)    |  3.7       2.3     1.9      1.7     2        2.5     3.5    4.8    6.1
+TODO: Use the postgres config instructions
     
+    - TPCC: Peak Throughput: ~1.8k tx/s, Ankle Latency: ~11 ms
 
-      - Seats: Throughput: ~5 k tx/s, Latency: ~5 ms
+        Config file: `/experiment-configs/Postgres/unreplicated/TPCC/1-LAN/Postgres-TPCC-20wh.json`
 
-
-        | #Clients    |     1        3       5          8        12         16      24      32     40
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  392    1279     2884       5364     6663      7444    7967    7969   7768
-            | Lat (ms)    |  2.6     2.4     1.8        1.5       1.8       2.2      3.1    4.1    5.3
-
-
-
-     7. **Postgres-PB**: 
-   
-    TODO: Use the postgres primary backup config instructions
-      
-
-      - TPCC:   Ankle point: 1998, 17.2
-      -- smr systems have higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
-
-            -- contention bottleneck, at high load starts to abort a lot.
-        | #Clients    |      1       5         10       20        30        40    50      60     70
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  81   |  431   |  790   |   1198    |  1238   | 1257    1216  1099    1117
-            | Lat (ms)    | 12.7      11.9    13       17.2        25.1     33       42.5  56.4    64.2
+        | #Clients    |   1   |   3   |   5   |   8   |   12   |  16   |   24   |   28   |   32   |
+        |-------------|-------|-------|-------|-------|--------|-------|--------|--------|--------|
+        | Tput (tx/s) |  94   |  447  |  858  |  1325 |  1614  |  1676 |  1781  |  1671  |  1584  |
+        | Lat (ms)    |  10.9 |  6.9  |  6    |  6.2  |  7.7   |  10   |  13.8  |  17.2  |  20.8  |
 
 
-      - Auctionmark: Ankle Throughput: ~6084 tx/s Latency: ~8.4
+    - Auctionmark: Peak Throughput: ~7k tx/s, Ankle Latency: ~3 ms
 
-        | #Clients    |     1         5       10          20        30        40         50     60     70
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) | 190   | 1022    | 2187   |  4529   |  5720    |  6012   |  6084   |  6059 |  6014
-            | Lat (ms)    |  5.4   | 5    |   4.7    |  4.5    |  5.3  |     6.8   |    8.4   |  10.2  | 11.9
+        Config file: `/experiment-configs/Postgres/unreplicated/Auctionmark/1-LAN/Postgres-TPCC-20wh.json`
+
+        | #Clients    |   1   |   3   |   5   |   8   |   12   |   16   |   24   |   32   |   40   |
+        |-------------|-------|-------|-------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  279  |  1309 |  2625 |  4760 |  6027  |  6530  |  6941  |  6774  |  6648  |
+        | Lat (ms)    |  3.7  |  2.3  |  1.9  |  1.7  |  2     |  2.5   |  3.5   |  4.8   |  6.1   |
+
+
+    - Seats: Peak Throughput: ~8 k tx/s, Ankle Latency: ~3 ms
+
+        Config file: `/experiment-configs/Postgres/unreplicated/TPCC/1-LAN/Postgres-TPCC-20wh.json`
+
+        | #Clients    |   1   |   3   |   5   |   8   |   12   |   16   |   24   |   32   |   40   |
+        |-------------|-------|-------|-------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  392  |  1279 |  2884 |  5364 |  6663  |  7444  |  7967  |  7969  |  7768  |
+        | Lat (ms)    |  2.6  |   2.4 |  1.8  |  1.5  |  1.8   |  2.2   |  3.1   |  4.1   |  5.3   |
+
+
+
+7. **Postgres-PB**: 
+
+TODO: Use the postgres primary backup config instructions
     
+    - TPCC:   Ankle point: 1998, 17.2
+        -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+        -- TPCC is a write heavy workload, so the cost of synchronous PB affects it more
 
-      - Seats: Ankle 7695, 6.7
+        -- contention bottleneck, at high load starts to abort a lot.
+
+        | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  81   |  431  |  790   |  1198  |  1238  |  1257  |  1216  |  1099  |  1117  |
+        | Lat (ms)    |  12.7 |  11.9 |  13    |  17.2  |  25.1  |  33    |  42.5  |  56.4  |  64.2  |
 
 
-        | #Clients    |    1        5          10        20        30         40       50        60      70
-            |-----------|--------|--------|---------|---------|---------|----------|
-            | Tput (tx/s) |  233   |  1182   | 2499   |  5447   |  6911    |  7471   |  7695   | 7612 |  7617
-            | Lat (ms)    |  4.4      4.3      4.1        3.7      4.4         5.5     6.7        8.1     9.7
+    - Auctionmark: Ankle Throughput: ~6084 tx/s Latency: ~8.4
+
+        | #Clients    |   1   |    5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
+        |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) | 190   |  1022  |  2187  |  4529  |  5720  |  6012  |  6084  |  6059  |  6014  |
+        | Lat (ms)    |  5.4  |  5     |  4.7   |  4.5   |  5.3   |  6.8   |  8.4   |  10.2  |  11.9  |
 
 
-2. Sharding
+    - Seats: Ankle 7695, 6.7
+
+        | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  233  |  1182 |  2499  |  5447  |  6911  |  7471  |  7695  |  7612  |  7617  |
+        | Lat (ms)    |  4.4  |  4.3  |  4.1   |  3.7   |  4.4   |  5.5   |  6.7   |  8.1   |  9.7   |
 
 
-    Note: Need to set sharding in config. + increase number of server names. + need to upload data to all
-  Pesto: 1    1784
-  Pesto 2     2934
-  Pesto 3     3949
+#### **2 - Sharding**:
 
-  CRDB 1   400
-  CRDB 5   1095
-  CRDB 9   1357
+In addition to Pesto, we also evaluated CockroachDB, a popular production-grade distributed database. We do not compare to Peloton and Postgres as they are not easily shardable.
+For Pesto we scale to 2 and 3 shards; for CockroachDB we scale to 5 and 9 shards (its peak).
+
+> **[NOTE]** We cannot shard the Peloton baselines. The DB is effectively a blackbox and does not have innate support for sharding. Postgres supports native table partitioning, but not horizontal sharding; one may work around this using the Foreign Data Wrapper (FDW) interface or the Citus extension, but we opted against it for simplicity. CRDB, in contrast, supports automatic sharding which is why we selected it for this experiment. Pesto's commit process supports sharding by design, as it integrates concurrency control and 2PC. Our Pesto prototype, however, does not support distributed queries (i.e. it supports only queries that are satisfied by a single shard); we thus can currently only shard TPC-C, but not Seats or Auctionmark.  
+
+We report below the peak reported throughput. The configuration files referened run a series of client loads to find the peak.
+
+1. Pesto
+
+    > :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
+
+    > :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
+
+    Use the following three configs:
+    - 1 shard: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh.json` (you do not need to re-run this, it is the same as reported above!!)
+    - 2 shards: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-2s.json`
+    - 3 shards: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-3s.json`
+
+    Peak results reported were:
+
+    | #Shards     |   1   |   2   |   3   |  
+    |-------------|-------|-------|-------|
+    | Tput (tx/s) | 1784  | 2934  | 3949  |
+
+
+2. CRDB
+
+    TODO: 
+
+    Peak results reported were:
+
+    | #Shards     |   1   |   5   |   9   |  
+    |-------------|-------|-------|-------|
+    | Tput (tx/s) |  400  | 1095  | 1357  |
 
  > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
  > **[NOTE]** CockroachDB (like most databases) only allows for sequential execution of operations within a transaction. This results in high transaction latencies (relative to Pesto) for TPC-C, whose New-Order transaction might issue up to ~45 operations. Pesto, in contrast, can execute many of these operations in parallel, reducing execution latency. Our Peloton baselines strike a midpoint: although execution on the DB itself must be sequential within a transaction, clients do not connect to the DB directly (like for CRDB) but send a message to a replica proxy, which then invokes the DB. This allows clients to send independent operations in parallel, thus sidestepping network and amortizing consensus latency. 
 
-> **[NOTE]** We cannot shard the Peloton baselines. The DB is effectively a blackbox and does not have innate support for sharding. CRDB, in contrast, explicitly supports sharding which is why we selected it for this experiment. Pesto's commit process supports sharding organically, as it integrates concurrency control and 2PC. Our Pesto prototype, however, does not support distributed queries (i.e. it supports only queries that are satisfied by a single shard); we thus can currently only shard TPC-C, but not Seats or Auctionmark.
+3. Basil
 
-  Basil-3 (taken from paper, link): 4862
+    We report the 3 shard result from the [Basil paper](https://www.cs.cornell.edu/~fsp/reports/Suri21Basil.pdf): 4862 tx/s
+  
 
-3. Point/Scan
 
-    single client. So no server load.
 
-     |  Type    | r=2    |  r=10  |  r=100  |  r=1000 | r=10000 | r=100000 | 
-    |-----------|--------|--------|---------|---------|---------|----------|
-    | Point     |  3ms   |  4.7   |  25.5   |  222    |  2133   |  21076   |     
-    | Scan      |  3.3ms |  3.4   |  4.9    |  20     |  128    |  1200    |  
-    | Scan-Cond |  3.3   |  3.3   |  3.5    |  5.3    |  19.4   |  199     |  
+#### **3 - Point vs Range Reads **:
+The following experiments were run using a single client. Configs are located under `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point`.
+
+Each experiment tries to read a range of <num> rows, either using only point reads, or using the range read protocol. We also evaluate a case in which the read is predicated on a secondary condition (Range-Cond)
+that applies for only 1 in a 100 rows. 
+
+We used the following configs:
+1. Point: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Point/<num>.json 
+> **Note**: We evaluated two additional setups, Point-bare and Point-batched, which, respectively, execute a point read only against a KV-store (instead of the SQL backend) -- akin to Basil --, or try to batch replies to amortize signature costs. However, we did not find any meaningful differences so we opted to omit the results. We note further that point reads in this microbenchmark do NOT incur the cost of verifying CommitProofs: because the workload is read only, the only keys read are genesis keys that require no proof in our setup. This implies that in practice, the benefit of range reads is *even bigger* than we claim.
+
+2. Range: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/no condition/<num>.json
+
+3. Range-Cond: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/with condition/<num>.json
+
+The reported results were:
+
+    | #Rows      |   2    |   10   |  100   |  1000  |  10000 |  100000 | 
+    |------------|--------|--------|--------|--------|--------|---------|
+    | Point      |  3ms   |  4.7   |  25.5  |  222   |  2133  |  21076  |     
+    | Range      |  3.3ms |  3.4   |  4.9   |  20    |  128   |  1200   |  
+    | Range-Cond |  3.3   |  3.3   |  3.5   |  5.3   |  19.4  |  199    |  
            
 
-4. Inconsistent
+#### **4 - Stress testing Range Reads**:
+In this microbenchmark we simulate artificial inconsistency between replicas to invoke Pesto's snapshot protocol. 
 
-    \subsection{Stress testing Range Reads}\label{eval:snapshot}
-While range reads offer improved expressivity \changebars{and performance}{, and can drastically reduce latency,} they are not guaranteed to succeed in a single round trip. \changebars{}{Although we exceedingly find replicas to be sufficiently consistent in practice (\S\ref{eval:highlvl}), encountered inconsistencies can result in eager execution to fail, and demand explicit replica synchronization and snapshot materialization to succeed.}To evaluate the worst-case, we stress test \sys{} by \one artificially failing eager execution for \textit{every} transaction -- requiring a snapshot proposal, but no synchronization, and \two artificially simulating inconsistency by ommitting/delaying application of writes of \textit{every} transaction at $\frac{1}{3}$rd of replicas -- requiring both a snapshot proposal and explicit synchronization.
+We implement a microbenchmark based on the YCSB framework consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended uniform access pattern *U*, and a very highly contended Zipfian access pattern **Z** with coefficient 1.1
+
+We simulate two settings:
+1) We artificially fail eager execution for *every* transaction -- requiring a snapshot proposal, but no synchronization (since replicas are, in fact, consistent)
+2) We ommit/delay application of writes of every transaction at 1/3rd of replicas -- this results in actual inconsistency, and requires both a snapshot proposal and explicit synchronization.
+  
+TODO: ADD DISCUSSION FROM NOTES
 
 <!-- \iffalse
 Simulation setup:
@@ -605,117 +696,162 @@ Notes:
 - An ideal setup would simulate client failures, but we don't want to do this or else we 1) aren't isolating the impact of sync, 2) we have to plot tput/honest
 \fi -->
 
-We implement a microbenchmark based on the YCSB framework~\cite{Cooper} consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended \changebars{uniform access pattern \textit{U}}{uniformly random access of tables and ranges (denoted as \\textit{U-<config>})}, and a very highly contended Zipfian access pattern \changebars{\textit{Z} with coefficient 1.1}{ with coefficient $\theta = 1.1$ (denoted as \textit{Z-<config>}).} Figure \ref{fig:snapshot} shows the results.
+Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/2-Snapshot`
 
+The reported results on the uniform workoad U were:
 
-TODO: ADD DISCUSSION FROM NOTES
+    - U-Ideal
 
-Zipfian is highly contended, so with the random exp backoff there can decent variance in results.
+        Use config `Uniform-Eager-low.json` for #Clients <= 15 (b=2), and `Uniform-Eager.json` for the rest (b=4).
 
-    U-Ideal
-
-        | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3085 |  3945 |  5880  |  6911 |  6975  |  7008   
-        | Lat (ms)    |  2.6  |  2.6  |  2.6   |  3    |  3.7   |  4.4 
+        | #Clients    |   8   |   10   |   15   |   20   |   25   |   30   |
+        |-------------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3085 |  3945  |  5880  |  6911  |  6975  |  7008  |  
+        | Lat (ms)    |  2.6  |  2.6   |  2.6   |  3     |  3.7   |  4.4   |
 
      
-    U-FailEager
+    - U-FailEager
 
-          | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3404 |  4471 |  5307  |  6140 |  6309  |  6369   
-        | Lat (ms)    |  3.6  |  3.6  |  3.9   |  4.2  |  4.9   |  5.7 
+        Use config `Uniform-FailEager-low.json` for #Clients <= 16 (b=2), and `Uniform-FailEager.json` for the rest (b=4).
 
-
-    U-Incon
-
-          | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3121 |  4432 |  5400  |  5977  |  6496  |  6658 | 6652   
-        | Lat (ms)    |  3.9  |  3.7  |  3.8   |  4.3   |  4.8   |  5.4  | 6.2 
+        | #Clients    |   12   |   16   |   20   |   25   |   30   |   35   |
+        |-------------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3404  |  4471  |  5307  |  6140  |  6309  |  6369  |   
+        | Lat (ms)    |  3.6   |  3.6   |  3.9   |  4.2   |  4.9   |  5.7   |
 
 
-    > **[NOTE]** We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+    - U-Incon
 
-    Z-Ideal
+        Use config `Uniform-Inconsistent.json`
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  884 |  1485 |  2319  | 2695 |  2861 |  2884   
-        | Lat (ms)    |  3.5 |  3.5  |  4.4   |  5.8 | 7.3   |  9.2 
+        | #Clients    |   12   |   16   |   20   |   25   |   30   |   35   |   40   | 
+        |-------------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3121  |  4432  |  5400  |  5977  |  6496  |  6658  |  6652  | 
+        | Lat (ms)    |  3.9   |  3.7   |  3.8   |  4.3   |  4.8   |  5.4   |  6.2   |
 
 
 
-    Z-FailEager
+The reported results on the Zipfian workoad Z were:
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  621 |  1034 |  1582  |  1823 |  1951     
-        | Lat (ms)    |  5   |  5    |  6.5   |  8.5  |  10.7   
+> **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
+
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+
+    - Z-Ideal
+
+        Use config `Zipf-Eager.json`
+        <!-- client 30: (3029.2,10.600514610370176) -->
+
+        | #Clients    |   3   |   5   |   10   |   15   |   20   |   25   |     
+        |-------------|-------|-------|--------|--------|--------|--------|
+        | Tput (tx/s) |  884  |  1485 |  2319  |  2695  |  2861  |  2884  |   
+        | Lat (ms)    |  3.5  |  3.5  |  4.4   |  5.8   |  7.3   |  9.2   |
 
 
-    Z-Incon
+    - Z-FailEager
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  601  |  996  |  1333 |  1408 |  1498     
-        | Lat (ms)    |  5.1  |  5.1  |  6.2  |  9    |  10.5   
+        Use config `Zipf-FailEager.json`
+
+        | #Clients    |   3   |   5   |   10   |   15   |   20   |   25   |  
+        |-------------|-------|-------|--------|--------|--------|--------|
+        | Tput (tx/s) |  621  |  1034 |  1582  |  1823  |  1951  |  1995  |
+        | Lat (ms)    |  5    |  5    |  6.5   |  8.5   |  10.7  |  13.1  |
 
 
+    - Z-Incon
 
-5. Failure
+        Use config `Zipf-Inconsistent.json`
 
-TODO: ADD DISCUSSION FROM NOTES
+        | #Clients    |   3   |   5   |   8   |   12   |   15   |   20   |
+        |-------------|-------|-------|-------|--------|--------|--------|
+        | Tput (tx/s) |  601  |  996  |  1333 |  1408  |  1498  |  1475  |
+        | Lat (ms)    |  5.1  |  5.1  |  6.2  |  9     |  10.5  |  14.4  |
 
-We evaluate two configurations: \one \textit{Failure-NoFP} illustrates the effect of a failure when the fast path is disabled.\fs{; this is equivalent to no replica failure (omitted for clarity).} \two \textit{Failure-FP} shows the impact of a failed fast path when using a very conservative timeout of $\approx 4ms$. \fs{I actually set the config to 2ms. However, due to an implementation artifact in our event library~\cite{libevent}\fs{cite!}, timers only have granularity of 4ms, so often it takes 4ms rather than 2ms.}\fs{Note to self: This also explains why the tiny micro-second sized batch timers don't matter, because often it is 4ms}\fs{technically, slow and fast path could be done in parallel, but it would hurt resource util}
 
-    U-Ideal -- Same as before. Don't need to re-run!!!
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3085 |  3945 |  5880  |  6911 |  6975  |  7008   
-        | Lat (ms)    |  2.6  |  2.6  |  2.6   |  3    |  3.7   |  4.4 
+#### **5 - Impact of Failure**:
+Finally, we evaluate the performance of Pesto under a replica failure. We simulate the replica failure by simply dropping all incoming traffic at one replica.
+
+We distinguish two configurations: 
+1) We disable Pesto's commit fast path; commit immediately proceeds to stage 2.
+2) We enable the fast path; this results in the timeout expiring before proceeding to stage 2.
+
+> **[NOTE]**: In our config file we set the fast path timeout to 2ms. However, our event library (libevent) by default supports only timer granularity of 4ms. This, in practice, results in timeouts that are 4ms most of the time. Libevent can be configured to use nanosecond timer granularity, but this increases overall overheads and distorts comparison to existing results.
+<!-- Note to self: This also explains why the tiny micro-second sized batch timers don't matter, because often it is 4ms -->
+
+> **[NOTE]**: In theory, the fast and slow path can be safely operated in parallel -- in which case both configurations (fast path enabled/disabled) would perform identically. In practice, we opt against it to avoid redundant processing in case we do succeed on the fast path.
+
+Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/3-Replica Failure`. 
+The results for U-Ideal and Z-Ideal are re-used from the previous experiments. You do not need to re-run them!
+
+The reported results on the uniform workoad U were:
+
+    - U-Ideal 
      
-    U-NoFP
+        Same as before. Don't need to re-run!!!
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3038 |  4009 |  4567  |  5156 |  5520  |  5816  | 5932 | 6018   
-        | Lat (ms)    |  4.1  |  4.1  |  4.7   |  5    |  5.6   |  6.2   | 6.9  | 7.7
+        | #Clients    |   8   |   10   |   15   |   20   |   25   |   30   |
+        |-------------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3085 |  3945  |  5880  |  6911  |  6975  |  7008  |  
+        | Lat (ms)    |  2.6  |  2.6   |  2.6   |  3     |  3.7   |  4.4   |
+     
+    - U-NoFP
+
+        Use config `Uniform-Failure-0.json`
+
+        > **Note**: Config `Uniform-NoFP` runs a fault-free experiment with fast path disabled. The resulting performance is pretty much equivalent to running with replica failure.
+
+        | #Clients    |   12   |   16   |   21   |   25   |   30   |   35   |   40   |   45   |
+        |-------------|--------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3038  |  4009  |  4567  |  5156  |  5520  |  5816  |  5952  |  6018  |   
+        | Lat (ms)    |  4.1   |  4.1   |  4.7   |  5     |  5.6   |  6.2   |  6.9   |  7.7   |
 
       
-    U-FP
+    - U-FP
 
-        > **[NOTE]** We configured the Timeout to be 2ms on paper, but it turns out that the timer precision of the event library we use (libevent) is only 4ms. So in practice, we observe that timeouts are 4ms most of the time. Libevent can be configured to use nanosecond timer granularity, but this increases overall overheads and distorts comparison to existing results.
+        Use config `Uniform-Failure-2.json`.
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  3139 |  3801 |  4351  |  4871 |  5355  |  5323 | 5275   
-        | Lat (ms)    |  8.2  |  8.1  |  8.3   |  8.5  |  8.7   |  9.4  |  12.1 
+         > **Note**: Since latency is higher, we require more clients to reach the same throughput. For #Clients > 45 we used config `Uniform-Failure-2-high.json` to make sure that each client is using its own core. To run this config you will need to instantiate additional client machines on CloudLab (e.g. 2 client machines per server). For simplicity, you can omit this and run only `Uniform-Failure-2.json` which will co-locate 2 clients on the same core. This results in slightly lower performance, but should still be comparable.
+
+        | #Clients    |   25   |   30   |   35   |   40   |   45   |   50   |   60   | 
+        |-------------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  3139  |  3801  |  4351  |  4871  |  5355  |  5323  |  5275  | 
+        | Lat (ms)    |  8.2   |  8.1   |  8.3   |  8.5   |  8.7   |  9.4   |  12.1  |
 
 
-    Z-Ideal -- Same as before. Don't need to re-run!!!
+The reported results on the Zipfian workoad Z were:
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  884 |  1485 |  2319  | 2695 |  2861 |  2884   
-        | Lat (ms)    |  3.5 |  3.5  |  4.4   |  5.8 | 7.3   |  9.2 
+> **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
+
+> **[NOTE]** We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+
+    - Z-Ideal 
+    
+        Same as before. Don't need to re-run!!!
+
+        | #Clients    |   3   |   5   |   10   |   15   |   20   |   25   |     
+        |-------------|-------|-------|--------|--------|--------|--------|
+        | Tput (tx/s) |  884  |  1485 |  2319  |  2695  |  2861  |  2884  |   
+        | Lat (ms)    |  3.5  |  3.5  |  4.4   |  5.8   |  7.3   |  9.2   |
        
 
-    Z-NoFP
+    - Z-NoFP
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  1030 |  1544 |  1886  |  2280 |  2521  |  2615 | 2725   
-        | Lat (ms)    |  4.4  |  4.3  |  4.6   |  5.5  |  6.2   |  7.4  | 8.4
+        Use config `Zipf-Failure-0.json`
+
+        | #Clients    |   5   |   8   |   12   |   16   |   20   |   25   |   30   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  1030 |  1544 |  1886  |  2280  |  2521  |  2615  |  2725  |   
+        | Lat (ms)    |  4.4  |  4.3  |  4.6   |  5.5   |  6.2   |  7.4   |  8.4   |
 
 
-    Z-FP
+    - Z-FP
 
-      | #Clients    | c=5    |
-        |-----------|--------|--------|---------|---------|---------|----------|
-        | Tput (tx/s) |  943 |  1436 |  1625 |  1773 |  2081  |  2116   
-        | Lat (ms)    |  8.6  |  8.9 |  9.1  |  9.3  |  10.1  |  10.6 
+        Use config `Zipf-Failure-2.json`
+
+        | #Clients    |   10   |   15   |   20   |   25   |   30   |   35   |
+        |-------------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  943   |  1436  |  1625  |  1773  |  2081  |  2116  |   
+        | Lat (ms)    |  8.6   |  8.9   |  9.1   |  9.3   |  10.1  |  10.6  |
 
        
 
@@ -740,182 +876,4 @@ Affects baselines MUCH worse though (since they have high consensus latency) so 
 - If SMR_mode = 0, nothing to do
 - If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
 - If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
-
-
-
-
-
-
-
-
--------------------- OLD :  END DOCUMENT HERE...
-
-#### **2-Client Failures**:
-   We evaluated 4 types of client failures: 1) forced simulated equivocation (equiv-forced), 2) realistic equivocation (equiv-real), 3) early client stalling (stall-early), and 4) late client stalling (stall-late). We evaluated all failures across 2 simple YCSB workloads: a) a uniform workload (RW-U), and b) a heavily skewed/contended workload (RW-Z). We remark once again that "equiv-forced" is **not** the realistic worst-case, as it simulates an artificial execution; Instead, it is "stall-early" that corresponds to the worst-case statistics claimed by us.
-   
-   The metric used is Throughput/Correct-Clients: It can be found under `stats.json` -> `run_stats` -> `combined` -> `tput_s_honest` (see subsection 3) Parsing outputs) /
-   
-   To reproduce the full lines/slope in the paper you need to re-run several configs per failure type, per workload. To only validate our claims, it may instead suffice to re-run data points near the maximum evaluated fault threshold (e.g. config Indicus-90-2). Configs are named after the total number of faulty clients, and the frequency at which they issue failures: E.g. Indicus-90-2.json (in a given failure type folder) simulates 90% of clients injecting a failure every 2nd transaction. To read the total percentage of faulty transaction (relative to total transactions injected) search for `"tx_attempted_failure_percentage"`.
-   
-   > ⚠️ **[WARNING]** Do NOT change the client settings in any of the configurations. To facilitate comparisons between different failure levels all must use the same number of clients. The client numbers used correspond to those reported in the paper.
-   > **[NOTE]** Experiment stats are only collected on correct clients. Due to the high number of failure fractions evaluated, only few clients are used to collect stats which can lead to higher variance in the results; Hence all our results reported in the paper are averages over 4 runs and include standard deviation. You *may* want to do the same, but it is not necessary. We recommend using Indicus-90-2.json instead of 98-2.json for higher stability (if you only run one config).
-
-
-   1. **Evaluating RW-U**: Use configs from `/experiment-configs/2-Client-Failures/RW-U
-      1. No Failures baseline:
-         - First, run the baseline `Indicus-NoFailures.json` to establish the throughput per correct client when no failures are occuring. 
-         - Reported Tput/CorrectClients: ~107
-      2. equiv-forced:
-         - Navigate to folder `EquivForced` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 40% fautly/total tx. Tput/Corectclients: ~76
-         
-      3. equiv-real
-         - Navigate to folder `EquivReal` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 45% faulty/total tx. Tput/Corectclients: ~107
-         
-      4. stall-early
-         - Navigate to folder `StallEarly` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 46% faulty/total tx. Tput/CorrectClients: ~90
-         
-      5. stall-late
-         - Navigate to folder `StallLate` and run a config file.
-         - Reported Tput for Indicus-90-2: corresponds to 45% of faulty/total tx. Tput/CorrectClient: ~96
-         
-      All reported data points. Data format: [% faulty/total, Tput/CorrectClients]
-      
-            |  Failure Type | Indicus-10-3 | Indicus-15-2 | Indicus-30-3 | Indicus-60-3 | Indicus-60-2 | Indicus-80-2 | Indicus-90-2 | Indicus-98-2
-            |---------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|-------------
-            | equiv-forced  |  [3%, 104]   |  [7%, 100]   |  [10%, 97]   |  [19%, 39]   |  [28%, 83]   |  [36%, 79]   |  [40%, 76]   |  [43%, 74]
-            | equiv-real    |      -       |       -      |  [10%, 107]  |  [20%, 106]  |  [30%, 106]  |  [40%, 107]  |  [45%, 107]  |  [49%, 107]
-            | stall-early   |      -       |       -      |  [11%, 101]  |  [21%, 101]  |  [32%, 97]   |  [41%, 93]   |  [46%, 90]   |  [49%, 90]
-            | stall-late    |      -       |       -      |  [10%, 106]  |  [20%, 104]  |  [30%, 102]  |  [40%, 100]  |  [45%, 90]   |  [49%, 95]
-      
-   2. **Evaluating RW-Z**: Use configs from `/experiment-configs/2-Client-Failures/RW-U
-      1. No Failures baseline:
-         - First, run the baseline `Indicus-NoFailures.json` to establish the throughput per correct client when no failures are occuring. 
-         - Reported Tput/CorrectClients: ~67
-      2. equiv-forced:
-         - Navigate to folder `EquivForced` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 27% fautly/total tx. Tput/Corectclients: ~24
-         
-      3. equiv-real
-         - Navigate to folder `EquivReal` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 36% faulty/total tx. Tput/Corectclients: ~66
-         
-      4. stall-early
-         - Navigate to folder `StallEarly` and run a config file.
-         - Reported Tput for Indicus-90-2: Corresponds to 40% faulty/total tx. Tput/CorrectClients: ~46
-         
-      5. stall-late
-         - Navigate to folder `StallLate` and run a config file.
-         - Reported Tput for Indicus-90-2: corresponds to 40% of faulty/total tx. Tput/CorrectClient: ~56
-         
-      All reported data points. Data format: [faulty transactions / total transactions as %, Tput/CorrectClients as tx/s/#correct_clients]
-      
-            |  Failure Type | Indicus-10-3 | Indicus-15-2 | Indicus-30-3 | Indicus-60-3 | Indicus-60-2 | Indicus-80-2 | Indicus-90-2 | Indicus-98-2
-            |---------------|--------------|--------------|--------------|--------------|--------------|--------------|--------------|-------------
-            | equiv-forced  |   [2%, 53]   |   [5%, 48]   |   [7%, 43]   |  [13%, 35]   |  [19%, 30]   |  [24%, 26]   |  [27%, 24]   |  [29%, 22]
-            | equiv-real    |      -       |       -      |   [8%, 67]   |  [16%, 67]   |  [24%, 67]   |  [32%, 66]   |  [36%, 66]   |  [39%, 67]
-            | stall-early   |      -       |       -      |   [10%, 65]  |  [18%, 60]   |  [29%, 55]   |  [36%, 50]   |  [40%, 46]   |  [42%, 44]
-            | stall-late    |      -       |       -      |   [10%, 65]  |  [18%, 62]   |  [25%, 61]   |  [36%, 59]   |  [40%, 56]   |  [42%, 54]
-     
- > **[NOTE]** Why does %faulty/total end at different points?/
-     The explanation is not unavailability, or a failure to run the experiment: rather, it is an artefact of how we count transactions. In particular, (faulty_clients x failure_frequency) % (e.g. 45% for Indicus-90-2) of the transactions newly submitted to Basil are faulty. However, contention (and dependencies on equivocating transactions) can require some of the correct transactions to abort and re-execute (faulty transactions instead do not care to retry), which decreases the percentage of faulty transactions that Basil processes (since, again, some correct transactions end up being prepared multiple times). Thus, when measuring the throughout, the percentage of faulty transactions we report is the fraction of faulty transactions among all processed (as opposed to admitted) transactions--the latter is set at (faulty_clients x failure_frequency) %, while the former depends on the number of re-executions of correct transactions.
- 
-
-#### **Microbenchmarks**:
-Finally, we review the reported Microbenchmarks.
-
-#### **3-Crypto Overheads**:
-To reproduce the reported evaluation of the impact of proofs and cryptography on the system navigate to `experiment-configs/3-Micro:Crypto`. The evaluation covers the RW-U workload as well as RW-Z, and for each includes a config with Crypto/Proofs disabled and enabled respectively. Since signatures induce a high amount of overhead the full Basil system is multithreaded and uses several worker threads to handle cryptography - Since this overhead falls to the wayside, the Non-Crypto/Proofs version instead runs single-threaded (no crypto worker threads) and instead uses the available cores to run more shards. In total, the Non-Crypto/Proofs version uses 24 shards, vs normal Basil using 3.
-
-> **[NOTE]** Since running this microbenchmark the codebase has changed significantly to include client failure handling. The No-Crypto/Proofs option is no longer supported on the full version, and hence must run with the fallback protocol disabled (since failures are not simulated it will not regularly be triggered anyways, but it may be occasionally, leading to segmentation faults). The provided config has the fallback protocol disabled by default `"no_fallback": true"` - Make sure to not change this. We remark that the No-crypto/Proofs version is **not** a safe BFT implementation, it is purely an option for microbenchmarking overheads. The throughput for the No-Crypto/Proofs version has changed ever so slightly given the updates.
-
-1. **RW-U**
-   - Navigate to the `RW-U` folder and run `Indicus.json` and `Indicus-NoCrypto.json` respectively.
-   - The reported results are ~38k tput for Crypto enabled (Indicus.json) and ~143k for Crypto/Proofs disabled.
-2. **RW-Z**
-   - Navigate to the `RW-Z` folder and run `Indicus.json` and `Indicus-NoCrypto.json` respectively.
-   - The reported results are ~4.8k tput for Crypto enabled (Indicus.json) and ~22k for Crypto/Proofs disabled.
-
-#### **4-Reads**:
-To reproduce the reported evaluation of the impact of different Read Quorum sizes on the system navigate to `experiment-configs/4-Micro:Reads`. The evaluation uses a read only workload and compares Read Quorums consisting of 1) a single read, 2) f+1 reads from different replicas, and 3) 2f+1 reads from different replicas. All configurations use an "eager-reads" optimization (which is used by all baseline systems too) in which read messages are optimistically only sent to the Read Quorum itself (instead of pessimistically sending to f additional replicas).
-
-> ⚠️**[Warning]** Do **not** run the single read configuration on a non-read-only workload (i.e. a workload with writes as well) as the prototype is hard coded to only read uncommitted values from f+1 replicas (which is necessary for Byzantine Independence). Running with a single read is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
-
-The provided configs only run an experiment for the rough peak points reported in the paper which is sufficient to compare the overheads of larger Quorums. If you want to reproduce the full figure reported, you may run `combined.json`, however we advise against it, since it takes a *considerable* amount of time. You may instead run each configuration for a few neighboring client configurations (already included as comments in the configs). 
-
-1. **Single read**
-   - Run configuration `1.json`.
-   - The reported peak throughput is ~17k tx/s.
-2. **f+1 reads**
-   - Run configuration `f+1.json`.
-   - The reported peak throughput is ~13.5k tx/s
-3. **2f+1 reads**
-   - Run configuration `2f+1.json`.
-   - The reported peak throughput is ~17k tx/s
-  
-#### **5-Sharding**:
-To reproduce the reported evaluation of the impact of proofs and cryptography on sharding navigate to `experiment-configs/5-Micro:Sharding`. The evaluation covers the RW-U workload and includes configurations for different number of shards with Crypto/Proofs disabled and enabled respectively. Since the Non-Crypto/Proofs version is single threaded (see subsection 3-Crypto above) we run 8 times more shards than in the full Basil system, since the latter uses 8 threads, over 8 cores (since m510 machines have 8 cores).
-
-> **[NOTE]** Like mentioned under **3-Crypto** above, th No-Crypto/Proofs option is no longer supported on the full Basil prototype  and hence must run with the fallback protocol disabled The provided config has the fallback protocol disabled by default `"no_fallback": true"` - Make sure to not change this. 
-
-1. **Crypto/Proofs enabled** (normal Basil): 
-   - Navigate to folder `/Crypto`.
-   1. Scale Factor 1 (1 shard): 
-      - Run config `1-Indicus-RW-U.json`
-      - Reported throughput: ~20k
-   2. Scale Factor 2 (2 shards): 
-      - Run config `2-Indicus-RW-U.json`
-      - Reported throughput: ~23k
-   3. Scale Factor 3 (3 shards): 
-      - Run config `3-Indicus-RW-U.json`
-      - Reported throughput: ~27k
-
-1. **Crypto/Proofs disabled**: 
-   - Navigate to folder `/Non-Crypto`.
-   1. Scale Factor 1 (8 shards): 
-      - Run config `8-RW-U-cryptoOFF.json`
-      - Reported throughput: ~45k
-   2. Scale Factor 2 (16 shards): 
-      - Run config `16-RW-U-cryptoOFF.json`
-      - Reported throughput: ~61k
-   3. Scale Factor 3 (24 shards): 
-      - Run config `24-RW-U-cryptoOFF.json`
-      - Reported throughput: ~86k
-
-   > Throughput may be a little better on the current version - which only emphasizes the overhead that Crypto and Quroum Proofs impose.
-
-
-#### **6-FastPath**:
-To reproduce the reported evaluation of the utility of the Fast Path navigate to `experiment-configs/6-Micro:FastPath`. The evaluation covers both the RW-U and RW-Z workload and includes configurations to run the normal Basil prototype, and the Basil prototype with the Fast Path explicitly disabled.
-
-1. **RW-U**
-   - Navigate to the `RW-U` folder and run `Indicus_16_FP_ON.json` and `Indicus_16_FP_OFF.json` to run Basil with Fast Path enabled and disabled respectively.
-   - The reported results are ~38k tput for Fast Path enabled, and ~32k for Fast Path disabled.
-2. **RW-Z**
-   - Navigate to the `RW-Z` folder and run `Indicus_4_FP_ON.json` and `Indicus_4_FP_OFF.json` to run Basil with Fast Path enabled and disabled respectively.
-   - The reported results are ~4.8k tput for Fast Path enabled and ~2.4k for Fast Path disabled.
-   > The RW-Z results for Fast-Path disabled may be slightly higher (which is a good thing) than the reported results since we modified the codebase since.
-
-   > [Note] The evaluation with no Fast Path is a lower bound on the impact of a replica failure during the Prepare phase. While Basil cannot use the Commit Fast Path in presence of a misbhehaving replica, it might still be able to use the Abort Fast Path, which reduces contention by removing tentative transactions faster, and allows clients submitting aborting transactions to retry sooner. This microbenchmark instead fully disables all Fast Paths.
-     
-#### **7-Batching**:
-To reproduce the reported evaluation of different batch sizes in Basil navigate to `experiment-configs/7-Micro:Batching`. The evaluation covers both the RW-U and RW-Z workload and includes configurations to run Basil with several different batch sizes. 
-
-1. **RW-U**
-   - Navigate to the `RW-U` folder and run different batch sizes by running `Indicus_<batch_size>.json`.
-   - The reported peak results are for batch size 16/31 at ~38k at which point there are no further improvements
-2. **RW-Z**
-   - Navigate to the `RW-Z` folder and run different batch sizes by running `Indicus_<batch_size>.json`.
-   - The reported peak results are for batch size 2/4 at ~4.8k at which point further increasing the batch size is detrimental.
-   - The RW-Z results for batch sizes 1 and 8 may be slightly higher than the reported results since we modified the codebase since, but the peak remains the same.
-       
-All reported data points. 
-     
-            | Workload | Batch Size: 1 | Batch Size: 2 | Batch Size: 4 | Batch Size: 8 | Batch size: 16 | Batch size: 32 |
-            |----------|---------------|---------------|---------------|---------------|----------------|----------------|
-            |   RW-U   |   9600 tx/s   |   14400 tx/s  |   21700 tx/s  |   30300 tx/s  |   38200 tx/s   |  38200 tx/s    |
-            |   RW-Z   |   3300 tx/s   |    4600 tx/s  |    4800 tx/s  |    2900 tx/s  |        -       |        -       |
-
 

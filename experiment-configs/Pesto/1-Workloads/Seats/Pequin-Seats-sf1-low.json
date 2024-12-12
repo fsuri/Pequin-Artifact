@@ -15,45 +15,21 @@
   
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "rw-sql",
-  "benchmark_schema_file_path": "/users/fs435/rw-sql.json",
+  "benchmark_name": "seats-sql",
+  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
   
-   "server_load_time": 15,
   
-  "_RW_SQL_ARGS_" :0,
-  	  "_note: parititoner is unused currently": 0,
-	  "partitioner": "rw_sql",
-	  
-	  "client_key_selector": "uniform",
-	  "client_zipf_coefficient": 0.75,   
-	  
-	  "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
-	  "client_num_keys": 10000000,
-	  "rw_num_ops_txn": 1,
-	  
-	  "num_tables": 10,
-	  "num_keys_per_table": 1000000,
-	  "value_size": -1,
-	  "value_categories": 100,
-	  
-	  "rw_read_only": false,
-	  "rw_read_only_rate": 0,
-	  "rw_secondary_condition": false,
-	  "disable_wraparound": true,
-	  "fixed_range": true,
-	  "max_range": 10,
-	  "point_op_freq": 0,
-	  
-	  "scan_as_point": false,
-	  "scan_as_point_parallel": false,
-	  "rw_simulate_point_kv": false,
+   "server_load_time": 7,
+  
+   "_SEATS_SQL_ARGS_" :0,
+  	  "scale_factor": 1,
 
 
  
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
-  "client_max_backoff": 300,
+  "client_max_backoff": 250,
   "client_rand_sleep": 2,
   "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
   "client_message_timeout": 10000,
@@ -80,8 +56,8 @@
 		  "merkle_branch_factor": 2, 
 		 
 		  "signature_type": 4,
-		  "sig_batch": 4,
-		  	"sig_batch_timeout": 10,
+		  "sig_batch": 1,
+		  	"sig_batch_timeout": 1,
 		  "key_path": "/usr/local/etc/indicus-keys/donna",
 		  "shared_mem_batch": false,
 		  "shared_mem_verify": false,
@@ -93,8 +69,7 @@
 			  "_max_dep_depth": -2, 
 		  "rts_mode": 0, 
 	
-		  "_2s is a high timeout. It's roughly 2x > the tail latency difference between last 2 replies": false,
-		  "p1_decision_timeout": 2,	
+		  "p1_decision_timeout": 10,	
 		  "read_dep": "one-honest",
 		  "read_quorum": "one-honest",
 		  "read_messages": "read-quorum",
@@ -105,7 +80,7 @@
 		  "dispatchMessageReceive": false,
 		  "parallel_reads": true,     
 		  "parallel_CCC": false,
-		  "dispatchCallbacks": false,
+		  "dispatchCallbacks": true,
 		  "client_multi_threading": false,
 		  "hyper_threading": false,
 		  
@@ -118,8 +93,6 @@
 		  "inject_failure_ms": 0,
 		  "inject_failure_freq": 100,
 		  "_inject_failure_type" : "client-crash",
-		  
-		  "simulate_replica_failure":true,
 	  
 	  
 	 "_QUERY_ARGS_": 0,
@@ -133,8 +106,8 @@
 		  "retry_limit": 2,
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
-		  "eager_plus_snapshot": true,
 		  "query_point_eager_exec": false,
+		  "eager_plus_snapshot": true,
 		  "force_read_from_snapshot": false,
 		   
 		  "query_read_prepared": true,
@@ -146,8 +119,8 @@
 		  
 		  "use_semantic_cc": true,
 		  "use_active_read_set": true,
-		  "monotonicity_grace": 1,
-		  "non_monotonicity_grace": 3, 
+		  "monotonicity_grace": 5,
+		  "non_monotonicity_grace": 20,
 		  
 		  "sign_client_queries": false,
 		  "sign_replica_to_replica_sync": false,
@@ -163,29 +136,16 @@
   
 
   "client_total": [
-    [20, 25, 30, 35, 40, 45, 25, 30]
+    [1, 3, 5, 10]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
-  ],
-  "client_threads_per_process": [
-    [1, 1, 1, 1, 1, 1, 2, 2]
-  ],
-  
-  "_NOTE: to run with clients > 45 use client_nodes per server =2":false,
-  "_client_total": [
-    [45, 50, 60, 63]
-  ],
-  "_client_processes_per_client_node": [
     [8, 8, 8, 8]
   ],
-  "_client_threads_per_process": [
+  "client_threads_per_process": [
     [1, 1, 1, 1]
   ],
+
   
-
-
-
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
@@ -193,13 +153,13 @@
   "client_debug_output": false,
   "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/pequinstore/*",
+  "_server_debug_output": "store/pequinstore/query-engine/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 30,
-  "client_ramp_down": 5,
-  "client_ramp_up": 5,
+  "client_experiment_length": 60,
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
   
   "default_remote_shell": "bash",
   
