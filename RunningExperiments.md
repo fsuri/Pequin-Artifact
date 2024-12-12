@@ -205,7 +205,8 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/89881415-cdf1-4073-8325-720b5e2b520a)
 
    Additionally, the plots folder contains csv files that automatically parse the Throughput and (mean) Latency for you
-   ![image](https://github.com/user-attachments/assets/1d7a3f88-388c-4ea2-bf63-e8c358a281f2)
+   ![image](https://github.com/user-attachments/assets/fa9ff226-6940-4af6-9e78-0f4f5d3f2bf0)
+
 
    For details on a specific experiment run, go to one of the experiment folders and inspect `stats.json`
 
