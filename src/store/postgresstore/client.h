@@ -37,7 +37,7 @@ namespace postgresstore {
 
 class Client : public ::Client {
  public:
-  Client(std::string connection_str, std::string experiment_name, std::uint64_t id);
+  Client(std::string connection_str, std::string experiment_name, bool pg_replicated, std::uint64_t id);
   virtual ~Client();
 
 // Begin a transaction.
@@ -67,6 +67,8 @@ class Client : public ::Client {
   // Get the result (rows affected) for a given write SQL statement
   inline virtual void Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false) override;
+
+  virtual void SQLRequest(std::string &statement, sql_callback scb, sql_timeout_callback stcb, uint32_t timeout) override;
 
  private:
   std::shared_ptr<tao::pq::connection> connection;

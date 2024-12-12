@@ -3,7 +3,8 @@ This is the repository for the code artifact of "Pequin: Spicing up BFT with Que
 
 For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
 1) Peloton: <giridhn@berkeley.edu>
-2) CockroachDB: <larzola@ucsd.edu>
+2) Postgres: <sc3348@cornell.edu>
+3) CockroachDB: <larzola@ucsd.edu>
 
 
 

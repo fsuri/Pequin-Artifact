@@ -549,7 +549,7 @@ void HotStuffBase::do_decide(Finality &&fin) {
         exec_pending.enqueue(std::make_pair(it->second, std::move(fin)));
         decision_waiting.erase(it);
     } else {
-        std::cout << "hotstuff do_decide not finding cmd_hash at height" << fin.cmd_height << std::endl;
+        // std::cout << "hotstuff do_decide not finding cmd_hash at height" << fin.cmd_height << std::endl;
          //std::cerr << "Register decision made... Cant find cmd hash: " << fin.cmd_hash.to_hex() << std::endl;
         decision_made[fin.cmd_hash] = std::make_pair(fin.cmd_idx, fin.cmd_height);
     }

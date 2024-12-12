@@ -149,6 +149,8 @@ DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
 DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
+DEFINE_bool(pg_replicated, true, "postgres operates in replication mode");
+
 DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients start");
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
@@ -568,7 +570,7 @@ int main(int argc, char **argv) {
   if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
-  if(proto == PROTO_PG_SMR) threadpool_mode = 3;
+  // if(proto == PROTO_PG_SMR) threadpool_mode = 3;
 
   switch (trans) {
     case TRANS_TCP:
@@ -1042,7 +1044,7 @@ int main(int argc, char **argv) {
 	}
 
   case PROTO_PG: {
-    server = new postgresstore::Server(tport);
+    server = new postgresstore::Server(tport, FLAGS_pg_replicated);
     break;
   }
 

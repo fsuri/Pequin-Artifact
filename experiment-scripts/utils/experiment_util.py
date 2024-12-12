@@ -191,6 +191,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
     client_processes = []
     total = 0
     for i in range(len(config['server_names'])):
+    # for i in range(4):
         for j in range(config['client_nodes_per_server']):
             if is_exp_local(config):
                 os.makedirs(os.path.join(local_exp_directory,
@@ -293,43 +294,61 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             #config['replication_protocol_settings']['hyper_threading']
             if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                 print("Disabling HT and Turbo; sourcing TBB")
-                cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                # cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
                 #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
-                #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
+                cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                 run_remote_command_async(cmd1, config['emulab_user'], server_host)
                 cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)
                 #perm = 'sudo chmod +x ~/indicus/bin/server'
                 #run_remote_command_async(perm, config['emulab_user'], server_host)
             
-            ## set-up dbs for pg-smr
+            
+            ## set-up dbs for pg
             if config['replication_protocol'] == 'pg':
-                #print("66666666666666666666666666666666666666666666666666666666")
                 print("setting up databases for postgres usage")
 
-                #reset DB FIXME: For whatever reason just using -c is slower...
-                # cmd_pg = 'sudo /usr/local/etc/postgres_service_new.sh -c'
-                # run_remote_command_sync(cmd_pg, config['emulab_user'], server_host)
+                if config['pg_replicated'] == True:
+                    print ("using replicated postgres")
 
-                # Dropping old pg cluster (if exists)
-                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
-                run_remote_command_sync(cmd7, config['emulab_user'], server_host)
-                # Creating a single db per machine
-                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
-                run_remote_command_sync(cmd8, config['emulab_user'], server_host)
-                cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
-                run_remote_command_sync(cmd11, config['emulab_user'], server_host)
-                cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
-                run_remote_command_sync(cmd12, config['emulab_user'], server_host)
-                print("Waiting for the setup")
+                    ### Clean previous data:
+                    replica_host = "us-east-1-1.pg-smr.pequin-pg0.utah.cloudlab.us"
+                    cmd100 = '/usr/lib/postgresql/12/bin/pg_ctl -D ~/replica/db stop >/dev/null'
+                    run_remote_command_sync(cmd100, config['emulab_user'], replica_host)
+                    cmd100 = '/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db stop >/dev/null'
+                    run_remote_command_sync(cmd100, config['emulab_user'], server_host)
+                    cmd101 = 'sudo umount primary'
+                    run_remote_command_sync(cmd101, config['emulab_user'], server_host)
+
+                    ### Set up new primary:
+                    cmd102 = './primary_aux.sh'
+                    run_remote_command_sync(cmd102, config['emulab_user'], server_host)
+
+                    ### Set up new replica:
+                    cmd103 = './postgres_replica.sh 1'
+                    run_remote_command_sync(cmd103, config['emulab_user'], replica_host)
+
+                else:
+                    print("using non-replicated postgres")
+                    # Dropping old pg cluster (if exists)
+                    cmd7 = 'sudo /users/shir/postgres_service.sh -r'
+                    run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                    # Creating a single db per machine
+                    cmd8 = 'sudo /users/shir/postgres_service.sh -n 1'
+                    run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                    cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
+                    run_remote_command_sync(cmd11, config['emulab_user'], server_host)
+                    cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
+                    run_remote_command_sync(cmd12, config['emulab_user'], server_host)
+                    print("Waiting for the setup")
 
 
             
             ## set-up dbs for pg-smr
             if config['replication_protocol'] == 'pg-smr':
-                cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r > /dev/null 2>&1;'
+                cmd7 = 'sudo /users/shir/postgres_service.sh -r > /dev/null 2>&1;'
                 # # Creating a single db per machine
-                cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1 > /dev/null 2>&1;'
+                cmd8 = 'sudo /users/shir/postgres_service.sh -n 1 > /dev/null 2>&1;'
                 cmd11 = 'sudo pg_ctlcluster 12 pgdata stop;'
                 cmd12 = 'sudo pg_ctlcluster 12 pgdata start;'
                 #cmd13 = 'echo \"Finished PG setup\";'
@@ -567,6 +586,7 @@ def run_experiment(config_file, client_config_idx, executor):
         if not 'client_cdf_plot_blacklist' in config:
             config['client_cdf_plot_blacklist'] = []
         if not 'client_total' in config:
+            # config['client_total'] = config['client_nodes_per_server'] * config['client_processes_per_client_node'] * 4
             config['client_total'] = config['client_nodes_per_server'] * config['client_processes_per_client_node'] * len(config['server_names'])
 
         wan = 'server_emulate_wan' in config and (config['server_emulate_wan'] and (not 'run_locally' in config or not config['run_locally']))

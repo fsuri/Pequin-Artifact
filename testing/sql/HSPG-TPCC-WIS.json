@@ -15,29 +15,41 @@
   
   "benchmark_type": "sql_bench",  
   
-  "benchmark_name": "rw-sql",
-  "benchmark_schema_file_path": "/users/shir/rw-sql.json",
+  "benchmark_name": "tpcc-sql",
+  "benchmark_schema_file_path": "/users/shir/benchmark_data/sql-tpcc-tables-schema.json",
   
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
-   "server_load_time": 17,
+   "server_load_time": 60,
    
  
   "_TPCC_SQL_ARGS_" :0,
-  	"client_num_keys": 0,
-  	"rw_num_ops_txn": 1,
-  	"client_key_selector":"uniform",
-  	"num_tables": 1,
-  	"num_keys_per_table": 10,
-  	"max_range": 1,
-  	"point_op_freq": 100,
-  	
+  	  "_note: parititoner is unused currently": 0,
+  	  "tpcc_run_sequential": true,
+	  "partitioner": "warehouse",
+	  "tpcc_num_warehouses": 10,
+	  
+	  "_tpcc_stock_level_ratio": 0,
+	  "_tpcc_delivery_ratio": 0,
+	  "_tpcc_order_status_ratio": 0,
+	  "_tpcc_payment_ratio": 100,
+	  "_tpcc_new_order_ratio": 0,
+
+    "tpcc_stock_level_ratio": 4,
+	  "tpcc_delivery_ratio": 4,
+	  "tpcc_order_status_ratio": 4,
+	  "tpcc_payment_ratio": 44,
+	  "tpcc_new_order_ratio": 44,
+	  
+	  "tpcc_c_c_id": 0,
+  	  "tpcc_c_c_last": 0,
+
 
  
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
   "client_max_attempts": -1,
-  "client_max_backoff": 250,
+  "client_max_backoff": 75,
   "client_rand_sleep": 2,
   "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
   "client_message_timeout": 10000,
@@ -51,21 +63,22 @@
     
     	
     	"local_config": "false",
- 	"fake_SMR": "true",
+  "fake_SMR": "true",
+  "SMR_mode": 1,
   
-        "message_transport_type": "tcp",
+  "message_transport_type": "tcp",
 	"watermark_time_delta": 30000,
 	"read_quorum": "one-honest",
 	"read_dep": "one-honest",
 	"hash_digest": true,
 	"validate_proofs": true,
-	"sign_messages": false,
+	"sign_messages": true,
 	"signature_type": 4,
 	"sig_batch": 2,
 	"sig_batch_timeout": 4,
-	"ebatch_size": 1,
-	"ebatch_tout": 4,
-	"dummy_tout":5,
+	"ebatch_size": 4,
+	"ebatch_tout": 2,
+	"dummy_tout":10,
 	"multi_threading": true,
       "mainThreadDispatching": false,
       "dispatchMessageReceive": false,
@@ -76,13 +89,14 @@
       
     }
   ],
-  "experiment_name": "pg-smr",
+  "experiment_name": "pg-smr-wis",
+  "_experiment_name": "pequin",
   "codebase_name": "indicus",
 
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [1]
+    [30]
   ],
   "client_processes_per_client_node": [
     [8]
@@ -93,25 +107,24 @@
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads":0,
-  "_pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
+  "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "client_debug_output": false,
-  "_client_debug_output": "store/hotstuffpgstore/*",
+  "_client_debug_output": false,
+  "client_debug_output": "store/pg_SMRstore/*",
   "server_debug_output": false,
-  "_server_debug_output": "store/hotstuffpgstore/*",
+  "_server_debug_output": "store/pg_SMRstore/*",
   "server_debug_stats": false,
   "client_debug_stats": false,
   
-  "client_experiment_length": 10,
+  "client_experiment_length": 13,
   "client_ramp_down": 2,
-  "client_ramp_up": 2,
+  "client_ramp_up": 5,
   
   "default_remote_shell": "bash",
-  
-  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
-  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "_server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "_client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
   
   "project_name": "pequin-pg0",
   
@@ -300,7 +313,7 @@
   "client_cpuprofile": false,
   "server_gc_debug_trace": false,
   "_server_wrap_command": "valgrind --tool=none %s",
-  "_server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s"
+  "_server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --separate-threads=yes --toggle-collect=\"*TCPTransport::Run*\" %s"
 
 
 }

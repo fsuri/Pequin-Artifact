@@ -208,6 +208,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'pg':
             client_command += " --experiment_name=%s" % str(config['experiment_name'])
+            client_command += " --pg_replicated=%s" % (str(config['pg_replicated']).lower())
 
         if config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr':
             client_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
@@ -605,6 +606,8 @@ class IndicusCodebase(ExperimentCodebase):
                 if config['replication_protocol_settings']['SMR_mode'] == 2:
                     replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
+        if config['replication_protocol'] == 'pg':
+            replica_command += " --pg_replicated=%s" % (str(config['pg_replicated']).lower())
 
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'

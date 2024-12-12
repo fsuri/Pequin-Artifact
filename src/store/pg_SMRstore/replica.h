@@ -73,6 +73,7 @@ public:
  private:
   void HandleRequest_noHS(const TransportAddress &remote, const proto::Request &request);
   void HandleRequest_noPacked(const TransportAddress &remote, const std::string &type, const std::string &data);
+  void HandleRequest_noPacked_shir(const TransportAddress &remote, const std::string &type, const std::string &data);
 
   uint64_t SMR_mode;
 
@@ -143,6 +144,9 @@ public:
   // map from digest to received requests
   std::unordered_map<std::string, proto::PackedMessage> requests;
 
+  // map from digest to received requests
+  std::unordered_map<std::string, std::pair<std::string, std::string>> unpacked_requests;
+
   // the next sequence number to be executed
   uint64_t execSeqNum;
   uint64_t execBatchNum;
@@ -157,6 +161,7 @@ public:
   //std::mutex replyAddrsMutex;
 
   void executeSlots();
+  void executeSlots_unpacked();
 
   std::mutex batchMutex;
 

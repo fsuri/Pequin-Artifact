@@ -4,10 +4,14 @@
 
 
 ## declare an array variable
-declare -a arr_servers=("us-east-1-0" "us-east-1-1" "us-east-1-2" "eu-west-1-0")
+# declare -a arr_servers=("us-east-1-0" "us-east-1-1" "us-east-1-2" "eu-west-1-0")
+declare -a arr_servers=("us-east-1-0")
 
 USER="shir"
+# EXP_NAME="pg-smr-wis"
 EXP_NAME="pg-smr"
+# CLUSTER_NAME="wisc"
+CLUSTER_NAME="utah"
 PROJECT_NAME="pequin"
 BENCHMARK_NAME="tpcc"
 
@@ -21,8 +25,6 @@ done
 
 
 #Upload script to servers
-parallel "rsync -v -r -e ssh ../pg_setup/postgres_service.sh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us:/users/${USER}/" ::: ${arr_servers[@]} 
-parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -r;' " ::: ${arr_servers[@]} 
-parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.utah.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -n 1;' " ::: ${arr_servers[@]} 
-
-
+parallel "rsync -v -r -e ssh ./scripts/postgres_service.sh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us:/users/${USER}/" ::: ${arr_servers[@]} 
+# parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -r;' " ::: ${arr_servers[@]} 
+# parallel "ssh  ${USER}@{}.${EXP_NAME}.${PROJECT_NAME}-pg0.${CLUSTER_NAME}.cloudlab.us  'sudo /users/${USER}/postgres_service.sh -n 1;' " ::: ${arr_servers[@]} 

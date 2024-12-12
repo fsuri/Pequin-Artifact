@@ -384,39 +384,42 @@ void ThreadPool::issueMainThreadCallback(std::function<void(void *)> cb, void *a
 ////////////////////////////////////////
 
 ThreadPool::EventInfo *ThreadPool::GetUnusedEventInfo() {
-  std::unique_lock<std::mutex> lock(EventInfoMutex);
-  EventInfo *info;
-  if (eventInfos.size() > 0) {
-    info = eventInfos.back();
-    eventInfos.pop_back();
-  } else {
-    info = new EventInfo(this);
-  }
-  return info;
+  // std::unique_lock<std::mutex> lock(EventInfoMutex);
+  // EventInfo *info;
+  // if (eventInfos.size() > 0) {
+  //   info = eventInfos.back();
+  //   eventInfos.pop_back();
+  // } else {
+  //   info = new EventInfo(this);
+  // }
+  // return info;
+  return new EventInfo(this);
 }
 
 void ThreadPool::FreeEventInfo(EventInfo *info) {
-  std::unique_lock<std::mutex> lock(EventInfoMutex);
-  eventInfos.push_back(info);
+  // std::unique_lock<std::mutex> lock(EventInfoMutex);
+  // eventInfos.push_back(info);
+  delete info;
 }
 
 event *ThreadPool::GetUnusedEvent(event_base *libeventBase, EventInfo *info) {
-  std::unique_lock<std::mutex> lock(EventMutex);
-  event *event;
-  if (events.size() > 0) {
-    event = events.back();
-    events.pop_back();
-    event_assign(event, libeventBase, -1, 0, ThreadPool::EventCallback, info);
-  } else {
-    event = event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
-  }
-  return event;
+  // std::unique_lock<std::mutex> lock(EventMutex);
+  // event *event;
+  // if (events.size() > 0) {
+  //   event = events.back();
+  //   events.pop_back();
+  //   event_assign(event, libeventBase, -1, 0, ThreadPool::EventCallback, info);
+  // } else {
+  //   event = event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
+  // }
+  // return event;
+  return event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
 }
 
 void ThreadPool::FreeEvent(event *event) {
-  std::unique_lock<std::mutex> lock(EventMutex);
+  // std::unique_lock<std::mutex> lock(EventMutex);
   event_del(event);
-  events.push_back(event);
+  // events.push_back(event);
 }
 
 //INDEXED THREADPOOL
