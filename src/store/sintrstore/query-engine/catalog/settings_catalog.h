@@ -14,7 +14,7 @@
 
 #include "../catalog/abstract_catalog.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 class SettingsCatalog : public AbstractCatalog {
@@ -74,4 +74,4 @@ class SettingsCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

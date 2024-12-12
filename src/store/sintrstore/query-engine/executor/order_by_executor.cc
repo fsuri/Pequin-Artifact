@@ -21,7 +21,7 @@
 #include "../planner/order_by_plan.h"
 #include "../storage/tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -226,4 +226,4 @@ bool OrderByExecutor::DoSort() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

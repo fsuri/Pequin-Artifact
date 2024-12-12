@@ -34,9 +34,9 @@
 // Configuration Variables
 //===--------------------------------------------------------------------===//
 
-extern std::vector<peloton::oid_t> sdbench_column_ids;
+extern std::vector<peloton_sintr::oid_t> peloton_sintr_sdbench_column_ids;
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace tuning {
 class Sample;
@@ -98,7 +98,7 @@ public:
             const oid_t &database_oid, const oid_t &table_oid,
             const size_t &tuples_per_tilegroup, const bool own_schema,
             const bool adapt_table, const bool is_catalog = false,
-            const peloton::LayoutType layout_type = peloton::LayoutType::ROW);
+            const peloton_sintr::LayoutType layout_type = peloton_sintr::LayoutType::ROW);
 
   ~DataTable();
 
@@ -107,10 +107,10 @@ public:
   //===--------------------------------------------------------------------===//
   void SetSintrMetaData(ItemPointer &location, concurrency::TransactionContext *current_txn);
 
-  bool CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header,
+  bool CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton_sintr::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header,
                                  ItemPointer *index_entry_ptr, ItemPointer &check, concurrency::TransactionContext *transaction);
     void PurgeRowVersion(ItemPointer *index_entry_ptr, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction);
-    void UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, 
+    void UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton_sintr::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, 
                                   ItemPointer &curr_pointer, concurrency::TransactionContext *transaction, const Timestamp &ts);
 
   //===--------------------------------------------------------------------===//
@@ -483,4 +483,4 @@ private:
 };
 
 } // namespace storage
-} // namespace peloton
+} // namespace peloton_sintr

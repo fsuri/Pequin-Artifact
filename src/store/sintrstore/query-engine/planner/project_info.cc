@@ -16,7 +16,7 @@
 #include "../expression/abstract_expression.h"
 #include "../expression/expression_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 /**
@@ -259,8 +259,8 @@ bool ProjectInfo::operator==(const ProjectInfo &rhs) const {
 }
 
 /*void ProjectInfo::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   if (IsNonTrivial()) {
 
     for (auto &target : GetTargetList()) {
@@ -275,4 +275,4 @@ bool ProjectInfo::operator==(const ProjectInfo &rhs) const {
 }*/
 
 } // namespace planner
-} // namespace peloton
+} // namespace peloton_sintr

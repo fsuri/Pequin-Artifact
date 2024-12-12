@@ -35,7 +35,7 @@
 //===--------------------------------------------------------------------===//
 
 // // Logging mode
-// extern peloton::LoggingType peloton_logging_mode;
+// extern peloton_sintr::LoggingType peloton_logging_mode;
 
 // // Flush mode (for NVM WBL)
 // extern int peloton_flush_mode;
@@ -44,9 +44,9 @@
 // extern int peloton_pcommit_latency;
 
 // PMEM file size
-size_t peloton_data_file_size = 0;
+size_t peloton_sintr_data_file_size = 0;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -545,4 +545,4 @@ void BackendManager::Sync(BackendType type, void *address, size_t length) {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

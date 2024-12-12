@@ -15,7 +15,7 @@
 #include <sstream>
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 const std::string DropStatement::GetInfo(int num_indent) const {
@@ -88,4 +88,4 @@ const std::string DropStatement::GetInfo() const {
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

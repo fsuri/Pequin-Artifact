@@ -16,7 +16,7 @@
 #include "../storage/data_table.h"
 #include "../storage/tile_group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 std::shared_ptr<storage::TileGroup> StorageManager::empty_tile_group_;
@@ -144,4 +144,4 @@ std::shared_ptr<storage::TileGroup> StorageManager::GetTileGroup(const oid_t oid
 void StorageManager::ClearTileGroup() { tile_group_locator_.Clear(); }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

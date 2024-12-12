@@ -23,7 +23,7 @@
 #include "../storage/storage_manager.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 //===--------------------------------------------------------------------===//
@@ -311,8 +311,8 @@ bool SeqScanPlan::operator==(const AbstractPlan &rhs) const {
 
 
 /*void SeqScanPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   auto *predicate =
@@ -323,4 +323,4 @@ bool SeqScanPlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

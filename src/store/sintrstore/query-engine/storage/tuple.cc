@@ -23,7 +23,7 @@
 #include "../type/value.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 // Does not delete SCHEMA
@@ -62,7 +62,7 @@ void Tuple::SetValue(const oid_t column_offset, const type::Value &value,
     if ((type == type::TypeId::VARCHAR || type == type::TypeId::VARBINARY)
         && (column_length != 0 && value.GetLength() != type::PELOTON_VALUE_NULL)
         && value.GetLength() > column_length + 1) {      // value.GetLength() == strlen(value) + 1 because of '\0'
-      throw peloton::ValueOutOfRangeException(type, column_length);
+      throw peloton_sintr::ValueOutOfRangeException(type, column_length);
     }
     value.SerializeTo(value_location, is_inlined, data_pool);
   } else {
@@ -447,4 +447,4 @@ const std::string Tuple::GetInfo() const {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

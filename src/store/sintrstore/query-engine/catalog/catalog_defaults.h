@@ -13,7 +13,7 @@
 #pragma once
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 // System Catalogs imitating Postgres
@@ -148,4 +148,4 @@ enum class CatalogType : uint32_t {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

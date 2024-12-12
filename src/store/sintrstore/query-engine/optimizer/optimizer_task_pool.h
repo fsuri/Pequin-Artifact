@@ -16,7 +16,7 @@
 #include <stack>
 #include <memory>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 /**
  * @brief The base class of a task pool, which needs to support adding tasks and
@@ -55,4 +55,4 @@ class OptimizerTaskStack : public OptimizerTaskPool {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

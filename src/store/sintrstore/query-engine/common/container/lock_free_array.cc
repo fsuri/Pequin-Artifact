@@ -15,7 +15,7 @@
 #include "../../common/logger.h"
 #include "../../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace index {
 class Index;
@@ -114,4 +114,4 @@ template class LockFreeArray<std::shared_ptr<index::Index>>;
 
 template class LockFreeArray<oid_t>;
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -21,7 +21,7 @@
 #include "../../common/internal_types.h"
 #include "../../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;

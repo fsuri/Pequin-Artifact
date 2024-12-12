@@ -7,7 +7,7 @@ OBJS-all-store-clients := $(OBJS-strong-client) $(OBJS-weak-client) \
 		$(LIB-indicus-client) $(LIB-pbft-store) $(LIB-hotstuff-store) $(LIB-hotstuff-pg-store) $(LIB-augustus-store) \
 		$(LIB-bftsmart-store) $(LIB-bftsmart-augustus-store) $(LIB-bftsmart-stable-store) \
 		$(LIB-pequin-client) $(LIB-postgres-client) $(LIB-blackhole-client) \
-		$(LIB-cockroachdb-store) $(LIB-peloton-store)
+		$(LIB-cockroachdb-store) $(LIB-peloton-store) $(LIB-sintr-client)
 
 LIB-bench-client := $(o)benchmark.o $(o)bench_client.o \
 		$(o)async_transaction_bench_client.o $(o)sync_transaction_bench_client.o

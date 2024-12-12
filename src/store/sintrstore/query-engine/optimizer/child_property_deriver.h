@@ -14,7 +14,7 @@
 #include <memory>
 #include "../optimizer/operator_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace optimizer {
 class Memo;
@@ -79,4 +79,4 @@ class ChildPropertyDeriver : public OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

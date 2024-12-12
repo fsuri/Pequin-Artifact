@@ -25,7 +25,7 @@
 // Aggregate
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class AbstractTable;
@@ -368,4 +368,4 @@ class PlainAggregator : public AbstractAggregator {
 };
 }
 // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

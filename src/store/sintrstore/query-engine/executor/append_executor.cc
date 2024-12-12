@@ -15,7 +15,7 @@
 #include "../executor/append_executor.h"
 #include "../planner/append_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -52,4 +52,4 @@ bool AppendExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

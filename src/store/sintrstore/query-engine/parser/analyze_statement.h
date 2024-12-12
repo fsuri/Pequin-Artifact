@@ -19,7 +19,7 @@
 #include "../parser/sql_statement.h"
 #include "../parser/table_ref.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 class AnalyzeStatement : public SQLStatement {
@@ -72,4 +72,4 @@ class AnalyzeStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

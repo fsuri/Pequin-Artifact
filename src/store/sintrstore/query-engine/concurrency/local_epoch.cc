@@ -14,7 +14,7 @@
 
 #include "../concurrency/decentralized_epoch_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
   bool LocalEpoch::EnterEpoch(const eid_t epoch_id, const TimestampType ts_type) {

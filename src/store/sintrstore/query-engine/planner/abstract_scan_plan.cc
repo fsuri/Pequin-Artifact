@@ -14,7 +14,7 @@
 
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 void AbstractScan::PerformBinding(BindingContext &binding_context) {
@@ -70,4 +70,4 @@ void AbstractScan::PerformBinding(BindingContext &binding_context) {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -24,7 +24,7 @@
 #include "../common/printable.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 class AbstractTuple;
 
@@ -473,4 +473,4 @@ class Index : public Printable {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

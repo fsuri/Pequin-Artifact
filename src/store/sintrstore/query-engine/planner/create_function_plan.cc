@@ -13,7 +13,7 @@
 #include "../planner/create_function_plan.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 CreateFunctionPlan::CreateFunctionPlan(UNUSED_ATTRIBUTE std::string func) {}
@@ -38,4 +38,4 @@ CreateFunctionPlan::CreateFunctionPlan(
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

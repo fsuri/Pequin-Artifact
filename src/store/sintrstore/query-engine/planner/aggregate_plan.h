@@ -18,7 +18,7 @@
 #include "../planner/abstract_plan.h"
 #include "../planner/project_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class AbstractExpression;
@@ -144,8 +144,8 @@ class AggregatePlan : public AbstractPlan {
 
   /*virtual void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   bool AreEqual(const std::vector<planner::AggregatePlan::AggTerm> &A,
@@ -182,4 +182,4 @@ class AggregatePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -16,7 +16,7 @@
 #include "../common/macros.h"
 #include "../storage/abstract_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -50,7 +50,7 @@ class TempTable : public AbstractTable {
   // Table constructor
   TempTable(const oid_t &table_oid, catalog::Schema *schema,
             const bool own_schema,
-            const peloton::LayoutType layout_type = peloton::LayoutType::ROW);
+            const peloton_sintr::LayoutType layout_type = peloton_sintr::LayoutType::ROW);
 
   ~TempTable();
 
@@ -127,4 +127,4 @@ class TempTable : public AbstractTable {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

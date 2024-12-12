@@ -17,7 +17,7 @@
 #include "../planner/project_info.h"
 #include "../type/abstract_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -130,8 +130,8 @@ class InsertPlan : public AbstractPlan {
 
   /*virtual void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   /**
@@ -233,4 +233,4 @@ class InsertPlan : public AbstractPlan {
   DISALLOW_COPY_AND_MOVE(InsertPlan);
 };
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

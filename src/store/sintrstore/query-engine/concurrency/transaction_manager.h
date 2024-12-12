@@ -23,7 +23,7 @@
 #include "../concurrency/epoch_manager_factory.h"
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * @brief      Class for item pointer.
@@ -274,4 +274,4 @@ class TransactionManager {
 
 };
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

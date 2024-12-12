@@ -23,7 +23,7 @@
 
 #include <shared_mutex>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 // Get instance of the global stats storage
@@ -360,4 +360,4 @@ ResultType StatsStorage::AnalayzeStatsForColumns(
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

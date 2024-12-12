@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 class SelectStatement;
@@ -69,4 +69,4 @@ class QueryNodeVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

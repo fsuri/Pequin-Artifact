@@ -18,7 +18,7 @@
 #include "../optimizer/operator_expression.h"
 #include "../optimizer/memo.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class GroupExpression;
@@ -158,4 +158,4 @@ class RuleSet {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -28,7 +28,7 @@
 #include "../storage/tuple.h"
 #include "store/sintrstore/query-engine/common/item_pointer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -75,7 +75,7 @@ bool InsertExecutor::DExecute() {
   auto current_txn = executor_context_->GetTransaction();
 
   if (!target_table) {
-    transaction_manager.SetTransactionResult(current_txn, peloton::ResultType::FAILURE);
+    transaction_manager.SetTransactionResult(current_txn, peloton_sintr::ResultType::FAILURE);
     return false;
   }
 
@@ -130,14 +130,14 @@ bool InsertExecutor::DExecute() {
       // insert tuple into the table.
       ItemPointer *index_entry_ptr = nullptr;
       Debug("Checking insertion for id %d", tuple_id);
-      peloton::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
+      peloton_sintr::ItemPointer location = target_table->InsertTuple(tuple.get(), current_txn, &index_entry_ptr);
 
       // it is possible that some concurrent transactions have inserted the same tuple.
       // in this case, abort the transaction.
       // Commented out this check since concurrency control happens at Basil layer
       if (location.block == INVALID_OID) {
         Panic("InsertTuple failed");
-       transaction_manager.SetTransactionResult(current_txn, peloton::ResultType::FAILURE);
+       transaction_manager.SetTransactionResult(current_txn, peloton_sintr::ResultType::FAILURE);
        return false;
       }
 
@@ -512,4 +512,4 @@ bool InsertExecutor::InsertNewVersionOLD(const planner::ProjectInfo *project_inf
 
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

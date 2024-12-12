@@ -16,7 +16,7 @@
 
 #include "../planner/attribute_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 class BindingContext {
@@ -53,4 +53,4 @@ class BindingContext {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

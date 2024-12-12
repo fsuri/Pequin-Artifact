@@ -21,7 +21,7 @@
 #include <algorithm>
 #include <iomanip>
 
-namespace peloton {
+namespace peloton_sintr {
 /**
  * Table Formatted String
  */
@@ -78,4 +78,4 @@ class StringTableUtil {
   }
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

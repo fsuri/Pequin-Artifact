@@ -16,7 +16,7 @@
 #include "../expression/abstract_expression.h"
 #include "../planner/update_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class TileGroup;
@@ -68,4 +68,4 @@ class UpdateExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

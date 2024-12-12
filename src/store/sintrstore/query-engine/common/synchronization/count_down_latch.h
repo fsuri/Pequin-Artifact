@@ -18,7 +18,7 @@
 
 #include "../../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -98,4 +98,4 @@ inline uint32_t CountDownLatch::GetCount() {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

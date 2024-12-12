@@ -24,7 +24,7 @@
 #include "../type/varlen_type.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 //===--------------------------------------------------------------------===//
@@ -617,4 +617,4 @@ class ValueFactory {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -21,7 +21,7 @@
 #include "../storage/storage_manager.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 // Constructor for drop executor
@@ -350,4 +350,4 @@ bool CreateExecutor::CreateIndex(const planner::CreatePlan &node) {
 }*/
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

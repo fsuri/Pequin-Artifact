@@ -25,7 +25,7 @@
 #include "../type/value_factory.h"
 
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 IndexCatalogEntry::IndexCatalogEntry(executor::LogicalTile *tile, int tupleId)
@@ -301,7 +301,7 @@ std::shared_ptr<IndexCatalogEntry> IndexCatalog::GetIndexCatalogEntry(
 }
 
 //TODO: Create a cache for Index too:
-static std::map<oid_t, std::unordered_map<oid_t, std::shared_ptr<peloton::catalog::IndexCatalogEntry>>> testCacheIndex;
+static std::map<oid_t, std::unordered_map<oid_t, std::shared_ptr<peloton_sintr::catalog::IndexCatalogEntry>>> testCacheIndex;
 static std::shared_mutex cacheIndex_m;
 
 /*@brief   get all index records from the same table
@@ -386,4 +386,4 @@ IndexCatalog::GetIndexCatalogEntries(concurrency::TransactionContext *txn, oid_t
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

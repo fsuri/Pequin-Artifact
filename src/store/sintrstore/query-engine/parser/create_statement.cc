@@ -13,7 +13,7 @@
 #include "../parser/create_statement.h"
 #include <iostream>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 const std::string CreateStatement::GetInfo(int num_indent) const {
@@ -120,4 +120,4 @@ const std::string CreateStatement::GetInfo() const {
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

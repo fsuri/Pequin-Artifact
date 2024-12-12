@@ -14,7 +14,7 @@
 
 #include "../type/type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 // This class keeps a parameter's meta information such as type, etc.
@@ -38,13 +38,13 @@ class Parameter {
   Type GetType() const { return type_; }
 
   // Get value type of the parameter
-  peloton::type::TypeId GetValueType() const { return type_id_; }
+  peloton_sintr::type::TypeId GetValueType() const { return type_id_; }
 
   // Get its nullability
   bool IsNullable() const { return is_nullable_; }
 
  private:
-  Parameter(Type type, peloton::type::TypeId type_id, bool is_nullable)
+  Parameter(Type type, peloton_sintr::type::TypeId type_id, bool is_nullable)
       : type_(type), type_id_(type_id), is_nullable_(is_nullable) {}
 
  private:
@@ -52,11 +52,11 @@ class Parameter {
   Type type_;
 
   // Type Id of the value
-  peloton::type::TypeId type_id_;
+  peloton_sintr::type::TypeId type_id_;
 
   // Boolean to show if the value is nullable
   bool is_nullable_;
 };
 
 }  // namespace codegen
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -18,7 +18,7 @@
 
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 /**
@@ -72,4 +72,4 @@ class ExportExternalFilePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

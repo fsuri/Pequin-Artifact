@@ -17,7 +17,7 @@
 #include "../common/synchronization/spin_latch.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -78,4 +78,4 @@ class BackendManager {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

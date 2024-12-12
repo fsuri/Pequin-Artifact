@@ -15,7 +15,7 @@
 #include "../planner/abstract_plan.h"
 #include "../planner/attribute_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 class OrderByPlan : public AbstractPlan {
@@ -110,4 +110,4 @@ class OrderByPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

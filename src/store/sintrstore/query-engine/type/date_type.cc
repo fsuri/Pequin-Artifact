@@ -15,7 +15,7 @@
 #include "../function/date_functions.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 DateType::DateType() : Type(TypeId::DATE) {}
@@ -134,4 +134,4 @@ Value DateType::CastAs(const Value &val, const TypeId type_id) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

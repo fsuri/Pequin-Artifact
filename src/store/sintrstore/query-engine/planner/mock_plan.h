@@ -16,7 +16,7 @@
 #include "gmock/gmock.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace test {
 //===--------------------------------------------------------------------===//
@@ -45,4 +45,4 @@ class MockPlan : public planner::AbstractPlan {
 };
 
 }  // namespace test
-}  // namespace peloton
+}  // namespace peloton_sintr

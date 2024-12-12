@@ -22,7 +22,7 @@
 // Cheap & Easy Spin Latch
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -61,4 +61,4 @@ class SpinLatch {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

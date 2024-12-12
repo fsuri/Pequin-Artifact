@@ -16,7 +16,7 @@
 
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class PropertyVisitor;
@@ -56,4 +56,4 @@ class Property {
 };
 
 } // namespace optimizer
-} // namespace peloton
+} // namespace peloton_sintr

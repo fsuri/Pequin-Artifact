@@ -20,7 +20,7 @@
 #include "../planner/aggregate_plan.h"
 #include "../storage/table_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -197,4 +197,4 @@ bool AggregateExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

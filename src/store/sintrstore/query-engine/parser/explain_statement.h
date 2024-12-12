@@ -14,7 +14,7 @@
 
 #include "../parser/sql_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -32,4 +32,4 @@ class ExplainStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

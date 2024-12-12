@@ -28,7 +28,7 @@
 #include "../settings/settings.h"
 #undef __SETTING_GFLAGS_DEFINE__
 
-namespace peloton {
+namespace peloton_sintr {
 namespace settings {
 
 int32_t SettingsManager::GetInt(SettingId id) {
@@ -65,7 +65,7 @@ SettingsManager &SettingsManager::GetInstance() {
 }
 
 void SettingsManager::InitializeCatalog() {
-  auto &settings_catalog = peloton::catalog::SettingsCatalog::GetInstance();
+  auto &settings_catalog = peloton_sintr::catalog::SettingsCatalog::GetInstance();
 
   auto &txn_manager = concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
@@ -104,20 +104,20 @@ const std::string SettingsManager::GetInfo() const {
   info.append(StringUtil::Repeat("=", box_width)).append("\n");
 
   // clang-format off
-  info.append(StringUtil::Format("%34s:   %-34i\n", "Port", GetInt(SettingId::port)));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Socket Family", GetString(SettingId::socket_family).c_str()));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Statistics", GetInt(SettingId::stats_mode) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34i\n", "Max Connections", GetInt(SettingId::max_connections)));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Index Tuner", GetBool(SettingId::index_tuner) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Layout Tuner", GetBool(SettingId::layout_tuner) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   (queue size %i, %i threads)\n", "Worker Pool", GetInt(SettingId::monoqueue_task_queue_size), GetInt(SettingId::monoqueue_worker_pool_size)));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Parallel Query Execution", GetBool(SettingId::parallel_execution) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34i\n", "Min. Parallel Table Scan Size", GetInt(SettingId::min_parallel_table_scan_size)));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Code-generation", GetBool(SettingId::codegen) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Print IR Statistics", GetBool(SettingId::print_ir_stats) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34s\n", "Dump IR", GetBool(SettingId::dump_ir) ? "enabled" : "disabled"));
-  info.append(StringUtil::Format("%34s:   %-34i\n", "Optimization Timeout", GetInt(SettingId::task_execution_timeout)));
-  info.append(StringUtil::Format("%34s:   %-34i\n", "Number of GC threads", GetInt(SettingId::gc_num_threads)));
+  info.append(StringUtil::Format("%34s:   %-34i\n", "Port", GetInt(SettingId::peloton_sintr_port)));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Socket Family", GetString(SettingId::peloton_sintr_socket_family).c_str()));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Statistics", GetInt(SettingId::peloton_sintr_stats_mode) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34i\n", "Max Connections", GetInt(SettingId::peloton_sintr_max_connections)));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Index Tuner", GetBool(SettingId::peloton_sintr_index_tuner) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Layout Tuner", GetBool(SettingId::peloton_sintr_layout_tuner) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   (queue size %i, %i threads)\n", "Worker Pool", GetInt(SettingId::peloton_sintr_monoqueue_task_queue_size), GetInt(SettingId::peloton_sintr_monoqueue_worker_pool_size)));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Parallel Query Execution", GetBool(SettingId::peloton_sintr_parallel_execution) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34i\n", "Min. Parallel Table Scan Size", GetInt(SettingId::peloton_sintr_min_parallel_table_scan_size)));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Code-generation", GetBool(SettingId::peloton_sintr_codegen) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Print IR Statistics", GetBool(SettingId::peloton_sintr_print_ir_stats) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34s\n", "Dump IR", GetBool(SettingId::peloton_sintr_dump_ir) ? "enabled" : "disabled"));
+  info.append(StringUtil::Format("%34s:   %-34i\n", "Optimization Timeout", GetInt(SettingId::peloton_sintr_task_execution_timeout)));
+  info.append(StringUtil::Format("%34s:   %-34i\n", "Number of GC threads", GetInt(SettingId::peloton_sintr_gc_num_threads)));
   // clang-format on
 
   return StringBoxUtil::Box(info);
@@ -212,4 +212,4 @@ SettingsManager::SettingsManager() {
 }
 
 }  // namespace settings
-}  // namespace peloton
+}  // namespace peloton_sintr

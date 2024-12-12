@@ -305,9 +305,9 @@ void WriteToTable(TableStore *table_store, Timestamp toy_ts_c_1, int i, int j) {
 
 void test_committed_table_write() {
   // auto &txn_manager =
-  //     peloton::concurrency::TransactionManagerFactory::GetInstance();
+  //     peloton_sintr::concurrency::TransactionManagerFactory::GetInstance();
   // auto txn = txn_manager.BeginTransaction();
-  // peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
+  // peloton_sintr::catalog::Catalog::GetInstance()->CreateDatabase(txn,
   //                                                          DEFAULT_DB_NAME);
   // txn_manager.CommitTransaction(txn);
   // std::cerr << "After the creation of default database" << std::endl;
@@ -606,9 +606,9 @@ void test_read_predicate() {
 
 void test_rw_sql() {
   // auto &txn_manager =
-  //     peloton::concurrency::TransactionManagerFactory::GetInstance();
+  //     peloton_sintr::concurrency::TransactionManagerFactory::GetInstance();
   // auto txn = txn_manager.BeginTransaction();
-  // peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn,
+  // peloton_sintr::catalog::Catalog::GetInstance()->CreateDatabase(txn,
   //                                                          DEFAULT_DB_NAME);
   // txn_manager.CommitTransaction(txn);
   // std::cerr << "After the creation of default database" << std::endl;

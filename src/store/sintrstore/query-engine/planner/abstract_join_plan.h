@@ -23,7 +23,7 @@
 #include "../planner/project_info.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 //===--------------------------------------------------------------------===//
@@ -55,8 +55,8 @@ class AbstractJoinPlan : public AbstractPlan {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
   //===--------------------------------------------------------------------===//
   // Accessors
@@ -108,4 +108,4 @@ class AbstractJoinPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

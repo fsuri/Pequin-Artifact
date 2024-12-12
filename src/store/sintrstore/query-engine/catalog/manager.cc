@@ -17,7 +17,7 @@
 #include "../storage/data_table.h"
 #include "../concurrency/transaction_manager_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 std::shared_ptr<storage::IndirectionArray> Manager::empty_indirection_array_;
@@ -46,4 +46,4 @@ void Manager::DropIndirectionArray(const oid_t oid) {
 void Manager::ClearIndirectionArray() { indirection_array_locator_.clear(); }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

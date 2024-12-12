@@ -17,7 +17,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 // Cast from signed to unsigned types.
 template <typename DestinationType, typename SourceType>
 DestinationType ALWAYS_ASSERT_range_cast_signed_to_unsigned(SourceType value) {
@@ -97,4 +97,4 @@ DestinationType ALWAYS_ASSERT_range_cast(SourceType value) {
   return dispatch(value);
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

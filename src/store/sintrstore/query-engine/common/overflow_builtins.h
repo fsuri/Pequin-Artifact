@@ -23,7 +23,7 @@
 // https://gcc.gnu.org/onlinedocs/gcc/Integer-Overflow-Builtins.html
 //----------------------------------------------------------------------------//
 
-namespace peloton {
+namespace peloton_sintr {
 
 template <typename type_t>
 static inline bool builtin_add_overflow(type_t a, type_t b, type_t *res) {
@@ -75,4 +75,4 @@ static inline bool __builtin_mul_overflow(type_t a, type_t b, type_t *res) {
 
 #endif
 
-}  // namespace peloton
+}  // namespace peloton_sintr

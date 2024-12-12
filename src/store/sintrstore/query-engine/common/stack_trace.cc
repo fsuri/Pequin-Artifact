@@ -24,7 +24,7 @@
 #include "../common/logger.h"
 #include "../common/stack_trace.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 void SignalHandler(int signum) {
   // associate each signal with a signal name string.
@@ -143,4 +143,4 @@ void RegisterSignalHandlers() {
   signal(SIGFPE, SignalHandler);
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace codegen {
 namespace type {
@@ -73,4 +73,4 @@ class DateFunctions {
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

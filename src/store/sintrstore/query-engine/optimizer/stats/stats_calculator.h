@@ -14,7 +14,7 @@
 
 #include "../../optimizer/operator_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Memo;
@@ -79,4 +79,4 @@ class StatsCalculator : public OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

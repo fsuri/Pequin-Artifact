@@ -16,7 +16,7 @@
 
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 void Column::SetLength(size_t column_length) {
@@ -73,4 +73,4 @@ const std::string Column::GetInfo() const {
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

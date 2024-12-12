@@ -23,7 +23,7 @@
 // We will use jemalloc at link time. jemalloc library has already mangled the symbols
 // to be malloc, calloc, etc.
 
-namespace peloton {
+namespace peloton_sintr {
 
 void *do_allocation(size_t size, bool do_throw) {
   void *location = malloc(size);
@@ -36,44 +36,44 @@ void *do_allocation(size_t size, bool do_throw) {
 
 void do_deletion(void *location) { free(location); }
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 
 // void *operator new(size_t size) {
-//   return peloton::do_allocation(size, true);
+//   return peloton_sintr::do_allocation(size, true);
 // }
 
 // void *operator new(size_t size, const std::nothrow_t &) noexcept {
-//   return peloton::do_allocation(size, false);
+//   return peloton_sintr::do_allocation(size, false);
 // }
 
 // void *operator new[](size_t size) {
-//   return peloton::do_allocation(size, true);
+//   return peloton_sintr::do_allocation(size, true);
 // }
 
 // void *operator new[](size_t size, std::nothrow_t &) noexcept {
-//   return peloton::do_allocation(size, false);
+//   return peloton_sintr::do_allocation(size, false);
 // }
 
 // void operator delete(void *location) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }
 
 // void operator delete(void *location, __attribute__ ((unused)) size_t size) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }
 
 // void operator delete(void *location, const std::nothrow_t &) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }
 
 // void operator delete[](void *location) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }
 
 // void operator delete[](void *location, __attribute__ ((unused)) size_t size) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }
 
 // void operator delete[](void *location, const std::nothrow_t &) noexcept {
-//   return peloton::do_deletion(location);
+//   return peloton_sintr::do_deletion(location);
 // }

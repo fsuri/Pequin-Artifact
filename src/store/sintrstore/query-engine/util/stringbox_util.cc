@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 
 std::string StringBoxUtil::MakeBox(const std::string &str, int max_len, std::string &horzMark,
                            std::string &vertMark, std::string corners[]) {

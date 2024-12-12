@@ -14,7 +14,7 @@
 #include "../common/logger.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 PropertySet::PropertySet() {}
@@ -96,4 +96,4 @@ hash_t PropertySet::Hash() const {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

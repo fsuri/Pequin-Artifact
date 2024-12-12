@@ -14,7 +14,7 @@
 
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;

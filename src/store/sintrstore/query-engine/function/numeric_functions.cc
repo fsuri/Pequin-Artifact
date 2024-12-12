@@ -17,7 +17,7 @@
 #include "../type/value.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -275,7 +275,7 @@ invalid:
 }  // namespace
 
 bool NumericFunctions::InputBoolean(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
 
@@ -365,35 +365,35 @@ bool NumericFunctions::InputBoolean(
 }
 
 int8_t NumericFunctions::InputTinyInt(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int8_t>(ptr, len);
 }
 
 int16_t NumericFunctions::InputSmallInt(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int16_t>(ptr, len);
 }
 
 int32_t NumericFunctions::InputInteger(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int32_t>(ptr, len);
 }
 
 int64_t NumericFunctions::InputBigInt(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   return ParseInteger<int64_t>(ptr, len);
 }
 
 double NumericFunctions::InputDecimal(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *ptr,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *ptr,
     uint32_t len) {
   PELOTON_ASSERT(ptr != nullptr && "Input is assumed to be non-NULL");
   if (len == 0) {
@@ -436,4 +436,4 @@ double NumericFunctions::InputDecimal(
 }
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

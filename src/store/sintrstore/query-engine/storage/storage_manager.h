@@ -18,7 +18,7 @@
 #include "../common/internal_types.h"
 #include "../storage/tile_group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
   class TileGroup;

@@ -14,7 +14,7 @@
 
 #include "../optimizer/operators.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -77,4 +77,4 @@ class OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

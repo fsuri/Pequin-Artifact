@@ -25,7 +25,7 @@
 // are attempting
 // to emulate their hash join cost model
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Memo;
@@ -277,4 +277,4 @@ class PostgresCostModel : public AbstractCostModel {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

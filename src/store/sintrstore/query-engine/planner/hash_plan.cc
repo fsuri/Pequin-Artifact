@@ -12,7 +12,7 @@
 
 #include "../planner/hash_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 void HashPlan::PerformBinding(BindingContext &binding_context) {
@@ -59,8 +59,8 @@ bool HashPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void HashPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   for (auto &hash_key : hash_keys_) {
@@ -70,4 +70,4 @@ bool HashPlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

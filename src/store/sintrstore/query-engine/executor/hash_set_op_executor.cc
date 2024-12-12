@@ -17,7 +17,7 @@
 
 #include "../planner/set_op_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -185,4 +185,4 @@ bool HashSetOpExecutor::CalculateCopies(HashSetOpMapType &htable) {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

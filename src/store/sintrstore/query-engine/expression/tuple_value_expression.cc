@@ -16,7 +16,7 @@
 #include "../expression/tuple_value_expression.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 type::Value TupleValueExpression::Evaluate(
@@ -85,4 +85,4 @@ const std::string TupleValueExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

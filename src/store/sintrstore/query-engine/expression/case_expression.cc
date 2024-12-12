@@ -12,7 +12,7 @@
 
 #include "../expression/case_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 const std::string CaseExpression::GetInfo(int num_indent) const {
@@ -44,4 +44,4 @@ const std::string CaseExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

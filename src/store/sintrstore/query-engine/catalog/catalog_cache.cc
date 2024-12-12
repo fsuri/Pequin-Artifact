@@ -17,7 +17,7 @@
 #include "../catalog/database_catalog.h"
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 /*@brief   insert database catalog object into cache
@@ -149,4 +149,4 @@ std::shared_ptr<IndexCatalogEntry> CatalogCache::GetCachedIndexObject(const std:
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

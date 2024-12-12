@@ -28,7 +28,7 @@
 #include "../catalog/abstract_catalog.h"
 #include "../executor/logical_tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 class SchemaCatalogEntry {
@@ -101,4 +101,4 @@ class SchemaCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

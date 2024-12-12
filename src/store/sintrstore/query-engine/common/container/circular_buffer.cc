@@ -12,7 +12,7 @@
 
 #include "../../common/container/circular_buffer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // Push a new item
 CIRCULAR_BUFFER_TEMPLATE_ARGUMENTS
@@ -41,4 +41,4 @@ void CIRCULAR_BUFFER_TYPE::Clear() { circular_buffer_.clear(); }
 // Explicit template instantiation
 template class CircularBuffer<double>;
 
-}  // namespace peloton
+}  // namespace peloton_sintr

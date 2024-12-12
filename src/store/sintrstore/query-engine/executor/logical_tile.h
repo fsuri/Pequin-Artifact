@@ -23,7 +23,7 @@
 #include "../common/printable.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -361,7 +361,7 @@ private:
       const std::unordered_map<storage::Tile *, std::vector<oid_t>>
           &tile_to_cols,
       storage::Tile *dest_tile,
-      const peloton::LayoutType peloton_layout_mode = peloton::LayoutType::ROW);
+      const peloton_sintr::LayoutType peloton_layout_mode = peloton_sintr::LayoutType::ROW);
 
   /**
    * @brief Generates map from each base tile to columns originally from that
@@ -418,4 +418,4 @@ private:
 };
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

@@ -37,7 +37,7 @@
 
 #define COLUMN_STATS_CATALOG_NAME "pg_column_stats"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace optimizer {
 class ColumnStats;
@@ -127,4 +127,4 @@ class ColumnStatsCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

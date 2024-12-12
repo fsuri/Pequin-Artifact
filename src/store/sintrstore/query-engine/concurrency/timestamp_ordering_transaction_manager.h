@@ -18,7 +18,7 @@
 //#include "../statistics/stats_aggregator.h"
 #include "../common/synchronization/spin_latch.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 //===--------------------------------------------------------------------===//

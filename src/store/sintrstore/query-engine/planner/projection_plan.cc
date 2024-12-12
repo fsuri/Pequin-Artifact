@@ -14,7 +14,7 @@
 
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 ProjectionPlan::ProjectionPlan(
@@ -82,8 +82,8 @@ bool ProjectionPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void ProjectionPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   auto *proj_info = const_cast<planner::ProjectInfo *>(GetProjectInfo());
@@ -91,4 +91,4 @@ bool ProjectionPlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

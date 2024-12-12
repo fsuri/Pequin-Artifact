@@ -14,7 +14,7 @@
 
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define BIGINT_COMPARE_FUNC(OP) \
@@ -355,4 +355,4 @@ Value BigintType::CastAs(const Value& val, const TypeId type_id) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

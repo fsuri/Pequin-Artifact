@@ -17,7 +17,7 @@
 #include "../function/functions.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -42,7 +42,7 @@ class FunctionExpression : public AbstractExpression {
       const std::vector<type::TypeId> &arg_types);
 
   /*void SetUDFFunctionExpressionParameters(
-      std::shared_ptr<peloton::codegen::CodeContext> func_context,
+      std::shared_ptr<peloton_sintr::codegen::CodeContext> func_context,
       type::TypeId val_type, const std::vector<type::TypeId> &arg_types);*/
 
   AbstractExpression *Copy() const override {
@@ -65,7 +65,7 @@ class FunctionExpression : public AbstractExpression {
 
   const function::BuiltInFuncType &GetFunc() const { return func_; }
 
-  /*std::shared_ptr<peloton::codegen::CodeContext> GetFuncContext() const {
+  /*std::shared_ptr<peloton_sintr::codegen::CodeContext> GetFuncContext() const {
     return func_context_;
   }*/
 
@@ -106,4 +106,4 @@ class FunctionExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

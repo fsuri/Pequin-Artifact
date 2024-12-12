@@ -21,12 +21,12 @@
 #include "../storage/tile_group_header.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 TempTable::TempTable(const oid_t &table_oid, catalog::Schema *schema,
                      const bool own_schema,
-                     const peloton::LayoutType layout_type)
+                     const peloton_sintr::LayoutType layout_type)
     : AbstractTable(table_oid, schema, own_schema, layout_type) {
   // We only want to instantiate a single TileGroup
   AddDefaultTileGroup();
@@ -134,4 +134,4 @@ std::string TempTable::GetName() const {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

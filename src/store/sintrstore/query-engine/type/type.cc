@@ -27,7 +27,7 @@
 #include "../type/value.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 Type* Type::kTypes[] = {
@@ -186,35 +186,35 @@ CmpBool Type::CompareEquals(const Value& left UNUSED_ATTRIBUTE,
   std::string msg =
       StringUtil::Format("CompareEquals not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 CmpBool Type::CompareNotEquals(const Value& left UNUSED_ATTRIBUTE,
                                const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("CompareNotEquals not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 CmpBool Type::CompareLessThan(const Value& left UNUSED_ATTRIBUTE,
                               const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("CompareLessThan not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 CmpBool Type::CompareLessThanEquals(const Value& left UNUSED_ATTRIBUTE,
                                     const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("CompareLessThanEquals not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 CmpBool Type::CompareGreaterThan(const Value& left UNUSED_ATTRIBUTE,
                                  const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("CompareGreaterThan not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 CmpBool Type::CompareGreaterThanEquals(const Value& left UNUSED_ATTRIBUTE,
                                        const Value& right
@@ -222,7 +222,7 @@ CmpBool Type::CompareGreaterThanEquals(const Value& left UNUSED_ATTRIBUTE,
   std::string msg = StringUtil::Format(
       "CompareGreaterThanEquals not implemented for type '%s'",
       TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Other mathematical functions
@@ -230,60 +230,60 @@ Value Type::Add(const Value& left UNUSED_ATTRIBUTE,
                 const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Add not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Subtract(const Value& left UNUSED_ATTRIBUTE,
                      const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Subtract not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Multiply(const Value& left UNUSED_ATTRIBUTE,
                      const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Multiply not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Divide(const Value& left UNUSED_ATTRIBUTE,
                    const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Divide not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Modulo(const Value& left UNUSED_ATTRIBUTE,
                    const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Modulo not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Min(const Value& left UNUSED_ATTRIBUTE,
                 const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Min not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Max(const Value& left UNUSED_ATTRIBUTE,
                 const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Max not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::Sqrt(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Sqrt not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::OperateNull(const Value& val UNUSED_ATTRIBUTE,
                         const Value& right UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("OperateNull not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 bool Type::IsZero(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("IsZero not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Is the data inlined into this classes storage space, or must it be accessed
@@ -291,28 +291,28 @@ bool Type::IsZero(const Value& val UNUSED_ATTRIBUTE) const {
 bool Type::IsInlined(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("IsLined not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Return a stringified version of this value
 std::string Type::ToString(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("ToString not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Compute a hash value
 size_t Type::Hash(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Hash not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 void Type::HashCombine(const Value& val UNUSED_ATTRIBUTE,
                        size_t& seed UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("HashCombine not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Serialize this value into the given storage space. The inlined parameter
@@ -327,14 +327,14 @@ void Type::SerializeTo(const Value& val UNUSED_ATTRIBUTE,
   std::string msg =
       StringUtil::Format("SerializeTo not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 void Type::SerializeTo(const Value& val UNUSED_ATTRIBUTE,
                        SerializeOutput& out UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("SerializeTo not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Deserialize a value of the given type from the given storage space.
@@ -344,35 +344,35 @@ Value Type::DeserializeFrom(const char* storage UNUSED_ATTRIBUTE,
   std::string msg =
       StringUtil::Format("DeserializeFrom not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 Value Type::DeserializeFrom(SerializeInput& in UNUSED_ATTRIBUTE,
                             AbstractPool* pool UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("DeserializeFrom not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Create a copy of this value
 Value Type::Copy(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("Copy not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 Value Type::CastAs(const Value& val UNUSED_ATTRIBUTE,
                    const TypeId type_id UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("CastAs not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Access the raw variable length data
 const char* Type::GetData(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("GetData not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Get the length of the variable length data
@@ -380,14 +380,14 @@ uint32_t Type::GetLength(const Value& val UNUSED_ATTRIBUTE) const {
   std::string msg =
       StringUtil::Format("GetLength not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Access the raw varlen data stored from the tuple storage
 char* Type::GetData(char* storage UNUSED_ATTRIBUTE) {
   std::string msg = StringUtil::Format("GetData not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 // Get the element at a given index in this array
@@ -396,7 +396,7 @@ Value Type::GetElementAt(const Value& val UNUSED_ATTRIBUTE,
   std::string msg =
       StringUtil::Format("GetElementAt not implemented for type '%s'",
                          TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 TypeId Type::GetElementType(const Value& val UNUSED_ATTRIBUTE) const {
@@ -408,8 +408,8 @@ Value Type::InList(const Value& list UNUSED_ATTRIBUTE,
                    const Value& object UNUSED_ATTRIBUTE) const {
   std::string msg = StringUtil::Format("InList not implemented for type '%s'",
                                        TypeIdToString(type_id_).c_str());
-  throw peloton::NotImplementedException(msg);
+  throw peloton_sintr::NotImplementedException(msg);
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

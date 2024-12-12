@@ -19,7 +19,7 @@
 #include "../../storage/tile_group_header.h"
 #include "../../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 /**
@@ -190,4 +190,4 @@ std::vector<std::unique_ptr<storage::Tuple>> &TupleSampler::GetSampledTuples() {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

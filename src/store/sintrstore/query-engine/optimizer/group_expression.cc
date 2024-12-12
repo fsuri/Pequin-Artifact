@@ -15,7 +15,7 @@
 #include "../optimizer/group.h"
 #include "../optimizer/rule.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -97,4 +97,4 @@ bool GroupExpression::HasRuleExplored(Rule *rule) {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -33,7 +33,7 @@
 namespace sintrstore {
 
 std::string
-GetResultValueAsString(const std::vector<peloton::ResultValue> &result, size_t index) {
+GetResultValueAsString(const std::vector<peloton_sintr::ResultValue> &result, size_t index) {
   std::string value(result[index].begin(), result[index].end());
   return value;
 }
@@ -76,7 +76,7 @@ PelotonTableStore::~PelotonTableStore() {
   while (cop_count) {
     cop_count--;
 
-    std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair;
+    std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair;
     bool found = traffic_cops.try_dequeue(cop_pair);
 
     if (found) {
@@ -87,7 +87,7 @@ PelotonTableStore::~PelotonTableStore() {
 
   size_t cops_left = traffic_cops_.size();
   while (cops_left > 0) {
-    std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair;
+    std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair;
     cop_pair = traffic_cops_.back();
     traffic_cops_.pop_back();
 
@@ -120,15 +120,15 @@ PelotonTableStore::~PelotonTableStore() {
 
 void PelotonTableStore::Init(int num_threads) {
   // Init Peloton default DB
-  auto &txn_manager =  peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto &txn_manager =  peloton_sintr::concurrency::TransactionManagerFactory::GetInstance();
   auto txn = txn_manager.BeginTransaction();
-  //peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  //peloton_sintr::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   txn_manager.CommitTransaction(txn);
-  // traffic_cop_ = peloton::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
+  // traffic_cop_ = peloton_sintr::tcop::TrafficCop(UtilTestTaskCallback, &counter_);
 
-  peloton::catalog::Catalog::GetInstance()->SetQueryParams(query_params); //Bootstrap Catalog
+  peloton_sintr::catalog::Catalog::GetInstance()->SetQueryParams(query_params); //Bootstrap Catalog
 
-  peloton::optimizer::StatsStorage::GetInstance(); //Force early creation of pg_column_stats
+  peloton_sintr::optimizer::StatsStorage::GetInstance(); //Force early creation of pg_column_stats
 
 
   if (num_threads > 0) {
@@ -136,7 +136,7 @@ void PelotonTableStore::Init(int num_threads) {
     for (int i = 0; i < num_threads; i++) {
       std::atomic_int *counter = new std::atomic_int();
       //std::cerr << "create tcop: " << i << std::endl;
-      peloton::tcop::TrafficCop *new_cop = new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
+      peloton_sintr::tcop::TrafficCop *new_cop = new peloton_sintr::tcop::TrafficCop(UtilTestTaskCallback, counter);
       traffic_cops_.push_back({new_cop, counter});
     }
   }
@@ -156,8 +156,8 @@ void PelotonTableStore::Init(int num_threads) {
 }
 
 ////////////////  Helper Functions //////////////////////////
-std::shared_ptr<peloton::Statement>
-PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop, bool skip_cache) {
+std::shared_ptr<peloton_sintr::Statement>
+PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton_sintr::tcop::TrafficCop *tcop, bool skip_cache) {
 
   //TESTING HOW LONG THIS TAKES: FIXME: REMOVE 
   // struct timespec ts_start;
@@ -166,26 +166,26 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
 
   ///////////
 
-  std::shared_ptr<peloton::Statement> statement;
+  std::shared_ptr<peloton_sintr::Statement> statement;
 
   UW_ASSERT(!query_statement.empty());
   Debug("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   //Warning("Beginning of parse and prepare: %s", query_statement.substr(0, 1000).c_str());
   // prepareStatement
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  auto &peloton_parser = peloton_sintr::parser::PostgresParser::GetInstance();
   //try{
     auto sql_stmt_list = peloton_parser.BuildParseTree(query_statement);
     UW_ASSERT(sql_stmt_list);
     // PELOTON_ASSERT(sql_stmt_list);
     if (!sql_stmt_list->is_valid) {
-      Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton::ResultType::FAILURE;
+      Panic("SQL command not valid: %s", query_statement.substr(0, 1000).c_str()); // return peloton_sintr::ResultType::FAILURE;
     }
     Debug("Parsed statement successfully, beginning prepare. [%s]", query_statement.substr(0, 1000).c_str());
     statement = tcop->PrepareStatement(unnamed_statement, query_statement, std::move(sql_stmt_list), skip_cache);
     if (statement.get() == nullptr) {
       tcop->setRowsAffected(0);
       Panic("SQL command not valid: %s", query_statement.size() < 1000? query_statement.c_str() : 
-          (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton::ResultType::FAILURE;
+          (query_statement.substr(0, 500) + " ... " + query_statement.substr(query_statement.size()-500)).c_str()); // return peloton_sintr::ResultType::FAILURE;
     }
   // }
   // catch(...){
@@ -212,7 +212,7 @@ PelotonTableStore::ParseAndPrepare(const std::string &query_statement, peloton::
 }
 
 //TODO: FIXME: Now that we sidestep the Peloton WorkerPool all of this isn't really necessary anymore => it's not a synchronous blocking execution, so we know that when we get here it is done.
-void PelotonTableStore::GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop, std::atomic_int *c) {
+void PelotonTableStore::GetResult(peloton_sintr::ResultType &status, peloton_sintr::tcop::TrafficCop *tcop, std::atomic_int *c) {
   // busy loop until result is ready. TODO: Change into callback style to avoid
   // busy loop.
   if (tcop->GetQueuing()) {
@@ -224,12 +224,12 @@ void PelotonTableStore::GetResult(peloton::ResultType &status, peloton::tcop::Tr
 }
 
 // std::string
-// PelotonTableStore::TransformResult(std::vector<peloton::FieldInfo>
-// &tuple_descriptor, std::vector<peloton::ResultValue> &result){
-std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result) {
+// PelotonTableStore::TransformResult(std::vector<peloton_sintr::FieldInfo>
+// &tuple_descriptor, std::vector<peloton_sintr::ResultValue> &result){
+std::string PelotonTableStore::TransformResult(peloton_sintr::ResultType &status, std::shared_ptr<peloton_sintr::Statement> statement, std::vector<peloton_sintr::ResultValue> &result) {
 
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-  if (status == peloton::ResultType::SUCCESS) {
+  std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
+  if (status == peloton_sintr::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
     Debug("Query Read successful. ");
   } else {
@@ -274,7 +274,7 @@ std::string PelotonTableStore::TransformResult(peloton::ResultType &status, std:
   return queryResultBuilder.get_result(!already_sorted)->SerializeAsString();
 }
 
-std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::GetCop() {
+std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::GetCop() {
   if (!is_recycled_version_) {
     int t_id = sched_getcpu();
     // std::cerr << "Thread id is " << t_id << std::endl;
@@ -289,8 +289,8 @@ std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::Get
   }
 }
 
-std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::GetUnusedTrafficCop() {
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair;
+std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::GetUnusedTrafficCop() {
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair;
   bool found = traffic_cops.try_dequeue(cop_pair);
 
   if (found) {
@@ -299,11 +299,11 @@ std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> PelotonTableStore::Get
   }
 
   std::atomic_int *counter = new std::atomic_int();
-  peloton::tcop::TrafficCop *new_cop = new peloton::tcop::TrafficCop(UtilTestTaskCallback, counter);
+  peloton_sintr::tcop::TrafficCop *new_cop = new peloton_sintr::tcop::TrafficCop(UtilTestTaskCallback, counter);
   return {new_cop, counter};
 }
 
-void PelotonTableStore::ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair) {
+void PelotonTableStore::ReleaseTrafficCop(std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair) {
   traffic_cops.enqueue(cop_pair);
 }
 
@@ -316,11 +316,11 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
   // ExecRaw should not return before the call is done.
 
   Debug("Beginning of exec raw. Statement: %s", sql_statement.c_str());
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
   //std::cerr << "Got the cop" << std::endl;
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
@@ -328,8 +328,8 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
   auto statement = ParseAndPrepare(sql_statement, tcop, skip_cache);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::type::Value> param_values;
+  std::vector<peloton_sintr::ResultValue> result;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   // counter_.store(1); // SetTrafficCopCounter();
@@ -342,7 +342,7 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
   // GetResult(status);
   GetResult(status, tcop, counter);
 
-  if (status == peloton::ResultType::SUCCESS)
+  if (status == peloton_sintr::ResultType::SUCCESS)
     Debug("RawExec success");
   else
     Panic("RawExec failure");
@@ -352,10 +352,10 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
 //   // When calling the LoadStatement: We'll want to initialize all rows to be committed and have genesis proof (see server) Call statement (of type Copy
 //   // or Insert) and set meta data accordingly (bool commit = true, committedProof, txn_digest, ts)
 
-//   std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+//   std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
 //   std::atomic_int *counter = cop_pair.second;
-//   peloton::tcop::TrafficCop *tcop = cop_pair.first;
+//   peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
 //   bool unamed;
 
 //   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>( txn_digest)); // Turn txn_digest into a shared_ptr, write everywhere it is
@@ -366,16 +366,16 @@ void PelotonTableStore::ExecRaw(const std::string &sql_statement, bool skip_cach
 //   auto statement = ParseAndPrepare(load_statement, tcop);
 
 //   // ExecuteStatment
-//   std::vector<peloton::type::Value> param_values;
+//   std::vector<peloton_sintr::type::Value> param_values;
 //   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-//   std::vector<peloton::ResultValue> result;
+//   std::vector<peloton_sintr::ResultValue> result;
 
 //   counter->store(1); // SetTrafficCopCounter();
 //   auto status = tcop->ExecuteStatement(statement, param_values, unamed, result_format, result);
 
 //   GetResult(status, tcop, counter);
 
-//   if (status == peloton::ResultType::SUCCESS)
+//   if (status == peloton_sintr::ResultType::SUCCESS)
 //     Debug("Load success");
 //   else
 //     Debug("RawExec failure");
@@ -394,17 +394,17 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
 
   Debug("Load Table with genesis txn %s. TS [%lu:%lu]", BytesToHex(txn_digest, 16).c_str(), ts.getTimestamp(), ts.getID());
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // Turn txn_digest into a shared_ptr, write everywhere it is needed.
   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
   // Execute Writes on Peloton
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
  
   //Notice("Write statement: %s", write_statement.substr(0, 1000).c_str());
@@ -415,7 +415,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   auto statement = ParseAndPrepare(load_statement, tcop);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1);
@@ -424,7 +424,7 @@ void PelotonTableStore::LoadTable(const std::string &load_statement, const std::
   // GetResult(status);
   GetResult(status, tcop, counter);
 
-  if (status == peloton::ResultType::SUCCESS)
+  if (status == peloton_sintr::ResultType::SUCCESS)
     Debug("Write successful");
   else
     Panic("Write failure"); //Our writes are "no questions asked". They do not respect Insert/Update/Delete semantics -- those are enforced by our CC layer.
@@ -457,12 +457,12 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   // TRY TO CREATE SEPARATE TRAFFIC COP
   // auto [traffic_cop, counter] = GetUnusedTrafficCop();
   //  std::atomic_int counter;
-  //  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
+  //  peloton_sintr::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter);
   // traffic_cop_.Reset();
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // TRY TO SET A THREAD ID
@@ -476,9 +476,9 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
   auto statement = ParseAndPrepare(query_statement, tcop);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
   // SetTrafficCopCounter();
   // counter_.store(1);
@@ -486,7 +486,7 @@ std::string PelotonTableStore::ExecReadQuery(const std::string &query_statement,
 
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
-                                            ts, &this->record_table_version, &this->can_read_prepared, peloton::SintrMode::eagerRead, &readSetMgr);
+                                            ts, &this->record_table_version, &this->can_read_prepared, peloton_sintr::SintrMode::eagerRead, &readSetMgr);
   // auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr,
   //     this->record_table_version, this->can_read_prepared);
 
@@ -569,10 +569,10 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   int core = sched_getcpu();
   Debug("Begin readLat on core: %d", core);
   Latency_Start(&readLats[core]);
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
@@ -584,8 +584,8 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::type::Value> param_values;
+  std::vector<peloton_sintr::ResultValue> result;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1); // SetTrafficCopCounter();
@@ -607,8 +607,8 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
   GetResult(status, tcop, counter);
   //Panic("stop test");
 
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-  if (status == peloton::ResultType::SUCCESS) {
+  std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
+  if (status == peloton_sintr::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
   }
   else{
@@ -667,10 +667,10 @@ void PelotonTableStore::ExecPointRead(const std::string &query_statement, std::s
 //  ExecPointRead should translate enc_primary_key into a query_statement to be exec by ExecReadQuery.
 //(Alternatively: Could already send a Sql command from the client) ==> Should do it at the client, so that we can keep whatever Select specification, e.g. * or specific cols...
 void PelotonTableStore::TransformPointResult(proto::Write *write, Timestamp &committed_timestamp, Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig,
-    peloton::ResultType &status, std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result) {
+    peloton_sintr::ResultType &status, std::vector<peloton_sintr::FieldInfo> &tuple_descriptor, std::vector<peloton_sintr::ResultValue> &result) {
 
-  // std::vector<peloton::FieldInfo> tuple_descriptor;
-  // if (status == peloton::ResultType::SUCCESS) {
+  // std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
+  // if (status == peloton_sintr::ResultType::SUCCESS) {
   //   tuple_descriptor = statement->GetTupleDescriptor();
   // }
   // else{
@@ -829,7 +829,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
    // Turn txn_digest into a shared_ptr, write everywhere it is needed.
   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
 
-  std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> cop_pairs;
+  std::vector<std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *>> cop_pairs;
 
   for(auto &[table_name, table_write]: txn.table_writes()){
     // UW_ASSERT(ts.getTimestamp() >= 0 && ts.getID() >= 0);
@@ -844,7 +844,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
   }
   //sync barrier. Wait for all to be done.
   for(auto &[tcop, counter]: cop_pairs){
-    auto status = peloton::ResultType::SUCCESS; //
+    auto status = peloton_sintr::ResultType::SUCCESS; //
     GetResult(status, tcop, counter);
   }
 
@@ -859,7 +859,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 
 // void PelotonTableStore::ExecuteTableWrite(const std::string &table_name, const TableWrite &table_write, const Timestamp &ts, const std::string &txn_digest,
 //                                         const proto::CommittedProof *commit_proof, bool commit_or_prepare, bool forceMaterialize, 
-//                                         std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> &cop_pairs){
+//                                         std::vector<std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *>> &cop_pairs){
 
 
 //   /////
@@ -870,7 +870,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statements, table_name, table_write);
 
 //   // Execute Writes and Deletes on Peloton
-//   std::vector<peloton::ResultValue> result;
+//   std::vector<peloton_sintr::ResultValue> result;
 
 //   // Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
@@ -886,10 +886,10 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //     // Notice("Commit or prepare is %d", commit_or_prepare);
 
 //     //Traffic Cop                                
-//     std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+//     std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 //     cop_pairs.push_back(GetCop());
 
-//     peloton::tcop::TrafficCop *tcop = cop_pairs.back().first;
+//     peloton_sintr::tcop::TrafficCop *tcop = cop_pairs.back().first;
 //     auto counter = cop_pairs.back().second;
 //     bool unamed;
     
@@ -897,7 +897,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //     auto statement = ParseAndPrepare(write_statement, tcop);
 
 //     // ExecuteStatment
-//     std::vector<peloton::type::Value> param_values;
+//     std::vector<peloton_sintr::type::Value> param_values;
 //     //size_t t_id = 0; // std::hash<std::thread::id>{}(std::this_thread::get_id());
 
 //     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
@@ -911,7 +911,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //     // GetResult(status);
 //     GetResult(status, tcop, counter);
 
-//     if (status == peloton::ResultType::SUCCESS)
+//     if (status == peloton_sintr::ResultType::SUCCESS)
 //       Debug("Write successful");
 //     else
 //       Panic("Write failure");
@@ -931,7 +931,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //     // prepare Statement
 //     auto statement = ParseAndPrepare(delete_statement, tcop);
 //     // ExecuteStatment
-//     std::vector<peloton::type::Value> param_values; // param_values.clear();
+//     std::vector<peloton_sintr::type::Value> param_values; // param_values.clear();
 
 //     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
@@ -943,7 +943,7 @@ void PelotonTableStore::ApplyTableWrites(const proto::Transaction &txn, const Ti
 //     // GetResult(status);
 //     GetResult(status, tcop, counter);
 
-//     if (status == peloton::ResultType::SUCCESS)
+//     if (status == peloton_sintr::ResultType::SUCCESS)
 //       Debug("Delete successful");
 //     else
 //       Panic("Delete failure");
@@ -981,10 +981,10 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
 
   if (table_write.rows().empty()) return false;
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // Turn txn_digest into a shared_ptr, write everywhere it is needed.
@@ -997,7 +997,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   sql_interpreter.GenerateTableWriteStatement(write_statement, delete_statements, table_name, table_write);
 
   // Execute Writes and Deletes on Peloton
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
   // Debug("Delete statements: %s", fmt::join(delete_statements, "|"));
 
@@ -1020,7 +1020,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
   // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
     // ExecuteStatment
-    std::vector<peloton::type::Value> param_values;
+    std::vector<peloton_sintr::type::Value> param_values;
     //size_t t_id = 0; // std::hash<std::thread::id>{}(std::this_thread::get_id());
 
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
@@ -1035,7 +1035,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     // GetResult(status);
     GetResult(status, tcop, counter);
 
-    if (status == peloton::ResultType::SUCCESS)
+    if (status == peloton_sintr::ResultType::SUCCESS)
       Debug("Write successful");
     else
       Panic("Write failure");
@@ -1068,7 +1068,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     // prepare Statement
     auto statement = ParseAndPrepare(delete_statement, tcop);
     // ExecuteStatment
-    std::vector<peloton::type::Value> param_values; // param_values.clear();
+    std::vector<peloton_sintr::type::Value> param_values; // param_values.clear();
 
     std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
@@ -1080,7 +1080,7 @@ bool PelotonTableStore::ApplyTableWrite(const std::string &table_name, const Tab
     // GetResult(status);
     GetResult(status, tcop, counter);
 
-    if (status == peloton::ResultType::SUCCESS)
+    if (status == peloton_sintr::ResultType::SUCCESS)
       Debug("Delete successful");
     else
       Panic("Delete failure");
@@ -1113,10 +1113,10 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
 
   //==> Effectively it is "aborting" all previously suggested (prepared) table writes.
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   std::shared_ptr<std::string> txn_dig(std::make_shared<std::string>(txn_digest));
@@ -1134,14 +1134,14 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   Debug("Purge statement: %s", purge_statement.c_str());
   // Debug("Purge statements: %s", fmt::join(purge_statements, "|"));
 
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
+  std::vector<peloton_sintr::ResultValue> result;
+  std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
 
   // for (auto &purge_statement : purge_statements) {
   //  prepareStatement
   auto statement = ParseAndPrepare(purge_statement, tcop);
 
-  std::vector<peloton::type::Value> param_values; // param_values.clear();
+  std::vector<peloton_sintr::type::Value> param_values; // param_values.clear();
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
 
   counter->store(1); // SetTrafficCopCounter();
@@ -1150,7 +1150,7 @@ void PelotonTableStore::PurgeTableWrite(const std::string &table_name, const Tab
   // GetResult(status);
   GetResult(status, tcop, counter);
 
-  if (status == peloton::ResultType::SUCCESS)
+  if (status == peloton_sintr::ResultType::SUCCESS)
     Debug("Purge successful");
   else
     Debug("Purge failure/Nothing to purge");
@@ -1174,25 +1174,25 @@ void PelotonTableStore::FindSnapshot(const std::string &query_statement, const T
   Debug("Begin snapshotLat on core: %d", core);
   Latency_Start(&snapshotLats[core]);
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
   counter->store(1);
   
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
-                                            ts, &this->record_table_version, &this->can_read_prepared, peloton::SintrMode::findSnapshot, nullptr, &ssMgr, snapshot_prepared_k); //Read k latest prepared.
+                                            ts, &this->record_table_version, &this->can_read_prepared, peloton_sintr::SintrMode::findSnapshot, nullptr, &ssMgr, snapshot_prepared_k); //Read k latest prepared.
   // auto status = tcop->ExecuteFindSnapshotStatement(statement, param_values, unamed, result_format, result, ts, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
   
@@ -1219,10 +1219,10 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   Latency_Start(&readLats[core]);
   Latency_Start(&snapshotLats[core]);
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
@@ -1234,9 +1234,9 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
   // uint64_t microseconds_start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
   counter->store(1);
 
@@ -1244,7 +1244,7 @@ std::string PelotonTableStore::EagerExecAndSnapshot(const std::string &query_sta
 
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
-                                            ts, &this->record_table_version, &this->can_read_prepared, peloton::SintrMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
+                                            ts, &this->record_table_version, &this->can_read_prepared, peloton_sintr::SintrMode::eagerPlusSnapshot, &readSetMgr, &ssMgr, snapshot_prepared_k);
   // auto status = tcop->ExecuteEagerExecAndSnapshotStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ssMgr, k_prepared_versions,
   //     this->record_table_version, this->can_read_prepared);
 
@@ -1301,25 +1301,25 @@ std::string PelotonTableStore::ExecReadQueryOnMaterializedSnapshot(const std::st
   Debug("Begin readLat on core: %d", core);
   Latency_Start(&readLats[core]);
 
-  std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
+  std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> cop_pair = GetCop();
 
   std::atomic_int *counter = cop_pair.second;
-  peloton::tcop::TrafficCop *tcop = cop_pair.first;
+  peloton_sintr::tcop::TrafficCop *tcop = cop_pair.first;
   bool unamed;
 
   // prepareStatement
   auto statement = ParseAndPrepare(query_statement, tcop);
 
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
-  std::vector<peloton::ResultValue> result;
+  std::vector<peloton_sintr::ResultValue> result;
 
   counter->store(1);
 
   // execute the query using tcop
   auto status = tcop->ExecuteReadStatement(statement, param_values, unamed, result_format, result, &sql_interpreter, //sql_interpreter.GetTableRegistry(),
-                                          ts, &this->record_table_version, &this->can_read_prepared, peloton::SintrMode::readMaterialized, &readSetMgr, nullptr, 1, &ss_txns);
+                                          ts, &this->record_table_version, &this->can_read_prepared, peloton_sintr::SintrMode::readMaterialized, &readSetMgr, nullptr, 1, &ss_txns);
   // auto status = tcop->ExecuteSnapshotReadStatement(statement, param_values, unamed, result_format, result, ts, readSetMgr, &ss_txns,
   //     this->record_table_version, this->can_read_prepared);
 

@@ -17,7 +17,7 @@
 
 #include "../optimizer/operator_node.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Pattern {
@@ -38,4 +38,4 @@ class Pattern {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

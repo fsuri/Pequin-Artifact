@@ -69,6 +69,8 @@
 //protocol clients
 //Blackhole test printer
 #include "store/blackholestore/client.h"
+// Sintr
+#include "store/sintrstore/client.h"
 //Pesto
 #include "store/pequinstore/client.h"
 // Basil
@@ -114,6 +116,7 @@ enum protomode_t {
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_SINTR,
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
@@ -498,6 +501,7 @@ const std::string protocol_args[] = {
   "lock",
   "span-occ",
   "span-lock",
+  "sintr",
   "pequin",
   "indicus",
 	"pbft",
@@ -524,6 +528,7 @@ const protomode_t protomodes[] {
   PROTO_STRONG,
   PROTO_STRONG,
   //
+  PROTO_SINTR,
   PROTO_PEQUIN,
   PROTO_INDICUS,
   PROTO_PBFT,
@@ -952,7 +957,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if ((mode == PROTO_INDICUS || mode == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
+  if ((mode == PROTO_INDICUS || mode == PROTO_PEQUIN || mode == PROTO_SINTR) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
@@ -966,7 +971,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_PEQUIN && query_sync_quorum == QUERY_SYNC_QUORUM_UNKNOWN) { 
+  if ((mode == PROTO_PEQUIN || mode == PROTO_SINTR) && query_sync_quorum == QUERY_SYNC_QUORUM_UNKNOWN) { 
     std::cerr << "Unknown query sync quorum." << std::endl;
     return 1;
   }
@@ -980,7 +985,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_PEQUIN && query_messages == QUERY_MESSAGES_UNKNOWN) { 
+  if ((mode == PROTO_PEQUIN || mode == PROTO_SINTR) && query_messages == QUERY_MESSAGES_UNKNOWN) { 
     std::cerr << "Unknown query messages." << std::endl;
     return 1;
   }
@@ -994,7 +999,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_PEQUIN && query_merge_threshold == QUERY_SYNC_QUORUM_UNKNOWN) { 
+  if ((mode == PROTO_PEQUIN || mode == PROTO_SINTR) && query_merge_threshold == QUERY_SYNC_QUORUM_UNKNOWN) { 
     std::cerr << "Unknown query merge threshold." << std::endl;
     return 1;
   }
@@ -1008,7 +1013,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_PEQUIN && sync_messages == QUERY_MESSAGES_UNKNOWN) { 
+  if ((mode == PROTO_PEQUIN || mode == PROTO_SINTR) && sync_messages == QUERY_MESSAGES_UNKNOWN) { 
     std::cerr << "Unknown sync messages." << std::endl;
     return 1;
   }
@@ -1304,6 +1309,7 @@ int main(int argc, char **argv) {
       case PROTO_CRDB:
       case PROTO_TAPIR:
            break;
+      case PROTO_SINTR:
       case PROTO_PEQUIN:
          switch (query_sync_quorum) {
           case QUERY_SYNC_QUROUM_ONE:
@@ -1555,6 +1561,70 @@ int main(int argc, char **argv) {
                                         tport, part, FLAGS_ping_replicas, FLAGS_tapir_sync_commit,
                                         TrueTime(FLAGS_clock_skew,
                                                  FLAGS_clock_error));
+        break;
+    }
+    case PROTO_SINTR: {
+      sintrstore::QueryParameters query_params(FLAGS_store_mode,
+                                                syncQuorumSize,
+                                                queryMessages,
+                                                mergeThreshold,
+                                                syncMessages,
+                                                resultQuorum,
+                                                FLAGS_pequin_retry_limit,
+                                                FLAGS_pequin_snapshot_prepared_k,
+                                                FLAGS_pequin_query_eager_exec,
+                                                FLAGS_pequin_query_point_eager_exec,
+                                                FLAGS_pequin_eager_plus_snapshot,
+                                                FLAGS_pequin_simulate_fail_eager_plus_snapshot,
+                                                false, //ForceReadFromSnapshot
+                                                FLAGS_pequin_query_read_prepared,
+                                                FLAGS_pequin_query_cache_read_set,
+                                                FLAGS_pequin_query_optimistic_txid,
+                                                FLAGS_pequin_query_compress_optimistic_txid, 
+                                                FLAGS_pequin_query_merge_active_at_client,
+                                                FLAGS_pequin_sign_client_queries,
+                                                false,    // FLAGS_pequin_sign_replica_to_replica_sync,
+                                                false,   //FLAGS_pequin_parallel_queries);
+                                                FLAGS_pequin_use_semantic_cc,
+                                                FLAGS_pequin_use_active_read_set,
+                                                0UL, 0UL); //monotonicity grace (first & second)
+
+        sintrstore::Parameters params(FLAGS_indicus_sign_messages,
+                                        FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                        FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                        FLAGS_indicus_max_dep_depth, readDepSize,
+																				false, false,
+																				false, false,
+                                        FLAGS_indicus_merkle_branch_factor, failure,
+                                        FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																				FLAGS_indicus_batch_verification_size,
+																				false,
+																				false,
+																				false,
+																				FLAGS_indicus_parallel_CCC,
+																				false,
+																				FLAGS_indicus_all_to_all_fb,
+																			  FLAGS_indicus_no_fallback,
+																				FLAGS_indicus_relayP1_timeout,
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0,
+                                        query_params);
+
+        Notice("Warmup secs: %d", FLAGS_warmup_secs);
+        client = new sintrstore::Client(config, clientId,
+                                          FLAGS_num_shards,
+                                          FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
+                                          FLAGS_tapir_sync_commit, 
+                                          readMessages, readQuorumSize,
+                                          params, 
+                                          FLAGS_data_file_path, //table_registry
+                                          keyManager, 
+                                          FLAGS_indicus_phase1_decision_timeout,
+                                          FLAGS_warmup_secs,
+																					FLAGS_indicus_max_consecutive_abstains,
+                                          FLAGS_sql_bench,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
     case PROTO_PEQUIN: {

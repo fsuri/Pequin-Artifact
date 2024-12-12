@@ -18,7 +18,7 @@
 #include "../common/internal_types.h"
 #include "../common/iterator.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -63,4 +63,4 @@ class TileGroupIterator : public Iterator<std::shared_ptr<TileGroup>> {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

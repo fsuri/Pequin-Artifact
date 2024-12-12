@@ -36,7 +36,7 @@
 #include "store/sintrstore/query-engine/planner/attribute_info.h"
 #include <unordered_set>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -526,4 +526,4 @@ SeqScanExecutor::ColumnValueToCmpExpr(const oid_t column_id,
   return root_expr;
 }
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

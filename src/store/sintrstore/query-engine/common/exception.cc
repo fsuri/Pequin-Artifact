@@ -13,11 +13,11 @@
 
 #include "../common/exception.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
-std::ostream &operator<<(std::ostream &os, const peloton::Exception &e) {
+std::ostream &operator<<(std::ostream &os, const peloton_sintr::Exception &e) {
   os << e.exception_message_.c_str();
   return os;
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

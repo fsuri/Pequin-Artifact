@@ -15,7 +15,7 @@
 #include "../parser/create_statement.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 class Schema;
 }
@@ -198,4 +198,4 @@ class CreatePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

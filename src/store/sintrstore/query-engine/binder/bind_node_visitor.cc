@@ -24,7 +24,7 @@
 #include "../expression/subquery_expression.h"
 #include "../expression/tuple_value_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace binder {
 
 BindNodeVisitor::BindNodeVisitor(concurrency::TransactionContext *txn,
@@ -359,4 +359,4 @@ void BindNodeVisitor::Visit(expression::FunctionExpression *expr) {
 }
 
 }  // namespace binder
-}  // namespace peloton
+}  // namespace peloton_sintr

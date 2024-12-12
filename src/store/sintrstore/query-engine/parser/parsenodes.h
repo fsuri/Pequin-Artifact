@@ -15,6 +15,8 @@
 #include "nodes.h"
 #include "pg_list.h"
 
+namespace peloton_sintr {
+
 typedef enum SetOperation {
   SETOP_NONE = 0,
   SETOP_UNION,
@@ -840,3 +842,5 @@ typedef struct FunctionParameter {
   FunctionParameterMode mode; /* IN/OUT/etc */
   Node *defexpr;              /* raw default expr, or NULL if not given */
 } FunctionParameter;
+
+}

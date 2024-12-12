@@ -14,7 +14,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // A varlen value is an abstract class representing all objects that have
@@ -73,4 +73,4 @@ class VarlenType : public Type {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

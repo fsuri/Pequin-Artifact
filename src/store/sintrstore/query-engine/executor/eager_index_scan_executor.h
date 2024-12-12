@@ -17,7 +17,7 @@
 #include "../executor/abstract_scan_executor.h"
 #include "../index/scan_optimizer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace index {
 class Index;
@@ -139,4 +139,4 @@ class IndexScanExecutor : public AbstractScanExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

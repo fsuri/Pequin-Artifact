@@ -16,7 +16,7 @@
 
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -75,4 +75,4 @@ class AggregateExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

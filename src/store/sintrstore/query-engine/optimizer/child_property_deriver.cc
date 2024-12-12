@@ -27,7 +27,7 @@ using std::shared_ptr;
 using std::pair;
 using std::make_shared;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 vector<pair<shared_ptr<PropertySet>, vector<shared_ptr<PropertySet>>>>
@@ -247,4 +247,4 @@ void ChildPropertyDeriver::DeriveForJoin() {
   }
 }
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

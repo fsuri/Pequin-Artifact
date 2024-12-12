@@ -21,7 +21,7 @@ struct ExecuteResult;
 struct dirty_table_info;
 struct dirty_index_info;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -89,4 +89,4 @@ class Database : public Printable {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -16,7 +16,7 @@
 #include "../storage/data_table.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 QueryHistoryCatalog &QueryHistoryCatalog::GetInstance(
@@ -57,4 +57,4 @@ bool QueryHistoryCatalog::InsertQueryHistory(concurrency::TransactionContext *tx
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

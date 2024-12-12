@@ -20,7 +20,7 @@
 #include "../function/string_functions.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 // ASCII code of the first character of the argument.
@@ -236,4 +236,4 @@ type::Value OldEngineStringFunctions::Lower(
 }
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

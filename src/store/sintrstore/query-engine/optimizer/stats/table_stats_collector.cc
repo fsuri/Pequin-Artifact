@@ -22,7 +22,7 @@
 
 #include "lib/message.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 TableStatsCollector::TableStatsCollector(storage::DataTable *table)
@@ -91,4 +91,4 @@ ColumnStatsCollector *TableStatsCollector::GetColumnStats(oid_t column_id) {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

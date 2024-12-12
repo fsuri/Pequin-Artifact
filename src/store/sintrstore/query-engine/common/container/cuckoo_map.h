@@ -20,7 +20,7 @@
 #include "libcuckoo/cuckoohash_map.hh"
 #include "libcuckoo/default_hasher.hh"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // CUCKOO_MAP_TEMPLATE_ARGUMENTS
 #define CUCKOO_MAP_TEMPLATE_ARGUMENTS                                \
@@ -92,4 +92,4 @@ class CuckooMap {
   cuckoo_map_t cuckoo_map;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

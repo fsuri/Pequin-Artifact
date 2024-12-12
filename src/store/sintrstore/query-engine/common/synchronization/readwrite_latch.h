@@ -22,7 +22,7 @@
 // Read-Write Latch
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -50,4 +50,4 @@ class ReadWriteLatch {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

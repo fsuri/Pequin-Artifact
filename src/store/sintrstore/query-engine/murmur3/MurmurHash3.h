@@ -9,10 +9,11 @@
 // MurmurHash3 was written by Austin Appleby, and is placed in the public
 // domain. The author hereby disclaims copyright to this source code.
 
-#ifndef _MURMURHASH3_H_
-#define _MURMURHASH3_H_
+#pragma once
+// #ifndef _MURMURHASH3_H_
+// #define _MURMURHASH3_H_
 
-namespace peloton {
+namespace peloton_sintr {
 
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
@@ -53,4 +54,4 @@ void MurmurHash3_x64_128 ( const void * key, const int len,
 //-----------------------------------------------------------------------------
 
 }
-#endif // _MURMURHASH3_H_
+// #endif // _MURMURHASH3_H_

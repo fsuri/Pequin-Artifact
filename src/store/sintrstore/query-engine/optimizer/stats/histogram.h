@@ -29,7 +29,7 @@
 #include "../../common/macros.h"
 #include "../../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -284,4 +284,4 @@ class Histogram {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

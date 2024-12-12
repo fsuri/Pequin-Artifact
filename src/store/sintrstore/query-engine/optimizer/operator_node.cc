@@ -12,7 +12,7 @@
 
 #include "../optimizer/operator_node.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -71,4 +71,4 @@ bool Operator::operator==(const Operator &r) {
 bool Operator::IsDefined() const { return node != nullptr; }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

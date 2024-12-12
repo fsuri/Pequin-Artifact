@@ -19,7 +19,7 @@
 #include "../storage/tile_group_header.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -102,4 +102,4 @@ LogicalTile *LogicalTileFactory::WrapTileGroup(
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

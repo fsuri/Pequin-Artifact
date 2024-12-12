@@ -15,7 +15,7 @@
 #include "../common/logger.h"
 #include <iostream>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace threadpool {
 
 namespace {
@@ -91,4 +91,4 @@ void WorkerPool::Shutdown() {
 }
 
 }  // namespace threadpool
-}  // namespace peloton
+}  // namespace peloton_sintr

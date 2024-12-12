@@ -15,7 +15,7 @@
 #include "../optimizer/operator_visitor.h"
 #include "../expression/expression_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -394,7 +394,7 @@ Operator LogicalInsert::make(
     std::shared_ptr<catalog::TableCatalogEntry> target_table,
     const std::vector<std::string> *columns,
     const std::vector<std::vector<
-        std::unique_ptr<peloton::expression::AbstractExpression>>> *values) {
+        std::unique_ptr<peloton_sintr::expression::AbstractExpression>>> *values) {
   LogicalInsert *insert_op = new LogicalInsert;
   insert_op->target_table = target_table;
   insert_op->columns = columns;
@@ -424,7 +424,7 @@ Operator LogicalDelete::make(
 //===--------------------------------------------------------------------===//
 Operator LogicalUpdate::make(
     std::shared_ptr<catalog::TableCatalogEntry> target_table,
-    const std::vector<std::unique_ptr<peloton::parser::UpdateClause>> *
+    const std::vector<std::unique_ptr<peloton_sintr::parser::UpdateClause>> *
         updates) {
   LogicalUpdate *update_op = new LogicalUpdate;
   update_op->target_table = target_table;
@@ -835,7 +835,7 @@ Operator PhysicalInsert::make(
     std::shared_ptr<catalog::TableCatalogEntry> target_table,
     const std::vector<std::string> *columns,
     const std::vector<std::vector<
-        std::unique_ptr<peloton::expression::AbstractExpression>>> *values) {
+        std::unique_ptr<peloton_sintr::expression::AbstractExpression>>> *values) {
   PhysicalInsert *insert_op = new PhysicalInsert;
   insert_op->target_table = target_table;
   insert_op->columns = columns;
@@ -868,7 +868,7 @@ Operator PhysicalDelete::make(
 //===--------------------------------------------------------------------===//
 Operator PhysicalUpdate::make(
     std::shared_ptr<catalog::TableCatalogEntry> target_table,
-    const std::vector<std::unique_ptr<peloton::parser::UpdateClause>> *
+    const std::vector<std::unique_ptr<peloton_sintr::parser::UpdateClause>> *
         updates) {
   PhysicalUpdate *update = new PhysicalUpdate;
   update->target_table = target_table;
@@ -1219,4 +1219,4 @@ bool OperatorNode<LeafOperator>::IsPhysical() const {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

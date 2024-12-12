@@ -18,7 +18,7 @@
 #include "../expression/abstract_expression.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 class AbstractExpression;
 }
@@ -282,4 +282,4 @@ class BottomUpRewrite : public OptimizerTask {
   bool has_optimized_child_;
 };
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

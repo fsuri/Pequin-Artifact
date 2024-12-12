@@ -19,7 +19,7 @@
 #include "../common/statement_cache_manager.h"
 #include "../executor/executor_context.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 // Constructor for drop executor
@@ -273,4 +273,4 @@ bool DropExecutor::DropIndex(const planner::DropPlan &node,
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -24,7 +24,7 @@
 #include "../storage/tile.h"
 #include "../storage/tile_group_header.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 HybridScanExecutor::HybridScanExecutor(const planner::AbstractPlan *node,
@@ -458,4 +458,4 @@ bool HybridScanExecutor::ExecPrimaryIndexLookup() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

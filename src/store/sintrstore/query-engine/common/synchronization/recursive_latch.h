@@ -22,7 +22,7 @@
 // Recursive Latch
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -51,4 +51,4 @@ class RecursiveLatch {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

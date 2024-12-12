@@ -21,7 +21,7 @@
 #include "../type/ephemeral_pool.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 ColumnCatalogEntry::ColumnCatalogEntry(executor::LogicalTile *tile,
@@ -376,4 +376,4 @@ ColumnCatalog::GetColumnCatalogEntries(concurrency::TransactionContext *txn,
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -16,7 +16,7 @@
 #include "../expression/abstract_expression.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class Parameter;
@@ -60,8 +60,8 @@ class HashPlan : public AbstractPlan {
   }
 
   /*virtual void VisitParameters(codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   std::vector<HashKeyPtrType> hash_keys_;
@@ -71,4 +71,4 @@ class HashPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

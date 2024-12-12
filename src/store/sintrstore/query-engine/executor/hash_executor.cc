@@ -17,7 +17,7 @@
 #include "../planner/hash_plan.h"
 #include "../expression/tuple_value_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -112,4 +112,4 @@ bool HashExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

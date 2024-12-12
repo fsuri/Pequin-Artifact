@@ -19,7 +19,7 @@
 #include "../common/dedicated_thread_task.h"
 #include "../common/dedicated_thread_owner.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * Singleton class responsible for maintaining and dispensing long running
@@ -79,4 +79,4 @@ class DedicatedThreadRegistry {
       thread_owners_table_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

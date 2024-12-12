@@ -14,7 +14,7 @@
 
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -150,4 +150,4 @@ bool Group::HasColumnStats(std::string column_name) {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

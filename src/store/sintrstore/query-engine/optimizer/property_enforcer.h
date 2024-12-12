@@ -16,7 +16,7 @@
 #include "../optimizer/operator_expression.h"
 #include "../optimizer/property_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class PropertySet;
@@ -44,4 +44,4 @@ class PropertyEnforcer : public PropertyVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

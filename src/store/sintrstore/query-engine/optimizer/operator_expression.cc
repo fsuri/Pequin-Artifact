@@ -14,7 +14,7 @@
 
 #include <limits>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -61,4 +61,4 @@ const std::string OperatorExpression::GetInfo() const {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

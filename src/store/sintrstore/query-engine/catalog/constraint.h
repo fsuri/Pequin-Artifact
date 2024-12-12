@@ -21,7 +21,7 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 //===--------------------------------------------------------------------===//
@@ -135,4 +135,4 @@ class Constraint : public Printable {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

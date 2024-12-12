@@ -16,7 +16,7 @@
 
 #include <memory>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -442,4 +442,4 @@ class PullFilterThroughAggregation : public Rule {
                  OptimizeContext *context) const override;
 };
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

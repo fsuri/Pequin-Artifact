@@ -14,7 +14,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class TimestampType : public Type {
@@ -62,5 +62,5 @@ class TimestampType : public Type {
   Value CastAs(const Value& val, const TypeId type_id) const override;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 }  // namespace type

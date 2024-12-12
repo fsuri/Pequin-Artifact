@@ -17,7 +17,7 @@
 #include "../parser/statements.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class CaseExpression;
@@ -90,4 +90,4 @@ class BindNodeVisitor : public SqlNodeVisitor {
 };
 
 }  // namespace binder
-}  // namespace peloton
+}  // namespace peloton_sintr

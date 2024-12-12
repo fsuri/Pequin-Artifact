@@ -13,7 +13,7 @@
 
 #include "../concurrency/transaction_manager_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 EpochType EpochManagerFactory::epoch_ = EpochType::DECENTRALIZED_EPOCH;

@@ -18,7 +18,7 @@
 #include "../planner/hash_join_plan.h"
 #include "../executor/hash_executor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -53,4 +53,4 @@ class HashJoinExecutor : public AbstractJoinExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

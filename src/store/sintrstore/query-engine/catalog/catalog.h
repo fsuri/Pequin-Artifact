@@ -18,7 +18,7 @@
 #include "../function/functions.h"
 #include "store/sintrstore/common.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Constraint;
@@ -73,7 +73,7 @@ struct FunctionData {
   // indicates if PL/pgSQL udf
   bool is_udf_;
   // pointer to the function code_context (populated if UDF)
-  std::shared_ptr<peloton::codegen::CodeContext> func_context_;
+  std::shared_ptr<peloton_sintr::codegen::CodeContext> func_context_;
   // pointer to the function (populated if built-in)
   function::BuiltInFuncType func_;
 };
@@ -355,7 +355,7 @@ class Catalog {
                     type::TypeId return_type,
                     const std::vector<type::TypeId> &argument_types,
                     oid_t prolang,
-                    std::shared_ptr<peloton::codegen::CodeContext> code_context,
+                    std::shared_ptr<peloton_sintr::codegen::CodeContext> code_context,
                     const std::string &func_src);
 
   // TODO(Tianyu): Somebody should comment on what the difference between name
@@ -386,4 +386,4 @@ class Catalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

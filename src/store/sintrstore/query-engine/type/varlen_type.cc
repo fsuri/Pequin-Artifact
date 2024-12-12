@@ -18,7 +18,7 @@
 #include "../type/value_factory.h"
 #include "../type/abstract_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define VARLEN_COMPARE_FUNC(OP)                                               \
@@ -239,4 +239,4 @@ Value VarlenType::CastAs(const Value &val, const TypeId type_id) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

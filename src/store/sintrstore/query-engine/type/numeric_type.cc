@@ -18,10 +18,10 @@
 #include "../type/decimal_type.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 NumericType::~NumericType() {}
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

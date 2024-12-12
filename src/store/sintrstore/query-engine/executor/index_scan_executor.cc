@@ -42,7 +42,7 @@
 #include "store/sintrstore/sintr-proto.pb.h"
 
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -389,7 +389,7 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //Don't set predicates if it is an implicit point read. In that case, try to add force read set addition
   if(is_implicit_point_read_) return;
 
-  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName(); //Note: must deduce before checking IsImplicitPoint
+  const_cast<peloton_sintr::expression::AbstractExpression *>(predicate_)->DeduceExpressionName(); //Note: must deduce before checking IsImplicitPoint
 
   if(first_execution){
      if(IsImplicitPointRead(current_txn)) return;
@@ -402,7 +402,7 @@ void IndexScanExecutor::SetPredicate(concurrency::TransactionContext *current_tx
   //FIXME: Must copy because const... //Instead of deduce expression name here: do it much earlier?
     //  auto pred_copy = predicate_->Copy();
     // pred_copy->DeduceExpressionName();
-  //const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
+  //const_cast<peloton_sintr::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
   Debug("Adding new read set predicate instance: %s", pred.c_str());
@@ -2614,4 +2614,4 @@ void IndexScanExecutor::ResetState() {
 }
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

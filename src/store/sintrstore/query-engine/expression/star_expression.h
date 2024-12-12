@@ -19,7 +19,7 @@
 #include "../common/sql_node_visitor.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -54,4 +54,4 @@ class StarExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

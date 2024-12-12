@@ -17,7 +17,7 @@
 #include "../type/type_util.h"
 #include "../type/abstract_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 uint32_t StringFunctions::Ascii(UNUSED_ATTRIBUTE executor::ExecutorContext &ctx,
@@ -224,11 +224,11 @@ uint32_t StringFunctions::Length(
 
 int32_t StringFunctions::CompareStrings(const char *str1, uint32_t len1,
                                         const char *str2, uint32_t len2) {
-  return peloton::type::TypeUtil::CompareStrings(str1, len1, str2, len2);
+  return peloton_sintr::type::TypeUtil::CompareStrings(str1, len1, str2, len2);
 }
 
 void StringFunctions::WriteString(const char *data, uint32_t len, char *buf,
-                                  peloton::type::AbstractPool &pool) {
+                                  peloton_sintr::type::AbstractPool &pool) {
   struct Varlen {
     uint32_t len;
     char data[0];
@@ -248,10 +248,10 @@ void StringFunctions::WriteString(const char *data, uint32_t len, char *buf,
 // TODO(pmenon): UTF8 checking, string checking, lots of error handling here
 // TODO(pmenon): Why do we need this +1 on the length ?
 StringFunctions::StrWithLen StringFunctions::InputString(
-    UNUSED_ATTRIBUTE const peloton::type::Type &type, const char *data,
+    UNUSED_ATTRIBUTE const peloton_sintr::type::Type &type, const char *data,
     uint32_t len) {
   return StringFunctions::StrWithLen{data, len + 1};
 }
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

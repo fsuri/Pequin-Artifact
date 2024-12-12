@@ -17,7 +17,7 @@
 
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -34,4 +34,4 @@ class TupleSample {
 };
 
 } // namespace optimizer
-} // namespace peloton
+} // namespace peloton_sintr

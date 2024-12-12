@@ -1,5 +1,5 @@
-#ifndef _TOY_TABLESTORE_H_
-#define _TOY_TABLESTORE_H_
+#ifndef _SINTR_TOY_TABLESTORE_H_
+#define _SINTR_TOY_TABLESTORE_H_
 
 #include "store/sintrstore/table_store_interface.h"
 

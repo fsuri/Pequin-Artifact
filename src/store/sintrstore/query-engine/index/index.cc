@@ -19,7 +19,7 @@
 #include "../settings/settings_manager.h"
 #include "../type/ephemeral_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 bool IndexMetadata::index_default_visibility = true;
@@ -355,4 +355,4 @@ bool Index::IsDirty() const { return dirty; }
 void Index::ResetDirty() { dirty = false; }
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

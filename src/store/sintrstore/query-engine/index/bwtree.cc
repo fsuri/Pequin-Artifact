@@ -14,7 +14,7 @@
 #include "../index/bwtree.h"
 
 #ifdef BWTREE_PELOTON
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 #else
 namespace wangziqi2013 {

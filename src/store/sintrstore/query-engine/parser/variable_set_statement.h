@@ -19,7 +19,7 @@
 #include "../parser/sql_statement.h"
 #include "../parser/table_ref.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 /* TODO(Yuchen): Do not support VariableSetStatement yet
  * When JDBC starts connection, it will send SET statement and need server's
@@ -38,4 +38,4 @@ class VariableSetStatement : public SQLStatement {
   virtual void Accept(UNUSED_ATTRIBUTE SqlNodeVisitor *v) override {}
 };
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

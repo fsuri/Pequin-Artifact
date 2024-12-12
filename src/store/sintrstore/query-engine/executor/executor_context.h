@@ -16,7 +16,7 @@
 #include "../type/ephemeral_pool.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -120,4 +120,4 @@ inline void ExecutorContext::ThreadStates::ForEach(
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

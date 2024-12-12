@@ -15,7 +15,7 @@
 #include "../executor/abstract_executor.h"
 #include "../concurrency/transaction_manager_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -49,4 +49,4 @@ class InsertExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

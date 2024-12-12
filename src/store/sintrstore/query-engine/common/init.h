@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 
 class ThreadPool;
 
@@ -33,4 +33,4 @@ class PelotonInit {
   static void TearDownThread();
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

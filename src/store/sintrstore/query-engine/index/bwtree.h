@@ -96,7 +96,7 @@ using NodeID = uint64_t;
             typename ValueEqualityChecker, typename ValueHashFunc>
 
 #ifdef BWTREE_PELOTON
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 #else
 namespace wangziqi2013 {
@@ -7596,7 +7596,7 @@ class BwTree : public BwTreeBase {
       // are cleared or not
       if (head_epoch_p != nullptr) {
         LOG_DEBUG("ERROR: After cleanup there is still epoch left");
-        LOG_DEBUG("%s", peloton::GETINFO_THICK_LINE.c_str());
+        LOG_DEBUG("%s", peloton_sintr::GETINFO_THICK_LINE.c_str());
         LOG_DEBUG("DUMP");
 
         for (EpochNode *epoch_node_p = head_epoch_p; epoch_node_p != nullptr;

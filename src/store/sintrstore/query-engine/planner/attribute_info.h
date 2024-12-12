@@ -18,13 +18,13 @@
 #include "../type/type.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 // Describes an attribute that is passed around in the query plan
 struct AttributeInfo {
   // The actual type of this attribute (smallint, integer, varchar etc.)
-  peloton::type::Type type;
+  peloton_sintr::type::Type type;
   //codegen::type::Type type;
   // The ID of the attribute
   oid_t attribute_id;
@@ -34,4 +34,4 @@ struct AttributeInfo {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

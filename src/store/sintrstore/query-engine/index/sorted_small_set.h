@@ -14,7 +14,7 @@
 #include <cassert>
 #include <algorithm>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -174,4 +174,4 @@ class SortedSmallSet {
 };
 
 } // namespace index
-} // namespace peloton
+} // namespace peloton_sintr

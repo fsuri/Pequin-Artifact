@@ -21,11 +21,11 @@
 #include "../storage/tile_group_factory.h"
 #include "../util/stringbox_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 AbstractTable::AbstractTable(oid_t table_oid, catalog::Schema *schema,
-                             bool own_schema, peloton::LayoutType layout_type)
+                             bool own_schema, peloton_sintr::LayoutType layout_type)
     : table_oid(table_oid), schema(schema), own_schema_(own_schema) {
   // The default Layout should always be ROW or COLUMN
   PELOTON_ASSERT((layout_type == LayoutType::ROW) ||
@@ -79,4 +79,4 @@ const std::string AbstractTable::GetInfo() const {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

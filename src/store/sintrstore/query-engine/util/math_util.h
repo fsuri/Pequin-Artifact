@@ -14,7 +14,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * Math Utility Functions
@@ -32,4 +32,4 @@ class MathUtil {
   }
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

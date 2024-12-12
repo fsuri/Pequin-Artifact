@@ -15,7 +15,7 @@
 #include "../../common/macros.h"
 #include "lib/concurrentqueue/concurrentqueue.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 //
@@ -61,4 +61,4 @@ class LockFreeQueue {
   moodycamel::ConcurrentQueue<T> queue_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

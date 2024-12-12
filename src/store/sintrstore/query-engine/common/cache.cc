@@ -17,7 +17,7 @@
 #include "../common/macros.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /** @brief the constructor, nothing fancy here
  */

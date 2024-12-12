@@ -17,7 +17,7 @@
 #include "../common/internal_types.h"
 #include "../executor/logical_tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -90,4 +90,4 @@ bool LimitExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

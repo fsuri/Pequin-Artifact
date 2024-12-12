@@ -21,7 +21,7 @@
 #include "../type/timestamp_type.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 Value::Value(const Value &other) {
@@ -433,5 +433,5 @@ bool Value::CheckInteger() const {
   return false;
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 }  // namespace type

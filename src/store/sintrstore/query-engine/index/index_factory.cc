@@ -21,7 +21,7 @@
 #include "../index/index_key.h"
 #include "../index/skiplist_index.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 Index *IndexFactory::GetIndex(IndexMetadata *metadata) {
@@ -370,4 +370,4 @@ std::string IndexFactory::GetInfo(IndexMetadata *metadata,
 }
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

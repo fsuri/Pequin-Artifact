@@ -24,7 +24,7 @@
 #include "../common/internal_types.h"
 #include "../common/macros.h"
 #include "tbb/concurrent_unordered_map.h"
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class TileGroup;
@@ -75,4 +75,4 @@ class Manager {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

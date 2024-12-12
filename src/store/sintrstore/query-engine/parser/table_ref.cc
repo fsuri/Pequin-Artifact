@@ -13,7 +13,7 @@
 #include "../parser/table_ref.h"
 #include "../parser/select_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 TableRef::~TableRef() { delete select; }
@@ -61,4 +61,4 @@ const std::string TableRef::GetInfo(int num_indent) const {
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

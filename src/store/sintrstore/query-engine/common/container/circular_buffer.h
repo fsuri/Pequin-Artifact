@@ -14,7 +14,7 @@
 
 #include <boost/circular_buffer.hpp>
 
-namespace peloton {
+namespace peloton_sintr {
 
 // LOCK_FREE_ARRAY_TEMPLATE_ARGUMENTS
 #define CIRCULAR_BUFFER_TEMPLATE_ARGUMENTS template <typename ValueType>
@@ -55,4 +55,4 @@ class CircularBuffer {
   circular_buffer_t circular_buffer_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

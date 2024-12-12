@@ -18,7 +18,7 @@
 #include "../type/value_factory.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -145,4 +145,4 @@ class OperatorUnaryMinusExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 #include "../expression/expression_util.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 AbstractPlan::AbstractPlan() {}
@@ -83,4 +83,4 @@ bool AbstractPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

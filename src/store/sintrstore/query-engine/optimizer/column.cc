@@ -14,7 +14,7 @@
 
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -63,4 +63,4 @@ catalog::Column GetSchemaColumnFromOptimizerColumn(Column *column) {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

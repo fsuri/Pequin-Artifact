@@ -16,7 +16,7 @@
 //#include "../../../lib/concurrentqueue/benchmarks/tbb/tbb_allocator.h"
 //#include "../../../lib/concurrentqueue/benchmarks/tbb/concurrent_vector.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 static const size_t kLockfreeArrayInitSize = 256;
 
@@ -109,4 +109,4 @@ class LockFreeArray {
       lock_free_array;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

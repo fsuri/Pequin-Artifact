@@ -20,7 +20,7 @@
 #include "../common/exception.h"
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * Static utility class with wrappers for libevent functions.
@@ -82,4 +82,4 @@ class EventUtil {
                 "Error in event base dispatch");
   }
 };
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -20,7 +20,7 @@
 #include "../type/types.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 /**
@@ -60,4 +60,4 @@ class ResultPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

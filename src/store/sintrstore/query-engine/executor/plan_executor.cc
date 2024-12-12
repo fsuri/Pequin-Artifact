@@ -23,7 +23,7 @@
 #include "../settings/settings_manager.h"
 #include "../storage/tuple_iterator.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 executor::AbstractExecutor *BuildExecutorTree(
@@ -208,7 +208,7 @@ void PlanExecutor::ExecutePlan(
   LOG_TRACE("PlanExecutor Start (Txn ID=%" PRId64 ")", txn->GetTransactionId());
 
   bool codegen_enabled = false;
-      //settings::SettingsManager::GetBool(settings::SettingId::codegen);
+      //settings::SettingsManager::GetBool(settings::SettingId::peloton_sintr_codegen);
 
   try {
     if (codegen_enabled /*&& codegen::QueryCompiler::IsSupported(*plan)*/) {
@@ -438,4 +438,4 @@ void CleanExecutorTree(executor::AbstractExecutor *root) {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

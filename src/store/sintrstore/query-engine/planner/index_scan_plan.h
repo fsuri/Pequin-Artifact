@@ -22,7 +22,7 @@
 #include "../planner/abstract_scan_plan.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace index {
 class Index;
@@ -223,4 +223,4 @@ class IndexScanPlan : public AbstractScan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -27,7 +27,7 @@
 #include "../settings/settings_manager.h"
 #include "lib/message.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 bool TimestampOrderingTransactionManager::SetLastReaderCommitId(
@@ -482,7 +482,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
   
   //Find the current linked list header (atomically)
   // ItemPointer head_pointer;
-  // peloton::storage::TileGroupHeader *head_tile_group_header; 
+  // peloton_sintr::storage::TileGroupHeader *head_tile_group_header; 
   // while(true){
   //   head_pointer = *index_entry_ptr;
   //   head_tile_group_header = storage_manager->GetTileGroup(head_pointer.block)->GetHeader();
@@ -503,7 +503,7 @@ void TimestampOrderingTransactionManager::PerformUpdate(
 
 
     ItemPointer curr_pointer = *index_entry_ptr;
-    peloton::storage::TileGroupHeader *curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
+    peloton_sintr::storage::TileGroupHeader *curr_tile_group_header = storage_manager->GetTileGroup(curr_pointer.block)->GetHeader();
     //Find the right location to insert in linked list.
 
     auto curr_ts = curr_tile_group_header->GetBasilTimestamp(curr_pointer.offset);
@@ -1238,4 +1238,4 @@ ResultType TimestampOrderingTransactionManager::AbortTransaction(
 }
 
 } // namespace concurrency
-} // namespace peloton
+} // namespace peloton_sintr

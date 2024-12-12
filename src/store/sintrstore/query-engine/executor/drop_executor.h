@@ -16,7 +16,7 @@
 #include "../executor/abstract_executor.h"
 #include "../planner/drop_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -65,4 +65,4 @@ class DropExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

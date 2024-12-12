@@ -21,7 +21,7 @@
 #include <vector>
 #include <utility>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 /*
@@ -841,4 +841,4 @@ class TopKElements {
 };  // end of class TopKElements
 
 } /* namespace optimizer */
-} /* namespace peloton */
+} /* namespace peloton_sintr */

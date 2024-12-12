@@ -15,7 +15,7 @@
 #include "../executor/abstract_executor.h"
 #include "../planner/project_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -54,4 +54,4 @@ class ProjectionExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

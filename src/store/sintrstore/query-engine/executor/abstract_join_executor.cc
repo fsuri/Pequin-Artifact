@@ -24,7 +24,7 @@
 #include "../storage/tile_group_header.h"
 #include "../storage/tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -477,4 +477,4 @@ bool AbstractJoinExecutor::BuildRightJoinOutput() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

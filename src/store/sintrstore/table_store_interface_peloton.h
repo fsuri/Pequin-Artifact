@@ -20,8 +20,8 @@
  **********************************************************************/
 
 
-#ifndef _PELOTON_TABLESTORE_H_
-#define _PELOTON_TABLESTORE_H_
+#ifndef _SINTR_PELOTON_TABLESTORE_H_
+#define _SINTR_PELOTON_TABLESTORE_H_
 
 #include "store/sintrstore/table_store_interface.h"
 
@@ -127,28 +127,28 @@ class PelotonTableStore : public TableStore {
         bool unnamed_variable;
 
         //Peloton DB singleton "table_backend"
-		peloton::tcop::TrafficCop traffic_cop_;
+		peloton_sintr::tcop::TrafficCop traffic_cop_;
 		std::atomic_int counter_;
         bool is_recycled_version_;
 
-        //std::vector<peloton::tcop::TrafficCop*> traffic_cops;
-        moodycamel::ConcurrentQueue<std::pair<peloton::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
+        //std::vector<peloton_sintr::tcop::TrafficCop*> traffic_cops;
+        moodycamel::ConcurrentQueue<std::pair<peloton_sintr::tcop::TrafficCop*, std::atomic_int*>> traffic_cops; //https://github.com/cameron314/concurrentqueue
 
-        std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
-        void ReleaseTrafficCop(std::pair<peloton::tcop::TrafficCop*, std::atomic_int*> cop_pair);
+        std::pair<peloton_sintr::tcop::TrafficCop*, std::atomic_int*> GetUnusedTrafficCop();
+        void ReleaseTrafficCop(std::pair<peloton_sintr::tcop::TrafficCop*, std::atomic_int*> cop_pair);
 
         int num_threads;
-        std::vector<std::pair<peloton::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
-        std::pair<peloton::tcop::TrafficCop *, std::atomic_int *> GetCop();
+        std::vector<std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *>> traffic_cops_;
+        std::pair<peloton_sintr::tcop::TrafficCop *, std::atomic_int *> GetCop();
 
-        std::shared_ptr<peloton::Statement> ParseAndPrepare(const std::string &query_statement, peloton::tcop::TrafficCop *tcop, bool skip_cache = false);
+        std::shared_ptr<peloton_sintr::Statement> ParseAndPrepare(const std::string &query_statement, peloton_sintr::tcop::TrafficCop *tcop, bool skip_cache = false);
 
-        void GetResult(peloton::ResultType &status, peloton::tcop::TrafficCop *tcop, std::atomic_int *c);
+        void GetResult(peloton_sintr::ResultType &status, peloton_sintr::tcop::TrafficCop *tcop, std::atomic_int *c);
 
-        //std::string TransformResult(std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
-        std::string TransformResult(peloton::ResultType &status, std::shared_ptr<peloton::Statement> statement, std::vector<peloton::ResultValue> &result);
+        //std::string TransformResult(std::vector<peloton_sintr::FieldInfo> &tuple_descriptor, std::vector<peloton_sintr::ResultValue> &result);
+        std::string TransformResult(peloton_sintr::ResultType &status, std::shared_ptr<peloton_sintr::Statement> statement, std::vector<peloton_sintr::ResultValue> &result);
         void TransformPointResult(proto::Write *write, Timestamp &committed_timestamp, Timestamp &prepared_timestamp, std::shared_ptr<std::string> txn_dig, 
-                                    peloton::ResultType &status, std::vector<peloton::FieldInfo> &tuple_descriptor, std::vector<peloton::ResultValue> &result);
+                                    peloton_sintr::ResultType &status, std::vector<peloton_sintr::FieldInfo> &tuple_descriptor, std::vector<peloton_sintr::ResultValue> &result);
 
 };
 
@@ -157,8 +157,8 @@ class PelotonTableStore : public TableStore {
 #endif //_PELOTON_TABLESTORE_H
 
 //// OLD POINT QUERY CODE:
-// std::vector<peloton::FieldInfo> tuple_descriptor;
-//     if (status == peloton::ResultType::SUCCESS) {
+// std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
+//     if (status == peloton_sintr::ResultType::SUCCESS) {
 //         tuple_descriptor = statement->GetTupleDescriptor();
 //     }
 

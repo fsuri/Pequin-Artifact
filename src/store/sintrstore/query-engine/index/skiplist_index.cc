@@ -17,7 +17,7 @@
 //#include "../statistics/stats_aggregator.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 SKIPLIST_TEMPLATE_ARGUMENTS
@@ -161,4 +161,4 @@ template class SkipListIndex<TupleKey, ItemPointer *, TupleKeyComparator,
                              TupleKeyEqualityChecker, ItemPointerComparator>;
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

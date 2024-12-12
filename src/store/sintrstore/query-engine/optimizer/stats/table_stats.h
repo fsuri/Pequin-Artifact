@@ -20,7 +20,7 @@
 #include "../../common/internal_types.h"
 #include "../../optimizer/stats/tuple_sampler.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 #define DEFAULT_CARDINALITY 1
@@ -119,4 +119,4 @@ class TableStats : public Stats {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

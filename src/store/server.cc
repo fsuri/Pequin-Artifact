@@ -52,6 +52,8 @@
 #include "store/strongstore/server.h"
 #include "store/tapirstore/server.h"
 #include "store/weakstore/server.h"
+// Sintr
+#include "store/sintrstore/server.h"
 //Pesto
 #include "store/pequinstore/server.h"
 //Basil
@@ -100,6 +102,7 @@ enum protocol_t {
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_SINTR,
   PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
@@ -156,6 +159,7 @@ const std::string protocol_args[] = {
 	"tapir",
   "weak",
   "strong",
+  "sintr",
   "pequin",
   "indicus",
 	"pbft",
@@ -171,6 +175,7 @@ const protocol_t protos[] {
   PROTO_TAPIR,
   PROTO_WEAK,
   PROTO_STRONG,
+  PROTO_SINTR,
   PROTO_PEQUIN,
   PROTO_INDICUS,
   PROTO_PBFT,
@@ -567,7 +572,7 @@ int main(int argc, char **argv) {
   int threadpool_mode = 0; //default for Basil.   //|| proto == PROTO_PELOTON_SMR
   if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
-  if(proto == PROTO_PEQUIN && FLAGS_sql_bench) threadpool_mode = 0;
+  if((proto == PROTO_PEQUIN || proto == PROTO_SINTR) && FLAGS_sql_bench) threadpool_mode = 0;
   if(proto == PROTO_PG_SMR) threadpool_mode = 3;
 
   switch (trans) {
@@ -646,7 +651,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && occ_type == OCC_TYPE_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN || proto == PROTO_SINTR) && occ_type == OCC_TYPE_UNKNOWN) {
     std::cerr << "Unknown occ type." << std::endl;
     return 1;
   }
@@ -660,7 +665,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
+  if ((proto == PROTO_INDICUS || proto == PROTO_PEQUIN || proto == PROTO_SINTR) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
@@ -741,6 +746,7 @@ int main(int argc, char **argv) {
       case PROTO_STRONG:
       case PROTO_PG:
         break;
+      case PROTO_SINTR:
       case PROTO_PEQUIN:
       case PROTO_INDICUS:
         switch (read_dep) {
@@ -797,6 +803,79 @@ int main(int argc, char **argv) {
                                        FLAGS_clock_error);
       replica = new replication::vr::VRReplica(config, FLAGS_group_idx, FLAGS_replica_idx,
                                                tport, 1, dynamic_cast<replication::AppReplica *>(server));
+      break;
+  }
+  case PROTO_SINTR: {
+      
+      sintrstore::OCCType sintrOCCType;  //TODO: Extend this later with Semantic OCC check options.
+      switch (occ_type) {
+      case OCC_TYPE_TAPIR:
+          sintrOCCType = sintrstore::TAPIR;
+          break;
+      case OCC_TYPE_MVTSO:
+          sintrOCCType = sintrstore::MVTSO;
+          break;
+      default:
+          NOT_REACHABLE();
+      }
+
+      sintrstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 0,
+                                                 -1,
+                                                 FLAGS_pequin_snapshot_prepared_k,
+                                                 FLAGS_pequin_query_eager_exec,
+                                                 FLAGS_pequin_query_point_eager_exec,
+                                                 FLAGS_pequin_eager_plus_snapshot,
+                                                 false, //simulateFailEagerPlusSnapshot is a client only flag.
+                                                 FLAGS_pequin_force_read_from_snapshot,
+                                                 FLAGS_pequin_query_read_prepared,
+                                                 FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
+                                                 FLAGS_pequin_query_merge_active_at_client,
+                                                 FLAGS_pequin_sign_client_queries,
+                                                 FLAGS_pequin_sign_replica_to_replica_sync,
+                                                 FLAGS_pequin_parallel_queries,
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 FLAGS_pequin_monotonicity_grace,
+                                                 FLAGS_pequin_non_monotonicity_grace);
+
+      sintrstore::Parameters params(FLAGS_indicus_sign_messages,
+                                      FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                      FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                      FLAGS_indicus_max_dep_depth, readDepSize,
+                                      FLAGS_indicus_read_reply_batch, FLAGS_indicus_adjust_batch_size,
+                                      FLAGS_indicus_shared_mem_batch, FLAGS_indicus_shared_mem_verify,
+                                      FLAGS_indicus_merkle_branch_factor, InjectFailure(),
+                                      FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																			FLAGS_indicus_batch_verification_size,
+																			FLAGS_indicus_mainThreadDispatching,
+																			FLAGS_indicus_dispatchMessageReceive,
+																			FLAGS_indicus_parallel_reads,
+																			FLAGS_indicus_parallel_CCC,
+																			FLAGS_indicus_dispatchCallbacks,
+																			FLAGS_indicus_all_to_all_fb,
+																		  FLAGS_indicus_no_fallback, FLAGS_indicus_relayP1_timeout,
+																		  FLAGS_indicus_replica_gossip,
+                                      FLAGS_indicus_sign_client_proposals,
+                                      FLAGS_indicus_rts_mode,
+                                      query_params);
+
+      Debug("Starting new server object");
+      Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());
+      if(FLAGS_pequin_simulate_replica_failure && config.n == 0) Panic("Cannot simulate inconsitency without replication");
+      bool simulate_fault = FLAGS_pequin_simulate_replica_failure && (FLAGS_replica_idx == 0);
+      Notice("Simulating Fault at this Replica? %d", simulate_fault);
+      server = new sintrstore::Server(config, FLAGS_group_idx,
+                                        FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups, tport,
+                                        &keyManager, params, FLAGS_data_file_path, timeDelta, sintrOCCType, part,
+                                        FLAGS_indicus_sig_batch_timeout, FLAGS_sql_bench, 
+                                        FLAGS_rw_simulate_point_kv, simulate_fault, FLAGS_pequin_simulate_inconsistency, FLAGS_pequin_disable_prepare_visibility); //TODO: Move to params.
       break;
   }
   case PROTO_PEQUIN: {
@@ -1053,7 +1132,7 @@ int main(int argc, char **argv) {
 
   //SET THREAD AFFINITY if running multi_threading:
 	//if(FLAGS_indicus_multi_threading){
-  bool pinned_protocol = proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
+  bool pinned_protocol = proto == PROTO_SINTR || proto == PROTO_PEQUIN || proto == PROTO_INDICUS || proto == PROTO_PBFT;
   //if(proto == PROTO_PEQUIN && FLAGS_sql_bench) pinned_protocol = false; //Only pin in KV-mode. In SQL mode don't pin so peloton can go wherever. (in this case, pick threadpool_mode = 2) NOTE: obsolete, since we don't use Peloton Tpool anymore.
      // || proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS || proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART;   
      //For Hotstuff and Augustus store it's likely best to not pin the main Process in order to allow their internal threadpools to use more cores

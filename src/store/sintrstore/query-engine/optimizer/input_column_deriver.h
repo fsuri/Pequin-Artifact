@@ -14,7 +14,7 @@
 
 #include "../optimizer/operator_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 class AbstractPlan;
@@ -131,4 +131,4 @@ class InputColumnDeriver : public OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

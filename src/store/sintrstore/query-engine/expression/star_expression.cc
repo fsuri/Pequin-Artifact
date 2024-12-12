@@ -14,7 +14,7 @@
 #include "../util/string_util.h"
 #include <sstream>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 const std::string StarExpression::GetInfo(int num_indent) const {
@@ -35,4 +35,4 @@ const std::string StarExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

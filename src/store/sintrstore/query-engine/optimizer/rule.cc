@@ -13,7 +13,7 @@
 #include "../optimizer/rule_impls.h"
 #include "../optimizer/group_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 int Rule::Promise(GroupExpression *group_expr, OptimizeContext *context) const {
@@ -65,4 +65,4 @@ RuleSet::RuleSet() {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

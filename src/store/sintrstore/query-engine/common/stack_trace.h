@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 
-namespace peloton {
+namespace peloton_sintr {
 
 void RegisterSignalHandlers();
 
@@ -20,4 +20,4 @@ void PrintStackTrace(FILE *out = ::stderr,
 
 void SignalHandler(int signum);
 
-}  // namespace peloton
+}  // namespace peloton_sintr

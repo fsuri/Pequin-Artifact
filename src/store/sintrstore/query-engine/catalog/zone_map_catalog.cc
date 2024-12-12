@@ -19,7 +19,7 @@
 #include "../storage/tuple.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 // Global Singleton : I really dont want to do this and I know this sucks.
@@ -153,4 +153,4 @@ std::unique_ptr<std::vector<type::Value>> ZoneMapCatalog::GetColumnStatistics(co
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

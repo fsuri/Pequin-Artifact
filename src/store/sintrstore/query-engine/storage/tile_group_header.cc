@@ -27,7 +27,7 @@
 #include "../type/value.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 TileGroupHeader::TileGroupHeader(const BackendType &backend_type,
@@ -114,7 +114,7 @@ const std::string TileGroupHeader::GetInfo() const {
     os << spacer;
 
     // NEXT RANGE
-    peloton::ItemPointer nextPointer = GetNextItemPointer(header_itr);
+    peloton_sintr::ItemPointer nextPointer = GetNextItemPointer(header_itr);
     os << "Next:[";
     if (nextPointer.block == INVALID_OID) {
       os << "INVALID_OID";
@@ -130,7 +130,7 @@ const std::string TileGroupHeader::GetInfo() const {
     os << "] ";
 
     // PREVIOUS RANGE
-    peloton::ItemPointer prevPointer = GetPrevItemPointer(header_itr);
+    peloton_sintr::ItemPointer prevPointer = GetPrevItemPointer(header_itr);
     os << "Prev:[";
     if (prevPointer.block == INVALID_OID) {
       os << "INVALID_OID";
@@ -153,7 +153,7 @@ void TileGroupHeader::PrintVisibility(txn_id_t txn_id, cid_t at_cid) {
   oid_t active_tuple_slots = GetCurrentNextTupleSlot();
   std::stringstream os;
 
-  os << peloton::GETINFO_SINGLE_LINE << "\n";
+  os << peloton_sintr::GETINFO_SINGLE_LINE << "\n";
 
   for (oid_t header_itr = 0; header_itr < active_tuple_slots; header_itr++) {
     bool own = (txn_id == GetTransactionId(header_itr));
@@ -186,7 +186,7 @@ void TileGroupHeader::PrintVisibility(txn_id_t txn_id, cid_t at_cid) {
     else
       os << std::setw(width) << end_commit_id;
 
-    peloton::ItemPointer location = GetNextItemPointer(header_itr);
+    peloton_sintr::ItemPointer location = GetNextItemPointer(header_itr);
     os << " prev : "
        << "[ " << location.block << " , " << location.offset << " ]";  //<<
 
@@ -202,7 +202,7 @@ void TileGroupHeader::PrintVisibility(txn_id_t txn_id, cid_t at_cid) {
       os << "  [ false ]\n";
   }
 
-  os << peloton::GETINFO_SINGLE_LINE << "\n";
+  os << peloton_sintr::GETINFO_SINGLE_LINE << "\n";
 
   LOG_TRACE("%s", os.str().c_str());
 }
@@ -225,4 +225,4 @@ oid_t TileGroupHeader::GetActiveTupleCount() const {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

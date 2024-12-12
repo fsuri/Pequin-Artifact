@@ -18,7 +18,7 @@
 #include "../storage/data_table.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 #define PROC_CATALOG_NAME "pg_proc"
@@ -145,4 +145,4 @@ std::unique_ptr<ProcCatalogEntry> ProcCatalog::GetProcByName(concurrency::Transa
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

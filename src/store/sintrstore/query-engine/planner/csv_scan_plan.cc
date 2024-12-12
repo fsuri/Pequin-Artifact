@@ -16,7 +16,7 @@
 
 //#include "../codegen/type/type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 CSVScanPlan::CSVScanPlan(std::string file_name,
@@ -90,4 +90,4 @@ void CSVScanPlan::GetAttributes(std::vector<const AttributeInfo *> &ais) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

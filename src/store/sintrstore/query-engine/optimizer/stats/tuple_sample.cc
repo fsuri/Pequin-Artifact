@@ -12,7 +12,7 @@
 
 #include "../../optimizer/stats/tuple_sample.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -23,4 +23,4 @@ TupleSample::TupleSample(std::vector<Column *> columns,
     : columns(columns), sampled_tuples(sampled_tuples) {}
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

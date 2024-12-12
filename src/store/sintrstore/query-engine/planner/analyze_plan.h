@@ -16,7 +16,7 @@
 
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 class DataTable;
 }
@@ -73,4 +73,4 @@ class AnalyzePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

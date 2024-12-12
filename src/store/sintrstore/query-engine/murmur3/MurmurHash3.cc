@@ -17,7 +17,7 @@
 
 #include "MurmurHash3.h"
 
-namespace peloton {
+namespace peloton_sintr {
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
 

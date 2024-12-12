@@ -18,7 +18,7 @@
 
 #include <string>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 /**
@@ -37,4 +37,4 @@ class TileGroupFactory {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

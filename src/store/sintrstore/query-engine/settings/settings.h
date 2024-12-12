@@ -18,20 +18,20 @@
 // CONNECTIONS
 //===----------------------------------------------------------------------===//
 // Peloton port
-SETTING_int(port,
+SETTING_int(peloton_sintr_port,
            "Peloton port (default: 15721)",
            15721,
            1024, 65535,
            false, false)
 
 // Maximum number of connections
-SETTING_int(max_connections,
+SETTING_int(peloton_sintr_max_connections,
            "Maximum number of connections (default: 64)",
            64,
            1, 512,
            true, true)
 
-SETTING_int(rpc_port,
+SETTING_int(peloton_sintr_rpc_port,
             "Peloton rpc port (default: 15445)",
             15445,
             1024, 65535,
@@ -42,12 +42,12 @@ SETTING_int(rpc_port,
 // test failure. This is an issue with the capnp implementation and has
 // been such way for a while, so it's unlikely it gets fixed.
 // See: https://groups.google.com/forum/#!topic/capnproto/bgxCdqGD6oE
-SETTING_bool(rpc_enabled,
+SETTING_bool(peloton_sintr_rpc_enabled,
              "Enable rpc, this should be turned off when testing",
              false, false, false)
 
 // Socket family
-SETTING_string(socket_family,
+SETTING_string(peloton_sintr_socket_family,
               "Socket family (default: AF_INET)",
               "AF_INET",
               false, false)
@@ -55,25 +55,25 @@ SETTING_string(socket_family,
 // Added for SSL only begins
 
 // Enables SSL connection. The default value is false
-SETTING_bool(ssl, "Enable SSL connection (default: false)", false, false, false)
+SETTING_bool(peloton_sintr_ssl, "Enable SSL connection (default: false)", false, false, false)
 
 // Peloton private key file
 // Currently use hardcoded private key path, may need to change
 // to generate file dynamically at runtime
 // The same applies to certificate file
-SETTING_string(private_key_file,
+SETTING_string(peloton_sintr_private_key_file,
               "path to private key file",
               "peloton_insecure_server.key",
               false, false)
 
 // Peloton certificate file
-SETTING_string(certificate_file,
+SETTING_string(peloton_sintr_certificate_file,
               "path to certificate file",
               "peloton_insecure_server.crt",
               false, false)
 
 // Peloton root certificate file
-SETTING_string(root_cert_file,
+SETTING_string(peloton_sintr_root_cert_file,
                "path to root certificate file",
                "root.crt",
                false, false)
@@ -82,7 +82,7 @@ SETTING_string(root_cert_file,
 // RESOURCE USAGE
 //===----------------------------------------------------------------------===//
 
-SETTING_double(bnlj_buffer_size,
+SETTING_double(peloton_sintr_bnlj_buffer_size,
              "The default buffer size to use for blockwise nested loop joins (default: 1 MB)",
              1.0 * 1024.0 * 1024.0,
              1.0 * 1024,
@@ -90,7 +90,7 @@ SETTING_double(bnlj_buffer_size,
              true, true)
 
 // Size of the MonoQueue task queue
-SETTING_int(monoqueue_task_queue_size,
+SETTING_int(peloton_sintr_monoqueue_task_queue_size,
             "MonoQueue Task Queue Size (default: 32)",
             32,  //This is the initial size of the job queue. It can dynamically resize however.
             8, 128,
@@ -98,31 +98,31 @@ SETTING_int(monoqueue_task_queue_size,
 
 //NOTE: Sintrstore sidesteps the use of Worker Pool currently -> can just set number of workers to 0.
 // Size of the MonoQueue worker pool
-SETTING_int(monoqueue_worker_pool_size,
+SETTING_int(peloton_sintr_monoqueue_worker_pool_size,
             "MonoQueue Worker Pool Size (default: 0)", //8 //4
             0,// 8  // 4,  //TODO: Technically only need 6 if we have 8 cores since 2 are unused...
             0, 32,
             false, false)
 
 // Number of connection threads used by peloton
-SETTING_int(connection_thread_count,
+SETTING_int(peloton_sintr_connection_thread_count,
             "Number of connection threads (default: 8)",
             16, //8, //std::thread::hardware_concurrency(),
             1, 64,
             false, false)
 
-SETTING_int(gc_num_threads,
+SETTING_int(peloton_sintr_gc_num_threads,
             "The number of Garbage collection threads to run",
             1,  //TODO: FIXME: DO we need this??
             1, 128,
             true, true)
 
-SETTING_bool(parallel_execution,
+SETTING_bool(peloton_sintr_parallel_execution,
              "Enable parallel execution of queries (default: true)",
              true,
              true, true)
 
-SETTING_int(min_parallel_table_scan_size,
+SETTING_int(peloton_sintr_min_parallel_table_scan_size,
             "Minimum number of tuples a table must have before we consider performing parallel scans (default: 10K)",
             10 * 1000,
             1, std::numeric_limits<int32_t>::max(),
@@ -141,9 +141,9 @@ SETTING_int(min_parallel_table_scan_size,
 //===----------------------------------------------------------------------===//
 
 // Enable or disable statistics collection
-SETTING_int(stats_mode,
+SETTING_int(peloton_sintr_stats_mode,
            "Enable statistics collection (default: 0)",
-           static_cast<int>(peloton::StatsType::INVALID),
+           static_cast<int>(peloton_sintr::StatsType::INVALID),
            0, 16,
            true, true)
 
@@ -152,13 +152,13 @@ SETTING_int(stats_mode,
 //===----------------------------------------------------------------------===//
 
 // Enable or disable index tuner
-SETTING_bool(index_tuner,
+SETTING_bool(peloton_sintr_index_tuner,
             "Enable index tuner (default: false)",
             false,
             true, true)
 
 // Enable or disable layout tuner
-SETTING_bool(layout_tuner,
+SETTING_bool(peloton_sintr_layout_tuner,
             "Enable layout tuner (default: false)",
             false,
             true, true)
@@ -168,25 +168,25 @@ SETTING_bool(layout_tuner,
 //===----------------------------------------------------------------------===//
 
 // Enable or disable brain
-SETTING_bool(brain,
+SETTING_bool(peloton_sintr_brain,
             "Enable brain (default: false)",
             false,
             true, true)
 
-SETTING_string(peloton_address,
+SETTING_string(peloton_sintr_peloton_address,
                "ip and port of the peloton rpc service, address:port",
                "127.0.0.1:15445",
                false, false)
 
 // Size of the brain task queue
-SETTING_int(brain_task_queue_size,
+SETTING_int(peloton_sintr_brain_task_queue_size,
             "Brain Task Queue Size (default: 32)",
             32,
             1, 128,
             false, false)
 
 // Size of the brain worker pool
-SETTING_int(brain_worker_pool_size,
+SETTING_int(peloton_sintr_brain_worker_pool_size,
             "Brain Worker Pool Size (default: 0)", //FIXME: FS: I set this to 0 since it's not something we use?
             0,
             0, 16,
@@ -196,21 +196,21 @@ SETTING_int(brain_worker_pool_size,
 // CODEGEN
 //===----------------------------------------------------------------------===//
 
-SETTING_bool(codegen,
+SETTING_bool(peloton_sintr_codegen,
             "Enable code-generation for query execution (default: false)",
             false,
             true, true)
 
-SETTING_bool(codegen_interpreter,
+SETTING_bool(peloton_sintr_codegen_interpreter,
              "Force interpretation of generated llvm code (default: false)",
              false, true, true)
 
-SETTING_bool(print_ir_stats,
+SETTING_bool(peloton_sintr_print_ir_stats,
              "Print statistics on generated IR (default: false)",
              false,
              true, true)
 
-SETTING_bool(dump_ir,
+SETTING_bool(peloton_sintr_dump_ir,
              "Enable logging of all generated IR (default: false)",
              false,
              true, true)
@@ -218,17 +218,17 @@ SETTING_bool(dump_ir,
 //===----------------------------------------------------------------------===//
 // Optimizer
 //===----------------------------------------------------------------------===//
-SETTING_bool(predicate_push_down,
+SETTING_bool(peloton_sintr_predicate_push_down,
              "Enable predicate push-down optimization (default: true)",
              true,
              true, true)
 
-SETTING_bool(hash_join_bloom_filter,
+SETTING_bool(peloton_sintr_hash_join_bloom_filter,
              "Enable bloom filter for hash join in codegen (default: false)",
              false,
              true, true)
 
-SETTING_int(task_execution_timeout,
+SETTING_int(peloton_sintr_task_execution_timeout,
             "Maximum allowed length of time (in ms) for task "
                 "execution step of optimizer, "
                 "assuming one plan has been found (default 1)",
@@ -236,7 +236,7 @@ SETTING_int(task_execution_timeout,
 	    0, 1,	   
         true, true)
 
-// SETTING_int(task_execution_timeout,
+// SETTING_int(peloton_sintr_task_execution_timeout,
 //             "Maximum allowed length of time (in ms) for task "
 //                 "execution step of optimizer, "
 //                 "assuming one plan has been found (default 5000)",
@@ -249,7 +249,7 @@ SETTING_int(task_execution_timeout,
 //===----------------------------------------------------------------------===//
 
 // Display configuration
-SETTING_bool(display_settings,
+SETTING_bool(peloton_sintr_display_settings,
              "Display settings (default: false)",
              false,
              true, true)

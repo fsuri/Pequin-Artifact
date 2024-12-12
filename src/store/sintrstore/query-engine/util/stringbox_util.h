@@ -19,7 +19,7 @@
 #include <string>
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * Pretty-Print Box
@@ -62,4 +62,4 @@ class StringBoxUtil {
                              std::string corners[]);
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

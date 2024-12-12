@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <string>
 
-namespace peloton {
+namespace peloton_sintr {
 
 using hash_t = std::size_t;
 
@@ -60,4 +60,4 @@ class HashUtil {
 };
 
 
-}  // namespace peloton
+}  // namespace peloton_sintr

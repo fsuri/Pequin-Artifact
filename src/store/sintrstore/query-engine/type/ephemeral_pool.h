@@ -20,7 +20,7 @@
 #include "../common/synchronization/spin_latch.h"
 #include "../type/abstract_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 //===----------------------------------------------------------------------===//
@@ -79,4 +79,4 @@ inline void EphemeralPool::Free(void *ptr) {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

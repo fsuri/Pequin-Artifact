@@ -15,7 +15,7 @@
 #include "../common/sql_node_visitor.h"
 #include "../expression/abstract_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -61,4 +61,4 @@ class ComparisonExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -14,7 +14,7 @@
 #include "../../common/logger.h"
 #include "../../optimizer/stats/column_stats.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 TableStats::TableStats(size_t num_rows,
@@ -216,4 +216,4 @@ void TableStats::UpdateJoinColumnStats(std::vector<oid_t> &column_ids) {
 
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

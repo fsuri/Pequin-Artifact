@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 class SelectStatement;
@@ -97,4 +97,4 @@ class SqlNodeVisitor {
   virtual void Visit(expression::SubqueryExpression *expr);
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

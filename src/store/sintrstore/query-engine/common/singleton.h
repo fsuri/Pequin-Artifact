@@ -15,7 +15,7 @@
 //#include "../codegen/codegen.h"
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 template<typename T>
 class Singleton {
@@ -33,4 +33,4 @@ class Singleton {
   DISALLOW_COPY_AND_MOVE(Singleton);
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

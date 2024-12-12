@@ -21,7 +21,7 @@
 
 #include <boost/functional/hash.hpp>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -77,4 +77,4 @@ class HashExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

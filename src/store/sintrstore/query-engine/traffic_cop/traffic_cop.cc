@@ -25,7 +25,7 @@
 #include "../settings/settings_manager.h"
 #include "../threadpool/mono_queue_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace tcop {
 
 TrafficCop::TrafficCop()
@@ -1130,7 +1130,7 @@ std::shared_ptr<Statement> TrafficCop::PrepareStatement(
     tcop_txn_state_.emplace(txn, ResultType::SUCCESS);
   }
 
-  if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+  if (settings::SettingsManager::GetBool(settings::SettingId::peloton_sintr_brain)) {
     tcop_txn_state_.top().first->AddQueryString(query_string.c_str());
   }
 
@@ -1387,7 +1387,7 @@ ResultType TrafficCop::ExecuteStatement(
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1538,7 +1538,7 @@ ResultType TrafficCop::ExecuteReadStatement(
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1615,7 +1615,7 @@ ResultType TrafficCop::ExecuteSnapshotReadStatement(
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1694,7 +1694,7 @@ ResultType TrafficCop::ExecuteFindSnapshotStatement(
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1772,7 +1772,7 @@ ResultType TrafficCop::ExecuteEagerExecAndSnapshotStatement(
     size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1848,7 +1848,7 @@ ResultType TrafficCop::ExecutePurgeStatement(
     bool undo_delete, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1920,7 +1920,7 @@ ResultType TrafficCop::ExecuteWriteStatement(
     bool commit_or_prepare, bool forceMaterialize, bool is_delete, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -1986,7 +1986,7 @@ ResultType TrafficCop::ExecutePointReadStatement(
     sintrstore::proto::Write *write, bool is_customer_read, size_t thread_id) {
   // TODO(Tianyi) Further simplify this API
   /*if (static_cast<StatsType>(settings::SettingsManager::GetInt(
-          settings::SettingId::stats_mode)) != StatsType::INVALID) {
+          settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID) {
     stats::BackendStatsContext::GetInstance()->InitQueryMetric(
         statement, std::move(param_stats));
   }*/
@@ -2048,4 +2048,4 @@ ResultType TrafficCop::ExecutePointReadStatement(
 }
 
 } // namespace tcop
-} // namespace peloton
+} // namespace peloton_sintr

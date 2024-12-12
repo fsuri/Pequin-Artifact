@@ -18,7 +18,7 @@
 
 #define SETTINGS_CATALOG_NAME "pg_settings"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 SettingsCatalog &SettingsCatalog::GetInstance(
@@ -151,4 +151,4 @@ std::string SettingsCatalog::GetDefaultValue(concurrency::TransactionContext *tx
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

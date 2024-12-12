@@ -27,7 +27,7 @@
 
 #include "../common/container/lock_free_queue.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace gc {
 
 #define MAX_QUEUE_LENGTH 100000
@@ -166,7 +166,7 @@ class TransactionLevelGCManager : public GCManager {
   // queues for to-be-unlinked tuples.
   // # unlink_queues == # gc_threads
   std::vector<std::shared_ptr<
-      peloton::LockFreeQueue<concurrency::TransactionContext* >>>
+      peloton_sintr::LockFreeQueue<concurrency::TransactionContext* >>>
       unlink_queues_;
 
   // local queues for to-be-unlinked tuples.
@@ -184,8 +184,8 @@ class TransactionLevelGCManager : public GCManager {
   // queues for to-be-reused tuples.
   // # recycle_queue_maps == # tables
   std::unordered_map<oid_t,
-                     std::shared_ptr<peloton::LockFreeQueue<ItemPointer>>>
+                     std::shared_ptr<peloton_sintr::LockFreeQueue<ItemPointer>>>
       recycle_queue_map_;
 };
 }
-}  // namespace peloton
+}  // namespace peloton_sintr

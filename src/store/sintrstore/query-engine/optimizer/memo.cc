@@ -15,7 +15,7 @@
 #include "../optimizer/operators.h"
 #include "../optimizer/stats/stats_calculator.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -116,4 +116,4 @@ GroupID Memo::AddNewGroup(std::shared_ptr<GroupExpression> gexpr) {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -21,7 +21,7 @@
 #include "../planner/attribute_info.h"
 #include "../type/type_id.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 /**
@@ -96,4 +96,4 @@ class CSVScanPlan : public AbstractScan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

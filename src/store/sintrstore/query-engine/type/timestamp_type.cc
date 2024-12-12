@@ -16,7 +16,7 @@
 #include "../type/varlen_type.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 TimestampType::TimestampType()

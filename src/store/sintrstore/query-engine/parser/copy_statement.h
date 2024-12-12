@@ -17,7 +17,7 @@
 #include "../parser/table_ref.h"
 #include "../common/sql_node_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -72,4 +72,4 @@ class CopyStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

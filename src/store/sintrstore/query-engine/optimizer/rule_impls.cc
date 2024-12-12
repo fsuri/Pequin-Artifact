@@ -22,7 +22,7 @@
 #include "../optimizer/util.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -1447,4 +1447,4 @@ void PullFilterThroughAggregation::Transform(
   transformed.push_back(output);
 }
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

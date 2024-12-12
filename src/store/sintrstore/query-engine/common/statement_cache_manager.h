@@ -15,7 +15,7 @@
 #include "../common/statement_cache.h"
 #include "container/cuckoo_map.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // TODO(Tianyi) remove this singleton
 class StatementCacheManager;
@@ -94,4 +94,4 @@ class StatementCacheManager {
   CuckooMap<StatementCache *, StatementCache *> statement_caches_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

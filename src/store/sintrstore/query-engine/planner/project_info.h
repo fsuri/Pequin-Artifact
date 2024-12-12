@@ -19,7 +19,7 @@
 #include "../storage/tuple.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class Parameter;
@@ -108,8 +108,8 @@ class ProjectInfo {
   bool operator!=(const ProjectInfo &rhs) const { return !(*this == rhs); }
 
   /*virtual void VisitParameters(codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user);*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user);*/
 
  private:
   bool AreEqual(const planner::DerivedAttribute &A,
@@ -127,4 +127,4 @@ class ProjectInfo {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

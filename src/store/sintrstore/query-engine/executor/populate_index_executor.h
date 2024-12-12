@@ -18,7 +18,7 @@
 #include "../common/container_tuple.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -62,4 +62,4 @@ class PopulateIndexExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

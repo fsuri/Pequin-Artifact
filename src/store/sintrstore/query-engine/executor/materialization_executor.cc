@@ -22,7 +22,7 @@
 #include "../storage/data_table.h"
 #include "../storage/tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 // Row-oriented materialization
@@ -96,7 +96,7 @@ void MaterializationExecutor::MaterializeByTiles(
     const std::unordered_map<oid_t, oid_t> &old_to_new_cols,
     const std::unordered_map<storage::Tile *, std::vector<oid_t>> &tile_to_cols,
     storage::Tile *dest_tile,
-    const peloton::LayoutType peloton_layout_mode) {
+    const peloton_sintr::LayoutType peloton_layout_mode) {
   bool row_wise_materialization = true;
 
   if (peloton_layout_mode == LayoutType::COLUMN) row_wise_materialization = false;
@@ -392,4 +392,4 @@ bool MaterializationExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

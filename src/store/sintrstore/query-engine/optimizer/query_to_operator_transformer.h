@@ -16,7 +16,7 @@
 #include <unordered_set>
 #include "../common/sql_node_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 class SQLStatement;
@@ -140,4 +140,4 @@ class QueryToOperatorTransformer : public SqlNodeVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

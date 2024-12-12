@@ -15,7 +15,7 @@
 
 #include "../concurrency/decentralized_epoch_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 /**

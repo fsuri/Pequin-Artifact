@@ -19,7 +19,7 @@
 
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class ValueFactory;
@@ -65,5 +65,5 @@ class ArrayType : public Type {
 
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 }  // namespace type

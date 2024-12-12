@@ -19,7 +19,7 @@
 
 #define ZONE_MAP_CATALOG_NAME "zone_map"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 class ZoneMapCatalog : public AbstractCatalog {
@@ -87,4 +87,4 @@ class ZoneMapCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

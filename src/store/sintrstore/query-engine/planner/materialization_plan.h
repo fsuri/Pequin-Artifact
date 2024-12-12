@@ -21,7 +21,7 @@
 #include "../common/internal_types.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 
@@ -78,4 +78,4 @@ class MaterializationPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

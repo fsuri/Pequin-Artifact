@@ -16,7 +16,7 @@
 #include "../planner/abstract_scan_plan.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -65,4 +65,4 @@ class AbstractScanExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

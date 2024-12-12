@@ -20,7 +20,7 @@
 
 #include "../planner/hash_join_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 HashJoinPlan::HashJoinPlan(JoinType join_type, ExpressionPtr &&predicate,
@@ -146,8 +146,8 @@ bool HashJoinPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void HashJoinPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   std::vector<const expression::AbstractExpression *> left_hash_keys;
@@ -171,4 +171,4 @@ bool HashJoinPlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

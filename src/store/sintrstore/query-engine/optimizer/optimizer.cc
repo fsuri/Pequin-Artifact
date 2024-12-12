@@ -55,7 +55,7 @@ using std::move;
 using std::pair;
 using std::make_shared;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -192,7 +192,7 @@ unique_ptr<planner::AbstractPlan> Optimizer::HandleDDLStatement(
       std::unique_ptr<planner::AbstractPlan> child_CreatePlan(create_plan);
       ddl_plan = move(child_CreatePlan);
 
-      if (create_plan->GetCreateType() == peloton::CreateType::INDEX) {
+      if (create_plan->GetCreateType() == peloton_sintr::CreateType::INDEX) {
         auto create_stmt = (parser::CreateStatement *)tree;
         auto target_table = catalog::Catalog::GetInstance()->GetTableWithName(
             txn,
@@ -450,4 +450,4 @@ void Optimizer::ExecuteTaskStack(OptimizerTaskStack &task_stack, int root_group_
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,7 +19,7 @@
 
 #include <set>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 class HybridScanExecutor : public AbstractScanExecutor {
@@ -98,4 +98,4 @@ class HybridScanExecutor : public AbstractScanExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

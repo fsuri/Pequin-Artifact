@@ -16,7 +16,7 @@
 #include "../concurrency/transaction_manager_factory.h"
 #include "../expression/expression_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 namespace util {
 
@@ -216,4 +216,4 @@ void ExtractEquiJoinKeys(
 
 }  // namespace util
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,7 +19,7 @@
 #include "../parser/postgresparser.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 Statement::Statement(const std::string& statement_name,
                      const std::string& query_string)
@@ -128,4 +128,4 @@ const std::string Statement::GetInfo() const {
   return os.str();
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 #include "../type/value.h"
 #include "../index/index.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 class IndexMetadata;
@@ -96,4 +96,4 @@ class IndexUtil {
 
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

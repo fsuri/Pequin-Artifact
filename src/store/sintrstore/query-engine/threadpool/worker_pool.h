@@ -20,10 +20,10 @@
 
 #include "../common/container/lock_free_queue.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace threadpool {
 
-using TaskQueue = peloton::LockFreeQueue<std::function<void()>>;
+using TaskQueue = peloton_sintr::LockFreeQueue<std::function<void()>>;
 
 /**
  * @brief A worker pool that maintains a group of worker threads. This pool is
@@ -66,4 +66,4 @@ class WorkerPool {
 };
 
 }  // namespace threadpool
-}  // namespace peloton
+}  // namespace peloton_sintr

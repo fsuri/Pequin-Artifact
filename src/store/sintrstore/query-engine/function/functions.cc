@@ -15,7 +15,7 @@
 /*#include "../codegen/code_context.h"
 #include "../codegen/value.h"*/
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 // Built-in func map
@@ -35,16 +35,16 @@ BuiltInFuncType BuiltInFunctions::GetFuncByName(const std::string &func_name) {
 }
 
 // PL/pgSQL UDF map
-/*std::unordered_map<oid_t, std::shared_ptr<peloton::codegen::CodeContext>>
+/*std::unordered_map<oid_t, std::shared_ptr<peloton_sintr::codegen::CodeContext>>
     PlpgsqlFunctions::kFuncMap;
 
 void PlpgsqlFunctions::AddFunction(
     const oid_t oid,
-    std::shared_ptr<peloton::codegen::CodeContext> func_context) {
+    std::shared_ptr<peloton_sintr::codegen::CodeContext> func_context) {
   kFuncMap.emplace(oid, func_context);
 }
 
-std::shared_ptr<peloton::codegen::CodeContext>
+std::shared_ptr<peloton_sintr::codegen::CodeContext>
 PlpgsqlFunctions::GetFuncContextByOid(const oid_t oid) {
   auto func = kFuncMap.find(oid);
   if (func == kFuncMap.end()) {
@@ -54,4 +54,4 @@ PlpgsqlFunctions::GetFuncContextByOid(const oid_t oid) {
 }*/
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

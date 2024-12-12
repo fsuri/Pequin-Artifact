@@ -21,7 +21,7 @@
 #include "../expression/abstract_expression.h"
 #include "../planner/project_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 class MergeJoinPlan : public AbstractJoinPlan {
@@ -100,4 +100,4 @@ class MergeJoinPlan : public AbstractJoinPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

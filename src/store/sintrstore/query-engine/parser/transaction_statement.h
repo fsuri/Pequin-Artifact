@@ -15,7 +15,7 @@
 #include "../parser/sql_statement.h"
 #include "../common/sql_node_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -43,4 +43,4 @@ class TransactionStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

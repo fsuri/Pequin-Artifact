@@ -21,7 +21,7 @@
 #include "../planner/abstract_scan_plan.h"
 #include "../type/serializer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 class SeqScanPlan : public AbstractScan {
@@ -72,8 +72,8 @@ class SeqScanPlan : public AbstractScan {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   // This class cannot be copied or moved
@@ -81,4 +81,4 @@ class SeqScanPlan : public AbstractScan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 #include "../../executor/executor_context.h"
 #include "../../function/string_functions.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 double Selectivity::ComputeSelectivity(const std::shared_ptr<TableStats> &stats,
@@ -181,4 +181,4 @@ double Selectivity::Like(const std::shared_ptr<TableStats> &table_stats,
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

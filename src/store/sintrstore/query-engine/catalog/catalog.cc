@@ -42,7 +42,7 @@
 #include "../storage/table_factory.h"
 #include "../type/ephemeral_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 // Get instance of the global catalog
@@ -243,7 +243,7 @@ void Catalog::Bootstrap() {
   // TODO: change pg_proc to per database
   ProcCatalog::GetInstance(txn);
 
-  if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+  if (settings::SettingsManager::GetBool(settings::SettingId::peloton_sintr_brain)) {
     QueryHistoryCatalog::GetInstance(txn);
   }
 
@@ -1608,7 +1608,7 @@ void Catalog::AddBuiltinFunction(
 void Catalog::AddProcedure(
     concurrency::TransactionContext *txn, const std::string &name,
     type::TypeId return_type, const std::vector<type::TypeId> &argument_types,
-    oid_t prolang, std::shared_ptr<peloton::codegen::CodeContext> code_context,
+    oid_t prolang, std::shared_ptr<peloton_sintr::codegen::CodeContext> code_context,
     const std::string &func_src) {
   // Check if UDF already exists
   /*auto proc_catalog_obj =
@@ -2022,4 +2022,4 @@ void Catalog::InitializeFunctions() {
 }
 
 } // namespace catalog
-} // namespace peloton
+} // namespace peloton_sintr

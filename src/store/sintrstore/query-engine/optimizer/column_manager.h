@@ -16,7 +16,7 @@
 
 #include "../optimizer/column.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class ColumnManager {
@@ -43,4 +43,4 @@ class ColumnManager {
 };
 
 } // namespace optimizer
-} // namespace peloton
+} // namespace peloton_sintr

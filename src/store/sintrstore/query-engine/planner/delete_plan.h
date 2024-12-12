@@ -15,7 +15,7 @@
 #include "../planner/abstract_plan.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -58,4 +58,4 @@ class DeletePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

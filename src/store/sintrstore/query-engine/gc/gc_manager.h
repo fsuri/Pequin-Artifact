@@ -21,7 +21,7 @@
 #include "../common/macros.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -87,4 +87,4 @@ class GCManager {
 };
 
 }  // namespace gc
-}  // namespace peloton
+}  // namespace peloton_sintr

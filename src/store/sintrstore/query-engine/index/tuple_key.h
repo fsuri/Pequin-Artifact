@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -322,4 +322,4 @@ class TupleKeyEqualityChecker {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

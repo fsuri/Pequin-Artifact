@@ -18,7 +18,7 @@
 #include "../parser/sql_statement.h"
 #include "../parser/table_ref.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -58,4 +58,4 @@ class DeleteStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

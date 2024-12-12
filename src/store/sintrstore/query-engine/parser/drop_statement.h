@@ -15,7 +15,7 @@
 #include "../common/sql_node_visitor.h"
 #include "../parser/sql_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -108,4 +108,4 @@ class DropStatement : public TableRefStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

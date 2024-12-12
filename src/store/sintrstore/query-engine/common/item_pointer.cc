@@ -15,7 +15,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 ItemPointer INVALID_ITEMPOINTER;
 
@@ -27,4 +27,4 @@ bool AtomicUpdateItemPointer(ItemPointer* src_ptr, const ItemPointer& value) {
                                       *cast_value_ptr);
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

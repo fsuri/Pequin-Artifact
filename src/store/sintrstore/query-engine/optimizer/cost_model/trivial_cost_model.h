@@ -30,7 +30,7 @@
 
 //FS => EDIT: Make NL default join always.
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Memo;
@@ -119,4 +119,4 @@ class TrivialCostModel : public AbstractCostModel {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

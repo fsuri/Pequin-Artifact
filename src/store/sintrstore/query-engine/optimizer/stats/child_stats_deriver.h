@@ -14,7 +14,7 @@
 
 #include "../../optimizer/operator_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class AbstractExpression;
@@ -50,4 +50,4 @@ class ChildStatsDeriver : public OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

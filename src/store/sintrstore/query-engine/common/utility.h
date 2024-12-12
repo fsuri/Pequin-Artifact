@@ -13,7 +13,7 @@
 #pragma once
 #include <string>
 
-namespace peloton{
+namespace peloton_sintr{
 
   int peloton_close(int fd);
 

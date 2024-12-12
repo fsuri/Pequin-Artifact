@@ -18,7 +18,7 @@
 #include "../type/decimal_type.h"
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 AggregatePlan::AggTerm::AggTerm(ExpressionType et,
@@ -223,8 +223,8 @@ bool AggregatePlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void AggregatePlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   for (const auto &agg_term : GetUniqueAggTerms()) {
@@ -250,4 +250,4 @@ bool AggregatePlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

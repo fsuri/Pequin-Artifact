@@ -20,7 +20,7 @@
 #include "../storage/tile.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -103,4 +103,4 @@ bool PopulateIndexExecutor::DExecute() {
 }
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

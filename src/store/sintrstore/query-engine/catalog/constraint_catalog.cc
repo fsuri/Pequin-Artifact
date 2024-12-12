@@ -24,7 +24,7 @@
 #include "../storage/storage_manager.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 ConstraintCatalogEntry::ConstraintCatalogEntry(executor::LogicalTile *tile,
@@ -425,4 +425,4 @@ ConstraintCatalog::GetConstraintCatalogEntry(concurrency::TransactionContext *tx
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

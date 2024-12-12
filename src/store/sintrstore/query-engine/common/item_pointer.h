@@ -17,7 +17,7 @@
 
 #include "internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // logical physical location
 class ItemPointer {
@@ -90,4 +90,4 @@ class ItemPointerHashFunc {
 
 bool AtomicUpdateItemPointer(ItemPointer *src_ptr, const ItemPointer &value);
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -25,7 +25,7 @@
 // Platform-Specific Code
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 
 template <typename T>
 inline bool atomic_cas(T *object, T old_value, T new_value) {
@@ -77,4 +77,4 @@ static inline uint64_t NextPowerOf2(uint64_t n) {
 #endif
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

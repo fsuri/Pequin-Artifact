@@ -25,7 +25,7 @@
 #include "../storage/data_table.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class CatalogCache;
@@ -102,9 +102,9 @@ inline std::string PlanUtil::GetInfo(const planner::AbstractPlan *plan) {
   if (plan == nullptr) {
     os << "<NULL>";
   } else {
-    os << peloton::GETINFO_SINGLE_LINE << std::endl;
+    os << peloton_sintr::GETINFO_SINGLE_LINE << std::endl;
     PlanUtil::GetInfo(plan, os, num_indent);
-    os << peloton::GETINFO_SINGLE_LINE;
+    os << peloton_sintr::GETINFO_SINGLE_LINE;
   }
   std::string info = os.str();
   StringUtil::RTrim(info);
@@ -116,14 +116,14 @@ inline void PlanUtil::GetInfo(const planner::AbstractPlan *plan,
   os << StringUtil::Indent(num_indent)
      << "-> Plan Type: " << PlanNodeTypeToString(plan->GetPlanNodeType())
      << std::endl;
-  os << StringUtil::Indent(num_indent + peloton::ARROW_INDENT)
+  os << StringUtil::Indent(num_indent + peloton_sintr::ARROW_INDENT)
      << "Info: " << plan->GetInfo() << std::endl;
 
   auto &children = plan->GetChildren();
-  os << StringUtil::Indent(num_indent + peloton::ARROW_INDENT)
+  os << StringUtil::Indent(num_indent + peloton_sintr::ARROW_INDENT)
      << "NumChildren: " << children.size() << std::endl;
   for (auto &child : children) {
-    GetInfo(child.get(), os, num_indent + peloton::ARROW_INDENT);
+    GetInfo(child.get(), os, num_indent + peloton_sintr::ARROW_INDENT);
   }
 }
 
@@ -183,4 +183,4 @@ inline void PlanUtil::GetTablesReferenced(const planner::AbstractPlan *plan,
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

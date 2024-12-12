@@ -20,7 +20,7 @@
 #include "../type/type_id.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class AbstractPool;
@@ -158,4 +158,4 @@ class Type {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

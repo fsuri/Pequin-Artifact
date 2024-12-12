@@ -16,7 +16,7 @@
 #include "../parser/drop_statement.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 DropPlan::DropPlan(const std::string &name) {
@@ -69,4 +69,4 @@ DropPlan::DropPlan(parser::DropStatement *parse_tree) {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

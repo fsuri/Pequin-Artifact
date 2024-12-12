@@ -22,7 +22,7 @@
 #include "../storage/storage_manager.h"
 #include "../storage/tile_group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 ProtocolType TransactionManager::protocol_ = ProtocolType::TIMESTAMP_ORDERING;
@@ -80,7 +80,7 @@ void TransactionManager::EndTransaction(TransactionContext *current_txn) {
 
   // log RWSet and result stats
   /*const auto &stats_type = static_cast<StatsType>(
-      settings::SettingsManager::GetInt(settings::SettingId::stats_mode));
+      settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_stats_mode));
 
   // update stats
   if (stats_type != StatsType::INVALID) {
@@ -265,7 +265,7 @@ VisibilityType TransactionManager::IsVisible(
 /*void TransactionManager::RecordTransactionStats(
     const TransactionContext *const current_txn) const {
   PELOTON_ASSERT(static_cast<StatsType>(settings::SettingsManager::GetInt(
-                     settings::SettingId::stats_mode)) != StatsType::INVALID);
+                     settings::SettingId::peloton_sintr_stats_mode)) != StatsType::INVALID);
 
   auto stats_context = stats::BackendStatsContext::GetInstance();
   const auto &rw_set = current_txn->GetReadWriteSet();
@@ -332,4 +332,4 @@ VisibilityType TransactionManager::IsVisible(
 }*/
 
 } // namespace concurrency
-} // namespace peloton
+} // namespace peloton_sintr

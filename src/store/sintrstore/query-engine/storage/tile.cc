@@ -26,7 +26,7 @@
 #include "../storage/tuple.h"
 #include "../storage/tuple_iterator.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 Tile::Tile(BackendType backend_type, TileGroupHeader *tile_header,
@@ -524,4 +524,4 @@ TupleIterator Tile::GetIterator() { return TupleIterator(this); }
 //}
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

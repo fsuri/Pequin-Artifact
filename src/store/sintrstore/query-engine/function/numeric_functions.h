@@ -16,7 +16,7 @@
 #include <vector>
 #include "../type/type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace codegen {
 namespace type {
@@ -59,24 +59,24 @@ class NumericFunctions {
   ///
   //////////////////////////////////////////////////////////////////////////////
 
-  static bool InputBoolean(const peloton::type::Type &type, const char *ptr,
+  static bool InputBoolean(const peloton_sintr::type::Type &type, const char *ptr,
                            uint32_t len);
 
-  static int8_t InputTinyInt(const peloton::type::Type &type, const char *ptr,
+  static int8_t InputTinyInt(const peloton_sintr::type::Type &type, const char *ptr,
                              uint32_t len);
 
-  static int16_t InputSmallInt(const peloton::type::Type &type, const char *ptr,
+  static int16_t InputSmallInt(const peloton_sintr::type::Type &type, const char *ptr,
                                uint32_t len);
 
-  static int32_t InputInteger(const peloton::type::Type &type, const char *ptr,
+  static int32_t InputInteger(const peloton_sintr::type::Type &type, const char *ptr,
                               uint32_t len);
 
-  static int64_t InputBigInt(const peloton::type::Type &type, const char *ptr,
+  static int64_t InputBigInt(const peloton_sintr::type::Type &type, const char *ptr,
                              uint32_t len);
 
-  static double InputDecimal(const peloton::type::Type &type, const char *ptr,
+  static double InputDecimal(const peloton_sintr::type::Type &type, const char *ptr,
                              uint32_t len);
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

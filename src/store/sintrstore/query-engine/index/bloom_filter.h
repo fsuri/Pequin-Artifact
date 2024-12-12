@@ -32,7 +32,7 @@
 #pragma clang diagnostic ignored "-Wdeprecated-register"
 #endif
 
-namespace peloton{
+namespace peloton_sintr{
 namespace index {
 
 /*
@@ -207,7 +207,7 @@ class BloomFilter {
 };
 
 } // namespace index
-} // namespace peloton
+} // namespace peloton_sintr
 
 #ifdef __APPLE__
 #pragma clang diagnostic pop

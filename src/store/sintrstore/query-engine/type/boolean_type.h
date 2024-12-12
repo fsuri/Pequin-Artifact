@@ -16,7 +16,7 @@
 #include "../type/type.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // A boolean value isn't a real SQL type, but we treat it as one to keep
@@ -69,4 +69,4 @@ class BooleanType : public Type {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

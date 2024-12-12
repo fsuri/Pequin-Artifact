@@ -13,7 +13,7 @@
 #include "../parser/insert_statement.h"
 #include "../parser/select_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 const std::string InsertStatement::GetInfo(int num_indent) const {
@@ -58,4 +58,4 @@ const std::string InsertStatement::GetInfo() const {
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

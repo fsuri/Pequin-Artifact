@@ -13,7 +13,7 @@
 
 #include "../concurrency/transaction_manager_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 ProtocolType TransactionManagerFactory::protocol_ =
     ProtocolType::TIMESTAMP_ORDERING;

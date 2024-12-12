@@ -15,7 +15,7 @@
 
 #include "../concurrency/timestamp_ordering_transaction_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 class TransactionManagerFactory {
  public:

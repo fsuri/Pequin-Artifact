@@ -24,7 +24,7 @@
 #include "../common/printable.h"
 #include "../common/sql_node_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 
@@ -140,4 +140,4 @@ class SQLStatementList : public Printable {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

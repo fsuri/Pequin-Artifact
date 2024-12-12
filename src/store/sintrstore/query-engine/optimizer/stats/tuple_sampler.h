@@ -19,7 +19,7 @@
 
 #define DEFAULT_SAMPLE_SIZE 100
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 class DataTable;
 class Tuple;
@@ -62,4 +62,4 @@ class TupleSampler {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

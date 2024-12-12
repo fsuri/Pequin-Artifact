@@ -17,7 +17,7 @@
 #include "../util/string_util.h"
 #include "../util/portable_endian.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 // This is the maximum number of 8-byte slots that we will pack into a single
@@ -646,4 +646,4 @@ class CompactIntsHasher {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

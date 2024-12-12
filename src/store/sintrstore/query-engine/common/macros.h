@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <stdexcept>
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 // branch predictor hints
@@ -186,4 +186,4 @@ namespace peloton {
 #endif
 
 
-}  // namespace peloton
+}  // namespace peloton_sintr

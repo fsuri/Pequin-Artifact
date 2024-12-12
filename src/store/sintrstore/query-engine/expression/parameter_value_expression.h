@@ -16,7 +16,7 @@
 #include "../common/sql_node_visitor.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace executor {
 class ExecutorContext;
@@ -51,8 +51,8 @@ class ParameterValueExpression : public AbstractExpression {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
   const std::string GetInfo(int num_indent) const override;
 
@@ -70,4 +70,4 @@ class ParameterValueExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

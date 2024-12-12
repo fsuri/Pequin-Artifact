@@ -21,7 +21,7 @@
 #include "../storage/tuple.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 SchemaCatalogEntry::SchemaCatalogEntry(concurrency::TransactionContext *txn,
@@ -140,4 +140,4 @@ std::shared_ptr<SchemaCatalogEntry> SchemaCatalog::GetSchemaCatalogEntry(
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

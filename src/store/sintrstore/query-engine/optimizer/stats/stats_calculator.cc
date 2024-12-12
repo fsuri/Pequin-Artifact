@@ -23,7 +23,7 @@
 #include "../../optimizer/stats/selectivity.h"
 #include "../../optimizer/stats/stats_storage.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 void StatsCalculator::CalculateStats(GroupExpression *gexpr,
@@ -349,4 +349,4 @@ double StatsCalculator::CalculateSelectivityForPredicate(
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

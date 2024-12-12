@@ -14,7 +14,7 @@
 
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 ComparisonExpression::ComparisonExpression(ExpressionType type,
@@ -83,4 +83,4 @@ const std::string ComparisonExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

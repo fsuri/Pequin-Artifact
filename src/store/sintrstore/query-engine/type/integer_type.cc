@@ -14,7 +14,7 @@
 
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define INT_COMPARE_FUNC(OP) \
@@ -354,4 +354,4 @@ Value IntegerType::CastAs(const Value& val, const TypeId type_id) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

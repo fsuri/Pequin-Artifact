@@ -27,7 +27,7 @@
   SkipListIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker, \
                 ValueEqualityChecker>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /**
@@ -97,4 +97,4 @@ class SkipListIndex : public Index {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 #include "../expression/abstract_expression.h"
 #include "../common/container_tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -281,4 +281,4 @@ size_t MergeJoinExecutor::Advance(LogicalTile *tile, size_t start_row,
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

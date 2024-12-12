@@ -17,7 +17,7 @@
 #include "../common/internal_types.h"
 #include "../common/printable.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -144,4 +144,4 @@ class Layout : public Printable {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

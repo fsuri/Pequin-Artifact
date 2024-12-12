@@ -18,7 +18,7 @@
 #include <memory>
 #include <string>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 enum class OpType {
@@ -169,13 +169,13 @@ class Operator {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr
 
 namespace std {
 
 template <>
-struct hash<peloton::optimizer::BaseOperatorNode> {
-  typedef peloton::optimizer::BaseOperatorNode argument_type;
+struct hash<peloton_sintr::optimizer::BaseOperatorNode> {
+  typedef peloton_sintr::optimizer::BaseOperatorNode argument_type;
   typedef std::size_t result_type;
   result_type operator()(argument_type const &s) const { return s.Hash(); }
 };

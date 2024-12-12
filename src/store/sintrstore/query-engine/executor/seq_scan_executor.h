@@ -18,7 +18,7 @@
 #include "../storage/storage_manager.h"
 #include "../storage/tile_group_header.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -133,4 +133,4 @@ private:
 };
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

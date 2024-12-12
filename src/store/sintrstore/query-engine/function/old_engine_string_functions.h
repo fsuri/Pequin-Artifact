@@ -16,7 +16,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 class OldEngineStringFunctions {
@@ -71,4 +71,4 @@ class OldEngineStringFunctions {
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

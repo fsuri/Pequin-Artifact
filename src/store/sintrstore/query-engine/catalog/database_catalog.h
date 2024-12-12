@@ -31,7 +31,7 @@
 #include "../executor/logical_tile.h"
 #include "../catalog/catalog_cache.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 class TableCatalogEntry;
@@ -162,4 +162,4 @@ class DatabaseCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

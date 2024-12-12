@@ -19,13 +19,13 @@
 #include "../type/abstract_pool.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace codegen {
 namespace util {
 
-CSVScanner::CSVScanner(peloton::type::AbstractPool &pool,
+CSVScanner::CSVScanner(peloton_sintr::type::AbstractPool &pool,
                        const std::string &file_path,
-                       const peloton::type::Type *col_types, uint32_t num_cols,
+                       const peloton_sintr::type::Type *col_types, uint32_t num_cols,
                        CSVScanner::Callback func, void *opaque_state,
                        char delimiter, char quote, char escape)
     : memory_(pool), file_path_(file_path), file_(), buffer_(nullptr),
@@ -65,7 +65,7 @@ CSVScanner::~CSVScanner() {
 void CSVScanner::Init(CSVScanner &scanner,
                       executor::ExecutorContext &executor_context,
                       const char *file_path,
-                      const peloton::type::Type *col_types, uint32_t num_cols,
+                      const peloton_sintr::type::Type *col_types, uint32_t num_cols,
                       CSVScanner::Callback func, void *opaque_state,
                       char delimiter, char quote, char escape) {
   // Forward to constructor
@@ -103,7 +103,7 @@ void CSVScanner::Initialize() {
   }
 
   // The path looks okay, let's try opening it
-  file_.Open(file_path_, peloton::util::File::AccessMode::ReadOnly);
+  file_.Open(file_path_, peloton_sintr::util::File::AccessMode::ReadOnly);
 
   // Allocate buffer space
   buffer_ = static_cast<char *>(memory_.Allocate(kDefaultBufferSize));
@@ -361,4 +361,4 @@ void CSVScanner::ProduceCSV(char *line) {
 
 } // namespace util
 } // namespace codegen
-} // namespace peloton
+} // namespace peloton_sintr

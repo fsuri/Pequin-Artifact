@@ -21,7 +21,7 @@
 #include "../planner/create_function_plan.h"
 //#include "../udf/udf_handler.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 CreateFunctionExecutor::CreateFunctionExecutor(
@@ -90,4 +90,4 @@ bool CreateFunctionExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

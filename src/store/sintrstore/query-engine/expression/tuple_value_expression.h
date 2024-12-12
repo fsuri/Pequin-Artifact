@@ -20,7 +20,7 @@
 #include "../planner/binding_context.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -201,4 +201,4 @@ class TupleValueExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

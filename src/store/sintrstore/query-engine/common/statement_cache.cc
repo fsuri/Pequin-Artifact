@@ -14,7 +14,7 @@
 
 #include "../common/statement_cache.h"
 
-namespace peloton {
+namespace peloton_sintr {
 // Add a statement to the cache
 void StatementCache::AddStatement(std::shared_ptr<Statement> stmt) {
   UpdateFromInvalidTableQueue();
@@ -69,4 +69,4 @@ void StatementCache::Clear() {
   }
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

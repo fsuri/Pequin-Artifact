@@ -18,7 +18,7 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -124,4 +124,4 @@ class ZoneMapManager {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -20,7 +20,7 @@
 #include "../type/limits.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 uint64_t TimestampFunctions::DateTrunc(const char *date_part_type,
@@ -290,4 +290,4 @@ type::Value TimestampFunctions::_DatePart(
   return type::ValueFactory::GetDecimalValue(ret);
 }
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

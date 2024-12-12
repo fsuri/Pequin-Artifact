@@ -30,7 +30,7 @@
 #include "../parser/update_statement.h"
 #include "../util/set_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 const std::set<oid_t> PlanUtil::GetAffectedIndexes(
@@ -195,4 +195,4 @@ const std::vector<col_triplet> PlanUtil::GetIndexableColumns(
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

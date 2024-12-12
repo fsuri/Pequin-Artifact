@@ -13,7 +13,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 namespace settings {
 
 enum class SettingId {
@@ -24,5 +24,5 @@ enum class SettingId {
 };
 
 }  // namespace settings
-}  // namespace peloton
+}  // namespace peloton_sintr
 

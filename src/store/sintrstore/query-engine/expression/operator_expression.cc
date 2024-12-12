@@ -12,7 +12,7 @@
 
 #include "../expression/operator_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 const std::string OperatorExpression::GetInfo(int num_indent) const {
@@ -38,4 +38,4 @@ const std::string OperatorExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,9 +19,9 @@
 //===--------------------------------------------------------------------===//
 
 // Logging mode
-extern peloton::LoggingType peloton_logging_mode;
+extern peloton_sintr::LoggingType peloton_logging_mode;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 TileGroup *TileGroupFactory::GetTileGroup(
@@ -50,4 +50,4 @@ TileGroup *TileGroupFactory::GetTileGroup(
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

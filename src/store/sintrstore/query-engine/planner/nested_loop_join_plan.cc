@@ -15,7 +15,7 @@
 
 #include "../planner/nested_loop_join_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 NestedLoopJoinPlan::NestedLoopJoinPlan(
@@ -89,4 +89,4 @@ bool NestedLoopJoinPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

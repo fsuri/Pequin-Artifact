@@ -26,7 +26,7 @@
 #include "../type/value.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -136,8 +136,8 @@ class AbstractPlan : public Printable {
   }
 
   /*virtual void VisitParameters(codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) {
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) {
     for (auto &child : GetChildren()) {
       child->VisitParameters(map, values, values_from_user);
     }
@@ -175,4 +175,4 @@ class Hash {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

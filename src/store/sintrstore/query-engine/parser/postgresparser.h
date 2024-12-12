@@ -17,7 +17,7 @@
 #include "../parser/statements.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 //===--------------------------------------------------------------------===//
@@ -292,4 +292,4 @@ class PostgresParser {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

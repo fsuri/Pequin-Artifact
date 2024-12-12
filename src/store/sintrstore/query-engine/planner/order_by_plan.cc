@@ -15,7 +15,7 @@
 
 #include "../planner/order_by_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 OrderByPlan::OrderByPlan(const std::vector<oid_t> &sort_keys,
@@ -125,4 +125,4 @@ bool OrderByPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

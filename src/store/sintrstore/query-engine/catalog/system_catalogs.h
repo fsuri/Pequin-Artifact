@@ -23,7 +23,7 @@
 //#include "../catalog/table_metrics_catalog.h"
 #include "../catalog/trigger_catalog.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class Database;
@@ -141,4 +141,4 @@ class SystemCatalogs {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

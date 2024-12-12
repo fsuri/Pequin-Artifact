@@ -16,7 +16,7 @@
 
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 class AbstractPlan;
 }
@@ -57,4 +57,4 @@ class AbstractOptimizer {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

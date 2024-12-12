@@ -19,7 +19,7 @@
 
 #include <algorithm>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -72,4 +72,4 @@ class PrepareStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

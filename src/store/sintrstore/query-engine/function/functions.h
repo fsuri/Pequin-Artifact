@@ -17,7 +17,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace codegen {
 class CodeContext;
@@ -53,17 +53,17 @@ typedef uint32_t oid_t;
 class PlpgsqlFunctions {
  private:
   /*static std::unordered_map<oid_t,
-                            std::shared_ptr<peloton::codegen::CodeContext>>
+                            std::shared_ptr<peloton_sintr::codegen::CodeContext>>
       kFuncMap;*/
 
  public:
   /*static void AddFunction(
       const oid_t oid,
-      std::shared_ptr<peloton::codegen::CodeContext> code_context);
+      std::shared_ptr<peloton_sintr::codegen::CodeContext> code_context);
 
-  static std::shared_ptr<peloton::codegen::CodeContext> GetFuncContextByOid(
+  static std::shared_ptr<peloton_sintr::codegen::CodeContext> GetFuncContextByOid(
       const oid_t oid);*/
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

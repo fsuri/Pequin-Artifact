@@ -16,7 +16,7 @@
 
 #include "../planner/abstract_join_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class AbstractExpression;
@@ -77,8 +77,8 @@ class HashJoinPlan : public AbstractJoinPlan {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   // The left and right expressions that constitute the join keys
@@ -90,4 +90,4 @@ class HashJoinPlan : public AbstractJoinPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

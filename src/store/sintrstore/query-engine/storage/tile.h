@@ -22,7 +22,7 @@
 #include "../type/serializeio.h"
 #include "../type/serializer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace gc {
 class GCManager;
@@ -305,4 +305,4 @@ class TileFactory {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

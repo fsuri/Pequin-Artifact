@@ -43,7 +43,7 @@
 #include "../storage/table_factory.h"
 #include <shared_mutex>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 AbstractCatalog::AbstractCatalog(storage::Database *pg_catalog,
@@ -130,7 +130,7 @@ bool AbstractCatalog::InsertTuple(concurrency::TransactionContext *txn,
   executor::PlanExecutor::ExecutePlan(node, txn, params, result_format,
                                       on_complete);
 
-  return this_p_status.m_result == peloton::ResultType::SUCCESS;
+  return this_p_status.m_result == peloton_sintr::ResultType::SUCCESS;
 }
 
 /*@brief   Delete a tuple using index scan
@@ -183,7 +183,7 @@ bool AbstractCatalog::DeleteWithIndexScan(concurrency::TransactionContext *txn,
 }
 
 
-typedef std::vector<peloton::executor::LogicalTile> res_tiles_t;
+typedef std::vector<peloton_sintr::executor::LogicalTile> res_tiles_t;
 static std::map<std::string, res_tiles_t> indexScanCache;
 static std::shared_mutex cache_mutex;
 
@@ -281,7 +281,7 @@ AbstractCatalog::GetResultWithIndexScan(
 
   //    uint64_t microseconds_end3= 0;
 
-  // std::pair<std::map<std::string, peloton::catalog::res_tiles_t>::iterator, bool> write_to_cache;
+  // std::pair<std::map<std::string, peloton_sintr::catalog::res_tiles_t>::iterator, bool> write_to_cache;
   // if(!txn->skip_cache){
   //   cache_mutex.lock();
   //   write_to_cache = indexScanCache.insert(std::pair<std::string, std::vector<executor::LogicalTile>>(key, {}));
@@ -470,4 +470,4 @@ bool AbstractCatalog::UpdateWithIndexScan(concurrency::TransactionContext *txn,
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

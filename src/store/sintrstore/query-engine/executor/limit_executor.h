@@ -14,7 +14,7 @@
 
 #include "../executor/abstract_executor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -54,4 +54,4 @@ class LimitExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -8,8 +8,9 @@
 * of the MIT license.  See the LICENSE file for details.                  *
 *                                                                         *
 ***************************************************************************/
-#ifndef HSTOREBYTEARRAY_H
-#define HSTOREBYTEARRAY_H
+#pragma once
+// #ifndef HSTOREBYTEARRAY_H
+// #define HSTOREBYTEARRAY_H
 
 #include <cstring>
 #include <memory>
@@ -17,7 +18,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 /**
 * A safe and handy char* container.
 * std::string is a good container, but we have to be very careful
@@ -150,4 +151,4 @@ class GenericArray {
 typedef GenericArray<char> ByteArray;
 
 }
-#endif
+// #endif

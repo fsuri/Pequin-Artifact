@@ -20,7 +20,7 @@
 #include <memory>
 #include "operator_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Optimizer;
@@ -85,4 +85,4 @@ class GroupExprBindingIterator : public BindingIterator {
 };
 
 } // namespace optimizer
-} // namespace peloton
+} // namespace peloton_sintr

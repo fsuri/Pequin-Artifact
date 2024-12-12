@@ -12,10 +12,10 @@
 
 #include "../index/skiplist.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 // Add your function definitions here
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

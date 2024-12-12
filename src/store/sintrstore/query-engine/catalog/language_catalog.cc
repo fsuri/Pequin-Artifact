@@ -17,7 +17,7 @@
 #include "../storage/data_table.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 LanguageCatalogEntry::LanguageCatalogEntry(executor::LogicalTile *tuple)
@@ -125,4 +125,4 @@ std::unique_ptr<LanguageCatalogEntry> LanguageCatalog::GetLanguageByName(concurr
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

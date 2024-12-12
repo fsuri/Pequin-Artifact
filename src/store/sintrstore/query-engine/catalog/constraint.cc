@@ -14,7 +14,7 @@
 
 #include <sstream>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 const std::string Constraint::GetInfo() const {
@@ -57,4 +57,4 @@ const std::string Constraint::GetInfo() const {
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

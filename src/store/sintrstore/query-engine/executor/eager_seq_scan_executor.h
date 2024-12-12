@@ -15,7 +15,7 @@
 #include "../executor/abstract_scan_executor.h"
 #include "../planner/seq_scan_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -100,4 +100,4 @@ private:
 };
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

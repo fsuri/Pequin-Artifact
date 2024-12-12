@@ -14,7 +14,7 @@
 
 #include "../planner/abstract_join_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class AbstractExpression;
@@ -86,4 +86,4 @@ class NestedLoopJoinPlan : public AbstractJoinPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

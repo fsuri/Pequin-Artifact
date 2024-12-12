@@ -37,7 +37,7 @@
 
 #define TRIGGER_CATALOG_NAME "pg_trigger"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace trigger {
 class TriggerList;
@@ -116,4 +116,4 @@ class TriggerCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -17,7 +17,7 @@
 #include "../type/value.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -48,8 +48,8 @@ class ConstantValueExpression : public AbstractExpression {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
   // Copy this constant expression
   AbstractExpression *Copy() const override;
@@ -141,8 +141,8 @@ inline bool ConstantValueExpression::operator==(
 }
 
 /*inline void ConstantValueExpression::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    UNUSED_ATTRIBUTE const std::vector<peloton::type::Value> &
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    UNUSED_ATTRIBUTE const std::vector<peloton_sintr::type::Value> &
         values_from_user) {
   auto is_nullable = value_.IsNull();
   map.Insert(Parameter::CreateConstParameter(value_.GetTypeId(), is_nullable),
@@ -155,4 +155,4 @@ inline AbstractExpression *ConstantValueExpression::Copy() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

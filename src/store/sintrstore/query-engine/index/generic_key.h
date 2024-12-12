@@ -16,7 +16,7 @@
 
 #include "../type/type_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -212,4 +212,4 @@ struct GenericHasher : std::unary_function<GenericKey<KeySize>, std::size_t> {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

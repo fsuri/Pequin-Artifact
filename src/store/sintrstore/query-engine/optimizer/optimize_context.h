@@ -19,7 +19,7 @@
 #include "../optimizer/optimizer_task_pool.h"
 #include "../settings/settings_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class OptimizerMetadata;
@@ -39,4 +39,4 @@ class OptimizeContext {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

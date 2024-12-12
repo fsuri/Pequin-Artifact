@@ -14,7 +14,7 @@
 #include "../util/string_util.h"
 #include <sstream>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 const std::string DeleteStatement::GetInfo(int num_indent) const {
@@ -34,4 +34,4 @@ const std::string DeleteStatement::GetInfo() const {
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

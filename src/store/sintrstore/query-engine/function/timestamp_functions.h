@@ -30,7 +30,7 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 class TimestampFunctions {
@@ -55,4 +55,4 @@ class TimestampFunctions {
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

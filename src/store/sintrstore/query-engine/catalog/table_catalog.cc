@@ -27,7 +27,7 @@
 #include "../storage/database.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 TableCatalogEntry::TableCatalogEntry(concurrency::TransactionContext *txn,
@@ -640,8 +640,8 @@ bool TableCatalog::DeleteTable(concurrency::TransactionContext *txn,
   return DeleteWithIndexScan(txn, index_offset, values);
 }
 
-static std::map<std::string, std::shared_ptr<peloton::catalog::TableCatalogEntry>> testCacheTable;
-static std::map<oid_t, std::shared_ptr<peloton::catalog::TableCatalogEntry>> testCacheTable2;
+static std::map<std::string, std::shared_ptr<peloton_sintr::catalog::TableCatalogEntry>> testCacheTable;
+static std::map<oid_t, std::shared_ptr<peloton_sintr::catalog::TableCatalogEntry>> testCacheTable2;
 static std::shared_mutex cacheTable_m;
 /*@brief   read table catalog object from pg_table using table oid
  * @param   table_oid
@@ -962,4 +962,4 @@ bool TableCatalog::UpdateDefaultLayoutOid(concurrency::TransactionContext *txn,
 }
 
 } // namespace catalog
-} // namespace peloton
+} // namespace peloton_sintr

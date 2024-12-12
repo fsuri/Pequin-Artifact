@@ -25,7 +25,7 @@
 #include "../concurrency/epoch_manager.h"
 #include "../concurrency/local_epoch.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 /**

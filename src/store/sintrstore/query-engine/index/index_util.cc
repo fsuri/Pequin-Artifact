@@ -18,7 +18,7 @@
 #include "../index/index_util.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -365,4 +365,4 @@ const std::string IndexUtil::GetInfo(const ItemPointer *ptr) {
 }
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

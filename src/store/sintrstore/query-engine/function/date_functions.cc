@@ -21,7 +21,7 @@
 #include "../type/value.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace function {
 
 // This implementation of Now() is **not** what postgres does. Postgres is
@@ -218,4 +218,4 @@ unsupported:
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

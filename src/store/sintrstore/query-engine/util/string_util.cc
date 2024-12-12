@@ -20,7 +20,7 @@
 #include <sstream>
 #include <string>
 
-namespace peloton {
+namespace peloton_sintr {
 
 bool StringUtil::Contains(const std::string &haystack,
                           const std::string &needle) {
@@ -199,4 +199,4 @@ std::string StringUtil::Strip(const std::string &str, char c) {
   return tmp;
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

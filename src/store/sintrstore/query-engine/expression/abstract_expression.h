@@ -22,7 +22,7 @@
 #include "../storage/zone_map_manager.h"
 #include "store/sintrstore/query-engine/common/sql_node_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // Forward Declaration
 class Printable;
@@ -181,8 +181,8 @@ class AbstractExpression : public Printable {
 
   /*virtual void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) {
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) {
     for (auto &child : children_) {
       child->VisitParameters(map, values, values_from_user);
     }
@@ -343,4 +343,4 @@ class ExprHasher {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

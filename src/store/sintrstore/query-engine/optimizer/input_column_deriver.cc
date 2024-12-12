@@ -29,8 +29,8 @@ using std::make_tuple;
 using std::make_pair;
 using std::pair;
 
-using peloton::expression::AbstractExpression;
-namespace peloton {
+using peloton_sintr::expression::AbstractExpression;
+namespace peloton_sintr {
 namespace optimizer {
 
 InputColumnDeriver::InputColumnDeriver() {}
@@ -364,4 +364,4 @@ void InputColumnDeriver::Passdown() {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

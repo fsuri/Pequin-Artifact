@@ -26,7 +26,7 @@
 #include "../type/type.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 // Exception Types
@@ -478,4 +478,4 @@ class NullPointerException : public Exception {
       : Exception(ExceptionType::NULL_POINTER, msg) {}
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

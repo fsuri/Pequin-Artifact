@@ -22,7 +22,7 @@
 #include "../../common/logger.h"
 #include "../../optimizer/stats/stats_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -60,4 +60,4 @@ class HyperLogLog {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

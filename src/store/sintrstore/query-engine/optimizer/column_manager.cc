@@ -14,7 +14,7 @@
 
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 ColumnManager::ColumnManager() {}
@@ -71,4 +71,4 @@ Column *ColumnManager::AddExprColumn(type::TypeId type, int size,
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

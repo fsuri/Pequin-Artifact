@@ -16,7 +16,7 @@
 #include "../executor/abstract_executor.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -114,4 +114,4 @@ class OrderByExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

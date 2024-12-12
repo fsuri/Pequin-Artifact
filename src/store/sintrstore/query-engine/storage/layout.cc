@@ -19,7 +19,7 @@
 #include "../storage/layout.h"
 #include "../util/stringbox_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 // Constructor for the layout class with column_count
@@ -321,13 +321,13 @@ std::string Layout::GetColumnMapInfo() const {
 const std::string Layout::GetInfo() const {
   std::ostringstream os;
 
-  os << peloton::GETINFO_DOUBLE_STAR << " Layout[#" << layout_oid_ << "] "
-     << peloton::GETINFO_DOUBLE_STAR << std::endl;
+  os << peloton_sintr::GETINFO_DOUBLE_STAR << " Layout[#" << layout_oid_ << "] "
+     << peloton_sintr::GETINFO_DOUBLE_STAR << std::endl;
   os << "Number of columns[" << num_columns_ << "] " << std::endl;
   os << "LayoutType[" << LayoutTypeToString(layout_type_) << std::endl;
   os << "ColumnMap[ " << GetColumnMapInfo() << "] " << std::endl;
 
-  return peloton::StringUtil::Prefix(peloton::StringBoxUtil::Box(os.str()),
+  return peloton_sintr::StringUtil::Prefix(peloton_sintr::StringBoxUtil::Box(os.str()),
                                      GETINFO_SPACER);
 }
 
@@ -360,4 +360,4 @@ bool operator==(const Layout &lhs, const Layout &rhs) {
 bool operator!=(const Layout &lhs, const Layout &rhs) { return !(lhs == rhs); }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

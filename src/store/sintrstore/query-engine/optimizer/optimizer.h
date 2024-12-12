@@ -19,7 +19,7 @@
 #include "../optimizer/property_set.h"
 #include "../optimizer/optimizer_metadata.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 class SQLStatementList;
@@ -63,9 +63,9 @@ class Optimizer : public AbstractOptimizer {
   friend class BindingIterator;
   friend class GroupBindingIterator;
 
-  friend class ::peloton::test::
+  friend class ::peloton_sintr::test::
       OptimizerRuleTests_SimpleAssociativeRuleTest_Test;
-  friend class ::peloton::test::
+  friend class ::peloton_sintr::test::
       OptimizerRuleTests_SimpleAssociativeRuleTest2_Test;
 
  public:
@@ -171,4 +171,4 @@ class Optimizer : public AbstractOptimizer {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

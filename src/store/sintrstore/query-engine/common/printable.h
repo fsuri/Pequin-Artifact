@@ -15,7 +15,7 @@
 #include <iosfwd>
 #include <string>
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 // Printable Object
@@ -32,4 +32,4 @@ class Printable {
   friend std::ostream &operator<<(std::ostream &os, const Printable &printable);
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

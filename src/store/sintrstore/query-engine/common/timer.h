@@ -17,7 +17,7 @@
 
 #include "../common/printable.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 // Timer
@@ -28,7 +28,7 @@ typedef std::chrono::high_resolution_clock clock_;
 typedef std::chrono::time_point<clock_> time_point_;
 
 template <typename ResolutionRatio = std::ratio<1> >
-class Timer : public peloton::Printable {
+class Timer : public peloton_sintr::Printable {
  public:
   Timer() : elapsed_(0), total_(0), invocations_(0) {}
 
@@ -99,4 +99,4 @@ class Timer : public peloton::Printable {
   int invocations_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

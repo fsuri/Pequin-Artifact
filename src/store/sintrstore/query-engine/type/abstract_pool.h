@@ -14,7 +14,7 @@
 
 #include <cstdlib>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // Interface of a memory pool that can quickly allocate chunks of memory
@@ -40,4 +40,4 @@ class AbstractPool {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

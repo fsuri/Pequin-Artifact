@@ -19,7 +19,7 @@
 #include "../optimizer/rule.h"
 #include "../settings/settings_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 class Catalog;
 class CatalogCache;
@@ -34,7 +34,7 @@ class OptimizerMetadata {
 
   OptimizerMetadata(std::unique_ptr<AbstractCostModel> cost_model)
       : cost_model(std::move(cost_model)), timeout_limit(settings::SettingsManager::GetInt(
-      settings::SettingId::task_execution_timeout)),
+      settings::SettingId::peloton_sintr_task_execution_timeout)),
         timer(Timer<std::milli>()) {}
 
   Memo memo;
@@ -83,4 +83,4 @@ class OptimizerMetadata {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

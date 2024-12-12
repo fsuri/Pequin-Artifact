@@ -20,7 +20,7 @@
 #include "../type/type.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // Get the element at a given index in this array
@@ -596,4 +596,4 @@ TypeId ArrayType::GetElementType(
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

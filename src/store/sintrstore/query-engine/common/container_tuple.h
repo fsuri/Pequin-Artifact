@@ -28,7 +28,7 @@
 
 #include "lib/message.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * A generic wrapper around a templated "tuple" type
@@ -324,4 +324,4 @@ class ContainerTuple<storage::TileGroup> : public AbstractTuple {
   const std::vector<oid_t> *column_ids_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

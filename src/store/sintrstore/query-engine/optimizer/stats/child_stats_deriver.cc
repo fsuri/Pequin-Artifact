@@ -16,7 +16,7 @@
 #include "../../expression/tuple_value_expression.h"
 #include "../../optimizer/memo.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 using std::vector;
@@ -74,4 +74,4 @@ void ChildStatsDeriver::PassDownColumn(expression::AbstractExpression *col) {
   }
 }
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

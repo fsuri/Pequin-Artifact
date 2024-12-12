@@ -19,7 +19,7 @@
 #include "../storage/data_table.h"
 #include "../storage/temp_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 /**
@@ -36,7 +36,7 @@ class TableFactory {
                                  size_t tuples_per_tile_group_count,
                                  bool own_schema, bool adapt_table,
                                  bool is_catalog = false,
-                                 peloton::LayoutType layout_type = peloton::LayoutType::ROW);
+                                 peloton_sintr::LayoutType layout_type = peloton_sintr::LayoutType::ROW);
 
   static TempTable *GetTempTable(catalog::Schema *schema, bool own_schema);
 
@@ -47,4 +47,4 @@ class TableFactory {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

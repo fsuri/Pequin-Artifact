@@ -14,7 +14,7 @@
 
 #include "../../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 ColumnStatsCollector::ColumnStatsCollector(oid_t database_id, oid_t table_id,
@@ -61,4 +61,4 @@ double ColumnStatsCollector::GetFracNull() {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

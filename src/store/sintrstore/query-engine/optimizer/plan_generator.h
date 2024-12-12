@@ -15,7 +15,7 @@
 #include "../optimizer/operator_visitor.h"
 #include "store/sintrstore/sql_interpreter.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 class AbstractPlan;
@@ -217,4 +217,4 @@ class PlanGenerator : public OperatorVisitor {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

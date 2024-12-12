@@ -16,7 +16,7 @@
 
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class Tile;
@@ -43,4 +43,4 @@ class LogicalTileFactory {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

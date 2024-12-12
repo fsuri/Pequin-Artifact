@@ -30,7 +30,7 @@
 
 #include "../catalog/abstract_catalog.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 // Forward declare
@@ -131,4 +131,4 @@ class ProcCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

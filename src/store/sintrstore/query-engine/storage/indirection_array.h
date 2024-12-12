@@ -12,7 +12,7 @@
 
 #include <array>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 const size_t INDIRECTION_ARRAY_MAX_SIZE = 1000000;
@@ -59,4 +59,4 @@ private:
   oid_t oid_;
 };
 } // namespace storage
-} // namespace peloton
+} // namespace peloton_sintr

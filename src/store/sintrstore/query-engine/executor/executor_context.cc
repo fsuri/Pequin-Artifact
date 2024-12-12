@@ -14,7 +14,7 @@
 
 #include "../storage/storage_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,4 +90,4 @@ char *ExecutorContext::ThreadStates::AccessThreadState(
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

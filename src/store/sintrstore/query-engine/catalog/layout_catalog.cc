@@ -20,7 +20,7 @@
 #include "../storage/layout.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 /** @brief   Constructor invoked by the SystemsCatalog constructor.
@@ -238,4 +238,4 @@ std::shared_ptr<const storage::Layout> LayoutCatalog::GetLayoutWithOid(concurren
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

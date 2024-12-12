@@ -47,13 +47,13 @@
 // Configuration Variables
 //===--------------------------------------------------------------------===//
 
-std::vector<peloton::oid_t> sdbench_column_ids;
+std::vector<peloton_sintr::oid_t> pelont_sintr_sdbench_column_ids;
 
-double peloton_projectivity;
+double peloton_sintr_projectivity;
 
-int peloton_num_groups;
+int peloton_sintr_num_groups;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 oid_t DataTable::invalid_tile_group_id = -1;
@@ -65,7 +65,7 @@ DataTable::DataTable(catalog::Schema *schema, const std::string &table_name,
                      const oid_t &database_oid, const oid_t &table_oid,
                      const size_t &tuples_per_tilegroup, const bool own_schema,
                      const bool adapt_table, const bool is_catalog,
-                     const peloton::LayoutType layout_type)
+                     const peloton_sintr::LayoutType layout_type)
     : AbstractTable(table_oid, schema, own_schema, layout_type),
       database_oid(database_oid), table_name(table_name),
       tuples_per_tilegroup_(tuples_per_tilegroup),
@@ -372,7 +372,7 @@ void DataTable::SetSintrMetaData(ItemPointer &location, concurrency::Transaction
   tile_group_header->SetMaterialize(tuple_id, current_txn->GetForceMaterialize());
 }
 
-bool DataTable::CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header, ItemPointer *index_entry_ptr, ItemPointer &check, concurrency::TransactionContext *transaction){
+bool DataTable::CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_ptr<peloton_sintr::storage::TileGroup> tile_group, TileGroupHeader *tile_group_header, ItemPointer *index_entry_ptr, ItemPointer &check, concurrency::TransactionContext *transaction){
 
   bool is_duplicate = false;
 
@@ -387,7 +387,7 @@ bool DataTable::CheckRowVersionUpdate(const storage::Tuple *tuple, std::shared_p
       
   ////// Find the current linked list header (atomically)
   // ItemPointer head_pointer;
-  // peloton::storage::TileGroupHeader *head_tile_group_header; 
+  // peloton_sintr::storage::TileGroupHeader *head_tile_group_header; 
   // while(true){
   //   head_pointer = *index_entry_ptr;
   //   head_tile_group_header = this->GetTileGroupById(head_pointer.block)->GetHeader();
@@ -550,7 +550,7 @@ void DataTable::PurgeRowVersion(ItemPointer *index_entry_ptr, TileGroupHeader *c
         }
 }
 
-void DataTable::UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction, const Timestamp &ts){
+void DataTable::UpgradeRowVersionCommitStatus(const storage::Tuple *tuple, std::shared_ptr<peloton_sintr::storage::TileGroup> curr_tile_group, TileGroupHeader *curr_tile_group_header, ItemPointer &curr_pointer, concurrency::TransactionContext *transaction, const Timestamp &ts){
     bool same_columns = true;
         bool should_upgrade = !curr_tile_group_header->GetCommitOrPrepare(curr_pointer.offset) && transaction->GetCommitOrPrepare(); //i.e. prev = prepare, curr tx = commit
         // NOTE: Check if we can upgrade a prepared tuple to committed
@@ -1218,7 +1218,7 @@ bool DataTable::CheckForeignKeySrcAndCascade(
               }
 
               ItemPointer *index_entry_ptr = nullptr;
-              peloton::ItemPointer location = src_table->InsertTuple(
+              peloton_sintr::ItemPointer location = src_table->InsertTuple(
                   &src_new_tuple, current_txn, &index_entry_ptr, false);
 
               if (location.block == INVALID_OID) {
@@ -1882,4 +1882,4 @@ bool DataTable::SetCurrentLayoutOid(oid_t new_layout_oid) {
 }
 
 } // namespace storage
-} // namespace peloton
+} // namespace peloton_sintr

@@ -18,7 +18,7 @@
 #include "../storage/temp_table.h"
 
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 DataTable *TableFactory::GetDataTable(oid_t database_id, oid_t relation_id,
@@ -27,7 +27,7 @@ DataTable *TableFactory::GetDataTable(oid_t database_id, oid_t relation_id,
                                       size_t tuples_per_tilegroup_count,
                                       bool own_schema, bool adapt_table,
                                       bool is_catalog,
-                                      peloton::LayoutType layout_type) {
+                                      peloton_sintr::LayoutType layout_type) {
   DataTable *table = new DataTable(schema, table_name, database_id, relation_id,
                                    tuples_per_tilegroup_count, own_schema,
                                    adapt_table, is_catalog, layout_type);
@@ -54,4 +54,4 @@ bool TableFactory::DropDataTable(oid_t database_oid, oid_t table_oid) {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

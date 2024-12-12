@@ -12,7 +12,7 @@
 
 #include "../expression/aggregate_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 const std::string AggregateExpression::GetInfo(int num_indent) const {
@@ -36,4 +36,4 @@ const std::string AggregateExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

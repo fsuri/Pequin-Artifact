@@ -19,7 +19,7 @@
 #include "../../store/sintrstore/common.h"
 //#include "../../store/sintrstore/sintr-proto.proto"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -85,4 +85,4 @@ class PlanExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

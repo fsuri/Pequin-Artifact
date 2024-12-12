@@ -19,7 +19,7 @@
 #include "../expression/abstract_expression.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -162,4 +162,4 @@ void ExtractEquiJoinKeys(
 
 }  // namespace util
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

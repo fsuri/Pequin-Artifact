@@ -30,7 +30,7 @@
 #include "../function/string_functions.h"
 #include "../index/index.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 class ExpressionUtil {
@@ -962,4 +962,4 @@ class ExpressionUtil {
   }
 };
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,7 +19,7 @@
 #include "../executor/logical_tile.h"
 #include "../common/container_tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -93,4 +93,4 @@ class HashSetOpExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

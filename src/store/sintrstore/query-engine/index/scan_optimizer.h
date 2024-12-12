@@ -31,7 +31,7 @@ namespace storage {
 class Tuple;
 }
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -714,4 +714,4 @@ class IndexScanPredicate {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

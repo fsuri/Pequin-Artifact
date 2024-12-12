@@ -14,7 +14,7 @@
 
 #include <cfloat>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 static const double DBL_LOWEST = std::numeric_limits<double>::lowest();
@@ -58,4 +58,4 @@ static const uint32_t PELOTON_TEXT_MAX_LEN = 1000000000;
 #define OBJECTLENGTH_NULL -1
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

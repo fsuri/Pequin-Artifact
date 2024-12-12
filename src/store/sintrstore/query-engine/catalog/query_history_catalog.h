@@ -27,7 +27,7 @@
 
 #define QUERY_HISTORY_CATALOG_NAME "pg_query_history"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 class QueryHistoryCatalog : public AbstractCatalog {
@@ -61,4 +61,4 @@ class QueryHistoryCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

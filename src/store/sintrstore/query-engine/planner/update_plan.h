@@ -18,7 +18,7 @@
 #include "../planner/project_info.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -68,8 +68,8 @@ class UpdatePlan : public AbstractPlan {
   }
 
   /*virtual void VisitParameters(codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   storage::DataTable *target_table_;
@@ -85,4 +85,4 @@ class UpdatePlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

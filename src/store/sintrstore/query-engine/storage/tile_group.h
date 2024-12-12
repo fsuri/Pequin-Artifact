@@ -26,7 +26,7 @@
 #include "../type/abstract_pool.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Manager;
@@ -140,7 +140,7 @@ class TileGroup : public Printable {
 
   oid_t GetTileId(const oid_t tile_id) const;
 
-  peloton::type::AbstractPool *GetTilePool(const oid_t tile_id) const;
+  peloton_sintr::type::AbstractPool *GetTilePool(const oid_t tile_id) const;
 
   oid_t GetTileGroupId() const;
 
@@ -199,4 +199,4 @@ class TileGroup : public Printable {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

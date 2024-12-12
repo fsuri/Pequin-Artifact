@@ -42,7 +42,7 @@
 #include <memory>
 #include <unordered_set>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -438,7 +438,7 @@ void SeqScanExecutor::SetPredicate(concurrency::TransactionContext *current_txn,
   //FIXME: must copy?  //   auto pred_copy = predicate_->Copy();
     //  auto pred_copy = predicate_->Copy();
     // pred_copy->DeduceExpressionName();
-  const_cast<peloton::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
+  const_cast<peloton_sintr::expression::AbstractExpression *>(predicate_)->DeduceExpressionName();
   auto &pred = predicate_->expr_name_;
   query_read_set_mgr->ExtendPredicate(pred);
   Debug("Adding new read set predicate instance: %s ", pred);
@@ -1264,4 +1264,4 @@ expression::AbstractExpression * SeqScanExecutor::ColumnValueToCmpExpr(const oid
   return root_expr;
 }
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

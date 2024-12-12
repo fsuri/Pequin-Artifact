@@ -17,7 +17,7 @@
 #include "../../common/macros.h"
 #include "../../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -105,4 +105,4 @@ class ColumnStats {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

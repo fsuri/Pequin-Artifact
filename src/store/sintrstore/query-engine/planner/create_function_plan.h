@@ -15,7 +15,7 @@
 #include "../parser/create_function_statement.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 class CreateFunctionStatement;
@@ -89,4 +89,4 @@ class CreateFunctionPlan : public AbstractPlan {
   int param_count = 0;
 };
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

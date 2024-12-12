@@ -18,7 +18,7 @@
 
 #include "../common/exception.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace util {
 
 class File {
@@ -71,4 +71,4 @@ class File {
 };
 
 }  // namespace util
-}  // namespace peloton
+}  // namespace peloton_sintr

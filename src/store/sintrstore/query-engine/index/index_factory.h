@@ -16,7 +16,7 @@
 
 #include "../index/index.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 //===----------------------------------------------------------------------===//
@@ -43,4 +43,4 @@ class IndexFactory {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

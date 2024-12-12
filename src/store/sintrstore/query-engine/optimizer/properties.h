@@ -17,7 +17,7 @@
 #include "../optimizer/column.h"
 #include "../optimizer/property.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 // Specifies the required sorting order of the query
@@ -52,4 +52,4 @@ class PropertySort : public Property {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

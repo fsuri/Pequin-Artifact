@@ -12,7 +12,7 @@
 
 #include "../common/statement_cache_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 void StatementCacheManager::RegisterStatementCache(StatementCache *stmt_cache) {
   statement_caches_.Insert(stmt_cache, stmt_cache);

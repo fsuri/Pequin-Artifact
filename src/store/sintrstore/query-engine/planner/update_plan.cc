@@ -16,7 +16,7 @@
 #include "../storage/data_table.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 UpdatePlan::UpdatePlan(storage::DataTable *table,
@@ -108,8 +108,8 @@ bool UpdatePlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void UpdatePlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   auto *proj_info = const_cast<planner::ProjectInfo *>(GetProjectInfo());
@@ -119,4 +119,4 @@ bool UpdatePlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -14,7 +14,7 @@
 
 #include "../type/numeric_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class DecimalType : public NumericType {
@@ -72,5 +72,5 @@ class DecimalType : public NumericType {
   Value OperateNull(const Value& left, const Value &right) const override;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 }  // namespace type

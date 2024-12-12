@@ -8,8 +8,9 @@
 * of the MIT license.  See the LICENSE file for details.                  *
 *                                                                         *
 ***************************************************************************/
-#ifndef HSTORESERIALIZEIO_H
-#define HSTORESERIALIZEIO_H
+#pragma once
+// #ifndef HSTORESERIALIZEIO_H
+// #define HSTORESERIALIZEIO_H
 
 #include <limits>
 #include <string>
@@ -20,7 +21,7 @@
 #include <string>
 #include "byte_array.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /** Abstract class for reading from memory buffers. */
 class SerializeInput {
@@ -354,4 +355,4 @@ class CopySerializeOutput : public SerializeOutput {
 };
 
 }
-#endif
+// #endif

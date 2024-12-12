@@ -20,7 +20,7 @@
 #include "../storage/database.h"
 #include "../storage/table_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 Database::Database(const oid_t database_oid) : database_oid(database_oid) {}
@@ -111,7 +111,7 @@ oid_t Database::GetTableCount() const { return tables.size(); }
 const std::string Database::GetInfo() const {
   std::ostringstream os;
 
-  os << peloton::GETINFO_THICK_LINE << std::endl;
+  os << peloton_sintr::GETINFO_THICK_LINE << std::endl;
   os << "DATABASE(" << GetOid() << ") : \n";
 
   oid_t table_count = GetTableCount();
@@ -160,7 +160,7 @@ const std::string Database::GetInfo() const {
     }
   }
 
-  os << peloton::GETINFO_THICK_LINE;
+  os << peloton_sintr::GETINFO_THICK_LINE;
 
   return os.str();
 }
@@ -174,4 +174,4 @@ void Database::setDBName(const std::string &database_name) {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

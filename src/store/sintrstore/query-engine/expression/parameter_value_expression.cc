@@ -14,7 +14,7 @@
 
 #include "../executor/executor_context.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 ParameterValueExpression::ParameterValueExpression(int value_idx)
@@ -56,8 +56,8 @@ hash_t ParameterValueExpression::Hash() const {
 }
 
 /*void ParameterValueExpression::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   // Add a new parameter object for a parameter
   auto &value = values_from_user[value_idx_];
 
@@ -90,4 +90,4 @@ const std::string ParameterValueExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

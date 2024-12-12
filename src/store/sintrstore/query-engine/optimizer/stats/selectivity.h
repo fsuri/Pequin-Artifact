@@ -30,7 +30,7 @@
 #include "../../optimizer/stats/value_condition.h"
 #include "../../optimizer/stats/column_stats.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 static constexpr double DEFAULT_SELECTIVITY = 0.5;
@@ -95,4 +95,4 @@ class Selectivity {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

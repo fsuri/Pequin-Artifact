@@ -16,7 +16,7 @@
 #include "../catalog/catalog.h"
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace parser {
 struct TableRef;
@@ -161,4 +161,4 @@ class BinderContext {
 };
 
 }  // namespace binder
-}  // namespace peloton
+}  // namespace peloton_sintr

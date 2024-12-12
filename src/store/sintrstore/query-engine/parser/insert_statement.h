@@ -16,7 +16,7 @@
 #include "../parser/sql_statement.h"
 #include "select_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -62,4 +62,4 @@ class InsertStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

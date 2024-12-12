@@ -12,7 +12,7 @@
 
 #include "../expression/function_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 expression::FunctionExpression::FunctionExpression(
@@ -72,7 +72,7 @@ void FunctionExpression::SetBuiltinFunctionExpressionParameters(
 }
 
 /*void FunctionExpression::SetUDFFunctionExpressionParameters(
-    std::shared_ptr<peloton::codegen::CodeContext> func_context,
+    std::shared_ptr<peloton_sintr::codegen::CodeContext> func_context,
     type::TypeId val_type, const std::vector<type::TypeId> &arg_types) {
   is_udf_ = true;
   func_context_ = func_context;
@@ -126,4 +126,4 @@ void FunctionExpression::CheckChildrenTypes() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

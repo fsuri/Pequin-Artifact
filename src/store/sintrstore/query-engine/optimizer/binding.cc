@@ -16,7 +16,7 @@
 #include "../optimizer/operator_visitor.h"
 #include "../optimizer/optimizer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -177,4 +177,4 @@ std::shared_ptr<OperatorExpression> GroupExprBindingIterator::Next() {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

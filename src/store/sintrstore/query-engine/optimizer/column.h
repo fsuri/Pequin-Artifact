@@ -16,7 +16,7 @@
 
 #include "../common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 using ColumnID = int32_t;
@@ -88,4 +88,4 @@ class ExprColumn : public Column {
 catalog::Column GetSchemaColumnFromOptimizerColumn(Column *column);
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

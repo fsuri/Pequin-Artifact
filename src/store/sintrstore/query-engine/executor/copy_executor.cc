@@ -26,7 +26,7 @@
 #include "../common/exception.h"
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -277,4 +277,4 @@ bool CopyExecutor::DExecute() {
 }
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

@@ -28,8 +28,8 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SQL_INTERPRETER_H
-#define SQL_INTERPRETER_H
+#ifndef SINTR_SQL_INTERPRETER_H
+#define SINTR_SQL_INTERPRETER_H
 
 #include "store/common/frontend/client.h"
 #include "store/common/transaction.h"
@@ -301,4 +301,4 @@ std::variant<bool, int64_t, double, std::string> DecodeType(std::string &enc_val
 };
 
 
-#endif /* SQL_INTERPRETER_H */
+#endif /* SINTR_SQL_INTERPRETER_H */

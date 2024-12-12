@@ -27,14 +27,14 @@
 using std::vector;
 using std::shared_ptr;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 QueryToOperatorTransformer::QueryToOperatorTransformer(
     concurrency::TransactionContext *txn)
     : txn_(txn),
       get_id(0),
       enable_predicate_push_down_(settings::SettingsManager::GetBool(
-          settings::SettingId::predicate_push_down)) {}
+          settings::SettingId::peloton_sintr_predicate_push_down)) {}
 std::shared_ptr<OperatorExpression>
 QueryToOperatorTransformer::ConvertToOpExpression(parser::SQLStatement *op) {
   //std::cerr << "convert: " << op->GetInfo() << std::endl;
@@ -619,4 +619,4 @@ bool QueryToOperatorTransformer::GenerateSubquerytree(
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

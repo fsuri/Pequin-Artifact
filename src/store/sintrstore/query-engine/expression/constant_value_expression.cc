@@ -12,7 +12,7 @@
 
 #include "../expression/constant_value_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 const std::string ConstantValueExpression::GetInfo(int num_indent) const {
@@ -34,4 +34,4 @@ const std::string ConstantValueExpression::GetInfo() const {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

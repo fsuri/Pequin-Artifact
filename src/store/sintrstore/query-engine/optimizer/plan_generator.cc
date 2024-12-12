@@ -49,7 +49,7 @@ using std::make_tuple;
 using std::make_pair;
 using std::pair;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 PlanGenerator::PlanGenerator() {}
@@ -94,7 +94,7 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
 
   // Check if we should do a parallel scan
   bool parallel_exec_enabled = settings::SettingsManager::GetBool(
-      settings::SettingId::parallel_execution);
+      settings::SettingId::peloton_sintr_parallel_execution);
 
   bool parallel_scan = parallel_exec_enabled;
   if (parallel_exec_enabled) {
@@ -104,7 +104,7 @@ void PlanGenerator::Visit(const PhysicalSeqScan *op) {
     auto num_tuples = data_table->GetTupleCount();
     auto min_parallel_table_scan_size =
         static_cast<uint32_t>(settings::SettingsManager::GetInt(
-            settings::SettingId::min_parallel_table_scan_size));
+            settings::SettingId::peloton_sintr_min_parallel_table_scan_size));
     parallel_scan =
         (num_tilegroups > 1 && num_tuples > min_parallel_table_scan_size);
   }
@@ -340,7 +340,7 @@ void PlanGenerator::Visit(const PhysicalInnerHashJoin *op) {
   auto join_plan = unique_ptr<planner::AbstractPlan>(new planner::HashJoinPlan(
       JoinType::INNER, move(join_predicate), move(proj_info), proj_schema,
       left_keys, right_keys, settings::SettingsManager::GetBool(
-                                 settings::SettingId::hash_join_bloom_filter)));
+                                 settings::SettingId::peloton_sintr_hash_join_bloom_filter)));
 
   join_plan->AddChild(move(children_plans_[0]));
   join_plan->AddChild(move(hash_plan));
@@ -476,7 +476,7 @@ PlanGenerator::GenerateTableTVExprsColRegistry(
     auto col_type = col_registry->col_name_type.at(col_name);
     if (col_type == "FLOAT") col_type = "DECIMAL";
     if (col_type == "TEXT") col_type = "VARCHAR";
-    col_expr->SetValueType(peloton::StringToTypeId(col_type));
+    col_expr->SetValueType(peloton_sintr::StringToTypeId(col_type));
     Debug("Col name: %s. Col type: %s", col_name.c_str(), col_type.c_str());
     
     //col_expr->SetBoundOid(db_id, table_id, col_id);
@@ -699,4 +699,4 @@ void PlanGenerator::GenerateProjectionForJoin(
   proj_schema = std::make_shared<const catalog::Schema>(columns);
 }
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

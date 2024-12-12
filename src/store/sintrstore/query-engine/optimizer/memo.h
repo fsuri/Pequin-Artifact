@@ -19,7 +19,7 @@
 #include "operator_expression.h"
 #include "../optimizer/group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 struct GExprPtrHash {
@@ -94,4 +94,4 @@ class Memo {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

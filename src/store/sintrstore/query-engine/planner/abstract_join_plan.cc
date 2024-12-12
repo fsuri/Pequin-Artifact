@@ -14,7 +14,7 @@
 
 #include <numeric>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 void AbstractJoinPlan::GetOutputColumns(std::vector<oid_t> &columns) const {
@@ -62,8 +62,8 @@ void AbstractJoinPlan::PerformBinding(BindingContext &context) {
 }
 
 /*void AbstractJoinPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   AbstractPlan::VisitParameters(map, values, values_from_user);
 
   auto *predicate =
@@ -138,4 +138,4 @@ hash_t AbstractJoinPlan::Hash() const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

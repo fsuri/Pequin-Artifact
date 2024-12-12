@@ -18,7 +18,7 @@
 #include "../type/decimal_type.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 IntegerParentType::IntegerParentType(TypeId type) : NumericType(type) {}
@@ -42,4 +42,4 @@ Value IntegerParentType::Max(const Value& left, const Value& right) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

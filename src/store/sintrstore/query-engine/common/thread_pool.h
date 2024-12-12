@@ -22,7 +22,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 // a wrapper for boost worker thread pool.
 class ThreadPool {
  public:
@@ -99,4 +99,4 @@ class ThreadPool {
   std::vector<std::unique_ptr<std::thread>> dedicated_threads_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

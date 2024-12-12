@@ -17,7 +17,7 @@
 
 #include "../../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -90,4 +90,4 @@ class AutomaticDirtyMutexLatch {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 
 /**
  * File Utility Functions
@@ -94,4 +94,4 @@ class FileUtil {
 
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

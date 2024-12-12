@@ -19,7 +19,7 @@
 #include "../type/timestamp_type.h"
 #include "../type/varlen_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 //===--------------------------------------------------------------------===//
@@ -86,4 +86,4 @@ class ValuePeeker {
 
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

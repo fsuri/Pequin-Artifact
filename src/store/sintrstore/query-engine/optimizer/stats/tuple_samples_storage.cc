@@ -21,7 +21,7 @@
 #include "../../planner/insert_plan.h"
 #include "../../storage/database.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 // Get instance of the global tuple samples storage
@@ -241,4 +241,4 @@ void TupleSamplesStorage::GetColumnSamples(
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

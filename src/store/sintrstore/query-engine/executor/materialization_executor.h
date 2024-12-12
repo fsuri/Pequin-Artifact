@@ -18,7 +18,7 @@
 #include "../common/internal_types.h"
 #include "../executor/abstract_executor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 class AbstractPlan;
@@ -65,7 +65,7 @@ class MaterializationExecutor : public AbstractExecutor {
       const std::unordered_map<storage::Tile *, std::vector<oid_t>> &
           tile_to_cols,
       storage::Tile *dest_tile,
-      const peloton::LayoutType peloton_layout_mode = peloton::LayoutType::ROW);
+      const peloton_sintr::LayoutType peloton_layout_mode = peloton_sintr::LayoutType::ROW);
 
   LogicalTile *Physify(LogicalTile *source_tile);
   std::unordered_map<oid_t, oid_t> BuildIdentityMapping(
@@ -73,4 +73,4 @@ class MaterializationExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

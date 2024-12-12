@@ -14,7 +14,7 @@
 
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class DateType : public Type {
@@ -65,4 +65,4 @@ class DateType : public Type {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

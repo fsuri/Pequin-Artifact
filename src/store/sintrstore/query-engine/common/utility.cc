@@ -24,7 +24,7 @@ int close$NOCANCEL(int);
 };
 #endif
 
-namespace peloton {
+namespace peloton_sintr {
 
 int peloton_close(int fd) {
   //On Mac OS, close$NOCANCEL guarantees that no descriptor leak & no need to retry on failure.

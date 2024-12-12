@@ -16,7 +16,7 @@
 #include "../common/internal_types.h"
 #include "../expression/abstract_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 PopulateIndexPlan::PopulateIndexPlan(storage::DataTable *table,
                                      std::vector<oid_t> column_ids)

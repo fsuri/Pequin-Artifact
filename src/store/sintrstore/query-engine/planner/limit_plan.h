@@ -20,7 +20,7 @@
 #include "../planner/abstract_plan.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 /**
@@ -100,4 +100,4 @@ inline bool LimitPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

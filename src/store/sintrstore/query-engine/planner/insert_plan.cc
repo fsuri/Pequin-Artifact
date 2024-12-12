@@ -18,7 +18,7 @@
 #include "../type/ephemeral_pool.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 InsertPlan::InsertPlan(
@@ -279,8 +279,8 @@ bool InsertPlan::operator==(const AbstractPlan &rhs) const {
 }
 
 /*void InsertPlan::VisitParameters(
-    codegen::QueryParametersMap &map, std::vector<peloton::type::Value> &values,
-    const std::vector<peloton::type::Value> &values_from_user) {
+    codegen::QueryParametersMap &map, std::vector<peloton_sintr::type::Value> &values,
+    const std::vector<peloton_sintr::type::Value> &values_from_user) {
   if (GetChildren().size() == 0) {
     auto *schema = target_table_->GetSchema();
     auto columns_num = schema->GetColumnCount();
@@ -301,4 +301,4 @@ bool InsertPlan::operator==(const AbstractPlan &rhs) const {
 }*/
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

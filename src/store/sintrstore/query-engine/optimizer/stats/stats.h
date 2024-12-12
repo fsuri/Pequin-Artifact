@@ -14,7 +14,7 @@
 
 #include "../../optimizer/stats/tuple_sample.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -30,4 +30,4 @@ class Stats {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

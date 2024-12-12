@@ -20,7 +20,7 @@
 #include "../parser/table_ref.h"
 #include "../storage/storage_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace binder {
 
 void BinderContext::AddRegularTable(parser::TableRef *table_ref,
@@ -240,4 +240,4 @@ void BinderContext::GenerateAllColumnExpressions(
 }
 
 }  // namespace binder
-}  // namespace peloton
+}  // namespace peloton_sintr

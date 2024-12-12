@@ -18,7 +18,7 @@
 #include "../../store/common/timestamp.h"
 #include "../storage/storage_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 class AbstractPlan;
@@ -133,4 +133,4 @@ class AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

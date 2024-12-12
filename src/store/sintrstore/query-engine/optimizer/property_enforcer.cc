@@ -16,7 +16,7 @@
 #include "../optimizer/properties.h"
 #include "../expression/expression_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 std::shared_ptr<GroupExpression> PropertyEnforcer::EnforceProperty(
@@ -45,4 +45,4 @@ void PropertyEnforcer::Visit(const PropertyDistinct *) {
 void PropertyEnforcer::Visit(const PropertyLimit *) {}
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

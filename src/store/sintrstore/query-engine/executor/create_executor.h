@@ -14,7 +14,7 @@
 
 #include "../executor/abstract_executor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;
@@ -62,4 +62,4 @@ class CreateExecutor : public AbstractExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

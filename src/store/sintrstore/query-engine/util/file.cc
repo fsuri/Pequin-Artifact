@@ -14,7 +14,7 @@
 
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace util {
 
 void File::Open(const std::string &name, File::AccessMode access_mode) {
@@ -122,4 +122,4 @@ void File::Close() {
 }
 
 }  // namespace util
-}  // namespace peloton
+}  // namespace peloton_sintr

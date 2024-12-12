@@ -17,7 +17,7 @@
 #include "../gc/transaction_level_gc_manager.h"
 
 
-namespace peloton {
+namespace peloton_sintr {
 namespace gc {
 
 class GCManagerFactory {
@@ -52,4 +52,4 @@ class GCManagerFactory {
 };
 
 }  // namespace gc
-}  // namespace peloton
+}  // namespace peloton_sintr

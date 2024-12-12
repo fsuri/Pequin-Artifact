@@ -28,7 +28,7 @@
 // GUC Variables
 //===--------------------------------------------------------------------===//
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -54,7 +54,7 @@ class AbstractTable : public Printable {
  protected:
   // Table constructor
   AbstractTable(oid_t table_oid, catalog::Schema *schema, bool own_schema,
-               peloton::LayoutType layout_type = peloton::LayoutType::ROW);
+               peloton_sintr::LayoutType layout_type = peloton_sintr::LayoutType::ROW);
 
  public:
   //===--------------------------------------------------------------------===//
@@ -154,4 +154,4 @@ class AbstractTable : public Printable {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

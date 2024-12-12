@@ -23,7 +23,7 @@
 #include "../expression/case_expression.h"
 #include "../expression/subquery_expression.h"
 
-namespace peloton {
+namespace peloton_sintr {
 void SqlNodeVisitor::Visit(expression::ComparisonExpression *expr) {
   expr->AcceptChildren(this);
 }

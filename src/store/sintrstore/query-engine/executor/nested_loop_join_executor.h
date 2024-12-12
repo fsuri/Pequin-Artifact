@@ -14,7 +14,7 @@
 
 #include "../executor/abstract_join_executor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -57,4 +57,4 @@ class NestedLoopJoinExecutor : public AbstractJoinExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

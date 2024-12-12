@@ -25,7 +25,7 @@
 
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 class Type;
@@ -366,4 +366,4 @@ Value::Value(TypeId type, const std::vector<T> &vals, TypeId element_type)
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

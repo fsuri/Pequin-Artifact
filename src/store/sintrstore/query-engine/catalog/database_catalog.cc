@@ -23,7 +23,7 @@
 #include "../type/value_factory.h"
 #include <shared_mutex>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 DatabaseCatalogEntry::DatabaseCatalogEntry(concurrency::TransactionContext *txn,
@@ -349,8 +349,8 @@ bool DatabaseCatalog::DeleteDatabase(concurrency::TransactionContext *txn, oid_t
 }
 
 //////
-static std::map<oid_t, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache2;
-static std::map<std::string, std::shared_ptr<peloton::catalog::DatabaseCatalogEntry>> testCache;
+static std::map<oid_t, std::shared_ptr<peloton_sintr::catalog::DatabaseCatalogEntry>> testCache2;
+static std::map<std::string, std::shared_ptr<peloton_sintr::catalog::DatabaseCatalogEntry>> testCache;
 static std::shared_mutex cache_m;
 static std::shared_mutex cache_m2;
 
@@ -535,4 +535,4 @@ std::shared_ptr<DatabaseCatalogEntry> DatabaseCatalog::GetDatabaseCatalogEntry(
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

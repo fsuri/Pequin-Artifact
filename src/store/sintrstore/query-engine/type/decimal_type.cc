@@ -18,7 +18,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define DECIMAL_COMPARE_FUNC(OP) \
@@ -351,5 +351,5 @@ Value DecimalType::Copy(const Value& val) const {
   return ValueFactory::GetDecimalValue(val.value_.decimal);
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 }  // namespace type

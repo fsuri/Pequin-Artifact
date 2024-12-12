@@ -19,7 +19,7 @@
 #include "../type/type.h"
 #include "boost/algorithm/string.hpp"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 //===--------------------------------------------------------------------===//
@@ -370,4 +370,4 @@ class Schema : public Printable {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

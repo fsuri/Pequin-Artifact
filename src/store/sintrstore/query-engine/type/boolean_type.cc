@@ -15,7 +15,7 @@
 #include "../type/value_factory.h"
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define BOOLEAN_COMPARE_FUNC(OP) \
@@ -144,4 +144,4 @@ Value BooleanType::CastAs(const Value& val, const TypeId type_id) const {
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

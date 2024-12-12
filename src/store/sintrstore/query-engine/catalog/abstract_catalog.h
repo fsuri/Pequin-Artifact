@@ -18,7 +18,7 @@
 #include "../catalog/schema.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -104,4 +104,4 @@ class AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

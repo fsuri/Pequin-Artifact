@@ -24,7 +24,7 @@
 #include <iomanip>
 #include <thread>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace concurrency {
 
 /*
@@ -185,4 +185,4 @@ void TransactionContext::ExecOnCommitTriggers() {
 }*/
 
 }  // namespace concurrency
-}  // namespace peloton
+}  // namespace peloton_sintr

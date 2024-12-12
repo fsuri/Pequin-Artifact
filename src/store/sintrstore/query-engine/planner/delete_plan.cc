@@ -13,7 +13,7 @@
 #include "../planner/delete_plan.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 DeletePlan::DeletePlan(storage::DataTable *table) : target_table_(table) {
@@ -52,4 +52,4 @@ bool DeletePlan::operator==(const AbstractPlan &rhs) const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

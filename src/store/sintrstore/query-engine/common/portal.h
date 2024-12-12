@@ -18,7 +18,7 @@
 #include "../type/value.h"
 //#include "../statistics/query_metric.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 class Statement;
 
@@ -57,4 +57,4 @@ class Portal {
   //std::shared_ptr<stats::QueryMetric::QueryParams> param_stat_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

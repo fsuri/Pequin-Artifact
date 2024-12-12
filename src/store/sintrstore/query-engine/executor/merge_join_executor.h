@@ -15,7 +15,7 @@
 #include "../executor/abstract_join_executor.h"
 #include "../planner/merge_join_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -51,4 +51,4 @@ class MergeJoinExecutor : public AbstractJoinExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

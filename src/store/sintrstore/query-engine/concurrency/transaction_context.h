@@ -29,7 +29,7 @@
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "../../store/sintrstore/sql_interpreter.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /*namespace trigger {
 class TriggerSet;
@@ -621,4 +621,4 @@ private:
 };
 
 } // namespace concurrency
-} // namespace peloton
+} // namespace peloton_sintr

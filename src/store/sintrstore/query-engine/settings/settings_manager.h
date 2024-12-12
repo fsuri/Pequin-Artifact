@@ -20,7 +20,7 @@
 #include "../common/printable.h"
 #include "../settings/setting_id.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace settings {
 
 // SettingsManager:
@@ -94,4 +94,4 @@ class SettingsManager : public Printable {
 };
 
 }  // namespace settings
-}  // namespace peloton
+}  // namespace peloton_sintr

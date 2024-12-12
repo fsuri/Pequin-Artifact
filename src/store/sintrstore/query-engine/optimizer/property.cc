@@ -13,7 +13,7 @@
 #include "../optimizer/property.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 Property::~Property() {}
@@ -30,4 +30,4 @@ bool Property::operator>=(const Property &r) const {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

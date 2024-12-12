@@ -22,7 +22,7 @@
 #include "../parser/statements.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 FileHandle INVALID_FILE_HANDLE;
 
@@ -3175,4 +3175,4 @@ std::string OperatorIdToString(OperatorId op_id) {
   }
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,7 +19,7 @@
 #include "../storage/tile.h"
 #include "../storage/tile_group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace gc {
 
 // Check a tuple and reclaim all varlen field

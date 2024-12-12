@@ -16,7 +16,7 @@
 #include "internal_types.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===----------------------------------------------------------------------===//
 // Generic tuple interface
@@ -46,4 +46,4 @@ class AbstractTuple : public Printable {
   virtual char *GetData() const = 0;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

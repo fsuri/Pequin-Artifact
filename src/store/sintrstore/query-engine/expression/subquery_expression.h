@@ -22,7 +22,7 @@
 #include "../parser/select_statement.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 class SubqueryExpression : public AbstractExpression {
@@ -91,4 +91,4 @@ inline int SubqueryExpression::DeriveDepth() {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

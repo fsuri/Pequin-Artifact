@@ -31,7 +31,7 @@
                                        ValueEqualityChecker, \
                                        ValueHashFunc>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
   
 /**
@@ -123,4 +123,4 @@ class BWTreeIndex : public Index {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -18,7 +18,7 @@
 #include "../planner/index_scan_plan.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 HybridScanPlan::HybridScanPlan(
@@ -36,4 +36,4 @@ HybridScanPlan::HybridScanPlan(
       index_id_(index_scan_desc.index_id) {}
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

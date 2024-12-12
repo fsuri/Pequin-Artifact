@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 // Forward Declaration
@@ -38,4 +38,4 @@ class PropertyVisitor {
 };
 
 } // namespace optimizer
-} // namespace peloton
+} // namespace peloton_sintr

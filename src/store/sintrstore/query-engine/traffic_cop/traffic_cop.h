@@ -33,7 +33,7 @@
 // #include "../../store/sintrstore/table_store_interface.h"
 #include "../../store/sintrstore/sql_interpreter.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace concurrency {
 class TransactionContext;
@@ -422,4 +422,4 @@ private:
 };
 
 } // namespace tcop
-} // namespace peloton
+} // namespace peloton_sintr

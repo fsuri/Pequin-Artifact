@@ -17,7 +17,7 @@
 #include <memory>
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -43,4 +43,4 @@ class OperatorExpression {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

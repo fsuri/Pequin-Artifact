@@ -31,7 +31,7 @@
 #include <libpg_query/pg_query.h>
 #include "../parser/pg_trigger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 PostgresParser::PostgresParser() {}
@@ -2027,4 +2027,4 @@ std::unique_ptr<parser::SQLStatementList> PostgresParser::BuildParseTree(
 }
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

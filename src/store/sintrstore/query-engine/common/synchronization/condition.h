@@ -18,7 +18,7 @@
 
 #include "common/synchronization/mutex_latch.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace common {
 namespace synchronization {
 
@@ -122,4 +122,4 @@ class Condition {
 
 }  // namespace synchronization
 }  // namespace common
-}  // namespace peloton
+}  // namespace peloton_sintr

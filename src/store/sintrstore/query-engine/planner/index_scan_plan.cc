@@ -16,7 +16,7 @@
 #include "../expression/expression_util.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 IndexScanPlan::IndexScanPlan(storage::DataTable *table,
@@ -95,4 +95,4 @@ void IndexScanPlan::SetParameterValues(std::vector<type::Value> *values) {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

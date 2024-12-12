@@ -12,7 +12,7 @@
 
 #include "../../optimizer/stats/stats.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -20,4 +20,4 @@ namespace optimizer {
 //===--------------------------------------------------------------------===//
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

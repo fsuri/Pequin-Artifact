@@ -18,7 +18,7 @@
 #include "container/lock_free_queue.h"
 #include "statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 #define DEFAULT_STATEMENT_CACHE_INVALID_QUEUE_SIZE 5
 
@@ -65,4 +65,4 @@ class StatementCache {
  private:
   void UpdateFromInvalidTableQueue();
 };
-}  // namespace peloton
+}  // namespace peloton_sintr

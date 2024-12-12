@@ -16,7 +16,7 @@
 #include "../parser/analyze_statement.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 AnalyzePlan::AnalyzePlan(storage::DataTable *table) : target_table_(table) {}
@@ -57,4 +57,4 @@ AnalyzePlan::AnalyzePlan(parser::AnalyzeStatement *analyze_stmt,
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -15,7 +15,7 @@
 #include "../settings/settings_manager.h"
 #include "../threadpool/worker_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace threadpool {
 
 /**
@@ -87,8 +87,8 @@ inline void MonoQueuePool::SubmitTask(const F &func) {
 }
 
 inline MonoQueuePool &MonoQueuePool::GetInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_monoqueue_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_monoqueue_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
@@ -100,8 +100,8 @@ inline MonoQueuePool &MonoQueuePool::GetInstance() {
 }
 
 inline MonoQueuePool &MonoQueuePool::GetBrainInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::brain_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::brain_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_brain_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_brain_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
@@ -113,8 +113,8 @@ inline MonoQueuePool &MonoQueuePool::GetBrainInstance() {
 }
 
 inline MonoQueuePool &MonoQueuePool::GetExecutionInstance() {
-  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_task_queue_size);
-  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::monoqueue_worker_pool_size);
+  int32_t task_queue_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_monoqueue_task_queue_size);
+  int32_t worker_pool_size = settings::SettingsManager::GetInt(settings::SettingId::peloton_sintr_monoqueue_worker_pool_size);
 
   PELOTON_ASSERT(task_queue_size > 0);
   PELOTON_ASSERT(worker_pool_size > 0);
@@ -126,4 +126,4 @@ inline MonoQueuePool &MonoQueuePool::GetExecutionInstance() {
 }
 
 }  // namespace threadpool
-}  // namespace peloton
+}  // namespace peloton_sintr

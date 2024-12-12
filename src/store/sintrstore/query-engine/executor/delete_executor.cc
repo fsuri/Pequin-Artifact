@@ -34,7 +34,7 @@
 #include "../parser/pg_trigger.h"
 #include "store/sintrstore/query-engine/common/internal_types.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -137,7 +137,7 @@ bool DeleteExecutor::DInit() {
 
 //     // Check the foreign key source table
 //     if (target_table_->CheckForeignKeySrcAndCascade(&prev_tuple, nullptr, current_txn, executor_context_, false) == false) {
-//       transaction_manager.SetTransactionResult(current_txn, peloton::ResultType::FAILURE);
+//       transaction_manager.SetTransactionResult(current_txn, peloton_sintr::ResultType::FAILURE);
 //       return false;
 //     }
 
@@ -396,4 +396,4 @@ bool DeleteExecutor::DExecute() {
 }
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

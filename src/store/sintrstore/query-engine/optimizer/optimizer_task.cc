@@ -19,7 +19,7 @@
 #include "../optimizer/stats/stats_calculator.h"
 #include "../optimizer/stats/child_stats_deriver.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -501,4 +501,4 @@ void BottomUpRewrite::execute() {
   }
 }
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

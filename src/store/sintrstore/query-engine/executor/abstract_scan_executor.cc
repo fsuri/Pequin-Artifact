@@ -22,7 +22,7 @@
 
 #include "../common/logger.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -52,4 +52,4 @@ bool AbstractScanExecutor::DInit() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -21,7 +21,7 @@
 #include "../optimizer/property_set.h"
 #include "../optimizer/stats/column_stats.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 using GroupID = int32_t;
@@ -137,4 +137,4 @@ class Group : public Printable {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

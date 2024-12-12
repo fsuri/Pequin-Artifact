@@ -21,7 +21,7 @@
 #include "../common/internal_types.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -282,4 +282,4 @@ class TupleComparator {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

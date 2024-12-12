@@ -17,7 +17,7 @@
 #include "../expression/constant_value_expression.h"
 #include "../storage/data_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 CreatePlan::CreatePlan(std::string database_name, CreateType c_type)
@@ -271,4 +271,4 @@ expression::AbstractExpression *CreatePlan::GetTriggerWhen() const {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

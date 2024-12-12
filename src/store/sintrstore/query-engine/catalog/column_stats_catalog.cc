@@ -18,7 +18,7 @@
 #include "../storage/data_table.h"
 #include "../storage/tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 ColumnStatsCatalog *ColumnStatsCatalog::GetInstance(
@@ -253,4 +253,4 @@ size_t ColumnStatsCatalog::GetTableStats(concurrency::TransactionContext *txn,
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

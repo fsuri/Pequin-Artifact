@@ -13,7 +13,7 @@
 
 #include "../gc/gc_manager_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace gc {
 
 GarbageCollectionType GCManagerFactory::gc_type_ = GarbageCollectionType::ON;
@@ -21,4 +21,4 @@ GarbageCollectionType GCManagerFactory::gc_type_ = GarbageCollectionType::ON;
 int GCManagerFactory::gc_thread_count_ = 1;
 
 }  // namespace gc
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -20,7 +20,7 @@
 
 #define SAMPLE_COUNT_PER_TABLE 100
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class DataTable;

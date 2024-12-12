@@ -18,7 +18,7 @@
 #define COPY_BUFFER_SIZE 65536
 #define INVALID_COL_ID -1
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 class CopyExecutor : public AbstractExecutor {
@@ -90,4 +90,4 @@ protected:
 };
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

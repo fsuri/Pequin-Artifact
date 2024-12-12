@@ -14,7 +14,7 @@
 
 #include "../common/printable.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 // Get a string representation for debugging
 std::ostream &operator<<(std::ostream &os, const Printable &printable) {
@@ -22,4 +22,4 @@ std::ostream &operator<<(std::ostream &os, const Printable &printable) {
   return os;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

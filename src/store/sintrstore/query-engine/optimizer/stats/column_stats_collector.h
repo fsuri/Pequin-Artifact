@@ -22,7 +22,7 @@
 #include "../../optimizer/stats/histogram.h"
 #include "../../optimizer/stats/hyperloglog.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -85,4 +85,4 @@ class ColumnStatsCollector {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

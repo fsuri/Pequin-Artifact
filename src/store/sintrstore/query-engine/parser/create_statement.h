@@ -19,7 +19,7 @@
 #include "../parser/select_statement.h"
 #include "../parser/sql_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -255,4 +255,4 @@ class CreateStatement : public TableRefStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -16,7 +16,7 @@
 #include "../util/hash_util.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace planner {
 
 ExportExternalFilePlan::ExportExternalFilePlan(std::string file_name,
@@ -67,4 +67,4 @@ void ExportExternalFilePlan::PerformBinding(BindingContext &binding_context) {
 }
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

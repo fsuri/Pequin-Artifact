@@ -18,7 +18,7 @@
 #include "../util/string_util.h"
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 /**
@@ -124,4 +124,4 @@ class SelectStatement : public SQLStatement {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

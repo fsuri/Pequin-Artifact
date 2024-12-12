@@ -22,7 +22,7 @@
 #define DEFAULT_CACHE_SIZE 100
 #define DEFAULT_CACHE_INSERT_THRESHOLD 3
 
-namespace peloton {
+namespace peloton_sintr {
 template <class Key, class Value>
 
 /** @brief An implementation of LRU cache

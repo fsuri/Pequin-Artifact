@@ -29,7 +29,7 @@
 #include "../storage/tuple.h"
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 class TileGroup;
@@ -97,7 +97,7 @@ class TileGroupHeader : public Printable {
 public:
   TileGroupHeader(const BackendType &backend_type, const int &tuple_count);
 
-  TileGroupHeader &operator=(const peloton::storage::TileGroupHeader &other) {
+  TileGroupHeader &operator=(const peloton_sintr::storage::TileGroupHeader &other) {
     // check for self-assignment
     if (&other == this)
       return *this;
@@ -414,4 +414,4 @@ private:
 };
 
 } // namespace storage
-} // namespace peloton
+} // namespace peloton_sintr

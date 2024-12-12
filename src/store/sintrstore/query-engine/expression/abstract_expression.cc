@@ -21,7 +21,7 @@
 #include "../util/string_util.h"
 #include "../expression/expression_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 bool AbstractExpression::HasParameter() const {
@@ -170,4 +170,4 @@ bool AbstractExpression::IsZoneMappable() {
 }
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

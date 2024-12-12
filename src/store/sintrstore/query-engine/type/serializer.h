@@ -25,7 +25,7 @@
 
 #include "../type/byte_array.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 /*
  * This file defines a crude Export serialization interface.
@@ -256,4 +256,4 @@ class ExportSerializeOutput {
   size_t capacity_;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -18,7 +18,7 @@
 #include "../executor/executor_context.h"
 #include "../storage/abstract_table.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /*
@@ -412,4 +412,4 @@ PlainAggregator::~PlainAggregator() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

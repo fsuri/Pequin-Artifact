@@ -21,7 +21,7 @@
 #include "../../type/value.h"
 #include "../../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class StatsUtil {
@@ -96,4 +96,4 @@ class StatsUtil {
   }
 };
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

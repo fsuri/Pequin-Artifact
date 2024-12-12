@@ -18,7 +18,7 @@
 #include "../common/logger.h"
 #include "../type/type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 /**

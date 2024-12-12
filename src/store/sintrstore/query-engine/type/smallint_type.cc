@@ -19,7 +19,7 @@
 #include "../type/varlen_type.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 #define SMALLINT_COMPARE_FUNC(OP) \
@@ -379,4 +379,4 @@ Value SmallintType::CastAs(const Value& val,
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

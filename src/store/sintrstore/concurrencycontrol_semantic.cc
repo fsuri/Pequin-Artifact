@@ -760,8 +760,8 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
   std::string full_predicate = "SELECT * FROM " + table_name + " WHERE " + pred;
   //TODO: FILL IN
   // Call the PostgresParser
-  auto parser = peloton::parser::PostgresParser::GetInstance();
-  std::unique_ptr<peloton::parser::SQLStatementList> stmt_list(parser.BuildParseTree(full_predicate).release());
+  auto parser = peloton_sintr::parser::PostgresParser::GetInstance();
+  std::unique_ptr<peloton_sintr::parser::SQLStatementList> stmt_list(parser.BuildParseTree(full_predicate).release());
   if (!stmt_list->is_valid) {
     std::cerr << "Parsing failed" << std::endl;
   }
@@ -769,21 +769,21 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
   auto sql_stmt = stmt_list->GetStatement(0);
 
   // Only process select statements
-  if (sql_stmt->GetType() != peloton::StatementType::SELECT) return false;
+  if (sql_stmt->GetType() != peloton_sintr::StatementType::SELECT) return false;
 
-  auto select_stmt = (peloton::parser::SelectStatement *)sql_stmt;
+  auto select_stmt = (peloton_sintr::parser::SelectStatement *)sql_stmt;
 
   auto where_clause = select_stmt->where_clause->Copy();
   std::cerr << "The parsed where clause evalpred is " << where_clause->GetInfo() << std::endl;
-  std::shared_ptr<peloton::expression::AbstractExpression> sptr(where_clause);
-  peloton::optimizer::PlanGenerator plan_generator;
+  std::shared_ptr<peloton_sintr::expression::AbstractExpression> sptr(where_clause);
+  peloton_sintr::optimizer::PlanGenerator plan_generator;
   
   ColRegistry *col_registry = table_store->sql_interpreter.GetColRegistry(table_name);
   std::cerr << "Before generating predicate from col registry" << std::endl;
   auto predicate = plan_generator.GeneratePredicateForScanColRegistry(sptr, "", col_registry);
 
   std::cerr << "The parsed predicate evalpred is " << predicate->GetInfo() << std::endl;
-  peloton::catalog::Schema *schema = ConvertColRegistryToSchema(col_registry);
+  peloton_sintr::catalog::Schema *schema = ConvertColRegistryToSchema(col_registry);
   std::cerr << "Past convert col registry to schema" << std::endl;
   
   auto result = Eval(predicate.get(), row, schema);
@@ -791,22 +791,22 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
   return result;
  }
 
- bool Server::Eval(peloton::expression::AbstractExpression *predicate, const RowUpdates row, peloton::catalog::Schema *schema) { 
-  std::unique_ptr<peloton::storage::Tuple> tuple(new peloton::storage::Tuple(schema, true));
+ bool Server::Eval(peloton_sintr::expression::AbstractExpression *predicate, const RowUpdates row, peloton_sintr::catalog::Schema *schema) { 
+  std::unique_ptr<peloton_sintr::storage::Tuple> tuple(new peloton_sintr::storage::Tuple(schema, true));
 
   // TODO: Make comprehensive with all types
   for(int i = 0; i < row.column_values().size(); ++i){
-    if (schema->GetColumn(i).GetType() == peloton::type::TypeId::INTEGER) {
+    if (schema->GetColumn(i).GetType() == peloton_sintr::type::TypeId::INTEGER) {
       int32_t val = std::stoi(row.column_values()[i]);
-      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::INTEGER, val));
-    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::VARCHAR) {
-      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::VARCHAR, row.column_values()[i]));
-    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::DECIMAL) {
+      tuple->SetValue(i, peloton_sintr::type::Value(peloton_sintr::type::TypeId::INTEGER, val));
+    } else if (schema->GetColumn(i).GetType() == peloton_sintr::type::TypeId::VARCHAR) {
+      tuple->SetValue(i, peloton_sintr::type::Value(peloton_sintr::type::TypeId::VARCHAR, row.column_values()[i]));
+    } else if (schema->GetColumn(i).GetType() == peloton_sintr::type::TypeId::DECIMAL) {
       double val = atof(row.column_values()[i].c_str());
-      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::DECIMAL, val));
-    } else if (schema->GetColumn(i).GetType() == peloton::type::TypeId::BIGINT) {
+      tuple->SetValue(i, peloton_sintr::type::Value(peloton_sintr::type::TypeId::DECIMAL, val));
+    } else if (schema->GetColumn(i).GetType() == peloton_sintr::type::TypeId::BIGINT) {
       int64_t val = std::atoll(row.column_values()[i].c_str());
-      tuple->SetValue(i, peloton::type::Value(peloton::type::TypeId::BIGINT, val));
+      tuple->SetValue(i, peloton_sintr::type::Value(peloton_sintr::type::TypeId::BIGINT, val));
     }   
   }
 
@@ -821,9 +821,9 @@ bool Server::EvaluatePred(const std::string &pred, const RowUpdates &row, const 
   return result.IsTrue();
 }
 
-peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_registry) {
+peloton_sintr::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_registry) {
   std::cerr << "trying to parse" << std::endl;
-  std::vector<peloton::catalog::Column> columns;
+  std::vector<peloton_sintr::catalog::Column> columns;
   for (int i = 0; i < col_registry->col_names.size(); i++) {
     auto name = col_registry->col_names[i];
     auto type = col_registry->col_name_type.at(name);
@@ -831,13 +831,13 @@ peloton::catalog::Schema* Server::ConvertColRegistryToSchema(ColRegistry *col_re
     if (type == "FLOAT") type = "DECIMAL";
     if (type == "TEXT") type = "VARCHAR";
     std::cerr << "TYPE: " << type << std::endl;
-    auto type_id = peloton::StringToTypeId(type);
-    auto column = peloton::catalog::Column(type_id, peloton::type::Type::GetTypeSize(type_id), name, true);
+    auto type_id = peloton_sintr::StringToTypeId(type);
+    auto column = peloton_sintr::catalog::Column(type_id, peloton_sintr::type::Type::GetTypeSize(type_id), name, true);
     columns.push_back(column);
   }
 
   std::cerr << "finished id col" << std::endl;
-  peloton::catalog::Schema *schema = new peloton::catalog::Schema(columns);
+  peloton_sintr::catalog::Schema *schema = new peloton_sintr::catalog::Schema(columns);
   return schema;
 }
 

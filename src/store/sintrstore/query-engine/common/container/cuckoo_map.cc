@@ -19,7 +19,7 @@
 #include "../../common/logger.h"
 #include "../../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace storage {
 class TileGroup;
@@ -125,4 +125,4 @@ template class CuckooMap<std::shared_ptr<oid_t>, std::shared_ptr<oid_t>>;
 // Used in StatementCacheManager
 template class CuckooMap<StatementCache *, StatementCache *>;
 
-}  // namespace peloton
+}  // namespace peloton_sintr

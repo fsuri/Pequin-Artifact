@@ -18,7 +18,7 @@
 #include "../storage/tile.h"
 #include "../storage/tile_group_header.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 //===--------------------------------------------------------------------===//
@@ -82,4 +82,4 @@ class TupleIterator : public Iterator<Tuple> {
 };
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -853,8 +853,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   bool CheckGCWatermark(const Timestamp &ts); 
   bool EvaluatePred(const std::string &pred, const RowUpdates &row, const std::string &table_name);
   bool EvaluatePred_peloton(const std::string &pred, const RowUpdates &row, const std::string &table_name);
-  bool Eval(peloton::expression::AbstractExpression *predicate, const RowUpdates row, peloton::catalog::Schema *schema);
-  peloton::catalog::Schema* ConvertColRegistryToSchema(ColRegistry *col_registry);
+  bool Eval(peloton_sintr::expression::AbstractExpression *predicate, const RowUpdates row, peloton_sintr::catalog::Schema *schema);
+  peloton_sintr::catalog::Schema* ConvertColRegistryToSchema(ColRegistry *col_registry);
 
   /* END Semantic CC functions */
 

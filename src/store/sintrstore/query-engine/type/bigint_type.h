@@ -14,7 +14,7 @@
 
 #include "../type/integer_parent_type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // An integer value of the common sizes.
@@ -71,4 +71,4 @@ class BigintType : public IntegerParentType {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

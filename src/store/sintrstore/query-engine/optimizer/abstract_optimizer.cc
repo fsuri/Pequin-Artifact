@@ -12,7 +12,7 @@
 
 #include "../optimizer/abstract_optimizer.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 AbstractOptimizer::AbstractOptimizer(){};
@@ -20,4 +20,4 @@ AbstractOptimizer::AbstractOptimizer(){};
 AbstractOptimizer::~AbstractOptimizer(){};
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -19,7 +19,7 @@
 #include "../catalog/catalog.h"
 #include "../optimizer/stats/stats_storage.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 AnalyzeExecutor::AnalyzeExecutor(const planner::AbstractPlan *node,
@@ -51,14 +51,14 @@ bool AnalyzeExecutor::DExecute() {
     LOG_TRACE("Analyzing table %s", node.GetTableName().c_str());
     ResultType result = stats->AnalyzeStatsForTable(target_table, current_txn);
     current_txn->SetResult(result);
-    if (result == peloton::ResultType::SUCCESS) {
+    if (result == peloton_sintr::ResultType::SUCCESS) {
       LOG_TRACE("Successfully analyzed table %s", node.GetTableName().c_str());
     } else {
       LOG_TRACE("Failed to analyze table %s", node.GetTableName().c_str());
     }
   } else {
     // other operations unsupported for now
-    current_txn->SetResult(peloton::ResultType::SUCCESS);
+    current_txn->SetResult(peloton_sintr::ResultType::SUCCESS);
   }
 
   LOG_TRACE("Analyzing finished!");
@@ -66,4 +66,4 @@ bool AnalyzeExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

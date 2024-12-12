@@ -22,7 +22,7 @@
 #include <tuple>
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Rule;
@@ -88,13 +88,13 @@ class GroupExpression {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr
 
 namespace std {
 
 template <>
-struct hash<peloton::optimizer::GroupExpression> {
-  typedef peloton::optimizer::GroupExpression argument_type;
+struct hash<peloton_sintr::optimizer::GroupExpression> {
+  typedef peloton_sintr::optimizer::GroupExpression argument_type;
   typedef std::size_t result_type;
   result_type operator()(argument_type const &s) const { return s.Hash(); }
 };

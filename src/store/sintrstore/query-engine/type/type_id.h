@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // Every possible SQL type ID
@@ -34,4 +34,4 @@ enum class TypeId {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

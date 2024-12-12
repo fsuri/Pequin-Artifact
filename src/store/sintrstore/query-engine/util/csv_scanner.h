@@ -18,7 +18,7 @@
 #include "../type/type.h"
 #include "file.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace executor {
 class ExecutorContext;
@@ -60,7 +60,7 @@ public:
    */
   struct Column {
     // The type of data this column represents
-    peloton::type::Type col_type;
+    peloton_sintr::type::Type col_type;
 
     // A pointer to where the next value of this column is
     const char *ptr;
@@ -101,8 +101,8 @@ public:
    * @param escape The character that should appear before any data characters
    * that match the quote character.
    */
-  CSVScanner(peloton::type::AbstractPool &memory, const std::string &file_path,
-             const peloton::type::Type *col_types, uint32_t num_cols,
+  CSVScanner(peloton_sintr::type::AbstractPool &memory, const std::string &file_path,
+             const peloton_sintr::type::Type *col_types, uint32_t num_cols,
              Callback func, void *opaque_state, char delimiter = ',',
              char quote = '"', char escape = '"');
 
@@ -130,7 +130,7 @@ public:
    */
   static void Init(CSVScanner &scanner,
                    executor::ExecutorContext &executor_context,
-                   const char *file_path, const peloton::type::Type *col_types,
+                   const char *file_path, const peloton_sintr::type::Type *col_types,
                    uint32_t num_cols, Callback func, void *opaque_state,
                    char delimiter, char quote, char escape);
 
@@ -172,13 +172,13 @@ private:
 
 private:
   // All memory allocations happen from this pool
-  peloton::type::AbstractPool &memory_;
+  peloton_sintr::type::AbstractPool &memory_;
 
   // The path to the CSV file
   const std::string file_path_;
 
   // The CSV file handle
-  peloton::util::File file_;
+  peloton_sintr::util::File file_;
 
   // The temporary read-buffer where raw file contents are first read into
   // TODO: make these unique_ptr's with a customer deleter
@@ -213,4 +213,4 @@ private:
 
 } // namespace util
 } // namespace codegen
-} // namespace peloton
+} // namespace peloton_sintr

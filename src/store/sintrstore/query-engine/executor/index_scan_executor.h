@@ -21,7 +21,7 @@
 #include "../storage/storage_manager.h"
 #include "../concurrency/transaction_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace index {
 class Index;
@@ -205,4 +205,4 @@ class IndexScanExecutor : public AbstractScanExecutor {
 };
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -13,7 +13,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 
 //===--------------------------------------------------------------------===//
 // Iterator Interface
@@ -29,4 +29,4 @@ class Iterator {
   virtual ~Iterator() {}
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

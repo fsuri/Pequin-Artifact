@@ -18,7 +18,7 @@
 #include "../util/hash_util.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace expression {
 
 //===----------------------------------------------------------------------===//
@@ -42,8 +42,8 @@ class CaseExpression : public AbstractExpression {
         clauses_(std::move(when_clauses)),
         default_expr_(std::move(default_expr)) {
     for (uint32_t i = 0; i < clauses_.size(); i++)
-      clauses_[i].first.reset(new peloton::expression::ComparisonExpression(
-          peloton::ExpressionType::COMPARE_EQUAL, argument->Copy(),
+      clauses_[i].first.reset(new peloton_sintr::expression::ComparisonExpression(
+          peloton_sintr::ExpressionType::COMPARE_EQUAL, argument->Copy(),
           clauses_[i].first->Copy()));
   }
 
@@ -141,8 +141,8 @@ class CaseExpression : public AbstractExpression {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override {
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override {
     for (const auto &clause : clauses_) {
       clause.first->VisitParameters(map, values, values_from_user);
       clause.second->VisitParameters(map, values, values_from_user);
@@ -165,4 +165,4 @@ class CaseExpression : public AbstractExpression {
 };
 
 }  // namespace expression
-}  // namespace peloton
+}  // namespace peloton_sintr

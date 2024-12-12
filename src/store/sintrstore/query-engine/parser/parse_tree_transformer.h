@@ -17,7 +17,7 @@
 
 struct Node;
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 class AbstractParse;
@@ -45,4 +45,4 @@ class ParseTreeTransformer {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -21,7 +21,7 @@
 #include "internal_types.h"
 #include "../parser/sql_statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace planner {
 class AbstractPlan;
@@ -129,4 +129,4 @@ class Statement : public Printable {
   bool needs_replan_ = false;
 };
 
-}  // namespace peloton
+}  // namespace peloton_sintr

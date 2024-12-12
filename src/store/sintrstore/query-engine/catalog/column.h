@@ -18,7 +18,7 @@
 #include "../type/type.h"
 #include "../util/hash_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 //===--------------------------------------------------------------------===//
@@ -163,4 +163,4 @@ class Column : public Printable {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

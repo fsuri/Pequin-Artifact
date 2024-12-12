@@ -19,7 +19,7 @@
 #include "../storage/storage_manager.h"
 #include "../type/value_factory.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 TriggerCatalog::TriggerCatalog(concurrency::TransactionContext *txn,
@@ -256,4 +256,4 @@ std::unique_ptr<trigger::TriggerList> TriggerCatalog::GetTriggers(concurrency::T
 }*/
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

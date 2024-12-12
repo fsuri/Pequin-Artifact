@@ -15,7 +15,7 @@
 #include "../optimizer/property.h"
 #include "../optimizer/property_visitor.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 /*************** PropertySort *****************/
@@ -77,4 +77,4 @@ std::string PropertySort::ToString() const {
 }
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -15,7 +15,7 @@
 #include <cstdint>
 #include "../type/type.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace codegen {
 namespace type {
@@ -110,7 +110,7 @@ class StringFunctions {
    * @param pool A memory pool to source memory from
    */
   static void WriteString(const char *data, uint32_t len, char *buf,
-                          peloton::type::AbstractPool &pool);
+                          peloton_sintr::type::AbstractPool &pool);
 
   /**
    *
@@ -119,9 +119,9 @@ class StringFunctions {
    * @param len
    * @return
    */
-  static StrWithLen InputString(const peloton::type::Type &type,
+  static StrWithLen InputString(const peloton_sintr::type::Type &type,
                                 const char *data, uint32_t len);
 };
 
 }  // namespace function
-}  // namespace peloton
+}  // namespace peloton_sintr

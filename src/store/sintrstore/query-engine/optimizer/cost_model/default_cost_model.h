@@ -20,7 +20,7 @@
 #include "../../optimizer/stats/stats_storage.h"
 #include "../../optimizer/stats/table_stats.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 class Memo;
@@ -156,4 +156,4 @@ class DefaultCostModel : public AbstractCostModel {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

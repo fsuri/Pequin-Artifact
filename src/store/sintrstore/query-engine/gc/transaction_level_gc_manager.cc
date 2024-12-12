@@ -25,7 +25,7 @@
 #include "../storage/tuple.h"
 #include "../threadpool/mono_queue_pool.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace gc {
 
 bool TransactionLevelGCManager::ResetTuple(const ItemPointer &location) {
@@ -132,7 +132,7 @@ int TransactionLevelGCManager::Unlink(const int &thread_id,
     }
 
     // Log the query into query_history_catalog
-    /*if (settings::SettingsManager::GetBool(settings::SettingId::brain)) {
+    /*if (settings::SettingsManager::GetBool(settings::SettingId::peloton_sintr_brain)) {
       std::vector<std::string> query_strings = txn_ctx->GetQueryStrings();
       if (query_strings.size() != 0) {
         uint64_t timestamp = txn_ctx->GetTimestamp();
@@ -409,4 +409,4 @@ void TransactionLevelGCManager::UnlinkVersion(const ItemPointer location,
 }
 
 }  // namespace gc
-}  // namespace peloton
+}  // namespace peloton_sintr

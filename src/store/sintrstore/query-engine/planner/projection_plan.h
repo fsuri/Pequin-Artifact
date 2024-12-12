@@ -18,7 +18,7 @@
 #include "../planner/abstract_plan.h"
 #include "../planner/project_info.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace catalog {
 class Schema;
@@ -80,8 +80,8 @@ class ProjectionPlan : public AbstractPlan {
 
   /*void VisitParameters(
       codegen::QueryParametersMap &map,
-      std::vector<peloton::type::Value> &values,
-      const std::vector<peloton::type::Value> &values_from_user) override;*/
+      std::vector<peloton_sintr::type::Value> &values,
+      const std::vector<peloton_sintr::type::Value> &values_from_user) override;*/
 
  private:
   /** @brief Projection Info.            */
@@ -98,4 +98,4 @@ class ProjectionPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

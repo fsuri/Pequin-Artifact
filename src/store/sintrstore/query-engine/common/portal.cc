@@ -14,7 +14,7 @@
 #include "../common/logger.h"
 #include "../common/statement.h"
 
-namespace peloton {
+namespace peloton_sintr {
 
 Portal::Portal(const std::string& portal_name,
                std::shared_ptr<Statement> statement,
@@ -33,4 +33,4 @@ const std::vector<type::Value>& Portal::GetParameters() const {
   return bind_parameters_;
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

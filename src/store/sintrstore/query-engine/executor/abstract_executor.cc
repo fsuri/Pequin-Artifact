@@ -16,7 +16,7 @@
 #include "../executor/executor_context.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -93,4 +93,4 @@ bool AbstractExecutor::Execute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

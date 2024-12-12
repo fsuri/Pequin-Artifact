@@ -21,7 +21,7 @@
 #include "../parser/sql_statement.h"
 #include "../util/string_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace parser {
 
 class SelectStatement;
@@ -104,4 +104,4 @@ struct TableRef {
 };
 
 }  // namespace parser
-}  // namespace peloton
+}  // namespace peloton_sintr

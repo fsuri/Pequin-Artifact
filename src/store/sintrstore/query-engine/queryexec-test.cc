@@ -40,7 +40,7 @@
 #include "store/benchmark/async/json_table_writer.h"
 
 static std::string GetResultValueAsString(
-      const std::vector<peloton::ResultValue> &result, size_t index) {
+      const std::vector<peloton_sintr::ResultValue> &result, size_t index) {
     std::string value(result[index].begin(), result[index].end());
     return value;
 }
@@ -57,28 +57,28 @@ void ContinueAfterComplete(std::atomic_int &counter_) {
 }
 
 // Should additionally take a timestamp and a txn id
-peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton::ResultValue> &result, std::vector<peloton::FieldInfo> &tuple_descriptor, Timestamp &basil_timestamp, sintrstore::QueryReadSetMgr &query_read_set_mgr) {
-  //std::vector<peloton::ResultValue> result;
-  //std::vector<peloton::FieldInfo> tuple_descriptor;
+peloton_sintr::ResultType ExecuteSQLQuery(const std::string query, peloton_sintr::tcop::TrafficCop &traffic_cop, std::atomic_int &counter_, std::vector<peloton_sintr::ResultValue> &result, std::vector<peloton_sintr::FieldInfo> &tuple_descriptor, Timestamp &basil_timestamp, sintrstore::QueryReadSetMgr &query_read_set_mgr) {
+  //std::vector<peloton_sintr::ResultValue> result;
+  //std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
 
   // execute the query using tcop
   // prepareStatement
   //LOG_TRACE("Query: %s", query.c_str());
   std::string unnamed_statement = "unnamed";
-  auto &peloton_parser = peloton::parser::PostgresParser::GetInstance();
+  auto &peloton_parser = peloton_sintr::parser::PostgresParser::GetInstance();
   auto sql_stmt_list = peloton_parser.BuildParseTree(query);
   //PELOTON_ASSERT(sql_stmt_list);
   if (!sql_stmt_list->is_valid) {
-    return peloton::ResultType::FAILURE;
+    return peloton_sintr::ResultType::FAILURE;
   }
   auto statement = traffic_cop.PrepareStatement(unnamed_statement, query,
                                                  std::move(sql_stmt_list));
   if (statement.get() == nullptr) {
     traffic_cop.setRowsAffected(0);
-    return peloton::ResultType::FAILURE;
+    return peloton_sintr::ResultType::FAILURE;
   }
   // ExecuteStatment
-  std::vector<peloton::type::Value> param_values;
+  std::vector<peloton_sintr::type::Value> param_values;
   bool unnamed = false;
   std::vector<int> result_format(statement->GetTupleDescriptor().size(), 0);
   // SetTrafficCopCounter();
@@ -91,7 +91,7 @@ peloton::ResultType ExecuteSQLQuery(const std::string query, peloton::tcop::Traf
     status = traffic_cop.ExecuteStatementGetResult();
     traffic_cop.SetQueuing(false);
   }
-  if (status == peloton::ResultType::SUCCESS) {
+  if (status == peloton_sintr::ResultType::SUCCESS) {
     tuple_descriptor = statement->GetTupleDescriptor();
   }
 
@@ -113,11 +113,11 @@ std::string ConvertTableWriteToUpdate(std::string encoded_key, std::vector<std::
 
 int main(int argc, char *argv[]) {
   std::cerr << "Beginning of query exec test" << std::endl;
-  auto &txn_manager = peloton::concurrency::TransactionManagerFactory::GetInstance();
+  auto &txn_manager = peloton_sintr::concurrency::TransactionManagerFactory::GetInstance();
   std::cerr << "query exec test second" << std::endl;
   auto txn = txn_manager.BeginTransaction();
   std::cerr << "query exec test third" << std::endl;
-  peloton::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
+  peloton_sintr::catalog::Catalog::GetInstance()->CreateDatabase(txn, DEFAULT_DB_NAME);
   std::cerr << "query exec test fourth" << std::endl;
   txn_manager.CommitTransaction(txn);
   std::cerr << "query exec test fifth" << std::endl;
@@ -127,9 +127,9 @@ int main(int argc, char *argv[]) {
 	sintrstore::QueryReadSetMgr query_read_set_mgr_one(&read_set_one, 1, false);
 
   /*std::atomic_int counter_;
-  std::vector<peloton::ResultValue> result;
-  std::vector<peloton::FieldInfo> tuple_descriptor;
-  peloton::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
+  std::vector<peloton_sintr::ResultValue> result;
+  std::vector<peloton_sintr::FieldInfo> tuple_descriptor;
+  peloton_sintr::tcop::TrafficCop traffic_cop(UtilTestTaskCallback, &counter_);
   Timestamp pesto_timestamp(4, 6);
   Timestamp basil_timestamp(3, 5);
   Timestamp read_timestamp(2, 4);

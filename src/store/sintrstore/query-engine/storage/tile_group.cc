@@ -26,7 +26,7 @@
 #include "../storage/tuple.h"
 #include "../util/stringbox_util.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 TileGroup::TileGroup(BackendType backend_type,
@@ -362,8 +362,8 @@ void TileGroup::Sync() {
 const std::string TileGroup::GetInfo() const {
   std::ostringstream os;
 
-  os << peloton::GETINFO_DOUBLE_STAR << " TILE GROUP[#" << tile_group_id << "] "
-     << peloton::GETINFO_DOUBLE_STAR << std::endl;
+  os << peloton_sintr::GETINFO_DOUBLE_STAR << " TILE GROUP[#" << tile_group_id << "] "
+     << peloton_sintr::GETINFO_DOUBLE_STAR << std::endl;
   os << "Database[" << database_id << "] // ";
   os << "Table[" << table_id << "] " << std::endl;
   os << "Layout[" << *tile_group_layout_ << std::endl;
@@ -378,9 +378,9 @@ const std::string TileGroup::GetInfo() const {
 
   // auto header = GetHeader();
   // if (header != nullptr) os << (*header);
-  return peloton::StringUtil::Prefix(peloton::StringBoxUtil::Box(os.str()),
+  return peloton_sintr::StringUtil::Prefix(peloton_sintr::StringBoxUtil::Box(os.str()),
                                      GETINFO_SPACER);
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

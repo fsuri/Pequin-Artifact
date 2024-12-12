@@ -23,7 +23,7 @@
 
 #include "lib/message.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 /**
@@ -294,4 +294,4 @@ bool ZoneMapManager::ShouldScanTileGroup(
 bool ZoneMapManager::ZoneMapTableExists() { return zone_map_table_exists; }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

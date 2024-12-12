@@ -17,7 +17,7 @@
 
 #include "../common/macros.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 // Helper function for creating TupleSchema
@@ -353,4 +353,4 @@ bool Schema::operator==(const Schema &other) const {
 bool Schema::operator!=(const Schema &other) const { return !(*this == other); }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

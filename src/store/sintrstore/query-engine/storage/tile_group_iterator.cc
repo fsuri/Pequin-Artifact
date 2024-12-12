@@ -15,7 +15,7 @@
 #include "../storage/data_table.h"
 #include "../storage/tile_group.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 
 bool TileGroupIterator::Next(std::shared_ptr<TileGroup> &tileGroup) {
@@ -33,4 +33,4 @@ bool TileGroupIterator::HasNext() {
 }
 
 }  // namespace storage
-}  // namespace peloton
+}  // namespace peloton_sintr

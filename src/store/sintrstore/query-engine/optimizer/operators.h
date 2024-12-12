@@ -19,7 +19,7 @@
 
 #include <vector>
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace expression {
 class AbstractExpression;
@@ -707,4 +707,4 @@ class PhysicalDistinct : public OperatorNode<PhysicalDistinct> {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

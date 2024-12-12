@@ -31,7 +31,7 @@
 #undef __STDC_FORMAT_MACROS 
 #include <inttypes.h>
 
-namespace peloton {
+namespace peloton_sintr {
 
 // Note that __PELOTONFILE__ is a special pre-processor macro that we
 // generate for shorter path names using CMake.
@@ -192,6 +192,6 @@ inline void outputLogHeader_(const char *file, int line, const char *func,
             type);
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr
 
 #endif

@@ -28,7 +28,7 @@
 
 #define LANGUAGE_CATALOG_NAME "pg_language"
 
-namespace peloton {
+namespace peloton_sintr {
 
 namespace executor {
 class LogicalTile;
@@ -98,4 +98,4 @@ class LanguageCatalog : public AbstractCatalog {
 };
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

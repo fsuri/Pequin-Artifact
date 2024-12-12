@@ -20,7 +20,7 @@
 #include "../storage/storage_manager.h"
 
 
-namespace peloton {
+namespace peloton_sintr {
 namespace catalog {
 
 /*@brief    system catalog constructor, create core catalog tables and manually
@@ -136,4 +136,4 @@ void SystemCatalogs::Bootstrap(concurrency::TransactionContext *txn,
 }
 
 }  // namespace catalog
-}  // namespace peloton
+}  // namespace peloton_sintr

@@ -15,7 +15,7 @@
 #include "../type/numeric_type.h"
 #include "../common/exception.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // An integer value of the common sizes.
@@ -195,4 +195,4 @@ Value IntegerParentType::ModuloValue(const Value& left, const Value &right) cons
 }
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

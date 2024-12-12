@@ -17,7 +17,7 @@
 
 #include "../optimizer/property.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 // A set of physical properties
@@ -71,13 +71,13 @@ struct PropSetPtrEq {
 };
 
 } // namespace optimizer 
-} // namespace peloton 
+} // namespace peloton_sintr 
 
 namespace std {
 
 template <>
-struct hash<peloton::optimizer::PropertySet> {
-  typedef peloton::optimizer::PropertySet argument_type;
+struct hash<peloton_sintr::optimizer::PropertySet> {
+  typedef peloton_sintr::optimizer::PropertySet argument_type;
   typedef std::size_t result_type;
   result_type operator()(argument_type const &s) const { return s.Hash(); }
 };

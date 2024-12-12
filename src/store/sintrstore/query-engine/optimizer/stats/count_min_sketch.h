@@ -22,7 +22,7 @@
 #include "../../common/logger.h"
 #include "../../murmur3/MurmurHash3.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace optimizer {
 
 //===--------------------------------------------------------------------===//
@@ -172,4 +172,4 @@ class CountMinSketch {
 };
 
 }  // namespace optimizer
-}  // namespace peloton
+}  // namespace peloton_sintr

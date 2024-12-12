@@ -14,7 +14,7 @@
 
 #include <set>
 
-namespace peloton {
+namespace peloton_sintr {
 
 class SetUtil {
  public:
@@ -43,4 +43,4 @@ inline bool SetUtil::IsDisjoint(const std::set<T> &setA,
   return disjoint;
 }
 
-}  // namespace peloton
+}  // namespace peloton_sintr

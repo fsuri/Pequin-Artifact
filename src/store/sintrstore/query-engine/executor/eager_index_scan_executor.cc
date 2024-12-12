@@ -35,7 +35,7 @@
 #include "store/common/table_kv_encoder.h"
 #include "store/sintrstore/sintr-proto.pb.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -1137,4 +1137,4 @@ void IndexScanExecutor::ResetState() {
 }
 
 } // namespace executor
-} // namespace peloton
+} // namespace peloton_sintr

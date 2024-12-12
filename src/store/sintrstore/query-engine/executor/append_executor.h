@@ -16,7 +16,7 @@
 #include "../executor/abstract_executor.h"
 #include "../executor/logical_tile.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**

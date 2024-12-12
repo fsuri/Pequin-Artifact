@@ -24,7 +24,7 @@
 #include "../storage/tile.h"
 #include "../storage/storage_manager.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -106,14 +106,14 @@ bool UpdateExecutor::PerformUpdatePrimaryKey(
 
   // insert tuple into the table.
   ItemPointer *index_entry_ptr = nullptr;
-  peloton::ItemPointer location =
+  peloton_sintr::ItemPointer location =
       target_table_->InsertTuple(&new_tuple, current_txn, &index_entry_ptr);
 
   // it is possible that some concurrent transactions have inserted the
   // same tuple. In this case, abort the transaction.
   if (location.block == INVALID_OID) {
     transaction_manager.SetTransactionResult(current_txn,
-                                             peloton::ResultType::FAILURE);
+                                             peloton_sintr::ResultType::FAILURE);
     return false;
   }
 
@@ -133,7 +133,7 @@ bool UpdateExecutor::PerformUpdatePrimaryKey(
                                                     true) == false)
     {
       transaction_manager.SetTransactionResult(current_txn,
-                                              peloton::ResultType::FAILURE);
+                                              peloton_sintr::ResultType::FAILURE);
       return false;
     }
   }
@@ -473,4 +473,4 @@ bool UpdateExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

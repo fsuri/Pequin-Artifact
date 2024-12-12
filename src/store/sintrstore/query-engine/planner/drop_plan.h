@@ -15,7 +15,7 @@
 #include "../concurrency/transaction_context.h"
 #include "../planner/abstract_plan.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace storage {
 class DataTable;
 }
@@ -85,4 +85,4 @@ class DropPlan : public AbstractPlan {
 };
 
 }  // namespace planner
-}  // namespace peloton
+}  // namespace peloton_sintr

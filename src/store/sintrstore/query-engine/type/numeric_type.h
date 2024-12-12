@@ -15,7 +15,7 @@
 #include <cmath>
 #include "../type/value.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace type {
 
 // A numeric value is an abstract type representing a number. Numerics can be
@@ -45,4 +45,4 @@ class NumericType : public Type {
 };
 
 }  // namespace type
-}  // namespace peloton
+}  // namespace peloton_sintr

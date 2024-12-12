@@ -21,7 +21,7 @@
 #include "../expression/tuple_value_expression.h"
 #include "../common/container_tuple.h"
 
-namespace peloton {
+namespace peloton_sintr {
 namespace executor {
 
 /**
@@ -289,4 +289,4 @@ bool NestedLoopJoinExecutor::DExecute() {
 }
 
 }  // namespace executor
-}  // namespace peloton
+}  // namespace peloton_sintr

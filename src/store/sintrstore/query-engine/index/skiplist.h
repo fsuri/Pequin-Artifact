@@ -12,7 +12,7 @@
 
 #pragma once
 
-namespace peloton {
+namespace peloton_sintr {
 namespace index {
 
 /*
@@ -28,4 +28,4 @@ class SkipList {
 };
 
 }  // namespace index
-}  // namespace peloton
+}  // namespace peloton_sintr
