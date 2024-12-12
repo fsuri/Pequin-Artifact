@@ -158,8 +158,10 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
    
 2. Number of experiments:
    - The provided config files by default run the configured experiment once. If desired, experiments can instead be run several times, allowing us to report the mean throughput/latency as well as standard deviations across the runs. If you want to run the experiment multiple times, you can modify the config entry `num_experiment_runs: 1` to a repetition of your choice, which will automatically run the experiment the specified amount of times, and aggregate the joint statistics.
+
 3. Number of clients:
-   - The provided config files by default run an experiment for a single client setting that corresponds to the rough "peak" for throughput. Client settings are defined by the following JSON entries:
+   - The provided config files by default run a series of experiments for different number of clients. For simple cross-validation purposes this is probably not necessary, and you may want to shorten experiments to include only specific client points.
+   - Client settings are defined by the following JSON entries. Each is an array, which allows you to specify a series of clients. Array sizes of the following three params need to match!
       - "client_total": [[30]],
          - "client_total" specifies the upper limit for total client *processes* used
       - "client_processes_per_client_node": [[8]],
@@ -167,18 +169,18 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
       - "client_threads_per_process": [[1]],
          - "client_threads_per_process" specifies the number of client threads run by each client process.  
    - The *absolute total number* of clients used by an experiment is: **Total clients** *= max(client_total, num_servers x client_node_per_server x client_processes_per_client_node) *x client_threads_per_process*. For example, for Pesto (1 shard) "num_servers" = 6, for Peloton (unreplicated) "num_servers" = 1, and for Peloton-SMR "num_servers" = 4.
-   - To determine the peak **Total clients** settings we ran a *series* of client settings for each experiment. For simple cross-validation purposes this is not necessary - If you do however want to, you can run multiple settings automatically by specifying a list of client settings. For example:
+
+   - An example client series:
       - "client_total": [[5, 10, 20, 30, 20]],
       - "client_processes_per_client_node": [[8, 8, 8, 8, 8]],
       - "client_threads_per_process": [[1, 1, 1, 1, 2]]
-   - For convenience, we have included such series (in comments) in all configuration files. To use them, uncomment them (by removing the underscore `_`) and comment out the pre-specified single settings (by adding an underscore `_`).
-   - 
+  
 #### Starting an experiment:
 You are ready to start an experiment. The JSON configs we used can be found under `Pequin-Artifact/experiment-configs/<PATH>/<config>.json`. **Note that** all microbenchmark configs are Pesto (Pequin) exclusive.
 
 Run: `python3 <PATH>/Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <PATH>Pequin-Artifact/experiment-configs/<PATH>/<config>.json` and wait!
 
-Optional: To monitor experiment progress you can ssh into a server machine (us-east-1-0) and run htop. During the experiment run-time the cpus will be loaded (to different degrees depending on contention and client count).
+Optional: To monitor experiment progress you can ssh into a server machine (e.g., us-east-1-0) and run htop. During the experiment run-time the cpus will be loaded (to different degrees depending on contention and client count).
   
    
 ### 4) Parsing outputs
