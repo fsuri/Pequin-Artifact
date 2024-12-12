@@ -1,0 +1,452 @@
+{
+  "_NOTE: Pin again since now we don't use Peloton threads": 0,
+  "_RW_SQL_ARGS_": 0,
+  "__CLIENT RAND SLEEP NEEDS TO BE HIGH FOR NON CRYPTO; backoff too": true,
+  "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
+  "_client total is the upper bound on total client processes": 0,
+  "_client_debug_output": "store/pequinstore/querysync*",
+  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "_client_processes_per_client_node": [
+    [
+      8
+    ]
+  ],
+  "_client_threads_per_process": [
+    [
+      1
+    ]
+  ],
+  "_client_total": [
+    [
+      15
+    ]
+  ],
+  "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
+  "_note: parititoner is unused currently": 0,
+  "_server_debug_output": "store/pequinstore/querysync*",
+  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "_server_names": [
+    [
+      "us-east-1-0",
+      "us-east-1-1",
+      "us-east-1-2",
+      "eu-west-1-0",
+      "eu-west-1-1",
+      "eu-west-1-2",
+      "ap-northeast-1-0",
+      "ap-northeast-1-1",
+      "ap-northeast-1-2",
+      "us-west-1-0",
+      "us-west-1-1",
+      "us-west-1-2",
+      "eu-central-1-0",
+      "eu-central-1-1",
+      "eu-central-1-2",
+      "ap-southeast-2-0",
+      "ap-southeast-2-1",
+      "ap-southeast-2-2"
+    ]
+  ],
+  "_server_regions": [
+    {
+      "ap-northeast-1": [
+        "ap-northeast-1-0",
+        "ap-northeast-1-1",
+        "ap-northeast-1-2"
+      ],
+      "ap-southeast-2": [
+        "ap-southeast-2-0",
+        "ap-southeast-2-1",
+        "ap-southeast-2-2"
+      ],
+      "eu-central-1": [
+        "eu-central-1-0",
+        "eu-central-1-1",
+        "eu-central-1-2"
+      ],
+      "eu-west-1": [
+        "eu-west-1-0",
+        "eu-west-1-1",
+        "eu-west-1-2"
+      ],
+      "us-east-1": [
+        "us-east-1-0",
+        "us-east-1-1",
+        "us-east-1-2"
+      ],
+      "us-west-1": [
+        "us-west-1-0",
+        "us-west-1-1",
+        "us-west-1-2"
+      ]
+    }
+  ],
+  "_server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s",
+  "_src_commit_hash": "threadpool_test",
+  "base_local_exp_directory": "/home/fs435/Projects/Pequin/output/2024-11-01-10-29-31/2024-11-01-10-29-31",
+  "base_mounted_fs_path": "/mnt/extra",
+  "base_remote_bin_directory_nfs": "/users/fs435/indicus",
+  "base_remote_exp_directory": "/mnt/extra/experiments",
+  "benchmark_name": "rw-sql",
+  "benchmark_schema_file_path": "/users/fs435/rw-sql.json",
+  "benchmark_type": "sql_bench",
+  "bin_directory_name": "bin",
+  "cdf_plots": {
+    "font": "DejaVu Sans,12",
+    "height": 600,
+    "width": 800,
+    "x_label": "Latency (ms)",
+    "y_label": "Cumulative ratio of operations"
+  },
+  "client_abort_backoff": 2,
+  "client_bin_name": "benchmark",
+  "client_cdf_plot_blacklist": [],
+  "client_combine_stats_blacklist": [],
+  "client_conflict_percentage": 2,
+  "client_cpuprofile": false,
+  "client_debug_output": false,
+  "client_debug_stats": false,
+  "client_disable_gc": true,
+  "client_experiment_length": 60,
+  "client_gc_debug_trace": false,
+  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "client_key_selector": "zipf",
+  "client_max_attempts": -1,
+  "client_max_backoff": 250,
+  "client_max_processors": 2,
+  "client_message_timeout": 10000,
+  "client_name_format_str": "client-%d-%d",
+  "client_nodes_per_server": 1,
+  "client_num_keys": 10000000,
+  "client_processes_per_client_node": 8,
+  "client_protocol_mode": "pequin",
+  "client_ramp_down": 15,
+  "client_ramp_up": 15,
+  "client_rand_sleep": 2,
+  "client_random_coordinator": false,
+  "client_read_percentage": 0,
+  "client_retry_aborted": true,
+  "client_rmw_percentage": 0,
+  "client_stats_blacklist": [],
+  "client_threads_per_process": 1,
+  "client_total": 3,
+  "client_write_percentage": 1000,
+  "client_zipf_coefficient": 1.1,
+  "client_zipfian_s": 2,
+  "client_zipfian_v": 1,
+  "codebase_name": "indicus",
+  "default_remote_shell": "bash",
+  "disable_wraparound": true,
+  "emulab_user": "fs435",
+  "experiment_independent_vars": [
+    [
+      "replication_protocol",
+      "client_protocol_mode",
+      "server_names",
+      "replication_protocol_settings",
+      "server_regions",
+      "num_shards",
+      "num_groups",
+      "client_total",
+      "client_threads_per_process",
+      "client_processes_per_client_node"
+    ],
+    [
+      "client_total",
+      "client_processes_per_client_node",
+      "client_threads_per_process"
+    ]
+  ],
+  "experiment_independent_vars_unused": [],
+  "experiment_name": "pequin",
+  "fault_tolerance": 1,
+  "fixed_range": true,
+  "input_latency_scale": 1000000000,
+  "lot_plots": {
+    "font": "DejaVu Sans,12",
+    "height": 600,
+    "width": 800,
+    "x_label": "Time (ms)",
+    "y_label": "Latency (ms)"
+  },
+  "make_clean": false,
+  "make_collect_bins": [
+    "store/benchmark/async/benchmark",
+    "store/server"
+  ],
+  "make_env": {},
+  "master_bin_name": "master",
+  "master_port": 7077,
+  "master_server_name": "california",
+  "max_bandwidth": "1gibps",
+  "max_file_descriptors": 65535,
+  "max_range": 10,
+  "max_retries": 1,
+  "network_config_file_name": "shard.config",
+  "num_experiment_runs": 1,
+  "num_groups": 1,
+  "num_keys_per_table": 1000000,
+  "num_shards": 1,
+  "num_tables": 10,
+  "out_directory_name": "out",
+  "output_latency_scale": 1000,
+  "partitioner": "rw_sql",
+  "pin_client_processes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "pin_server_processes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "plot_cdf_png_font": "DejaVu Sans,12",
+  "plot_cdf_png_height": 600,
+  "plot_cdf_png_width": 800,
+  "plot_cdf_series_title": "Protocol",
+  "plot_cdf_x_label": "Latency (ms)",
+  "plot_cdf_y_label": "Cumulative ratio of operations",
+  "plot_directory_name": "plots",
+  "plot_tput_lat_png_font": "DejaVu Sans,12",
+  "plot_tput_lat_png_height": 600,
+  "plot_tput_lat_png_width": 800,
+  "plot_tput_lat_series_title": "Indicus",
+  "plot_tput_lat_x_label": "Throughput (ops/sec)",
+  "plot_tput_lat_y_label": "Latency (ms)",
+  "plots": [
+    {
+      "font": "DejaVu Sans,12",
+      "height": 600,
+      "name": "lat-tput",
+      "series_indep_vars_idx": 0,
+      "series_titles": [
+        "Indicus-Multi"
+      ],
+      "width": 800,
+      "x_indep_vars_idx": 1,
+      "x_label": "Throughput (txn/s)",
+      "x_var": [
+        "run_stats",
+        "combined",
+        "tput",
+        "mean"
+      ],
+      "x_var_is_config": false,
+      "y_label": "mean Latency (ms)",
+      "y_var": [
+        "aggregate",
+        "combined",
+        "mean"
+      ]
+    },
+    {
+      "font": "DejaVu Sans,12",
+      "height": 600,
+      "name": "tput-clients",
+      "series_indep_vars_idx": 0,
+      "series_titles": [
+        "Indicus-Multi"
+      ],
+      "width": 800,
+      "x_indep_vars_idx": 1,
+      "x_label": "Number of Clients",
+      "x_var": [
+        "client_total"
+      ],
+      "x_var_is_config": true,
+      "y_label": "Throughput (txn/s)",
+      "y_var": [
+        "run_stats",
+        "combined",
+        "tput",
+        "mean"
+      ]
+    }
+  ],
+  "point_op_freq": 0,
+  "project_name": "pequin-pg0",
+  "region_rtt_latencies": {
+    "ap-northeast-1": {
+      "ap-northeast-1": 0,
+      "ap-southeast-2": 106,
+      "eu-central-1": 243,
+      "eu-west-1": 220,
+      "us-east-1": 160,
+      "us-west-1": 115
+    },
+    "ap-southeast-2": {
+      "ap-northeast-1": 106,
+      "ap-southeast-2": 0,
+      "eu-central-1": 177,
+      "eu-west-1": 255,
+      "us-east-1": 199,
+      "us-west-1": 139
+    },
+    "eu-central-1": {
+      "ap-northeast-1": 243,
+      "ap-southeast-2": 177,
+      "eu-central-1": 0,
+      "eu-west-1": 26,
+      "us-east-1": 87,
+      "us-west-1": 148
+    },
+    "eu-west-1": {
+      "ap-northeast-1": 220,
+      "ap-southeast-2": 255,
+      "eu-central-1": 26,
+      "eu-west-1": 0,
+      "us-east-1": 73,
+      "us-west-1": 145
+    },
+    "us-east-1": {
+      "ap-northeast-1": 160,
+      "ap-southeast-2": 199,
+      "eu-central-1": 87,
+      "eu-west-1": 73,
+      "us-east-1": 0,
+      "us-west-1": 63
+    },
+    "us-west-1": {
+      "ap-northeast-1": 115,
+      "ap-southeast-2": 139,
+      "eu-central-1": 148,
+      "eu-west-1": 145,
+      "us-east-1": 63,
+      "us-west-1": 0
+    }
+  },
+  "remote_bin_directory_nfs_enabled": false,
+  "replication_protocol": "pequin",
+  "replication_protocol_settings": {
+    "_BASIL_ARGS_": 0,
+    "_QUERY_ARGS_": 0,
+    "_inject_failure_type": "client-crash",
+    "_max_dep_depth": -2,
+    "adjust_batch_size": false,
+    "all_to_all_fb": false,
+    "batch_verification": false,
+    "client_multi_threading": false,
+    "dispatchCallbacks": false,
+    "dispatchMessageReceive": false,
+    "eager_plus_snapshot": true,
+    "force_read_from_snapshot": false,
+    "hash_digest": true,
+    "hyper_threading": false,
+    "inject_failure_freq": 100,
+    "inject_failure_ms": 0,
+    "inject_failure_proportion": 0,
+    "key_path": "/usr/local/etc/indicus-keys/donna",
+    "mainThreadDispatching": true,
+    "max_dep_depth": -1,
+    "merkle_branch_factor": 2,
+    "message_transport_type": "tcp",
+    "monotonicity_grace": 2,
+    "multi_threading": true,
+    "no_fallback": false,
+    "non_monotonicity_grace": 5,
+    "p1_decision_timeout": 10,
+    "parallel_CCC": false,
+    "parallel_queries": true,
+    "parallel_reads": true,
+    "query_cache_read_set": false,
+    "query_compress_optimistic_txid": false,
+    "query_eager_exec": true,
+    "query_merge_active_at_client": true,
+    "query_merge_threshold": "query-one-honest",
+    "query_messages": "query-quorum",
+    "query_optimistic_txid": true,
+    "query_point_eager_exec": false,
+    "query_read_prepared": true,
+    "query_result_honest": true,
+    "query_sync_quorum": "query-majority-honest",
+    "read_dep": "one-honest",
+    "read_messages": "read-quorum",
+    "read_quorum": "one-honest",
+    "read_reply_batch": false,
+    "relayP1_timeout": 100,
+    "replica_gossip": false,
+    "retry_limit": 2,
+    "rts_mode": 0,
+    "shared_mem_batch": false,
+    "shared_mem_verify": false,
+    "sig_batch": 1,
+    "sig_batch_timeout": 0,
+    "sign_client_proposals": false,
+    "sign_client_queries": false,
+    "sign_messages": true,
+    "sign_replica_to_replica_sync": false,
+    "signature_type": 4,
+    "simulate_inconsistency": true,
+    "snapshot_prepared_k": 1,
+    "sync_messages": "query-quorum",
+    "use_active_read_set": true,
+    "use_semantic_cc": true,
+    "validate_proofs": true,
+    "verify_deps": false,
+    "watermark_time_delta": 30000
+  },
+  "run_locally": false,
+  "rw_num_ops_txn": 1,
+  "rw_read_only": false,
+  "rw_read_only_rate": 0,
+  "rw_secondary_condition": false,
+  "rw_simulate_point_kv": false,
+  "rxe_cfg_path": "/media/matthelb/DATA/projects/msr-rdma/rdma-replication-meta/rdma-core/build/providers/rxe/rxe_cfg.in",
+  "scan_as_point": false,
+  "scan_as_point_parallel": false,
+  "server_bin_name": "server",
+  "server_cpuprofile": false,
+  "server_debug_output": false,
+  "server_debug_stats": false,
+  "server_disable_gc": true,
+  "server_durable": false,
+  "server_emulate_wan": false,
+  "server_gc_debug_trace": false,
+  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "server_load_time": 15,
+  "server_names": [
+    "us-east-1-0",
+    "us-east-1-1",
+    "us-east-1-2",
+    "eu-west-1-0",
+    "eu-west-1-1",
+    "eu-west-1-2"
+  ],
+  "server_port": 7087,
+  "server_rdma_port": 9087,
+  "server_regions": {
+    "eu-west-1": [
+      "eu-west-1-0",
+      "eu-west-1-1",
+      "eu-west-1-2"
+    ],
+    "us-east-1": [
+      "us-east-1-0",
+      "us-east-1-1",
+      "us-east-1-2"
+    ]
+  },
+  "server_rpc_port": 8087,
+  "src_commit_hash": "863289f6f255c46b725589de9b713debcde9fcaa",
+  "src_directory": "/home/fs435/Projects/Pequin/Pequin-Artifact/src",
+  "stats_file_name": "stats.json",
+  "stats_merge_lists": [
+    "txn_groups",
+    "sig_batch",
+    "NumRetries"
+  ],
+  "use_master": false,
+  "value_categories": 100,
+  "value_size": -1
+}

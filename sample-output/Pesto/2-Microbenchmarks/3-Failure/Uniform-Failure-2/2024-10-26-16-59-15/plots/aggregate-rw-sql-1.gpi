@@ -1,0 +1,14 @@
+set datafile separator ','
+set title "\nclient\\\_total=[12, 16, 20, 25, 30, 35, 40, 45]\n"
+set key bottom right
+set xlabel 'Latency (ms)'
+set ylabel 'Cumulative ratio of operations'
+set terminal pngcairo size 800,600 enhanced dashed font 'DejaVu Sans,12'
+set output '/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/plots/aggregate-rw-sql-1.png'
+set style line 1 linetype 1 linewidth 2
+set style line 2 linetype 1 linecolor "green" linewidth 2
+set style line 3 linetype 1 linecolor "blue" linewidth 2
+set style line 4 linetype 4 linewidth 2
+set style line 5 linetype 5 linewidth 2
+set style line 6 linetype 8 linewidth 2
+plot '/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-01-34/out/plots/aggregate-rw-sql.csv' title "replication\\\_protocol=pequin" ls 1 with lines

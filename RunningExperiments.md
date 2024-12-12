@@ -195,7 +195,9 @@ To parse experiment results you have 2 options:
 2. Looking at generated png plots:
    Alternatively, on your local machine you can navigate to `<time_stamped_folder>/plots/tput-clients.png` and `<time_stamped_folder>/plots/lat-tput.png` to look at the data points directly. Currently however, it shows as "Number of Clients" the number of total client **processes** (i.e. `client_total`) and not the number of **Total clients** specified above. Keep this in mind when viewing output that was generated for experiments with a list of client settings.
    
- Find below, some example screenshots from looking at a provided experiment output from `Pequin-Artifact/sample-output/Validated Results`:
+ Find below, some example screenshots from looking at a provided experiment output from `Pequin-Artifact/sample-output/Pesto/1-Workloads/TPCC`:
+
+ > **NOTE**: We've included a few sample results as illustrative examples. These are *not* the full experiment results. Please refer to section 5 *Running Experiments* to reproduce our results.
 
    Experiment output folder:
    ![image](https://github.com/user-attachments/assets/e8241b28-77af-42f6-886d-419c63e8e589)
@@ -210,7 +212,7 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/fa9ff226-6940-4af6-9e78-0f4f5d3f2bf0)
 
 
-   For details on a specific experiment run, go to one of the experiment folders and inspect `stats.json`
+   For details on a specific experiment run, go to one of the experiment folders and inspect `stats.json`. To save space, we've removed all of the client/server logs shown in the picture (only `stats.json` remains)
 
    ![image](https://github.com/user-attachments/assets/75a526f4-ef72-4e07-be23-0ab8d8981c9b)
 
@@ -228,13 +230,8 @@ To parse experiment results you have 2 options:
 
 
 TODO: 
-<!-- 1. Confirm profile public --> 
 1. Clean up postgres instructions
-2. Clean up configs, document exactly what to run  -> Some of them don't have series etc..
-3. Clean up results below   --> Show full series? Or just peak points?
-Nice to have:
-4. Include our example results?  --> Cleanly pick out what to report
-5. Parse output example pics, make new
+
 Optional:
 6. Add Wan instructions -> how to modify server_names/server_regions
 7. Add CRDB instructions (different branch, what to run?)

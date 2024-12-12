@@ -1,0 +1,21 @@
+set datafile separator ','
+set title "replication\\\_protocol=pequin"
+set key bottom right
+set xlabel 'Latency (ms)'
+set ylabel 'Cumulative ratio of operations'
+set terminal pngcairo size 800,600 enhanced dashed font 'DejaVu Sans,12'
+set output '/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/plots/aggregate-rw-sql-0.png'
+set style line 1 linetype 1 linewidth 2
+set style line 2 linetype 1 linecolor "green" linewidth 2
+set style line 3 linetype 1 linecolor "blue" linewidth 2
+set style line 4 linetype 4 linewidth 2
+set style line 5 linetype 5 linewidth 2
+set style line 6 linetype 8 linewidth 2
+plot '/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-16-59-28/out/plots/aggregate-rw-sql.csv' title "client\\\_total=12" ls 1 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-01-34/out/plots/aggregate-rw-sql.csv' title "client\\\_total=16" ls 2 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-03-39/out/plots/aggregate-rw-sql.csv' title "client\\\_total=20" ls 3 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-05-44/out/plots/aggregate-rw-sql.csv' title "client\\\_total=25" ls 4 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-07-49/out/plots/aggregate-rw-sql.csv' title "client\\\_total=30" ls 5 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-09-54/out/plots/aggregate-rw-sql.csv' title "client\\\_total=35" ls 6 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-11-59/out/plots/aggregate-rw-sql.csv' title "client\\\_total=40" ls 7 with lines, \
+'/home/fs435/Projects/Pequin/output/2024-10-26-16-59-15/2024-10-26-16-59-15/2024-10-26-17-14-04/out/plots/aggregate-rw-sql.csv' title "client\\\_total=45" ls 8 with lines
