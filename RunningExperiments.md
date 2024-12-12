@@ -621,7 +621,12 @@ We report below the peak reported throughput. The configuration files referened 
 
 2. CRDB
 
-    TODO: 
+    > :warning: We've observed CRDB performance to be quite volatile.
+
+    TODO: Is there any setup needed?
+
+    Use the following three configs:
+    TODO: FILL CONFIGS
 
     Peak results reported were:
 
@@ -631,6 +636,7 @@ We report below the peak reported throughput. The configuration files referened 
 
  > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
  > **[NOTE]** CockroachDB (like most databases) only allows for sequential execution of operations within a transaction. This results in high transaction latencies (relative to Pesto) for TPC-C, whose New-Order transaction might issue up to ~45 operations. Pesto, in contrast, can execute many of these operations in parallel, reducing execution latency. Our Peloton baselines strike a midpoint: although execution on the DB itself must be sequential within a transaction, clients do not connect to the DB directly (like for CRDB) but send a message to a replica proxy, which then invokes the DB. This allows clients to send independent operations in parallel, thus sidestepping network and amortizing consensus latency. 
+
 
 3. Basil
 

@@ -26,7 +26,7 @@ It contains a prototype implemententation of Pesto, a replicated Byzantine Fault
 
 # Prototypes: Pesto, Peloton, Peloton-HS and Peloton-Smart
 
-This repository includes prototypes for Pesto, Peloton, Peloton-HS, Peloton-Smart, and several others not used for the evaluation of Pesto: Basil, Tapir, TxHotstuff, TxBFTSmart, Postgres.
+This repository includes prototypes for Pesto, Peloton, Peloton-HS, Peloton-Smart, Postgres, CockroachDB, and several others not used for the evaluation of Pesto: Basil, Tapir, TxHotstuff, TxBFTSmart.
 
 **Pesto** is a Byzantine Fault Tolerant SQL Database. Transaction processing in Pesto is client-driven, and independent of other concurrent but non-conflicting transactions. Pesto allows queries to execute, in the common case, in a single round-trip, and in two otherwise (subject to contention). Transactions can commit across shards in just a single round trip in absence of failures, and at most two under failure.
 This combination of low latency and parallelism allows Pesto to scale beyond transactional database systems built atop strongly consistent BFT SMR protocols. 
@@ -52,6 +52,27 @@ Finally, we augment both Peloton-SMR prototypes to benefit from Basil's reply ba
 We use the `libhotstuff` implemenation, an open source BFT state machine replication library written by the HotStuff authors. More information on Hotstuff can be found here: https://github.com/hot-stuff/libhotstuff. libhotstuff, by default, implements no batch timer and proposes only fixed-sized batches. This is inefficient and creates tension between batch sizes: a low batch size fails to optimally amortize consensus overheads, while a high batch size may cause progress to stall; this concern is amplified by HotStuff's pipelined nature (it takes 4 batches to commit one proposal).
 Inspired by BFT-Smart, we optimize libhotstuffs batching procedure to allow proposals to use flexibly sized batches: if load is low, this allows HotStuff to issue proposals nonetheless (thus avoiding stalling); if load is high, this allows HotStuff to pack more requests into a batch (up to a cap), thus avoiding waiting.
 
+[**Postgres**](https://www.postgresql.org/) is a production grade open-source SQL database. We run two variants of Postgres: 1) unreplicated Postgres, and 2) Postgres configured with its native primary-backup support (Postgres-PB).
+We mount Postgres atop tempfs to avoid disk accesses. `src/scripts/postgres_service.sh` details our parameterization. We allocate ample memory and buffer space.
+
+
+**CockroachDB** is a production grade distributed database. 
+
+TODO: Describe config
+Additional detail on our CRDB setup:
+       - we start each CockroachDb node using `cockroach start` for a multi-node cluster or `cockroach start-single-node` in the case of a single node. 
+       - we use the `--insecure` flag to disable TLS encryption. 
+       - we set the listening address and port for incoming connections using `--listen-addr`. 
+       - the `--join` flag is used to specify the list of other nodes in the cluster. 
+       - `--http-addr` is used to specify the address for the database console UI. 
+       - The storage configuration is set to run in memory using up to 100% memory capacity using `--store=type=mem,size=1.0`. 
+       - We disable logging except for logs at the FATAL level in the "OPS", "HEALTH", and "SQL_SCHEMA" channels. 
+       - The last node in the deployment sequence is used to initialize the cluster. 
+       - We set a lock timeout of 50ms to enhance performance under contention using `ALTER DATABASE defaultdb SET lock_timeout = '50ms';`. 
+       - We set the minimum bytes for a range to 0 to improve sharding over tables like `Warehouse` in TPCC, which has few rows with few columns but high contention. 
+       - We set the maximum bytes for a range to 134217728 (128Mb) and the number of replicas to 1 to disable replication (for now). 
+       - The last node is used to generate the HA Proxy configuration which is used by CRDB for load balancing. 
+       - We load balance client traffic to each server by having each client process send traffic to the server node corresponding to `client_id % number_of_servers`.
 
 ## Benchmarks:
 We implement four benchmarks:
