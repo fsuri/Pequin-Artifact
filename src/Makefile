@@ -219,6 +219,9 @@ include store/pelotonstore/Rules.mk
 include store/pequinstore/query-engine/Rules.mk
 include store/pequinstore/Rules.mk
 
+include store/sintrstore/query-engine/Rules.mk
+include store/sintrstore/Rules.mk
+
 include store/Rules.mk
 include store/benchmark/Rules.mk
 include store/benchmark/async/common/Rules.mk

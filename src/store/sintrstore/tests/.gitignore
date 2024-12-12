@@ -1,0 +1,7 @@
+table_loader_test
+compression_test
+sql_interpreter_test
+snapshot_test
+proto_bench
+table_store_interface_test
+tbb_test

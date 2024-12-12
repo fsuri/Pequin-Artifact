@@ -1,0 +1,316 @@
+syntax = "proto2";
+
+import "store/common/common-proto.proto";
+import "store/sintrstore/sintr-proto.proto";
+
+package sintrstore.proto;
+
+/////////////////////////// Query Exec ///////////////////////////
+message Query {
+   required uint64 query_seq_num = 1;
+   required uint64 client_id = 2; //query unique identifier = (query_seq_num, client_id) uniquely defines a corret clients query. A byz one can have duplicates, but thats only hurting its own progress                               
+   // Unless: Dependency on another TX which has a query that is invalid... (will abort by default) --> but then TX should not have prepared --> TxID still uniquely defines which query is used.
+   // For now: Treat Query just as a read, and assume read set will be included in tx (instead of cached) -- all worries about attack are complications due to caching.
+   required TimestampMessage timestamp = 3; //Timestamp at which to read query.
+   optional bytes query_cmd = 4;      //SQL statement as string --> parse at Replica  //FIXME: WARNING: bytes at most length 2^32
+   //Alternatively: Already parsed into AST at client --> send AST (What format?)
+   optional uint64 query_manager = 5;
+   //TODO: Needs to include involved groups?
+   required uint64 retry_version = 6; //Should go into Query, so that it is signed as well. (thus it is only proposable by original client); but not include din ID hash
+
+   optional string primary_enc_key = 7; //For point reads
+}
+
+message QueryRequest {
+  required uint64 req_id = 1;
+  oneof query_oneof {
+    Query query = 2;
+    SignedMessage signed_query = 3; //Need to sign query to a) provide access control (could use Macs instead), b) prove that (query_id, client_id) was proposed only by client with client_id
+    //private channels from client to replicas should suffice?
+  }
+ optional bool optimistic_txid = 5;
+ required bool designated_for_reply = 6;
+ optional bool eager_exec = 7;
+
+ optional bool is_point = 8;
+}
+
+// message Write { //For reference:  let committed_value = serialized committed proto result
+//   optional bytes committed_value = 1;
+//   optional TimestampMessage committed_timestamp = 2;
+//   optional bytes prepared_value = 3;
+//   optional TimestampMessage prepared_timestamp = 4;
+//   optional bytes prepared_txn_digest = 5;
+// }
+
+message PointQueryResultReply {
+  required uint64 req_id = 1;
+  required uint64 replica_id = 2;
+
+  optional bytes key = 3; //Don't really need to send, the client can buffer it after all. (Note: but only if CheckColCond is strict)
+  oneof prepared_oneof {
+    Write write = 4;
+    SignedMessage signed_write = 5;
+  }
+  optional CommittedProof proof = 6;
+ 
+  //Proof: (Only for committed write) Client checks key in proof WriteSet --> finds idx --> finds RowUpdate --> compares it with write.committed_value)
+  // For prepared writes: waiting for f+1 so no proof needed.
+
+  //TODO: To support EagerExec --> Just use existing Query Code stack.
+}
+//==> moved to sintr-proto.proto
+// message ReadSet { 
+//   repeated ReadMessage read_set = 1;
+// }
+
+// message TotalDeps {
+//   //All reported local deps: Client wants to wait on these: Reported by at least 1 correct client.bool
+//   map<string, bool> dep_ids = 1;
+// }
+
+message LocalDeps { //Deprecated: Has been made part of ReadSet
+  repeated bytes dep_ids = 1;
+}
+
+message QueryResult {
+  required uint64 query_seq_num = 1;
+  required uint64 client_id = 2;
+  required uint64 replica_id = 3;
+  //include result: this may be anything: e.g. an integer, a table (list of values). TBD how to encode
+  required bytes query_result = 4;
+  optional bytes query_result_hash = 5; //Hash of (QueryID, Read Set Merkle Root) --> uniquely identifies a queries read set.
+  //map<string, TimestampMessage> query_read_set = 5;
+  optional ReadSet query_read_set = 6;
+  //optional LocalDeps query_local_deps = 7; //only if reading prepared.   Note: Client turns deps into Dependency; only includes a Write- which in turn just holds prepared_txn_dig
+  
+  //Eager Exec + Snapsho
+  optional LocalSnapshot local_ss = 7;
+}
+
+message QueryResultReply {
+    //identify query
+    required uint64 req_id = 1;
+    oneof result_oneof {
+      QueryResult result = 2;
+      SignedMessage signed_result = 3;
+      bool failure = 4;
+    }
+
+    optional CommittedProof point_proof = 5; //For point read
+}
+
+
+
+message FailQueryMsg {
+  required uint64 replica_id = 1;
+  optional uint64 req_id = 2; // this alone suffice to identify query version and id.
+  optional bytes query_id = 3;
+  optional uint64 query_version = 4;
+  //oneof conflict_oneof {
+    //missed_txn; // proof of committed txn that snapshot should have seen, but missed
+    //abort_conflict; // proof that a prepared txn in snapshot aborted (or will be): either abort cert; or abort conflict
+    //Problem: Client can only tell whether conflict is valid w.r.t. to proposed snapshot set, but not w.r.t to proposed snapshot cut. 
+    //         E.g. no way to tell that the missed txn is indeed fresher, or that the abort conflict matters (maybe the aborted tx isn't in frontier)
+    //Solution: Best effort. Wait for f+1 conflicts; only tx-id suffices. If
+    //TODO: If replica received f+1 invalid supply txn for same query, or local validtion or exec determines abort early ==> reply to client with FailQuery.
+ // }
+}
+
+message FailQuery {
+  required uint64 req_id = 1;
+  oneof fail_query {
+    FailQueryMsg fail = 2;
+    SignedMessage signed_fail = 3;
+  }
+
+}
+
+
+
+////////////////////////// Query Synchronization ///////////////////////////
+
+//replica receives Query and replies with local snapshot of relevant state for ExecQuery
+message LocalSnapshot {
+  //identify query
+  required uint64 query_seq_num = 1;
+  required uint64 client_id = 2;
+  required uint64 replica_id = 3; 
+  //list of txn that materialize local exec snapshot
+  repeated bytes local_txns_committed = 4;  //note, if ts are compressed, they might be stored in here.
+  repeated uint64 local_txns_committed_ts = 5; 
+  
+  repeated bytes local_txns_prepared = 6;
+  repeated uint64 local_txns_prepared_ts = 7;
+
+  optional bytes local_txns_committed_ts_compressed = 8; //Note: max length 2^32 
+  optional uint32 num_committed_txn_ids = 9;
+  optional bytes local_txns_prepared_ts_compressed = 10; //Note: max length 2^32 
+  optional uint32 num_prepared_txn_ids = 11;
+  
+}
+message SyncReply {
+  required uint64 req_id = 1;
+  oneof snapshot_oneof {
+    LocalSnapshot local_ss = 2;
+    SignedMessage signed_local_ss = 3;
+  }
+  optional bool optimistic_tx_id = 4; //not part of protocol (hence not signed), just a system flag.
+}
+
+message ReplicaList {
+  repeated uint64 replicas = 1; //list of replicas
+  optional bool prepared = 2; //true if not f+1 had it committed
+  optional uint64 commit_count = 3;
+}
+
+//can use this instead of map <string, ReplicaList>
+message TxnData {
+  required bytes txn = 1;
+  required ReplicaList replica_list = 2;
+  // repeated uint64 replicas = 2; //list of replicas that have txn.
+  // required bool committed = 3 ; // true if committed, false if prepared
+}
+
+message MergedSnapshot {
+   //identify query
+   required uint64 query_seq_num= 1;
+   required uint64 client_id = 2;
+
+   required uint64 retry_version = 3;
+   optional bytes query_digest = 4;
+   //include snapshot proposal. 
+      //repeated TxnData cp_txns = 3;
+   map<string, ReplicaList> merged_txns = 5; //map from txn digest to replicas that have txn.
+   map<uint64, ReplicaList> merged_ts = 6; //map from txn digest to replicas that have txn.
+
+   repeated TxnData merged_txns_utf = 7;
+
+   //map<string, ReplicaList> merged_txns_prepared = 7; //dont think one needs to distinguish at this point. ==> might want to store it separately so that client can remember what are deps? ==> store a flag
+   //required TimestampMessage timestamp = 7; //
+}
+
+//client sends proposed merged snapshot. Replicas use it to ExecQuery and send back QueryReply
+message SyncClientProposal {
+ required uint64 req_id = 1;
+ oneof snapshot_oneof {
+   MergedSnapshot merged_ss = 2;
+   SignedMessage signed_merged_ss = 3;
+ }
+ required bool designated_for_reply = 4; //designate whether this replica should execute and reply, or just sync, execute, and cache read set.
+ 
+ optional bool query_managager = 5; // designate this shard as tx manager to coordinate execution and to reply.
+ optional Query query = 6; //In case we didn't send it before.
+}
+
+message RequestMissingTxns {
+   required uint64 replica_idx = 1;
+   optional bytes query_id = 2;
+   repeated bytes missing_txn = 3; //list of txn-ids (digests);
+   repeated uint64 missing_txn_ts = 4; //list of optimistic txn-ids (TS);
+   
+}
+
+message TxnInfo {
+  oneof supply_content {
+   Phase1 p1 = 1;
+    //optional Transaction txn = 1;
+    //optional SignedMessage signed_txn = 2;
+   CommittedProof commit_proof = 2;
+   bool abort = 3;  
+   bool invalid = 4;
+  }
+  optional Writeback abort_proof = 5;
+  optional bytes txn_id = 6; //Only set if using ts map. //Re-factor: Now always set for Supply.
+}
+
+message SupplyMissingTxnsMessage {
+  required uint64 replica_idx = 1;   
+  // map<string, TxnInfo> txns = 2; //map from txn digest to Transaction object (+ proof)
+  repeated TxnInfo txns = 2;
+  map<uint64, TxnInfo> txns_ts = 3; //map from Ts to to Transaction object (+ proof) + txn_digest
+   
+}
+
+message SupplyMissingTxns {
+  oneof supply_missing_txn {
+    SupplyMissingTxnsMessage supply_txn = 1;
+    SignedMessage signed_supply_txn = 2;
+  }
+  optional bytes query_id = 3;
+}
+
+////////////////////////// Modified Concurrency Control ///////////////////////////
+//TODO: Redefine Transaction to include also query information.
+message TransactionQuery {
+  //Same as Transaction, but additional fields for query information
+  required Transaction txn = 1;
+  repeated QueryResult query_result= 2;
+}
+
+////////////////////////// Checkpointing ///////////////////////////
+message LocalCheckpointSnapshot {
+  required uint64 checkpoint_id = 1;
+  repeated bytes transactions = 2; //list of txn that form current checkpoint
+  required uint64 replica_id = 3;
+  required uint64 checkpoint_view = 4;
+  //TODO: needs to be signed by replica.
+}
+
+message CheckpointVote {
+  //send local snapshot from replica to
+  required uint64 checkpoint_view = 1; //duplicate just for easier access?
+  oneof local_snapshot {
+    LocalCheckpointSnapshot local_cp_ss = 2;
+    SignedMessage signed_local_cp_ss = 3;
+  }
+}
+
+message CheckpointVotes {
+  repeated CheckpointVote votes = 1;
+}
+
+message MergedCheckpointSnapshot {
+  map<string, ReplicaList> relevant_txns = 1; //map from txn digest to replicas that have txn. --> technically just need set of votes, since replicas need to reassemble themselves anyways.
+  oneof merged_proof {
+    CheckpointVotes cp_votes = 2;
+    SignedMessages signed_cp_votes = 3;
+  }
+}
+
+message CheckpointProposal {
+   //send local snapshot from replica to
+   required uint64 checkpoint_view = 1;
+   required uint64 checkpoint_id = 2;
+   required bytes cp_hash = 3; //send hash of MergedCheckpointSnapshot.
+   optional MergedCheckpointSnapshot local_cp_ss = 4;  //first leader needs to include it; replicas will only accept hash if they have set of merged snapshot checkpoints.
+   //TODO: Needs to be signed by leader of view.
+}
+
+//replica echos CheckpointProposal (if first to be received in view, and no higher view received)
+message CheckpointAccept {
+  //simply an echo (possibly signed) of proposal.
+  required uint64 replica_id = 1;
+  oneof accept_oneof {
+    CheckpointProposal cp_proposal = 2;   //Remove local_cp_ss before sending.
+    SignedMessage signed_cp_proposal = 3;
+  }
+}
+
+//leader confirms checkpoint. replicas accept if valid.
+//Does not need to be signed -- anybody can issue a confirm since the existance of it guarantees that nothing else can be confirmed.
+message CheckpointConfirm {
+  required uint64 checkpoint_view = 1;
+  required uint64 checkpoint_id = 2;
+  required bytes cp_hash = 3; //send hash of MergedCheckpointSnapshot.
+  optional MergedCheckpointSnapshot local_cp_ss = 4;
+  optional Signatures cp_votes = 5; //Set of CheckpointAccept messages (or rather, sigs belonging to it)
+}
+
+// Checkpoint view change messages.
+message RequestNewCPLeader {
+   // Just need mechanism to complain --> If f+1 complaints received, or timed out, increment view
+   //If timeout to receive Checkpoint proposal --> send new votes to next leader
+   //If timeout to receive Checkpoint Confirm --> send checkpoint accept to next leader. (also include)
+
+}
