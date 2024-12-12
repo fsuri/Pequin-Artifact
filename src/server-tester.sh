@@ -9,9 +9,11 @@ ZIPF=0.0
 NUM_OPS_TX=2
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
-SQL_BENCH="true"
+STORE_MODE="false"
+SQL_BENCH="false"
 
-FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+FILE_PATH="/usr/local/etc/tpcc-1-warehouse"
+# FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
@@ -49,6 +51,7 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 		DEBUG=store/$STORE/ store/server --config_path $CONFIG --group_idx $j \
 			--num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL \
 			--num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
-			--debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+			--debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine \
+			--store_mode=$STORE_MODE &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

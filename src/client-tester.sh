@@ -12,10 +12,13 @@ NUM_OPS_TX=1
 NUM_KEYS_IN_DB=1
 KEY_PATH="keys"
 
-SQL_BENCH="true"
+STORE_MODE="false"
+SQL_BENCH="false"
 
-BENCHMARK="rw-sql"
-FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
+BENCHMARK="tpcc-sync"
+
+# BENCHMARK="rw-sql"
+# FILE_PATH="0_local_test_outputs/rw-sql/rw-sql.json"
 
 #BENCHMARK="tpcc-sql"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
@@ -51,7 +54,8 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --num_shards $NUM_GROUPS \
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
-    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-$i.out &
+    --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH \
+    --store_mode=$STORE_MODE &> ./0_local_test_outputs/client-$i.out &
 done;
 
 #valgrind
@@ -59,7 +63,8 @@ DEBUG=store/$STORE/* store/benchmark/async/benchmark --config_path $CONFIG --num
   --num_shards $NUM_GROUPS --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
   --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id 0 --num_client_hosts $CLIENTS --warmup_secs 0 \
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
-  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH &> ./0_local_test_outputs/client-0.out &
+  --stats_file "stats-0.json" --indicus_key_path $KEY_PATH \
+  --store_mode=$STORE_MODE &> ./0_local_test_outputs/client-0.out &
 
 
 sleep $((DURATION+4))

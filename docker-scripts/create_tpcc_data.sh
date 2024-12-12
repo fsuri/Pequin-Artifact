@@ -4,5 +4,5 @@
 NUM_WAREHOUSES=${1:-1}
 
 cd src/store/benchmark/async/tpcc/
-./tpcc_generator --num_warehouses=$NUM_WAREHOUSES > tpcc-1-warehouse
-mv tpcc-1-warehouse /usr/local/etc/
+./tpcc_generator --num_warehouses=$NUM_WAREHOUSES > tpcc-$NUM_WAREHOUSES-warehouse
+mv tpcc-$NUM_WAREHOUSES-warehouse /usr/local/etc/
