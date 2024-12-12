@@ -517,12 +517,10 @@ We use a reply batch size of 4 throughout (param `ebatch`).
 
 
 
-TODO: CLEAN UP POSTGRES CONFIGS AND INSTRUCTIONS
-      
 6. **Postgres**: 
 
-TODO: Use the postgres config instructions
-    
+Before running Postgres, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
+
     - TPCC: Peak Throughput: ~1.8k tx/s, Ankle Latency: ~11 ms
 
         Config file: `/experiment-configs/Postgres/unreplicated/TPCC/1-LAN/Postgres-TPCC-20wh.json`
@@ -556,13 +554,17 @@ TODO: Use the postgres config instructions
 
 7. **Postgres-PB**: 
 
-TODO: Use the postgres primary backup config instructions
-    
-    - TPCC:   Ankle point: 1998, 17.2
-        -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
-        -- TPCC is a write heavy workload, so the cost of synchronous PB affects it more
+Before running Postgres-PB, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
 
-        -- contention bottleneck, at high load starts to abort a lot.
+Postgres-PB incurs synchronous replication for all write queries. This results in higher latency, and, on contention bottlenecked workloads such as TPCC, in a reduction of throughput.
+
+  <!-- -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+        -- TPCC is a write heavy workload, so the cost of synchronous PB affects it more
+        -- contention bottleneck, at high load starts to abort a lot. -->
+    
+    - TPCC: Peak Throughput: 1257 tx/s, Ankle Latency: ~20ms
+    
+         Config file: `/experiment-configs/Postgres/primary-backup/PG-TPCC.json`
 
         | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
@@ -570,7 +572,9 @@ TODO: Use the postgres primary backup config instructions
         | Lat (ms)    |  12.7 |  11.9 |  13    |  17.2  |  25.1  |  33    |  42.5  |  56.4  |  64.2  |
 
 
-    - Auctionmark: Ankle Throughput: ~6084 tx/s Latency: ~8.4
+    - Auctionmark: Peak Throughput: 6084 tx/s, Ankle Latency: ~6ms
+
+         Config file: `/experiment-configs/Postgres/primary-backup/PG-Auction.json`
 
         | #Clients    |   1   |    5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
@@ -578,7 +582,9 @@ TODO: Use the postgres primary backup config instructions
         | Lat (ms)    |  5.4  |  5     |  4.7   |  4.5   |  5.3   |  6.8   |  8.4   |  10.2  |  11.9  |
 
 
-    - Seats: Ankle 7695, 6.7
+    - Seats: Peak Throughput: 7695 tx/s, Ankle Latency ~6ms
+
+        Config file: `/experiment-configs/Postgres/primary-backup/PG-Seats.json`
 
         | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
