@@ -196,32 +196,32 @@ To parse experiment results you have 2 options:
  Find below, some example screenshots from looking at a provided experiment output from `Pequin-Artifact/sample-output/Validated Results`:
 
    Experiment output folder:
+   ![image](https://github.com/user-attachments/assets/e8241b28-77af-42f6-886d-419c63e8e589)
 
-   ![image](https://user-images.githubusercontent.com/42611410/129566751-a179de6e-8b22-49bc-96f5-bfb517e8eb9e.png)
+   Contains the results (and configs) from a client series:
+   ![image](https://github.com/user-attachments/assets/7e8aa53a-1399-44b5-a938-e31b15476edd)
 
-   Subfolder that contains `stats.json`. Note: To save memory, we have removed all the server/client folders in /sample-output that you will see yourself.
+   The plots folder contains some visualization.
+   ![image](https://github.com/user-attachments/assets/89881415-cdf1-4073-8325-720b5e2b520a)
 
-   ![image](https://user-images.githubusercontent.com/42611410/129566648-808ea2d7-a2c0-48b4-b2e8-57221b040f13.png) 
+   Additionally, the plots folder contains csv files that automatically parse the Throughput and (mean) Latency for you
+   ![image](https://github.com/user-attachments/assets/1d7a3f88-388c-4ea2-bf63-e8c358a281f2)
 
-   JSON fields `run_stats` and `combined`. Note: `combined` might not be the first entry within `run_stats` in every config, so double check to get the right data.
+   For details on a specific experiment run, go to one of the experiment folders and inspect `stats.json`
+
+   ![image](https://github.com/user-attachments/assets/75a526f4-ef72-4e07-be23-0ab8d8981c9b)
+
+   Search for the JSON fields `run_stats` and `combined`. Note: `combined` might not be the first entry within `run_stats` in every config, so double check to get the right data.
 
    ![image](https://user-images.githubusercontent.com/42611410/129566877-87000119-c43b-4fa2-973a-2a9e571d9351.png)
 
    Throughput: 
-
-   ![image](https://user-images.githubusercontent.com/42611410/129566950-f0126263-7bd4-4978-8270-9051ad403a37.png)
-
+   ![image](https://github.com/user-attachments/assets/7a4c841d-fded-4660-9ddb-0b71401233da)
+   
    Latency: 
+   ![image](https://github.com/user-attachments/assets/1279b1b7-ab8d-4668-8b1f-a3f82de5ff96)
 
-   ![image](https://user-images.githubusercontent.com/42611410/129566988-5fc99464-a6c2-4e7a-8108-320c55e5b82e.png)
 
-   Correct Client Throughput: 
-
-   ![image](https://user-images.githubusercontent.com/42611410/129567041-4f002dca-5c6f-4617-bab5-87d7f4bd1af0.png)
-
-   Alternatively Plots (Throughput):
-
-   ![image](https://user-images.githubusercontent.com/42611410/129566828-694cf8e2-2c25-4e5b-941e-9a745340ea74.png)
 
 
 TODO: 
