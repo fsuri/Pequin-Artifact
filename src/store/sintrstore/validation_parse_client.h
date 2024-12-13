@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,46 +23,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/tpcc/delivery.h"
+#ifndef _VALIDATION_PARSE_CLIENT_H_
+#define _VALIDATION_PARSE_CLIENT_H_
 
-#include <chrono>
-#include <sstream>
-#include <ctime>
-
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
-#include "store/benchmark/async/tpcc/tpcc_common.h"
-#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
+#include "lib/assert.h"
 #include "store/common/common-proto.pb.h"
+#include "store/common/frontend/validation_transaction.h"
 
-namespace tpcc {
+namespace sintrstore {
 
-Delivery::Delivery(uint32_t w_id, uint32_t d_id, std::mt19937 &gen) : w_id(w_id),
-    d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
-}
+// this class takes parses TxnState proto message into the underlying validation transaction
+class ValidationParseClient {
+ public:
+  ValidationParseClient(uint32_t timeout): timeout(timeout) {}
+  ~ValidationParseClient(){}
 
-Delivery::~Delivery() {
-}
+  ValidationTransaction *Parse(const TxnState& txnState);
 
-void Delivery::SerializeTxnState(std::string &txnState) {
-  TxnState currTxnState = TxnState();
-  std::string txn_name;
-  txn_name.append(BENCHMARK_NAME);
-  txn_name.push_back('_');
-  txn_name.append(GetBenchmarkTxnTypeName(TXN_DELIVERY));
-  currTxnState.set_txn_name(txn_name);
+ private:
+  uint32_t timeout;
+};
 
-  validation::proto::Delivery curr_txn = validation::proto::Delivery();
-  curr_txn.set_w_id(w_id);
-  curr_txn.set_d_id(d_id);
-  curr_txn.set_o_carrier_id(o_carrier_id);
-  curr_txn.set_ol_delivery_d(ol_delivery_d);
-  std::string txn_data;
-  curr_txn.SerializeToString(&txn_data);
-  currTxnState.set_txn_data(txn_data);
+} // namespace sintrstore
 
-  currTxnState.SerializeToString(&txnState);
-}
-
-}
+#endif

@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,22 +23,32 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/tpcc/sync/stock_level.h"
+#include "store/benchmark/async/tpcc/validation/stock_level.h"
+#include "store/benchmark/async/tpcc/tpcc_utils.h"
 
 #include <map>
 
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
 namespace tpcc {
 
-SyncStockLevel::SyncStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : SyncTPCCTransaction(timeout),
-    StockLevel(w_id, d_id, gen) {
+ValidationStockLevel::ValidationStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id, uint8_t min_quantity) :
+    ValidationTPCCTransaction(timeout) {
+  this->w_id = w_id;
+  this->d_id = d_id;
+  this->min_quantity = min_quantity;
 }
 
-SyncStockLevel::~SyncStockLevel() {
+ValidationStockLevel::ValidationStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg) : 
+    ValidationTPCCTransaction(timeout) {
+  w_id = valStockLevelMsg.w_id();
+  d_id = valStockLevelMsg.d_id();
+  // protobuf only has uint32 type, but here we only need uint8_t
+  min_quantity = valStockLevelMsg.min_quantity() & 0xFF;
 }
 
-transaction_status_t SyncStockLevel::Execute(SyncClient &client) {
+ValidationStockLevel::~ValidationStockLevel() {
+}
+
+transaction_status_t ValidationStockLevel::Validate(::SyncClient &client) {
   std::string str;
   std::vector<std::string> strs;
 
@@ -48,10 +57,7 @@ transaction_status_t SyncStockLevel::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  std::string txnState;
-  StockLevel::SerializeTxnState(txnState);
-
-  client.Begin(timeout, txnState);
+  client.Begin(timeout);
 
   std::string d_key = DistrictRowKey(w_id, d_id);
   client.Get(d_key, str, timeout);

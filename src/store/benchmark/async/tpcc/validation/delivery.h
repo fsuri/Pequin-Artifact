@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,46 +23,26 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef VALIDATION_DELIVERY_H
+#define VALIDATION_DELIVERY_H
+
 #include "store/benchmark/async/tpcc/delivery.h"
-
-#include <chrono>
-#include <sstream>
-#include <ctime>
-
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
-#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/validation/tpcc_transaction.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
-#include "store/common/common-proto.pb.h"
+#include "store/common/frontend/sync_client.h"
 
 namespace tpcc {
 
-Delivery::Delivery(uint32_t w_id, uint32_t d_id, std::mt19937 &gen) : w_id(w_id),
-    d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
-}
+class ValidationDelivery : public ValidationTPCCTransaction, public Delivery {
+ public:
+  // constructor with no randomness (all fields directly initialized)
+  ValidationDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id, 
+    uint32_t o_carrier_id, uint32_t ol_delivery_d);
+  ValidationDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+  virtual ~ValidationDelivery();
+  virtual transaction_status_t Validate(::SyncClient &client);
+};
 
-Delivery::~Delivery() {
-}
+} // namespace tpcc
 
-void Delivery::SerializeTxnState(std::string &txnState) {
-  TxnState currTxnState = TxnState();
-  std::string txn_name;
-  txn_name.append(BENCHMARK_NAME);
-  txn_name.push_back('_');
-  txn_name.append(GetBenchmarkTxnTypeName(TXN_DELIVERY));
-  currTxnState.set_txn_name(txn_name);
-
-  validation::proto::Delivery curr_txn = validation::proto::Delivery();
-  curr_txn.set_w_id(w_id);
-  curr_txn.set_d_id(d_id);
-  curr_txn.set_o_carrier_id(o_carrier_id);
-  curr_txn.set_ol_delivery_d(ol_delivery_d);
-  std::string txn_data;
-  curr_txn.SerializeToString(&txn_data);
-  currTxnState.set_txn_data(txn_data);
-
-  currTxnState.SerializeToString(&txnState);
-}
-
-}
+#endif /* VALIDATION_DELIVERY_H */

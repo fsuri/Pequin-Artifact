@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,22 +23,15 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef TPCC_TRANSACTION_H
-#define TPCC_TRANSACTION_H
 
-#include <string>
+#include "store/benchmark/async/tpcc/validation/tpcc_transaction.h"
 
 namespace tpcc {
 
-class TPCCTransaction {
- public:
-  TPCCTransaction();
-  virtual ~TPCCTransaction();
-
-  // serialize the current transaction state into the variable txnState
-  virtual void SerializeTxnState(std::string &txnState) = 0;
-};
-
+ValidationTPCCTransaction::ValidationTPCCTransaction(uint32_t timeout) : ::ValidationTransaction(timeout) {
 }
 
-#endif /* TPCC_TRANSACTION_H */
+ValidationTPCCTransaction::~ValidationTPCCTransaction() {
+}
+
+} // namespace tpcc

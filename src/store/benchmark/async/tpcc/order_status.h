@@ -39,7 +39,10 @@ class OrderStatus : public TPCCTransaction {
  public:
   OrderStatus(uint32_t w_id, uint32_t c_c_last, uint32_t c_c_id,
       std::mt19937 &gen);
+  OrderStatus() {};
   virtual ~OrderStatus();
+
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   uint32_t w_id;

@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,36 +23,47 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/tpcc/sync/delivery.h"
-
+#include "store/benchmark/async/tpcc/validation/delivery.h"
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
-
+  
 namespace tpcc {
 
-SyncDelivery::SyncDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen)
-    : SyncTPCCTransaction(timeout), Delivery(w_id, d_id, gen) {
+ValidationDelivery::ValidationDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id, 
+    uint32_t o_carrier_id, uint32_t ol_delivery_d) : ValidationTPCCTransaction(timeout) {
+  this->w_id = w_id;
+  this->d_id = d_id; 
+  this->o_carrier_id = o_carrier_id;
+  this->ol_delivery_d = ol_delivery_d;
 }
 
-SyncDelivery::~SyncDelivery() {
+ValidationDelivery::ValidationDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg) : 
+    ValidationTPCCTransaction(timeout) {
+  w_id = valDeliveryMsg.w_id();
+  d_id = valDeliveryMsg.d_id();
+  o_carrier_id = valDeliveryMsg.o_carrier_id();
+  ol_delivery_d = valDeliveryMsg.ol_delivery_d();
 }
 
-transaction_status_t SyncDelivery::Execute(SyncClient &client) {
+ValidationDelivery::~ValidationDelivery() {
+}
+
+transaction_status_t ValidationDelivery::Validate(::SyncClient &client) {
   std::string str;
   std::vector<std::string> strs;
 
   Debug("DELIVERY");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);
-  //std::cerr << "warehouse: " << w_id << std::endl;
+  // std::cerr << "warehouse: " << w_id << std::endl;
+  // std::cerr << "w_id: " << w_id << " d_id: " << d_id << " o_carrier_id: " << o_carrier_id << " ol_delivery_d: " << ol_delivery_d << std::endl;
 
-  std::string txnState;
-  Delivery::SerializeTxnState(txnState);
-
-  client.Begin(timeout, txnState);
+  client.Begin(timeout);
 
   std::string eno_key = EarliestNewOrderRowKey(w_id, d_id);
   client.Get(eno_key, str, timeout);
+  // client.Get("0", str, timeout);
+  // std::cerr << "ValidationDelivery Validate get on key 0, value " << str << std::endl;
+  // return COMMITTED;
   EarliestNewOrderRow eno_row;
   if (str.empty()) {
     // TODO: technically we're supposed to check each district in this warehouse

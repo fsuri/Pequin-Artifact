@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,22 +23,56 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef TPCC_TRANSACTION_H
-#define TPCC_TRANSACTION_H
+#ifndef TPCC_COMMON_H
+#define TPCC_COMMON_H
+
+#include "lib/message.h"
+#include "store/benchmark/async/tpcc/tpcc_client.h"
 
 #include <string>
 
 namespace tpcc {
 
-class TPCCTransaction {
- public:
-  TPCCTransaction();
-  virtual ~TPCCTransaction();
+const std::string BENCHMARK_NAME = "tpcc";
 
-  // serialize the current transaction state into the variable txnState
-  virtual void SerializeTxnState(std::string &txnState) = 0;
-};
+inline std::string GetBenchmarkTxnTypeName(TPCCTransactionType txn_type) {
+  switch (txn_type) {
+    case TXN_DELIVERY:
+      return "delivery";
+    case TXN_NEW_ORDER:
+      return "new_order";
+    case TXN_ORDER_STATUS:
+      return "order_status";
+    case TXN_PAYMENT:
+      return "payment";
+    case TXN_STOCK_LEVEL:
+      return "stock_level";
+    default:
+      Panic("Received unexpected txn type: %d", txn_type);
+  }
+}
+
+inline TPCCTransactionType GetBenchmarkTxnTypeEnum(std::string &txn_type) {
+  if (txn_type == "delivery") {
+    return TXN_DELIVERY;
+  }
+  else if (txn_type == "new_order") {
+    return TXN_NEW_ORDER;
+  }
+  else if (txn_type == "order_status") {
+    return TXN_ORDER_STATUS;
+  }
+  else if (txn_type == "payment") {
+    return TXN_PAYMENT;
+  }
+  else if (txn_type == "stock_level") {
+    return TXN_STOCK_LEVEL;
+  }
+  else {
+    Panic("Received unexpected txn type: %s", txn_type.c_str());
+  }
+}
 
 }
 
-#endif /* TPCC_TRANSACTION_H */
+#endif /* TPCC_COMMON_H */

@@ -31,6 +31,10 @@
 #include <ctime>
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
+#include "store/common/common-proto.pb.h"
+
 
 namespace tpcc {
 
@@ -40,6 +44,25 @@ StockLevel::StockLevel(uint32_t w_id, uint32_t d_id, std::mt19937 &gen) :
 }
 
 StockLevel::~StockLevel() {
+}
+
+void StockLevel::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_STOCK_LEVEL));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::StockLevel curr_txn = validation::proto::StockLevel();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_min_quantity(min_quantity);
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+
+  currTxnState.SerializeToString(&txnState);
 }
 
 }

@@ -32,6 +32,10 @@
 
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
+#include "store/common/common-proto.pb.h"
+
 
 namespace tpcc {
 
@@ -65,6 +69,32 @@ NewOrder::NewOrder(uint32_t w_id, uint32_t C, uint32_t num_warehouses,
 }
 
 NewOrder::~NewOrder() {
+}
+
+void NewOrder::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_NEW_ORDER));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::NewOrder curr_txn = validation::proto::NewOrder();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_c_id(c_id);
+  curr_txn.set_ol_cnt(ol_cnt);
+  curr_txn.set_rbk(rbk);
+  *curr_txn.mutable_o_ol_i_ids() = {o_ol_i_ids.begin(), o_ol_i_ids.end()};
+  *curr_txn.mutable_o_ol_supply_w_ids() = {o_ol_supply_w_ids.begin(), o_ol_supply_w_ids.end()};
+  *curr_txn.mutable_o_ol_quantities() = {o_ol_quantities.begin(), o_ol_quantities.end()};
+  curr_txn.set_o_entry_d(o_entry_d);
+  curr_txn.set_all_local(all_local);
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+
+  currTxnState.SerializeToString(&txnState);
 }
 
 }

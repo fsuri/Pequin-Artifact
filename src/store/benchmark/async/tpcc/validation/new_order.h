@@ -24,46 +24,28 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/tpcc/delivery.h"
+#ifndef VALIDATION_NEW_ORDER_H
+#define VALIDATION_NEW_ORDER_H
 
-#include <chrono>
-#include <sstream>
-#include <ctime>
-
-#include "store/benchmark/async/tpcc/tpcc_utils.h"
-#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/new_order.h"
+#include "store/benchmark/async/tpcc/validation/tpcc_transaction.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
-#include "store/common/common-proto.pb.h"
+#include "store/common/frontend/sync_client.h"
 
 namespace tpcc {
 
-Delivery::Delivery(uint32_t w_id, uint32_t d_id, std::mt19937 &gen) : w_id(w_id),
-    d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
-}
+class ValidationNewOrder : public ValidationTPCCTransaction, public NewOrder {
+ public:
+  // constructor with no randomness (all fields directly initialized)
+  ValidationNewOrder(uint32_t timeout, uint32_t w_id, uint32_t d_id, 
+    uint32_t c_id, uint8_t ol_cnt, uint8_t rbk, std::vector<uint32_t> o_ol_i_ids,
+    std::vector<uint32_t> o_ol_supply_w_ids, std::vector<uint8_t> o_ol_quantities, 
+    uint32_t o_entry_d, bool all_local);
+  ValidationNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  virtual ~ValidationNewOrder();
+  virtual transaction_status_t Validate(::SyncClient &client);
+};
 
-Delivery::~Delivery() {
-}
+} // namespace tpcc
 
-void Delivery::SerializeTxnState(std::string &txnState) {
-  TxnState currTxnState = TxnState();
-  std::string txn_name;
-  txn_name.append(BENCHMARK_NAME);
-  txn_name.push_back('_');
-  txn_name.append(GetBenchmarkTxnTypeName(TXN_DELIVERY));
-  currTxnState.set_txn_name(txn_name);
-
-  validation::proto::Delivery curr_txn = validation::proto::Delivery();
-  curr_txn.set_w_id(w_id);
-  curr_txn.set_d_id(d_id);
-  curr_txn.set_o_carrier_id(o_carrier_id);
-  curr_txn.set_ol_delivery_d(ol_delivery_d);
-  std::string txn_data;
-  curr_txn.SerializeToString(&txn_data);
-  currTxnState.set_txn_data(txn_data);
-
-  currTxnState.SerializeToString(&txnState);
-}
-
-}
+#endif /* VALIDATION_NEW_ORDER_H */

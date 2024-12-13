@@ -24,32 +24,57 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/tpcc/sync/new_order.h"
 
+#include "store/benchmark/async/tpcc/validation/new_order.h"
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
 
 namespace tpcc {
 
-SyncNewOrder::SyncNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
-    uint32_t num_warehouses, std::mt19937 &gen) :
-    SyncTPCCTransaction(timeout),
-    NewOrder(w_id, C, num_warehouses, gen) {
+ValidationNewOrder::ValidationNewOrder(uint32_t timeout, uint32_t w_id, uint32_t d_id, 
+    uint32_t c_id, uint8_t ol_cnt, uint8_t rbk, std::vector<uint32_t> o_ol_i_ids,
+    std::vector<uint32_t> o_ol_supply_w_ids, std::vector<uint8_t> o_ol_quantities, 
+    uint32_t o_entry_d, bool all_local) : ValidationTPCCTransaction(timeout) {
+  this->w_id = w_id;
+  this->d_id = d_id;
+  this->c_id = c_id;
+  this->ol_cnt = ol_cnt;
+  this->rbk = rbk;
+  this->o_ol_i_ids = o_ol_i_ids;
+  this->o_ol_supply_w_ids = o_ol_supply_w_ids;
+  this->o_ol_quantities = o_ol_quantities; 
+  this->o_entry_d = o_entry_d;
+  this->all_local = all_local;
 }
 
-SyncNewOrder::~SyncNewOrder() {
+ValidationNewOrder::ValidationNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg) :
+    ValidationTPCCTransaction(timeout) {
+  w_id = valNewOrderMsg.w_id();
+  d_id = valNewOrderMsg.d_id();
+  c_id = valNewOrderMsg.c_id();
+  ol_cnt = valNewOrderMsg.ol_cnt();
+  rbk = valNewOrderMsg.rbk();
+  o_ol_i_ids = std::vector(valNewOrderMsg.o_ol_i_ids().begin(), valNewOrderMsg.o_ol_i_ids().end());
+  o_ol_supply_w_ids = std::vector(valNewOrderMsg.o_ol_supply_w_ids().begin(), valNewOrderMsg.o_ol_supply_w_ids().end());
+  // protobuf only has uint32 type, but here we only need uint8_t in the vector
+  o_ol_quantities = std::vector<uint8_t>();
+  for (int i = 0; i < valNewOrderMsg.o_ol_quantities().size(); i++) {
+    o_ol_quantities.push_back(valNewOrderMsg.o_ol_quantities(i) & 0xFF);
+  }
+  o_entry_d = valNewOrderMsg.o_entry_d();
+  all_local = valNewOrderMsg.all_local();
 }
 
-transaction_status_t SyncNewOrder::Execute(SyncClient &client) {
+ValidationNewOrder::~ValidationNewOrder() {
+}
+
+transaction_status_t ValidationNewOrder::Validate(::SyncClient &client) {
   std::string str;
 
   Debug("NEW_ORDER");
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  std::string txnState;
-  NewOrder::SerializeTxnState(txnState);
-
-  client.Begin(timeout, txnState);
+  client.Begin(timeout);
 
   client.Get(WarehouseRowKey(w_id), timeout);
   Debug("District: %u", d_id);

@@ -33,6 +33,9 @@
 
 #include "lib/message.h"
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
+#include "store/common/common-proto.pb.h"
 
 namespace tpcc {
 
@@ -70,6 +73,32 @@ Payment::Payment(uint32_t w_id, uint32_t c_c_last, uint32_t c_c_id,
 }
 
 Payment::~Payment() {
+}
+
+void Payment::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_PAYMENT));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::Payment curr_txn = validation::proto::Payment();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_d_w_id(d_w_id);
+  curr_txn.set_c_w_id(c_w_id);
+  curr_txn.set_c_d_id(c_d_id);
+  curr_txn.set_c_id(c_id);
+  curr_txn.set_h_amount(h_amount);
+  curr_txn.set_h_date(h_date);
+  curr_txn.set_c_by_last_name(c_by_last_name);
+  curr_txn.set_c_last(c_last);
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+
+  currTxnState.SerializeToString(&txnState);
 }
 
 }
