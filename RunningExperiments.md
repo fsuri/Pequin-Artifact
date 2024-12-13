@@ -623,10 +623,14 @@ We report below the peak reported throughput. The configuration files referened 
 
     > :warning: We've observed CRDB performance to be quite volatile.
 
-    TODO: Is there any setup needed?
+    No additional setup should be necessary to run CRDB. If you run into troubles, please e-mail <larzola@ucsd.edu>.
+
+    > :warning: The `server_names` in the following configs are slightly different than our default profile ones. Adjust them according to your experiment!!
 
     Use the following three configs:
-    TODO: FILL CONFIGS
+    - 1 shard: `experiment-configs/Cockroach/CRDB-TPCC-SQL-1.json` 
+    - 5 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-5.json` 
+    - 9 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-9.json`. NOTE: You will need 9 server machines for this. Change your CloudLab expeirment according to the `server_names` in the config.
 
     Peak results reported were:
 
