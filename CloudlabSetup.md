@@ -33,7 +33,7 @@ You may ssh into the machines to test your connection using the ssh commands sho
 Since experiments require a fairly large number of machines, you may have to create a reservation in order to have enough resources. Go to the "Make reservation tab" and make a reservation for 36 m510 machines on the Utah cluster (37 if you plan to use a control machine). 
 ![image](https://user-images.githubusercontent.com/42611410/129491361-b13ef31b-707b-4e02-9c0f-800e6d9b4def.png)
 
-Our profile by default allocates 18 servers (36 total machines), enough to run Pesto on TPCC for 3 shards. Most experiments, however, do not need this many machines: if you cannot get access to enough machines, simply use 6 server machines (remove the trailing 9 server names from the profile, i.e. keep only `['us-east-1-0', 'us-east-1-1', 'us-east-1-2', 'eu-west-1-0', 'eu-west-1-1', 'eu-west-1-2']`). This suffices to run all but the sharding experiment. 
+Our profile by default allocates 18 servers (36 total machines), enough to run Pesto on TPCC for 3 shards. Most experiments, however, do not need this many machines: if you cannot get access to enough machines, simply use 6 server machines (remove the trailing 12 server names from the profile, i.e. keep only `['us-east-1-0', 'us-east-1-1', 'us-east-1-2', 'eu-west-1-0', 'eu-west-1-1', 'eu-west-1-2']`). This suffices to run all but the sharding experiment. 
 
 Note, that the names are just placeholder names and do NOT correspond to real region placement. To emulate WAN latencies our experiment configs allow assigning ping latencies to sever-names.
 

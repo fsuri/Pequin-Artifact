@@ -1,7 +1,13 @@
 # Running experiments <a name="experiments"></a>
-Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process, and importantly requires good network connectivity to upload binaries to the remote machines and download experiment results. Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast. This section is split into 5 subsections: 1) Preparing Benchmarks, 2) Pre-configurations for Hotstuff and BFTSmart, 3) Using the experiment scripts, 4) Parsing outputs, and finally 5) reproducing experiment claims 1-by-1.
+Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. 
+Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process.
 
-Before you proceed, please confirm that the following credentials are accurate:
+Ideally you have good network connectivity to quickly upload binaries to the remote machines and download experiment results. 
+Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast.
+
+This section is split into 5 subsections: 1) Preparing Benchmarks, 2) Pre-configurations for Hotstuff and BFTSmart, 3) Using the experiment scripts, 4) Parsing outputs, and finally 5) reproducing our experiments 1-by-1.
+
+Before you proceed, please confirm that your CloudLab credentials are accurate:
 1. Cloudlab-username `<cloudlab-user>`: e.g. "fs435"
 2. Cloudlab experiment name `<experiment-name>`: e.g. "pequin"
 3. Cloudlab project name `<project-name`>: e.g. "pequin-pg0"  (May need the "-pg0" extension)
@@ -11,36 +17,36 @@ Confirm these by attempting to ssh into a machine you started (on the Utah clust
 ## High level experiment checklist
 Running experiments involves 5 steps. Refer back to this checklist to stay on track!
 
-> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running!.
+> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running!
 
 1. The first step is to generate and upload initial data used by the benchmarks
-2. Next, if you're running an SMR-based store (e.g. Peloton-HS or Peloton-Smart), you will need to pre-configure the SMR module. The exact procedure depends on the module you are using.
-3. In order to run an experiment, you will need to write (or copy and adjust our pre-supplied) configuration file. This specifies the cluster setup, the benchmark to run, and the parameters of the system.
+2. Next, if you're running an SMR-based store (e.g. Peloton-HS or Peloton-Smart), you will need to pre-configure the SMR module. The exact procedure depends on the module you are using. Postgres requires some pre-setup as well.
+3. In order to run an experiment, you will need to write a configuration file (or copy and adjust our pre-supplied configs). This specifies the cluster setup, the benchmark to run, and the parameters of the system.
 4. You're ready to run the experiment! Run the experiment script and supply it with your prepared config.
 5. Finally, inspect the downloaded experiment run by checking the output data. 
 
-### 1) Preparing Benchmarks
+## (1) Preparing Benchmarks
 
-To generate benchmark data simple run the script `src/generate_benchmark_data.sh`, configuring it as follows:
+To generate benchmark data simple run the script `src/generate_benchmark_data.sh`. Configure it as follows:
 1) specify the benchmark you want to generate, e.g. to run TPC-C use `-b 'tpcc'`
 2) specify the benchmark parameters, e.g. to create 20 warehouses for TPC-C use `-n 20`
 
-Generate TPC-C data using: `./generate_benchmark_data -n 20` (tpcc is the default benchmark)
-Generate Auctionmark data using: `./generate_benchmark_data -b 'auctionmark'` (using default scale factor)
-Generate Seats data using: `./generate_benchmark_data -b 'seats'` (using default scale factor)
+- Generate TPC-C data using: `./generate_benchmark_data -n 20` (tpcc is the default benchmark)
+- Generate Auctionmark data using: `./generate_benchmark_data -b 'auctionmark'` (using default scale factor)
+- Generate Seats data using: `./generate_benchmark_data -b 'seats'` (using default scale factor)
 
 Once you created the benchmark data (you can create all data upfront), upload the respective benchmark data to your CloudLab cluster using `src/upload_data_remote`.
 Simply specify which benchmark you are uploading, and to how many shards (1, 2 or 3) you are uploading:
-E.g. use `./upload_data_remote -b 'tpcc' -s 2` to upload TPC-C data to 2 shards. 
-TPC-C and 1 shard are default parameters.
+- E.g. use `./upload_data_remote -b 'tpcc' -s 2` to upload TPC-C data to 2 shards. 
+- TPC-C and 1 shard are default parameters.
 
-### 2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
+## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
-When evaluating Peloton-HS and Peloton-Smart you will need to complete the following pre-configuration steps before running an experiment script:
+When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete the following pre-configuration steps before running an experiment script:
 
-1. **Hotstuff**
+### **Hotstuff**
    1. Navigate to `Pequin-Artifact/src/scripts`
-   2. Run `./batch_size <batch_size>` to configure the internal batch size used by the Hotstuff Consensus module. See sub-section "1-by-1 experiment guide" for what settings to use. The default value is an *upper* cap  of 200. Since we modified Hotstuff to use more efficient, dynamic batch sizes, changing the default batch cap is not necessary.
+   2. [**OPTIONAL**] Run `./batch_size <batch_size>` to configure the internal batch size used by the HotStuff consensus module. See sub-section "1-by-1 experiment guide" for what settings to use. The default value is an *upper* cap of 200. Since we modified Hotstuff to use more efficient, dynamic batch sizes, changing the default batch cap is not necessary.
    3. Run `./pghs_config_remote.sh <cloudlab-user>` (e.g. `fs435`). This will upload the necessary configurations for the HotStuff Consensus module.
 
 > :warning:  HotStuff is pre-configured to use the server names `us-east-1-0`, `us-east-1-1`, `us-east-1-2`, and `eu-west-1-0`. If you want to change the names of your servers you must also adjust the files `src/scripts/hosts_pg_smr` and `scr/scripts/config_pghs/shard0/hotstuff.gen.conf` accordingly.
@@ -51,7 +57,7 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
    4. Finally, run `./config_remote.sh` 
    5. This will upload the necessary configurations for the Hotstuff Consensus module to the Cloudlab machines. -->
 
-2. **BFTSmart**
+### **BFTSmart**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. Build BFT-Smart using `./build_bftsmart.sh`. You only need to do this *once*.
    3. Navigate to `Pequin-Artifact/src/scripts/bftsmart-configs` 
@@ -68,7 +74,7 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
       - Troubleshooting: Make sure files `server-hosts` and `client-hosts` in `/src/scripts/` do not contain empty lines at the end -->
 
 
-3. **Postgres**
+### **Postgres**
 
 > :warning: The experiments reported in the paper were performed with a less clean, manual setup. The new scripts described below should simply processing, but if you run into issues, reach out to us and or follow the old manual instructions
 
@@ -76,11 +82,11 @@ To run an experiment with Postgres you will first need to start a database on yo
 To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
 
 #### Pre-configuring 
-First, you must modify scripts and the client connection string according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
+First, you must modify scripts and the client connection string according to your `<experiment-name>`, `<cloudlab-user>`, `<cloudlab-cluster>`, and `<project-name>`.
 
-In `src/store/postgresstore/client.cc` make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
-`connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
-E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
+- In `src/store/postgresstore/client.cc` make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
+- `connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
+- E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
 
 Additionally, modify the following scripts accordingly to your experiment host names.
 - `init_postgres_replicated.sh`
@@ -112,7 +118,7 @@ First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh
 
 
 
-### 3) Using the experiment scripts
+## (3) Using the experiment scripts
 
 To run an experiment, you simply need to run: `python3 Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <CONFIG>` using a specified configuration JSON file (see below). The script will load all binaries and configurations onto the remote Cloudlab machines, and collect experiment data upon completion. We have provided experiment configurations for all experiments claimed by the paper, which you can find under `Pequin-Artifact/experiment-configs`. In order for you to use them, you will need to make the following modifications to each file (Ctrl F and Replace in all the configs to save time):
 
@@ -171,7 +177,7 @@ Run: `python3 <PATH>/Pequin-Artifact/experiment-scripts/run_multiple_experiments
 Optional: To monitor experiment progress you can ssh into a server machine (e.g., us-east-1-0) and run htop. During the experiment run-time the cpus will be loaded (to different degrees depending on contention and client count).
   
    
-### 4) Parsing outputs
+## (4) Parsing outputs
 After the experiment is complete, the scripts will generate an output folder at your specified `base_local_exp_directory`. Each folder is timestamped. 
 
 To parse experiment results you have 2 options:
@@ -215,7 +221,7 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/71878eec-8e34-4ded-b8b6-0b5aa98c6abb)
 
 
-### 5) Reproducing experiment claims 1-by-1
+## (5) Reproducing experiment claims 1-by-1
 
 Next, we will go over each included experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
 
