@@ -806,8 +806,6 @@ The reported results on the uniform workoad U were:
 
         Use config `Uniform-Failure-0.json`
 
-> **Note**: Config `Uniform-NoFP` runs a fault-free experiment with fast path disabled. The resulting performance is pretty much equivalent to running with replica failure.
-
         | #Clients    |   12   |   16   |   21   |   25   |   30   |   35   |   40   |   45   |
         |-------------|--------|--------|--------|--------|--------|--------|--------|--------|
         | Tput (tx/s) |  3038  |  4009  |  4567  |  5156  |  5520  |  5816  |  5952  |  6018  |   
@@ -826,11 +824,14 @@ The reported results on the uniform workoad U were:
         | Lat (ms)    |  8.2   |  8.1   |  8.3   |  8.5   |  8.7   |  9.4   |  12.1  |
 
 
+> **Note**: We additionally ran an experiment (not shown in the paper) that runs a fault-free experiment with fast path disabled (config `Uniform-NoFP.json`). The resulting performance is pretty much equivalent to running with replica failure (`U-NoFP`).
+
+
 The reported results on the Zipfian workoad Z were:
 
 > **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
 
-> **[NOTE]** We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affect performance slightly for all Zipfian runs (within 5%) as the workload is so heavily contended that there are a lot of dependencies. 
 
     - Z-Ideal 
     
@@ -865,9 +866,9 @@ The reported results on the Zipfian workoad Z were:
 
 ## Other experiments, not in the paper
 
-#### WAN instructions
+### WAN instructions
 Our experiment setup allows simulation of wide area network (WAN) latencies. 
-We opted to omit WAN experiments in the paper as 1) contention bottlecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and 2) the Peloton-SMR prototypes perform extremely poorly as latency rises.
+We opted to omit WAN experiments in the paper because (1) contention bottlecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and (2) the Peloton-SMR prototypes perform even worse as latency rises.
 
 If you are nonetheless interested in using the codebase to simulate WAN experiments, you need to do the following:
 
@@ -890,11 +891,11 @@ Our `experiment-configs` include experiments for Pesto on three latency setups.
 TPCC performance is affected heavily as latency increases as it is contention bound. Auctionmark and Seats are affeted less.
 
 
-#### Running PG_SMR store -- currently deprecated
+### Running PG_SMR store -- currently deprecated
 In addition to layering Peloton atop SMR, we also explored layering Postgres atop SMR. Unfortunately, this results in odd performance behaviors that we have been unable to debug.
 You may play around with `pg_SMRstore` if you are interested. However, active support is deprecated.
 
-PG-SMR supports three modes: 0 runs Postgres via a server proxy, but without SMR. 1 runs Postgres atop HotStuff, and 2 runs Postgres atop BFTSmart
+PG-SMR supports three modes (`SMR_mode`): $0$ runs Postgres via a server proxy, but without SMR. $1$ runs Postgres atop HotStuff, and $2$ runs Postgres atop BFTSmart
 
 
 ## CRDB configuration
