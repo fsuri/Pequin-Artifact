@@ -65,7 +65,7 @@ class Client {
 
   // Begin a transaction.
   virtual void Begin(begin_callback bcb, begin_timeout_callback btcb,
-      uint32_t timeout, bool retry = false) = 0;
+      uint32_t timeout, bool retry = false, const std::string &txnState = std::string()) = 0;
 
   // Get the value corresponding to key.
   virtual void Get(const std::string &key, get_callback gcb,

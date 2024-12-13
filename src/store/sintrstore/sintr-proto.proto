@@ -439,3 +439,55 @@ message SendView {
   required bytes txn_digest = 2;
   required AttachedView attached_view = 3;
 }
+
+// Sintr specific messages
+
+message BeginValidateTxnMessage {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+  required TxnState txn_state = 3;
+  required TimestampMessage timestamp = 4;
+}
+
+message ForwardReadResult {
+  required bytes key = 1;
+  required bytes value = 2;
+  required TimestampMessage timestamp = 3;
+}
+
+message ForwardReadResultMessage {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+  oneof forward_one_of {
+    ForwardReadResult fwd_read_result = 3;
+    SignedMessage signed_fwd_read_result = 4;
+  }
+  // committed proof shows the committed txn that corresponds with value
+  optional CommittedProof proof = 5;
+  // shows server (signed) value
+  oneof prepared_oneof {
+    Write write = 6;
+    SignedMessage signed_write = 7;
+  }
+  // shows dependency which can be verified
+  optional Dependency dep = 8;
+  // tell validating client whether to add to readset
+  optional bool add_readset = 9;
+}
+
+message FinishValidateTxnMessage {
+  // client_id is the client that is sending this message
+  required uint64 client_id = 1;
+  oneof validation_one_of {
+    bytes validation_txn_digest = 2;
+    SignedMessage signed_validation_txn_digest = 3;
+  }
+  // optionally can compare entire transaction directly
+  optional Transaction val_txn = 4;
+}
+
+message EndorsementPolicyMessage {
+  required uint64 policy_id = 1;
+  optional uint64 weight = 2;
+  repeated uint64 access_control_list = 3;
+}

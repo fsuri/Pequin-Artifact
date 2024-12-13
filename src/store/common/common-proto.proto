@@ -84,3 +84,8 @@ message TableWrite {
 message TableWrites {
     map<string, TableWrite> tablewrites= 1; //map from table name to all writes for this table.
 }
+
+message TxnState {
+    optional string txn_name = 1;
+    optional bytes txn_data = 2;
+}
