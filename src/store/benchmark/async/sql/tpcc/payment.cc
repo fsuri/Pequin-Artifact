@@ -65,6 +65,8 @@ SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
   }
   h_amount = std::uniform_int_distribution<uint32_t>(100, 500000)(gen);
   h_date = std::time(0);
+
+  std::cerr << "PAYMENT (parallel)" << std::endl;
 }
 
 SQLPayment::~SQLPayment() {

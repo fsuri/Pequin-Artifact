@@ -46,6 +46,8 @@ SQLOrderStatus::SQLOrderStatus(uint32_t timeout, uint32_t w_id,
     c_id = tpcc_sql::NURand(1023, 1, 3000, static_cast<int>(c_c_id), gen);
     c_by_last_name = false;
   }
+
+  std::cerr << "ORDER_STATUS" << std::endl;
 }
 
 SQLOrderStatus::~SQLOrderStatus() {

@@ -10,6 +10,7 @@ const int MAX_NUM_FLIGHTS = 10;
 SQLFindFlights::SQLFindFlights(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) :
     SEATSSQLTransaction(timeout), gen(gen), profile(profile)
     {
+        std::cerr << "FIND_FLIGHTS" << std::endl;
         //TODO: Implement FindRandomAirport ID vs getRandomFlightId (pick random flight from cached flights)
         //TODO implement profile.cached_flights.  
         //If we get a result > 1, try to cache the flights found.
@@ -53,7 +54,7 @@ transaction_status_t SQLFindFlights::Execute(SyncClient &client) {
     std::unique_ptr<const query_result::QueryResult> queryResult;
     std::string query;
 
-    // std::cerr << "FIND_FLIGHTS" << std::endl;
+    
     Debug("FIND_FLIGHTS");
     client.Begin(timeout);
     std::vector<std::string> nearby_airports;

@@ -248,6 +248,7 @@ sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach
 sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/
 sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
 
+read -p "Press enter to continue"
 #PostgreSQL
 echo "Installing PostgreSQL"
 echo ""

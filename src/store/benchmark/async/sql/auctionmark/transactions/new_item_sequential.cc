@@ -39,7 +39,7 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
   item_id = itemId.encode();
   seller_id = sellerId.encode();
 
-//  std::cerr << std::endl << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
+  std::cerr << std::endl << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
 
   name = RandomAString(6, 32, gen);
   description = RandomAString(50, 255, gen);

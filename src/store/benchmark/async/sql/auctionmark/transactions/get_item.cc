@@ -32,7 +32,7 @@ namespace auctionmark {
 GetItem::GetItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile(profile) {
    
-//    std::cerr << "GET ITEM" << std::endl;
+    std::cerr << "GET ITEM" << std::endl;
     //std::cerr << "ItemInfo: " << ItemInfo().get_item_id().to_string() << std::endl;
     // auto itemInfo_opt = profile.get_random_available_item();
     // UW_ASSERT(itemInfo_opt.has_value());
@@ -74,7 +74,9 @@ transaction_status_t GetItem::Execute(SyncClient &client) {
   // statement = fmt::format("SELECT u_id, u_rating, u_created, u_sattr0, u_sattr1, u_sattr2, u_sattr3, u_sattr4, r_name "
   //                         "FROM {} INNER JOIN {} ON u_r_id = r_id WHERE u_id = '{}' AND r_id = r_id",  TABLE_USERACCT, TABLE_REGION, seller_id);                
   client.Query(statement, timeout);
+  
   client.Wait(results);
+
   if(results[0]->empty() || results[1]->empty()) {
     Debug("Query result empty, aborting GET ITEM");
     client.Abort(timeout);

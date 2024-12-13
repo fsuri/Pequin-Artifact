@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile) {
 
-//  std::cerr << "NEW BID" << std::endl;
+  std::cerr << "NEW BID" << std::endl;
 
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
   std::optional<ItemInfo> itemInfo;
@@ -52,7 +52,6 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
   if ((has_waiting || has_completed) && (rand <= PROB_NEWBID_CLOSED_ITEM || !has_available)) {
     if (has_waiting) {
       itemInfo = profile.get_random_waiting_for_purchase_item();
-  
     } else {
       itemInfo = profile.get_random_completed_item();
     }

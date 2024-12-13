@@ -81,8 +81,6 @@
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
 
-#include <gflags/gflags.h>
-
 // CockroachDb
 #include "store/cockroachdb/server.h"
 
@@ -765,8 +763,6 @@ int main(int argc, char **argv) {
         timeDelta = timeDelta | (((FLAGS_indicus_watermark_time_delta % 1000) * 1000) << 12 );     //Milliseconds. (Shift 12 --> see truetime.cc)
         break;
       case PROTO_PBFT:
-      case PROTO_CRDB:
-        break;
       case PROTO_HOTSTUFF:
       case PROTO_PG_SMR:
       case PROTO_PELOTON_SMR:
@@ -782,6 +778,8 @@ int main(int argc, char **argv) {
         else{ // FLAGS_num_shards should be 12 or 24
           protocol_cpu = FLAGS_indicus_process_id * num_cpus;
         }
+        break;
+      case PROTO_CRDB:
         break;
       default:
         NOT_REACHABLE();
