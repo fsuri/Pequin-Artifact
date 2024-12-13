@@ -882,3 +882,27 @@ In addition to layering Peloton atop SMR, we also explored layering Postgres ato
 You may play around with `pg_SMRstore` if you are interested. However, active support is deprecated.
 
 PG-SMR supports three modes: 0 runs Postgres via a server proxy, but without SMR. 1 runs Postgres atop HotStuff, and 2 runs Postgres atop BFTSmart
+
+
+## CRDB configuration
+For an indepth look into our CRDB configuration please refer to `src/store/crdbstore`.
+
+We disable replication (number of replica = 1), but shard the DB across several nodes.
+We start each CRDB node using `cockroach start` for a multi-node cluster or `cockroach start-single-node` in the case of a single node. 
+We configure connections to CRDB as follows:
+    - we use the `--insecure` flag to disable TLS encryption. 
+    - we set the listening address and port for incoming connections using `--listen-addr`. 
+    - the `--join` flag is used to specify the list of other nodes in the cluster. 
+    - `--http-addr` is used to specify the address for the database console UI. 
+The last node in the deployment sequence is used to initialize the cluster. 
+    - The last node is used to generate the HA Proxy configuration which is used by CRDB for load balancing. 
+    - We load balance client traffic to each server by having each client process send traffic to the server node corresponding to `client_id % number_of_servers`.
+
+We run CRDB in memory, and allow it to use full capacity: `--store=type=mem,size=1.0`. 
+For best performance, we disable logging except for logs at the FATAL level in the "OPS", "HEALTH", and "SQL_SCHEMA" channels. 
+
+Finally, we set the following parameters:
+- we set a lock timeout of 50ms to enhance performance under contention using `ALTER DATABASE defaultdb SET lock_timeout = '50ms';`. 
+- we set the minimum bytes for a range to 0 to improve sharding over tables like `Warehouse` in TPCC, which has few rows with few columns but high contention. 
+- we set the maximum bytes for a range to 134217728 (128Mb) to avoid overeagerly sharding ranges within a table
+ 

@@ -56,23 +56,8 @@ Inspired by BFT-Smart, we optimize libhotstuffs batching procedure to allow prop
 We mount Postgres atop tempfs to avoid disk accesses. `src/scripts/postgres_service.sh` details our parameterization. We allocate ample memory and buffer space.
 
 
-**CockroachDB** is a production grade distributed database. 
-
-TODO: Describe config
-Additional detail on our CRDB setup:
-       - we start each CockroachDb node using `cockroach start` for a multi-node cluster or `cockroach start-single-node` in the case of a single node. 
-       - we use the `--insecure` flag to disable TLS encryption. 
-       - we set the listening address and port for incoming connections using `--listen-addr`. 
-       - the `--join` flag is used to specify the list of other nodes in the cluster. 
-       - `--http-addr` is used to specify the address for the database console UI. 
-       - The storage configuration is set to run in memory using up to 100% memory capacity using `--store=type=mem,size=1.0`. 
-       - We disable logging except for logs at the FATAL level in the "OPS", "HEALTH", and "SQL_SCHEMA" channels. 
-       - The last node in the deployment sequence is used to initialize the cluster. 
-       - We set a lock timeout of 50ms to enhance performance under contention using `ALTER DATABASE defaultdb SET lock_timeout = '50ms';`. 
-       - We set the minimum bytes for a range to 0 to improve sharding over tables like `Warehouse` in TPCC, which has few rows with few columns but high contention. 
-       - We set the maximum bytes for a range to 134217728 (128Mb) and the number of replicas to 1 to disable replication (for now). 
-       - The last node is used to generate the HA Proxy configuration which is used by CRDB for load balancing. 
-       - We load balance client traffic to each server by having each client process send traffic to the server node corresponding to `client_id % number_of_servers`.
+**CockroachDB** (CRDB) is a production grade distributed database. We run CRDB unreplicated, but shard the DB (using its native automatic sharding) across several nodes for performance.
+CRDB performance is (according to conversations with the team) not very optimized for single server performance. It performs poorly on TPC-C for a low number of machines and, we found, incurs high volatility in its results. We thus opt to omit it from our main workload comparisions -- we compare against CRDB only for our sharding experiment. Our exact CRDB configuration is detailed at the end of section [*Running experiments*](RunningExperiments.md)
 
 ## Benchmarks:
 We implement four benchmarks:
