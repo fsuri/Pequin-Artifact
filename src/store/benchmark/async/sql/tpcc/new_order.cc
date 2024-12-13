@@ -94,7 +94,6 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER (parallel)"); 
-  std::cerr << "NEW ORDER (parallel)" << std::endl;
   
   Debug("Warehouse: %u", w_id);
 

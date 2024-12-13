@@ -31,12 +31,15 @@ namespace auctionmark {
 
 NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  std::cerr << "NEW COMMENT RESPONSE" << std::endl;
+//  std::cerr << "NEW COMMENT RESPONSE" << std::endl;
 
+  if (profile.num_pending_comment_responses() == 0) {
+    throw std::runtime_error("new_comment_response construction: no pending comment responses");
+  }
   int idx = std::uniform_int_distribution<int>(1, profile.num_pending_comment_responses())(gen) - 1;
-  std::cerr << "pending comment size: " << profile.pending_comment_responses.size() << std::endl;
-   std::cerr << "pending comment size2: " << profile.num_pending_comment_responses() << std::endl;
-    std::cerr << "idx " << idx << std::endl;
+//  std::cerr << "pending comment size: " << profile.pending_comment_responses.size() << std::endl;
+//  std::cerr << "pending comment size2: " << profile.num_pending_comment_responses() << std::endl;
+//  std::cerr << "idx " << idx << std::endl;
   ItemCommentResponse cr = profile.pending_comment_responses[idx];
   //remove this id. (swap with back, and pop the now duplicated back)
   profile.pending_comment_responses[idx] = profile.pending_comment_responses.back();

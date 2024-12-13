@@ -885,7 +885,7 @@ PG-SMR supports three modes: 0 runs Postgres via a server proxy, but without SMR
 
 
 ## CRDB configuration
-For an indepth look into our CRDB configuration please refer to `src/store/crdbstore`.
+For an indepth look into our CRDB configuration please refer to `src/store/cockroachdb`.
 
 We disable replication (number of replica = 1), but shard the DB across several nodes.
 We start each CRDB node using `cockroach start` for a multi-node cluster or `cockroach start-single-node` in the case of a single node. 

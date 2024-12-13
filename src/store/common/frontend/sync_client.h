@@ -117,14 +117,13 @@ class SyncClient {
   void WriteTimeoutCallback(Promise *promise, int status);
   void QueryCallback(Promise *promise, int status, query_result::QueryResult* result); //const std::string &query,
   void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
+  std::unique_ptr<const query_result::QueryResult> SafeRelease(Promise &promise);
 
 
   std::vector<Promise *> getPromises;
   std::vector<Promise *> queryPromises;
   //std::vector<std::unique_ptr<Promise>> queryPromises;
   std::vector<Promise *> asyncPromises;
-
-  std::unique_ptr<const query_result::QueryResult> SafeRelease(Promise &promise);
 
   Client *client;
 };

@@ -54,11 +54,12 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     std::vector<transport::ReplicaAddress> gateways;
     // Last shard group serves as gateways. Can tolerate f failure
     // A gate way serves as a shard master
-    for (int i = 0; i < nGroups; i++) {
-      gateways.push_back(config.replica(nGroups - 1, i));
-    }
+    // for (int i = 0; i < nGroups; i++) {
+    //  gateways.push_back(config.replica(nGroups - 1, i));
+    // }
     // Takes the last server as gateway
-    transport::ReplicaAddress gateway0 = gateways.back();
+    // transport::ReplicaAddress gateway0 = gateways.back();
+    transport::ReplicaAddress gateway0 = config.replica(nGroups - 1, id % config.n);
 
     char host_name[HOST_NAME_MAX];
     int result;
@@ -83,7 +84,7 @@ Client::Client(const transport::Configuration &config, uint64_t id, int nShards,
     Notice("Site %s \n", site.c_str());
     string addr = gateway0.host + site + ":" + gateway0.port;
     string url = "postgresql://root@" + addr + "/defaultdb?sslmode=disable";
-
+//    string url = "postgresql://liam:yj_Po83GRg-P-ikM-Hg3_w@jade-tern-11712.6wr.aws-us-west-2.cockroachlabs.cloud:26257/defaultdb?sslmode=verify-full";
     Notice("Connecting to gateway %s", url.c_str());
     // Establish connection
 
@@ -126,19 +127,17 @@ Client::~Client() {}
 // Begin a transaction.
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
                    uint32_t timeout, bool retry) {
-  Notice("Begin Transaction");
   try {
     if (tr != nullptr) {
-      Panic("why is tr not nullptr???");
+      Panic("transaction pointer was not reset before beginning new transaction");
     }
     // Create a new Tx
     tr = conn->transaction(tao::pq::isolation_level::serializable,
                            tao::pq::access_mode::read_write);
     // TODO replace with some Tx ID
-    // std::cout << "begin " << '\n';
     bcb(420);
   } catch (const std::exception &e) {
-    std::cerr << "Tx begin Failed" << '\n';
+    std::cerr << "Tx Begin Failed" << '\n';
     std::cerr << e.what() << '\n';
   }
 }
@@ -210,7 +209,6 @@ void Client::Put(const std::string &key, const std::string &value,
 // Execute query.
 void Client::Query(const std::string &query_statement, query_callback qcb,
       query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
-  std::cerr << "In Query" << std::endl;
   try {
     if (tr == nullptr) {
       qcb(REPLY_FAIL, nullptr);
@@ -238,6 +236,14 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     if (tr == nullptr) {
       wcb(REPLY_FAIL, nullptr);
       return;
+    }
+
+    //Wrap all inserts in ON CONFLICT DO NOTHING. //Assumption: Doesn't end with semicolon. If it does, TODO: remove it.
+    if(write_statement.find("INSERT INTO") != std::string::npos){
+      if (write_statement.back() == ';') {
+        write_statement.pop_back();
+      }
+      write_statement += " ON CONFLICT DO NOTHING;";
     }
 
     tao::pq::result result = tr->execute(write_statement);

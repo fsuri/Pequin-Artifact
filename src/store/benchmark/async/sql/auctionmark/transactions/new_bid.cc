@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile) {
 
-  std::cerr << "NEW BID" << std::endl;
+//  std::cerr << "NEW BID" << std::endl;
 
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
   std::optional<ItemInfo> itemInfo;
@@ -50,42 +50,44 @@ NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &g
   // Some NewBids will be for items that have already ended. This will simulate somebody trying to bid at the very end but failing
   int rand = std::uniform_int_distribution<int>(1, 100)(gen);
   if ((has_waiting || has_completed) && (rand <= PROB_NEWBID_CLOSED_ITEM || !has_available)) {
-      if (has_waiting) {
-        itemInfo = profile.get_random_waiting_for_purchase_item();
-    
-      } else {
-        itemInfo = profile.get_random_completed_item();
-      }
-      sellerId = itemInfo->get_seller_id();
-      buyerId = profile.get_random_buyer_id(sellerId);
- 
-      // The bid/maxBid do not matter because they won't be able to actually update the auction
-      bid = std::uniform_real_distribution<double>(0, 1)(gen);
-      maxBid = bid + 100;
+    if (has_waiting) {
+      itemInfo = profile.get_random_waiting_for_purchase_item();
+  
+    } else {
+      itemInfo = profile.get_random_completed_item();
+    }
+    sellerId = itemInfo->get_seller_id();
+    buyerId = profile.get_random_buyer_id(sellerId);
+
+    // The bid/maxBid do not matter because they won't be able to actually update the auction
+    bid = std::uniform_real_distribution<double>(0, 1)(gen);
+    maxBid = bid + 100;
+  }
+  // Otherwise we want to generate information for a real bid
+  else {
+  
+    rand = std::uniform_int_distribution<int>(1, 100)(gen);
+    // 50% of NewBids will be for items that are ending soon
+    if ((has_ending && rand <= PROB_NEWBID_CLOSED_ITEM) || !has_available) {
+      itemInfo = profile.get_random_ending_soon_item(true); 
+    }
+    if (!itemInfo.has_value()) {
+      itemInfo = profile.get_random_available_item(true);
+    }
+    if (!itemInfo.has_value()) {
+      itemInfo = profile.get_random_item();
     }
 
-    // Otherwise we want to generate information for a real bid
-    else {
-    
-      rand = std::uniform_int_distribution<int>(1, 100)(gen);
-      // 50% of NewBids will be for items that are ending soon
-      if ((has_ending && rand <= PROB_NEWBID_CLOSED_ITEM) || !has_available) {
-        itemInfo = profile.get_random_ending_soon_item(true); 
-      }
-      if (!itemInfo.has_value()) {
-        itemInfo = profile.get_random_available_item(true);
-      }
-      if (!itemInfo.has_value()) {
-        itemInfo = profile.get_random_item();
-      }
-
-      sellerId = itemInfo->get_seller_id();
-      buyerId = profile.get_random_buyer_id(sellerId);
-     
-      double currentPrice = itemInfo->get_current_price();
-      bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
-      maxBid = round(std::uniform_real_distribution<double>(bid, bid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+    if (!itemInfo.has_value()) {
+      throw std::runtime_error("new_bid construction: failed to get item");
     }
+    sellerId = itemInfo->get_seller_id();
+    buyerId = profile.get_random_buyer_id(sellerId);
+    
+    double currentPrice = itemInfo->get_current_price();
+    bid = round(std::uniform_real_distribution<double>(currentPrice, currentPrice * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+    maxBid = round(std::uniform_real_distribution<double>(bid, bid * (1 + (ITEM_BID_PERCENT_STEP / 2)))(gen) * 100) /100; //round to 2 decimal places
+  }
 
   item_id = itemInfo->get_item_id().encode();
   seller_id = sellerId.encode();
@@ -152,7 +154,6 @@ transaction_status_t NewBid::Execute(SyncClient &client) {
         "AND ib_id = ib_id", //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
         TABLE_ITEM_MAX_BID, TABLE_ITEM_BID, item_id, seller_id, item_id, seller_id); // add redundancy.
     client.Query(statement, timeout);
-    
     client.Wait(results);
   
     try{

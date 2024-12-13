@@ -73,6 +73,8 @@ def kill_servers(config, executor, kill_args=' -9'):
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
         config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
 
@@ -202,6 +204,7 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                 if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                         print("Disabling HT and Turbo; sourcing TBB")
                         cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                        #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
                         #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                         run_remote_command_async(cmd1, config['emulab_user'], client_host)
                         cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
@@ -261,6 +264,8 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
         config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
     

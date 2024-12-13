@@ -31,8 +31,14 @@ namespace auctionmark {
 
 NewComment::NewComment(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  std::cerr << "NEW COMMENT" << std::endl;
-  ItemInfo itemInfo = *profile.get_random_completed_item();
+  // std::cerr << std::endl << "NEW COMMENT" << std::endl;
+  std::optional<ItemInfo> maybeItemInfo = profile.get_random_completed_item();
+  ItemInfo itemInfo;
+  if (maybeItemInfo.has_value()) {
+    itemInfo = maybeItemInfo.value();
+  } else {
+    throw std::runtime_error("new_comment construction: failed to get random completed item");
+  }
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
   question = RandomAString(ITEM_COMMENT_LENGTH_MIN, ITEM_COMMENT_LENGTH_MAX, gen); 
@@ -92,7 +98,7 @@ transaction_status_t NewComment::Execute(SyncClient &client) {
     // return ABORTED_USER;
   }
 
-   //updateItemComments
+  //updateItemComments
   statement = fmt::format("UPDATE {} SET i_num_comments = i_num_comments + 1 WHERE i_id = '{}' AND i_u_id = '{}'", TABLE_ITEM, item_id, seller_id);
   client.Write(statement, timeout, true);
 
