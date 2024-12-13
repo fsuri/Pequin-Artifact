@@ -617,6 +617,7 @@ We report below the peak reported throughput. The configuration files referened 
 
 > :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
 
+
     Use the following three configs:
     - 1 shard: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh.json` (you do not need to re-run this, it is the same as reported above!!)
     - 2 shards: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-2s.json`
@@ -650,29 +651,29 @@ No additional setup should be necessary to run CRDB. If you run into troubles, p
     | Tput (tx/s) |  400  | 1095  | 1357  |
 
  > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
+
  > **[NOTE]** CockroachDB (like most databases) only allows for sequential execution of operations within a transaction. This results in high transaction latencies (relative to Pesto) for TPC-C, whose New-Order transaction might issue up to ~45 operations. Pesto, in contrast, can execute many of these operations in parallel, reducing execution latency. Our Peloton baselines strike a midpoint: although execution on the DB itself must be sequential within a transaction, clients do not connect to the DB directly (like for CRDB) but send a message to a replica proxy, which then invokes the DB. This allows clients to send independent operations in parallel, thus sidestepping network and amortizing consensus latency. 
 
 
-3. Basil
+#### 3. Basil
 
-    We report the 3 shard result from the [Basil paper](https://www.cs.cornell.edu/~fsp/reports/Suri21Basil.pdf): 4862 tx/s
+We report the 3 shard result from the [Basil paper](https://www.cs.cornell.edu/~fsp/reports/Suri21Basil.pdf): 4862 tx/s
   
 
 
 
 ### **3 - Point vs Range Reads **:
-The following experiments were run using a single client. Configs are located under `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point`.
+Our configs are located under `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point`.
 
-Each experiment tries to read a range of <num> rows, either using only point reads, or using the range read protocol. We also evaluate a case in which the read is predicated on a secondary condition (Range-Cond)
-that applies for only 1 in a 100 rows. 
+Our experiments were run using a single client. The client tries to (in a closed loop) issue a transction that reads a range of <num> rows, either using only point reads, or using the range read protocol. We also evaluate a case in which the read is predicated on a secondary condition (Range-Cond) that applies for only 1 in a 100 rows. 
 
 We used the following configs:
-1. Point: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Point/<num>.json 
+1. Point: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Point/<num>.json` 
 > **Note**: We evaluated two additional setups, Point-bare and Point-batched, which, respectively, execute a point read only against a KV-store (instead of the SQL backend) -- akin to Basil --, or try to batch replies to amortize signature costs. However, we did not find any meaningful differences so we opted to omit the results. We note further that point reads in this microbenchmark do NOT incur the cost of verifying CommitProofs: because the workload is read only, the only keys read are genesis keys that require no proof in our setup. This implies that in practice, the benefit of range reads is *even bigger* than we claim.
 
-2. Range: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/no condition/<num>.json
+2. Range: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/no condition/<num>.json`
 
-3. Range-Cond: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/with condition/<num>.json
+3. Range-Cond: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/with condition/<num>.json`
 
 The reported results were:
 
@@ -684,16 +685,14 @@ The reported results were:
            
 
 ### **4 - Stress testing Range Reads**:
-In this microbenchmark we simulate artificial inconsistency between replicas to invoke Pesto's snapshot protocol. 
+In this microbenchmark we simulate artificial inconsistency between replicas to invoke Pesto's snapshot protocol. Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/2-Snapshot`
 
-We implement a microbenchmark based on the YCSB framework consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended uniform access pattern *U*, and a very highly contended Zipfian access pattern **Z** with coefficient 1.1
+We implement a microbenchmark based on the YCSB framework consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended uniform access pattern *U*, and a very highly contended Zipfian access pattern *Z* with coefficient 1.1
 
 We simulate two settings:
 1) We artificially fail eager execution for *every* transaction -- requiring a snapshot proposal, but no synchronization (since replicas are, in fact, consistent)
 2) We ommit/delay application of writes of every transaction at 1/3rd of replicas -- this results in actual inconsistency, and requires both a snapshot proposal and explicit synchronization.
   
-TODO: ADD DISCUSSION FROM NOTES
-
 <!-- \iffalse
 Simulation setup:
 At 1/3rd of replicas (2 out of 6) we *drop* application of prepared/committed writes in order to create inconsistency. This results in eager exec failing about 2/3rd of the time (a bit higher for zipf even). When a snapshot is proposed, replicas need to sync on missing data.
@@ -706,7 +705,6 @@ Notes:
 - An ideal setup would simulate client failures, but we don't want to do this or else we 1) aren't isolating the impact of sync, 2) we have to plot tput/honest
 \fi -->
 
-Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/2-Snapshot`
 
 The reported results on the uniform workoad U were:
 
@@ -745,12 +743,12 @@ The reported results on the Zipfian workoad Z were:
 
 > **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
 
-> **[NOTE]**: We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affect performance slightly for all Zipfian runs (within 5%) as the workload is so heavily contended that there are a lot of dependencies. 
 
+ <!-- Bonus point for Z-Ideal. client 30: (3029.2,10.600514610370176) -->
     - Z-Ideal
 
         Use config `Zipf-Eager.json`
-        <!-- client 30: (3029.2,10.600514610370176) -->
 
         | #Clients    |   3   |   5   |   10   |   15   |   20   |   25   |     
         |-------------|-------|-------|--------|--------|--------|--------|
