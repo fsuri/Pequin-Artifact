@@ -806,7 +806,7 @@ The reported results on the uniform workoad U were:
 
         Use config `Uniform-Failure-0.json`
 
-        > **Note**: Config `Uniform-NoFP` runs a fault-free experiment with fast path disabled. The resulting performance is pretty much equivalent to running with replica failure.
+> **Note**: Config `Uniform-NoFP` runs a fault-free experiment with fast path disabled. The resulting performance is pretty much equivalent to running with replica failure.
 
         | #Clients    |   12   |   16   |   21   |   25   |   30   |   35   |   40   |   45   |
         |-------------|--------|--------|--------|--------|--------|--------|--------|--------|
