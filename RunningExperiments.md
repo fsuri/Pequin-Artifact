@@ -257,14 +257,17 @@ We report evaluation results for 3 workloads (TPCC, Auctionmark, and Seats) over
 6. **Postgres** -- an unreplicated SQL DB of production grade.
 7. **Postgres-PB** - Postgres, but run in primary backup mode. Writes are synchronously replicated to a backup.
 
+> **NOTE**: Peloton-HS and Peloton-Smart are not safe systems to run. They do not implement "correct" State Machine Replication (SMR), as they opt to execute requests of different transactions in parallel (for better performance) instead of sequentially. These baselines serve as a generous *upper-bound* on the performance achievable with a simple SMR-based design. Operations from the *same* transaction must still be executed sequentially, however, as this is demanded by the DB interface. Notably though, our system allows independent operations from the same transaction to nonetheless be *issued* by the client in parallel: they can thus proceed through consensus in parallel (thus minimizing latency); only query execution itself must be sequential.
+
 All systems were evaluated using a single shard, but use different replication factors. For f=1, Pesto uses 6 replicas (5f+1), while Peloton-HS and Peloton-Smart use 4 (3f+1). All unreplicated systems use 1 replica. Postgres-PB uses 2 replicas (one primary, one backup).
 
-All systems using signatures (Pesto, Pesto-unreplicated, Peloton-signed, Peloton-HS, Peloton-Smart) are augmented to make use of the reply batching scheme proposed in Basil: replicas may batch together replies to clients and create a single signature to amortize costs. We defer exact details to Basil. We use a varying reply batch size depending on the load; for low load, it is better to not batch to avoid incurring a batch timeout.
+All systems using signatures (Pesto, Pesto-unreplicated, Peloton-signed, Peloton-HS, Peloton-Smart) are augmented to make use of the reply batching scheme proposed in Basil: replicas may batch together replies to clients and create a single signature to amortize costs. We defer exact details to Basil. We use a varying reply batch size depending on the load; for low load, it is better to not batch to avoid incurring a batch timeout. 
+<!-- we used very small batch timer by accident because the unit is *microseconds* and not *miliseconds*. However, due to a libevent artifact, timer granularity is only 4ms, so most of the time our timers are implicitly 4ms. -->
 
 Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point, i.e. a bit before latency starts to spike.
 
 
-    <!-- very small batch timer (2ms = often 4ms with libevent?) -->
+ 
 #### 1. **Pesto**:  
 
 Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/<workload>/LAN`. 
@@ -314,7 +317,7 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
 
 #### 2. **Pesto-unreplicated**: 
 
-> ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
+> ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and exists only as an option for microbenchmarking purposes.
 
 
     - TPCC: Peak Throughput: ~1.3k tx/s, Ankle Latency: ~12 ms
@@ -359,7 +362,7 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
 
 #### 3. **Peloton**: 
 
-> **Note**: Peloton and its Peloton-SMR variants use the same store (postgresstore). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
+> **Note**: Peloton and its Peloton-SMR variants use the same store (`pelotonstore`). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
 <!-- - If SMR_mode = 0, nothing to do
 - If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
 - If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us` -->
@@ -394,11 +397,9 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
         | Lat (ms)    |  4.5  |  3    |  3.6   |  5.1   |  5.8   |  6.4   |   8.2  |  10.2  |
 
         
-   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
-
- #### 3.5 **Peloton + Reply Sigs**:  
+#### 3.5 **Peloton + Reply Sigs**:  
  
-    This system configuration is not shown in the paper, but we include it here for completeness. You may skip it
+This system configuration is not shown in the paper, but we include it here for completeness. You may skip it if just trying to reproduce the results in the paper.
    
     We used a reply batch size of b=4 across all experiments.
    
@@ -430,22 +431,16 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
         |-------------|-------|--------|--------|--------|--------|--------|--------|
         | Tput (tx/s) |  745  |  1851  |  3279  |  3414  |  3951  |  4460  |  4573  |
         | Lat (ms)    |  6.8  |  5.5   |  6.3   |  7.5   |  7.8   |  9.2   |  13.5  |
-        
-   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
-
+  
          
 #### 4. **Peloton-HS:** 
-
-   TODO: explain fake SMR
-   TODO: Explain how req can go in parallel through consensus
-   
 
    Before running Peloton-HS, you must configure Hotstuff using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
    <!-- Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment.  -->
 
    > :warning: Due to its pipelined nature, HotStuff cannot be operated under very low load (i.e. for very few clients), or it will lose progress. This is because the HotStuff module does not implement a batch timer, yet requires 4 batches to be filled to "push" one proposal through the pipeline.
 
-   Because HotStuff, by default, implements no batch timer, we augment HotStuff to make use of dynamic (upper bound) batch sizes as used by BFTSmart. We instantiate HotStuff with an upper-bound batch size of 200, but allow batches to form with dynamic smaller size whenever a new pipeline step is ready. This results in optimal latency, which is desirable for contended workloads (e.g. TPCC), while still amortizing costs as much as possible.
+   > **NOTE**: Because HotStuff, by default, implements no batch timer, we augment HotStuff to make use of dynamic (upper bound) batch sizes as used by BFTSmart. We instantiate HotStuff with an upper-bound batch size of 200, but allow batches to form with dynamic smaller size whenever a new pipeline step is ready. This results in optimal latency, which is desirable for contended workloads (e.g. TPCC), while still amortizing costs as much as possible.
 
    We use a reply batch size of 4 throughout (param `ebatch`).
 
@@ -571,7 +566,7 @@ Before running Postgres, you must configure BFTSmart using the instructions from
 
 Before running Postgres-PB, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
 
-Postgres-PB incurs synchronous replication for all write queries. This results in higher latency, and, on contention bottlenecked workloads such as TPCC, in a reduction of throughput.
+> **NOTE**: Postgres-PB incurs synchronous replication for all write queries. This results in higher latency, and, on contention bottlenecked workloads such as TPCC, in a reduction of throughput.
 
   <!-- -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
         -- TPCC is a write heavy workload, so the cost of synchronous PB affects it more
@@ -609,7 +604,7 @@ Postgres-PB incurs synchronous replication for all write queries. This results i
 
 ### **2 - Sharding**:
 
-In addition to Pesto, we also evaluated CockroachDB, a popular production-grade distributed database. We do not compare to Peloton and Postgres as they are not easily shardable.
+In addition to Pesto, we also evaluated CockroachDB (CRDB), a popular production-grade distributed database. We do not compare to Peloton and Postgres as they are not easily shardable.
 For Pesto we scale to 2 and 3 shards; for CockroachDB we scale to 5 and 9 shards (its peak).
 
 > **[NOTE]** We cannot shard the Peloton baselines. The DB is effectively a blackbox and does not have innate support for sharding. Postgres supports native table partitioning, but not horizontal sharding; one may work around this using the Foreign Data Wrapper (FDW) interface or the Citus extension, but we opted against it for simplicity. CRDB, in contrast, supports automatic sharding which is why we selected it for this experiment. Pesto's commit process supports sharding by design, as it integrates concurrency control and 2PC. Our Pesto prototype, however, does not support distributed queries (i.e. it supports only queries that are satisfied by a single shard); we thus can currently only shard TPC-C, but not Seats or Auctionmark.  
@@ -618,9 +613,9 @@ We report below the peak reported throughput. The configuration files referened 
 
 #### 1. Pesto
 
-    > :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
+> :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
 
-    > :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
+> :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
 
     Use the following three configs:
     - 1 shard: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh.json` (you do not need to re-run this, it is the same as reported above!!)
@@ -636,11 +631,12 @@ We report below the peak reported throughput. The configuration files referened 
 
 #### 2. CRDB
 
-    > :warning: We've observed CRDB performance to be quite volatile.
 
-    No additional setup should be necessary to run CRDB. If you run into troubles, please e-mail <larzola@ucsd.edu>.
+No additional setup should be necessary to run CRDB. If you run into troubles, please e-mail <larzola@ucsd.edu>.
 
-    > :warning: The `server_names` in the following configs are slightly different than our default profile ones. Adjust them according to your experiment!!
+> :warning: The `server_names` in the following configs are slightly different than our default profile ones. Adjust them according to your experiment!!
+
+> :warning: We've observed CRDB performance to be quite volatile.
 
     Use the following three configs:
     - 1 shard: `experiment-configs/Cockroach/CRDB-TPCC-SQL-1.json` 
