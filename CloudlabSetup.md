@@ -31,7 +31,7 @@ Click "Next" and name your experiment and project. In the example below, our exp
 
 Finally, set a duration and start your experiment. Starting all machines may take a decent amount of time, as the server disk images contain large datasets that need to be loaded. Wait for it to be "ready":
 ![image](https://user-images.githubusercontent.com/42611410/129490974-f2b26280-d5e9-42ca-a9fe-82b80b8e2349.png)
-You may ssh into the machines to test your connection using the ssh commands shown under "List View" or by using `ssh <cloudlab-username>@<node-name>.<experiment-name>.<project-name>-pg0.<cluster-domain-name>`. In the example below it would be: `ssh fs435@us-east-1-0.indicus.morty-pg0.utah.cloudlab.us`.
+You may ssh into the machines to test your connection using the ssh commands shown under "List View" or by using `ssh <cloudlab-username>@<node-name>.<experiment-name>.<project-name>-pg0.<cluster-domain-name>`. In the example below it would be: `ssh fs435@us-east-1-0.indicus.morty-pg0.utah.cloudlab.us`. (The example below was taken for an experiment with name "indicus" in project "morty".)
 ![image](https://user-images.githubusercontent.com/42611410/129490991-035a1865-43c3-4238-a264-e0d43dd0095f.png)
 
 
@@ -117,5 +117,5 @@ Additionally, you will have to install the following requisites:
 
    
 Once complete, create a new disk image (separate ones for server and client if you want to save space/time). Then, start the profile by choosing the newly created disk image.
-To create a disk image, select "Create Disk Image" and name it accordingly.
+To create a disk image, select "Create Disk Image" and name it (e.g. "SOSP108" in the example below).
 ![image](https://user-images.githubusercontent.com/42611410/129491499-eb7d0618-5dc4-4942-a25a-3b4a955c5077.png)
