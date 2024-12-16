@@ -45,6 +45,8 @@
 #include "store/common/frontend/bufferclient.h"
 #include "store/sintrstore/shardclient.h"
 #include "store/sintrstore/sintr-proto.pb.h"
+#include "store/sintrstore/client2client.h"
+#include "store/sintrstore/endorsement_client.h"
 #include <sys/time.h>
 #include "store/common/stats.h"
 #include <unistd.h>
@@ -85,7 +87,8 @@ class Client : public ::Client {
       uint64_t warmup_secs,
       uint64_t consecutiveMax = 1UL,
       bool sql_bench = false,
-      TrueTime timeserver = TrueTime(0,0));
+      TrueTime timeserver = TrueTime(0,0),
+      transport::Configuration *clients_config = NULL);
   virtual ~Client();
 
   // Begin a transaction.
@@ -354,6 +357,8 @@ class Client : public ::Client {
 
   /* Configuration State */
   transport::Configuration *config;
+  // client to client transport configuration state
+  transport::Configuration *clients_config;
   // Unique ID for this client.
   uint64_t client_id;
   // Number of shards.
@@ -364,6 +369,10 @@ class Client : public ::Client {
   Transport *transport;
   // Client for each shard
   std::vector<ShardClient *> bclient;
+  // client for other clients
+  Client2Client *c2client;
+  // collect endorsements for current transaction
+  EndorsementClient *endorseClient;
   Partitioner *part;
   bool syncCommit;
   const bool pingReplicas;

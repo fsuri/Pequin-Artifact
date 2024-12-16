@@ -208,7 +208,8 @@ static uint64_t commit_start;
 
 //////////// Commit Protocol 
 void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
-  phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout) {
+  phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout,
+  const proto::SignedMessages &endorsements) {
   uint64_t reqId = lastReqId++;
   Debug("[group %i] Sending PHASE1[%s] for id[%lu], reqId[%lu]", group, BytesToHex(txnDigest, 16).c_str(), id, reqId);
   client_seq_num_mapping[id].pendingP1_id = reqId;
@@ -249,6 +250,8 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
   else{
     *phase1.mutable_txn() = transaction;
   }
+
+  *phase1.mutable_endorsements() = endorsements;
 
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
        phase1.set_crash_failure(true);
@@ -700,7 +703,8 @@ bool ShardClient::BufferGet(const std::string &key, read_callback &rcb) {
       Debug("[group %i] Key %s was written with val %s.", group,
           BytesToHex(key, 16).c_str(), BytesToHex(write.value(), 16).c_str());
       rcb(REPLY_OK, key, write.value(), Timestamp(), proto::Dependency(),
-          false, false);
+          false, false,
+          proto::CommittedProof(), std::string(), std::string(), proto::EndorsementPolicyMessage());
       return true;
     }
   }
@@ -712,7 +716,8 @@ bool ShardClient::BufferGet(const std::string &key, read_callback &rcb) {
           read.readtime().id());
       std::cerr << "already added (buffer) key " << BytesToHex(key, 16) << "to read set" << std::endl;
       rcb(REPLY_OK, key, readValues[key], read.readtime(), proto::Dependency(),
-          false, false);
+          false, false,
+          proto::CommittedProof(), std::string(), std::string(), proto::EndorsementPolicyMessage());
       return true;
     }
   }
@@ -879,6 +884,20 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
     if (req->firstCommittedReply || req->maxTs < replyTs) {
       req->maxTs = replyTs;
       req->maxValue = write->committed_value();
+      if (reply->has_proof()) {
+        req->maxCommittedProof = reply->proof();
+      }
+      if (reply->has_signed_write()) {
+        reply->signed_write().SerializeToString(&req->maxSerializedWrite);
+        req->maxSerializedWriteTypeName = reply->signed_write().GetTypeName();
+      }
+      else {
+        reply->write().SerializeToString(&req->maxSerializedWrite);
+        req->maxSerializedWriteTypeName = reply->write().GetTypeName();
+      }
+      if (write->has_committed_policy()) {
+        req->maxPolicy = write->committed_policy();
+      }
     }
     req->firstCommittedReply = false;
 
@@ -917,6 +936,13 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
         if (preparedItr->second.second >= req->rds) {
           req->maxTs = preparedItr->first;
           req->maxValue = preparedItr->second.first.prepared_value();
+          if (preparedItr->second.first.has_prepared_policy()) {
+            req->maxPolicy = preparedItr->second.first.prepared_policy();
+          }
+          // if we are going to be forwarding a prepared value, no need for committed proof and signed write
+          req->maxCommittedProof.Clear();
+          req->maxSerializedWrite.clear();
+          req->maxSerializedWriteTypeName.clear();
           *req->dep.mutable_write() = preparedItr->second.first;
           if (params.validateProofs && params.signedMessages && params.verifyDeps) {
             *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
@@ -933,7 +959,8 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
     req->maxTs.serialize(read->mutable_readtime());
     readValues[req->key] = req->maxValue;
     req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
-        req->hasDep, true);
+        req->hasDep, true,
+        req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy);
     delete req; //XXX VERY IMPORTANT: dont delete while something is still dispatched for this reqId
     //could cause segfault. Need to keep a counter of things that are dispatched and only delete
     //once its gone. (dont need counter: just check in each callback if req still in map.!)
@@ -1022,6 +1049,21 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     if (req->firstCommittedReply || req->maxTs < replyTs) {
       req->maxTs = replyTs;
       req->maxValue = write->committed_value();
+      if (reply.has_proof()) {
+        req->maxCommittedProof = reply.proof();
+      }
+      if (reply.has_signed_write()) {
+        reply.signed_write().SerializeToString(&req->maxSerializedWrite);
+        req->maxSerializedWriteTypeName = reply.signed_write().GetTypeName();
+      }
+      else {
+        // reply.write() must exist
+        reply.write().SerializeToString(&req->maxSerializedWrite);
+        req->maxSerializedWriteTypeName = reply.write().GetTypeName();
+      }
+      if (write->has_committed_policy()) {
+        req->maxPolicy = write->committed_policy();
+      }
     }
     req->firstCommittedReply = false;
   }
@@ -1059,6 +1101,13 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         if (preparedItr->second.second >= req->rds) {
           req->maxTs = preparedItr->first;
           req->maxValue = preparedItr->second.first.prepared_value();
+          if (preparedItr->second.first.has_prepared_policy()) {
+            req->maxPolicy = preparedItr->second.first.prepared_policy();
+          }
+          // if we are going to be forwarding a prepared value, no need for committed proof and signed write
+          req->maxCommittedProof.Clear();
+          req->maxSerializedWrite.clear();
+          req->maxSerializedWriteTypeName.clear();
           *req->dep.mutable_write() = preparedItr->second.first;
           if (params.validateProofs && params.signedMessages && params.verifyDeps) {
             *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];
@@ -1086,12 +1135,18 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       *read->mutable_key() = req->key;
       req->maxTs.serialize(read->mutable_readtime());
       
-      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true);
+      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true,
+        req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy);
     }
     else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
       std::string &prev_read = it->second;
       req->maxTs = Timestamp();
-      req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false); //Don't add to read set.
+      req->maxCommittedProof.Clear();
+      req->maxSerializedWrite.clear();
+      req->maxSerializedWriteTypeName.clear();
+      req->maxPolicy.Clear();
+      req->gcb(REPLY_OK, req->key, prev_read, req->maxTs, req->dep, false, false, //Don't add to read set.
+        req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy); 
     } 
     delete req;
   }

@@ -34,6 +34,7 @@
 #include "store/sintrstore/localbatchverifier.h"
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
+#include "store/sintrstore/endorsement_policy.h"
 #include <sys/time.h>
 #include <algorithm>
 
@@ -52,7 +53,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
     uint64_t readQuorumSize, Parameters params, std::string &table_registry,
     KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t warmup_secs, uint64_t consecutiveMax, bool sql_bench,
-    TrueTime timeServer)
+    TrueTime timeServer, transport::Configuration *clients_config)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -62,11 +63,11 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax),
-    sql_interpreter(&params.query_params) {
+    sql_interpreter(&params.query_params), clients_config(clients_config) {
 
   Notice("Sintrstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
-  Notice("Initializing Indicus client with id [%lu] %lu", client_id, nshards);
+  Notice("Initializing Sintr client with id [%lu] %lu", client_id, nshards);
   Notice("P1 Decision Timeout: %d", phase1DecisionTimeout);
 
   if(params.injectFailure.enabled) stats.Increment("total_byz_clients", 1);
@@ -85,7 +86,15 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
         timeServer, phase1DecisionTimeout, consecutiveMax));
   }
 
-  Debug("Indicus client [%lu] created! %lu %lu", client_id, nshards,
+  endorseClient = new EndorsementClient(client_id, keyManager);
+  // create client for other clients
+  // right now group is always 0, maybe configure later
+  c2client = new Client2Client(
+    config, clients_config, transport, client_id, nshards, ngroups, 0,
+    pingReplicas, params, keyManager, verifier, part, endorseClient
+  );
+
+  Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());
   _Latency_Init(&executeLatency, "execute");
   _Latency_Init(&getLatency, "get");
@@ -139,6 +148,8 @@ Client::~Client()
   for (auto b : bclient) {
       delete b;
   }
+  delete c2client;
+  delete endorseClient;
   delete verifier;
 }
 
@@ -158,30 +169,42 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     for (auto b : bclient) {
       b->SetFailureFlag(failureActive);
     }
+    c2client->SetFailureFlag(failureActive);
     if(failureActive) stats.Increment("failure_attempts", 1);
     if(failureEnabled) stats.Increment("total_fresh_tx_byz", 1);
     if(!failureEnabled) stats.Increment("total_fresh_tx_honest", 1);
   }
 
-  transport->Timer(0, [this, bcb, btcb, timeout]() { 
+  transport->Timer(0, [this, bcb, btcb, timeout, txnState]() { 
     if (pingReplicas) {
       if (!first && !startedPings) {
         startedPings = true;
         for (auto sclient : bclient) {
           sclient->StartPings();
         }
+        c2client->StartPings();
       }
       first = false;
     }
 
     Latency_Start(&executeLatency);
     client_seq_num++;
+
+    uint64_t txnStartTime = timeServer.GetTime();
+    
+    // begin sintr validation
+    endorseClient->Reset();
+    endorseClient->SetClientSeqNum(client_seq_num);
+    // dummy endorsement policy
+    EndorsementPolicy policy(2);
+    endorseClient->UpdateRequirement(policy);
+    c2client->SendBeginValidateTxnMessage(client_seq_num, txnState, txnStartTime);
   
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
     // Optimistically choose a read timestamp for all reads in this transaction
-    txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
+    txn.mutable_timestamp()->set_timestamp(txnStartTime);
     txn.mutable_timestamp()->set_id(client_id);
 
       //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
@@ -228,7 +251,9 @@ void Client::Get(const std::string &key, get_callback gcb,
 
     read_callback rcb = [gcb, this](int status, const std::string &key,
         const std::string &val, const Timestamp &ts, const proto::Dependency &dep,
-        bool hasDep, bool addReadSet) {
+        bool hasDep, bool addReadSet,
+        const proto::CommittedProof &proof, const std::string &serializedWrite, 
+        const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg) {
 
       uint64_t ns = 0; //Latency_End(&getLatency);
       if (Message_DebugEnabled(__FILE__)) {
@@ -247,10 +272,24 @@ void Client::Get(const std::string &key, get_callback gcb,
         ReadMessage *read = txn.add_read_set();
         read->set_key(key);
         ts.serialize(read->mutable_readtime());
+        
+        // new policy can only come from server, which must correspond to addReadSet
+        EndorsementPolicy policy; 
+        if (policyMsg.IsInitialized()) {
+          policy = EndorsementPolicy(policyMsg);
+          endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
+          endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+        }
       }
       if (hasDep) {
         *txn.add_deps() = dep;
       }
+
+      c2client->ForwardReadResultMessage(
+        key, val, ts, proof, serializedWrite, 
+        serializedWriteTypeName, dep, hasDep, addReadSet
+      );
+
       gcb(status, key, val, ts);
     };
     read_timeout_callback rtcb = gtcb;
@@ -283,7 +322,14 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_key(key);
     write->set_value(value);
 
-
+    // look in cache for policy
+    EndorsementPolicy policy;
+    bool exists = endorseClient->GetPolicyFromCache(key, policy);
+    if (!exists) {
+      // if not found, use default policy for now
+      policy = EndorsementPolicy(2);
+    }
+    c2client->HandlePolicyUpdate(policy);
 
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
@@ -1071,13 +1117,23 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     //TEST: Set TS only at the end.
     //txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
 
+    // also sort involved groups for endorsement comparisons
+    std::sort(txn.mutable_involved_groups()->begin(), txn.mutable_involved_groups()->end());
+
+    // set expected endorsement digest
+    std::string digest = TransactionDigest(txn, params.hashDigest);
+    if (params.sintr_params.debugEndorseCheck) {
+      endorseClient->DebugSetExpectedTxnOutput(txn);
+    }
+    endorseClient->SetExpectedTxnOutput(digest);
+
     PendingRequest *req = new PendingRequest(client_seq_num, this);
     pendingReqs[client_seq_num] = req;
     req->txn = txn; //Is this a copy or just reference?
     req->ccb = ccb;
     req->ctcb = ctcb;
     req->callbackInvoked = false;
-    req->txnDigest = TransactionDigest(txn, params.hashDigest);
+    req->txnDigest = digest;
    
     req->timeout = timeout; //20000UL; //timeout;
     stats.IncrementList("txn_groups", txn.involved_groups().size());
@@ -1102,6 +1158,20 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 }
 
 void Client::Phase1(PendingRequest *req) {
+  // if endorsement is not satisfied yet, add back to event loop
+  if (!endorseClient->IsSatisfied()) {
+    transport->Timer(0, [this, req]() {
+      Phase1(req);
+    });
+    return;
+  }
+
+  proto::SignedMessages protoEndorsements;
+  std::vector<proto::SignedMessage> endorsements = endorseClient->GetEndorsements();
+  for (auto &endorsement : endorsements) {
+    *protoEndorsements.add_sig_msgs() = endorsement;
+  }
+
   Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
       BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
 
@@ -1116,7 +1186,8 @@ void Client::Phase1(PendingRequest *req) {
           std::placeholders::_1),
         std::bind(&Client::RelayP1callback, this, req->id, std::placeholders::_1, std::placeholders::_2),
         std::bind(&Client::FinishConflict, this, req->id, std::placeholders::_1, std::placeholders::_2),
-        req->timeout);
+        req->timeout,
+        protoEndorsements);
     req->outstandingPhase1s++;
   }
   //schedule timeout for when we allow starting FB P1.

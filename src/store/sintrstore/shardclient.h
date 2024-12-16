@@ -67,7 +67,9 @@ static int successful_invoke = 0;
 ///////// Reads
 typedef std::function<void(int, const std::string &,
     const std::string &, const Timestamp &, const proto::Dependency &,
-    bool, bool)> read_callback;
+    bool, bool,
+    const proto::CommittedProof &, const std::string &, const std::string &,
+    const proto::EndorsementPolicyMessage &)> read_callback;
 typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
@@ -148,7 +150,8 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
 
  //////////// Commit Protocol
   virtual void Phase1(uint64_t id, const proto::Transaction &transaction, const std::string &txnDigest,
-    phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout);
+    phase1_callback pcb, phase1_timeout_callback ptcb, relayP1_callback rcb, finishConflictCB fcb, uint32_t timeout,
+    const proto::SignedMessages &endorsements);
   virtual void StopP1(uint64_t client_seq_num);
   virtual void Phase2(uint64_t id, const proto::Transaction &transaction,
       const std::string &txnDigest, proto::CommitDecision decision,
@@ -242,6 +245,14 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     point_result_callback prcb; //A hack to access from PendingQuorumGet
     std::string table_name;
+
+    // these correspond with maxValue, to be forwarded to peers
+    proto::CommittedProof maxCommittedProof;
+    // this may be a proto::Write or signed version of it
+    std::string maxSerializedWrite;
+    std::string maxSerializedWriteTypeName;
+    // endorsement policy corresponding to maxValue
+    proto::EndorsementPolicyMessage maxPolicy;
   };
 
   struct Result_mgr {

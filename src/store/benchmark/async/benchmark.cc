@@ -465,10 +465,12 @@ DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w
 
 
 // Sintr specific args
+DEFINE_string(clients_config_path, "", "path to client transport configuration file");
 DEFINE_uint64(sintr_max_val_threads, 1, "sintr max number of validation threads");
 DEFINE_bool(sintr_sign_fwd_read_results, true, "sintr sign forward read results");
 DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
 DEFINE_bool(sintr_debug_endorse_check, true, "sintr do a full debug validation txn endorsement check");
+DEFINE_bool(sintr_client_check_evidence, true, "sintr client check prepared committed evidence on forward read results");
 
 
 ///////////////////////////////////////////////////////////
@@ -832,6 +834,7 @@ std::vector<::BenchmarkClient *> benchClients;
 std::vector<std::thread *> threads;
 Transport *tport;
 transport::Configuration *config;
+transport::Configuration *clients_config;
 KeyManager *keyManager;
 Partitioner *part;
 KeySelector *keySelector;
@@ -1239,6 +1242,16 @@ int main(int argc, char **argv) {
   }
   config = new transport::Configuration(configStream);
 
+  std::ifstream clientsConfigStream(FLAGS_clients_config_path);
+  if (mode == PROTO_SINTR && clientsConfigStream.fail()) {
+    std::cerr << "Did not provide valid clients config path for Sintr: " << FLAGS_clients_config_path
+              << std::endl;
+    return -1;
+  }
+  else if(mode == PROTO_SINTR) {
+    clients_config = new transport::Configuration(clientsConfigStream);
+  }
+
 	crypto::KeyType keyType;
   switch (FLAGS_indicus_key_type) {
   case 0:
@@ -1575,7 +1588,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_max_val_threads,
         FLAGS_sintr_sign_fwd_read_results,
         FLAGS_sintr_sign_finish_validation,
-        FLAGS_sintr_debug_endorse_check
+        FLAGS_sintr_debug_endorse_check,
+        FLAGS_sintr_client_check_evidence
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,
@@ -1639,7 +1653,8 @@ int main(int argc, char **argv) {
                                           FLAGS_warmup_secs,
 																					FLAGS_indicus_max_consecutive_abstains,
                                           FLAGS_sql_bench,
-																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
+                                          clients_config);
         break;
     }
     case PROTO_PEQUIN: {

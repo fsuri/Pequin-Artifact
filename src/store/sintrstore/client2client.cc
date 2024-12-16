@@ -316,7 +316,7 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
   proto::Dependency dep;
   bool addReadset = fwdReadResultMsg.add_readset();
   // only if addReadset is true will there be dep or committed proofs
-  if (addReadset) {
+  if (addReadset && params.sintr_params.clientCheckEvidence) {
     if (!CheckPreparedCommittedEvidence(fwdReadResultMsg, write, dep)) {
       return;
     }

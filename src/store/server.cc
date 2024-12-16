@@ -825,7 +825,7 @@ int main(int argc, char **argv) {
       sintrstore::SintrParameters sintr_params(
         0, false,
         FLAGS_sintr_sign_finish_validation,
-        false
+        false, false
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

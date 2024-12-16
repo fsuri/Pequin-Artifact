@@ -806,13 +806,15 @@ typedef struct SintrParameters {
   const bool signFwdReadResults; // sign (and validate) forward read results
   const bool signFinishValidation; // sign (and validate) finish validation messages
   const bool debugEndorseCheck; // debug endorsement check
+  const bool clientCheckEvidence; // client checks prepared and committed evidence on forward read results
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
-    bool debugEndorseCheck) :
+    bool debugEndorseCheck, bool clientCheckEvidence) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
-    debugEndorseCheck(debugEndorseCheck) {}
+    debugEndorseCheck(debugEndorseCheck),
+    clientCheckEvidence(clientCheckEvidence) {}
 } SintrParameters;
 
 typedef struct Parameters {
