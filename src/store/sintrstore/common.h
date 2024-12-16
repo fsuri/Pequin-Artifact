@@ -177,6 +177,10 @@ template<typename T> static void* pointerWrapper(std::function<T()> func){
 
 void* BoolPointerWrapper(std::function<bool()> func);
 
+void SignBytes(const std::string &data, 
+    crypto::PrivKey* privateKey, uint64_t processId, 
+    proto::SignedMessage *signedMessage);
+
 void SignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage);
@@ -796,6 +800,20 @@ typedef std::function<void(const std::string &, const Timestamp &, bool, QueryRe
 typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
 
+// Sintr protocol specific parameters
+typedef struct SintrParameters {
+  const uint64_t maxValThreads; // maximum number of validation threads
+  const bool signFwdReadResults; // sign (and validate) forward read results
+  const bool signFinishValidation; // sign (and validate) finish validation messages
+  const bool debugEndorseCheck; // debug endorsement check
+
+  SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
+    bool debugEndorseCheck) :
+    maxValThreads(maxValThreads), 
+    signFwdReadResults(signFwdReadResults), 
+    signFinishValidation(signFinishValidation),
+    debugEndorseCheck(debugEndorseCheck) {}
+} SintrParameters;
 
 typedef struct Parameters {
 
@@ -835,6 +853,7 @@ typedef struct Parameters {
   const uint32_t rtsMode;
 
   const QueryParameters query_params;
+  const SintrParameters sintr_params;
 
   Parameters(bool signedMessages, bool validateProofs, bool hashDigest, bool _verifyDeps,
     int signatureBatchSize, int64_t maxDepDepth, uint64_t readDepSize,
@@ -851,7 +870,8 @@ typedef struct Parameters {
     bool replicaGossip,
     bool signClientProposals,
     uint32_t rtsMode,
-    QueryParameters query_params) :
+    QueryParameters query_params,
+    SintrParameters sintr_params) :
     signedMessages(signedMessages), validateProofs(validateProofs),
     hashDigest(hashDigest), verifyDeps(false), signatureBatchSize(signatureBatchSize),
     maxDepDepth(maxDepDepth), readDepSize(readDepSize),
@@ -871,7 +891,8 @@ typedef struct Parameters {
     replicaGossip(replicaGossip),
     signClientProposals(signClientProposals),
     rtsMode(rtsMode),
-    query_params(query_params) { 
+    query_params(query_params),
+    sintr_params(sintr_params) { 
         UW_ASSERT(!(mainThreadDispatching && dispatchMessageReceive)); //They should not be true at the same time.
 
         UW_ASSERT(!verifyDeps);

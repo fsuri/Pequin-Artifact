@@ -69,6 +69,15 @@ void FreeMessageString(std::string *msg){
   MessageStrings.push_back(msg);
 }
 
+void SignBytes(const std::string &data, 
+    crypto::PrivKey* privateKey, uint64_t processId, 
+    proto::SignedMessage *signedMessage) {
+  signedMessage->set_process_id(processId);
+  signedMessage->set_data(data);
+  *signedMessage->mutable_signature() = crypto::Sign(privateKey,
+      signedMessage->data());
+}
+
 void SignMessage(const ::google::protobuf::Message* msg,
     crypto::PrivKey* privateKey, uint64_t processId,
     proto::SignedMessage *signedMessage) {

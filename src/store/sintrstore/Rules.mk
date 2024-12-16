@@ -4,7 +4,8 @@ SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc server_fallback.cc 
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
 		querysync-server.cc querysync-servertools.cc querysync-tests.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc \
-		concurrencycontrol_semantic.cc validation_parse_client.cc)
+		concurrencycontrol_semantic.cc validation_parse_client.cc client2client.cc endorsement_client.cc endorsement_policy.cc \
+		validation_client.cc)
 
 PROTOS += $(addprefix $(d), sintr-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
@@ -25,15 +26,17 @@ LIB-sintr-store := $(o)server.o $(o)server_fallback.o $(o)servertools.o $(o)quer
 	$(o)sintr-proto.o $(o)query-proto.o $(LIB-sintr-common) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-bft-tapir-config) \
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o $(o)localbatchverifier.o $(o)sharedbatchverifier.o \
-	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o #$(o)table_store_interface_old.o
+	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o \
+	$(o)endorsement_policy.o  #$(o)table_store_interface_old.o
 
-LIB-sintr-validation := $(LIB-store-frontend) $(LIB-validation-tpcc) $(o)validation_parse_client.o
+LIB-sintr-validation := $(LIB-store-frontend) $(LIB-validation-tpcc) $(o)validation_parse_client.o $(o)validation_client.o
 
 LIB-sintr-client := $(LIB-udptransport) \
 	$(LIB-store-frontend) $(LIB-store-common) $(o)sintr-proto.o $(o)query-proto.o\
 	$(o)shardclient.o $(o)querysync-client.o $(o)client.o $(LIB-bft-tapir-config) \
 	$(LIB-crypto) $(LIB-batched-sigs) $(LIB-sintr-common) $(o)phase1validator.o \
-	$(o)basicverifier.o $(o)localbatchverifier.o $(LIB-sintr-validation)
+	$(o)basicverifier.o $(o)localbatchverifier.o $(LIB-sintr-validation) \
+	$(o)client2client.o $(o)endorsement_client.o $(o)endorsement_policy.o
 
 
 LIB-proto := $(o)sintr-proto.o $(o)query-proto.o

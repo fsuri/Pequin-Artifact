@@ -464,6 +464,13 @@ DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode
 DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
 
 
+// Sintr specific args
+DEFINE_uint64(sintr_max_val_threads, 1, "sintr max number of validation threads");
+DEFINE_bool(sintr_sign_fwd_read_results, true, "sintr sign forward read results");
+DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
+DEFINE_bool(sintr_debug_endorse_check, true, "sintr do a full debug validation txn endorsement check");
+
+
 ///////////////////////////////////////////////////////////
 
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
@@ -1564,6 +1571,13 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_SINTR: {
+      sintrstore::SintrParameters sintr_params(
+        FLAGS_sintr_max_val_threads,
+        FLAGS_sintr_sign_fwd_read_results,
+        FLAGS_sintr_sign_finish_validation,
+        FLAGS_sintr_debug_endorse_check
+      );
+
       sintrstore::QueryParameters query_params(FLAGS_store_mode,
                                                 syncQuorumSize,
                                                 queryMessages,
@@ -1609,7 +1623,8 @@ int main(int argc, char **argv) {
 																			  false,
                                         FLAGS_indicus_sign_client_proposals,
                                         0,
-                                        query_params);
+                                        query_params,
+                                        sintr_params);
 
         Notice("Warmup secs: %d", FLAGS_warmup_secs);
         client = new sintrstore::Client(config, clientId,

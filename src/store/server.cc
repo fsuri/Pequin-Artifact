@@ -466,6 +466,9 @@ DEFINE_string(indicus_read_dep, read_dep_args[0], "number of identical prepared"
     " to claim dependency (for Indicus)");
 DEFINE_validator(indicus_read_dep, &ValidateReadDep);
 
+// Sintr specific args
+DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
+
 /**
  * Experiment settings.
  */
@@ -819,6 +822,12 @@ int main(int argc, char **argv) {
           NOT_REACHABLE();
       }
 
+      sintrstore::SintrParameters sintr_params(
+        0, false,
+        FLAGS_sintr_sign_finish_validation,
+        false
+      );
+
       sintrstore::QueryParameters query_params(FLAGS_store_mode,
                                                  0,
                                                  0,
@@ -864,7 +873,8 @@ int main(int argc, char **argv) {
 																		  FLAGS_indicus_replica_gossip,
                                       FLAGS_indicus_sign_client_proposals,
                                       FLAGS_indicus_rts_mode,
-                                      query_params);
+                                      query_params,
+                                      sintr_params);
 
       Debug("Starting new server object");
       Notice("FILE PATH: %s", FLAGS_data_file_path.c_str());

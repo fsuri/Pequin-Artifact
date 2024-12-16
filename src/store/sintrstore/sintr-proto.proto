@@ -75,11 +75,14 @@ message Dependency {
 }
 
 message Write {
-  optional bytes committed_value = 1;
-  optional TimestampMessage committed_timestamp = 2;
-  optional bytes prepared_value = 3;
-  optional TimestampMessage prepared_timestamp = 4;
-  optional bytes prepared_txn_digest = 5;
+  optional bytes key = 1;
+  optional bytes committed_value = 2;
+  optional TimestampMessage committed_timestamp = 3;
+  optional EndorsementPolicyMessage committed_policy = 4;
+  optional bytes prepared_value = 5;
+  optional TimestampMessage prepared_timestamp = 6;
+  optional EndorsementPolicyMessage prepared_policy = 7;
+  optional bytes prepared_txn_digest = 8;
 }
 
 message ReadReply {
