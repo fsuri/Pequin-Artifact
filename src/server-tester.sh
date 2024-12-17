@@ -52,6 +52,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 			--num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL \
 			--num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
 			--debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine \
-			--store_mode=$STORE_MODE &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+			--store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

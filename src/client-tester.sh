@@ -58,7 +58,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
     --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH \
-    --store_mode=$STORE_MODE --sintr_client_check_evidence=false &> ./0_local_test_outputs/client-$i.out &
+    --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false &> ./0_local_test_outputs/client-$i.out &
 done;
 
 #valgrind
@@ -67,7 +67,7 @@ DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clien
   --num_ops_txn $NUM_OPS_TX --exp_duration $DURATION --client_id 0 --num_client_hosts $CLIENTS --warmup_secs 0 \
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
   --stats_file "stats-0.json" --indicus_key_path $KEY_PATH \
-  --store_mode=$STORE_MODE --sintr_client_check_evidence=false &> ./0_local_test_outputs/client-0.out &
+  --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false &> ./0_local_test_outputs/client-0.out &
 
 
 sleep $((DURATION+4))

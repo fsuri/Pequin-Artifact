@@ -1,0 +1,385 @@
+/***********************************************************************
+ *
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ **********************************************************************/
+
+/////////////////////NOTE: IT IS UNSAFE IF MORE THAN 1 WRITER!!!!
+//XXX IF TRYING TO ADD MORE WRITERS: ADD MUTEXES BACK
+
+#ifndef _VERSIONED_KV_STORE_GENERIC_H_
+#define _VERSIONED_KV_STORE_GENERIC_H_
+
+#include "lib/assert.h"
+#include "lib/message.h"
+#include "store/common/timestamp.h"
+
+#include <set>
+#include <map>
+#include <unordered_map>
+#include <mutex>
+#include <shared_mutex>
+#include <sys/time.h>
+#include "tbb/concurrent_unordered_map.h"
+#include "tbb/concurrent_hash_map.h"
+#include "tbb/concurrent_set.h"
+
+template<class K, class T, class V>
+class VersionedKVStoreGeneric {
+ public:
+  VersionedKVStoreGeneric();
+  ~VersionedKVStoreGeneric();
+
+  long int lock_time;
+  int KVStore_size();
+  void KVStore_Reserve(int size);
+  int ReadStore_size();
+
+  bool get(const K &key, std::pair<T, V> &value);
+  bool get(const K &key, const T &t, std::pair<T, V> &value);
+  bool getRange(const K &key, const T &t, std::pair<T, T> &range);
+  bool getLastRead(const K &key, T &readTime);
+  bool getLastRead(const K &key, const T &t, T &readTime);
+  bool getCommittedAfter(const K &key, const T &t,
+      std::vector<std::pair<T, V>> &values);
+  bool getPreceedingCommit(const K &key,
+    const T &t, std::pair<T, V> &value);
+  void put(const K &key, const V &v, const T &t);
+  void commitGet(const K &key, const T &readTime, const T &commit);
+  bool getUpperBound(const K& key, const T& t, T& result);
+
+  void testLatestCommits(const K &key,
+    const T &t, std::vector<std::pair<T, V>> &values);
+
+ private:
+  struct VersionedValue {
+    T write;
+    V value;
+
+    VersionedValue(const T &commit) : write(commit) { };
+    VersionedValue(const T &commit, const V &val) : write(commit), value(val) { };
+
+    friend bool operator> (const VersionedValue &v1, const VersionedValue &v2) {
+        return v1.write > v2.write;
+    };
+    friend bool operator< (const VersionedValue &v1, const VersionedValue &v2) {
+        return v1.write < v2.write;
+    };
+  };
+
+  /* Global store which keeps key -> (timestamp, value) list. */
+
+  //XXX make sets/map concurrent too.
+  typedef tbb::concurrent_hash_map<K, std::set<VersionedValue>> storeMap;
+  storeMap store;
+
+  typedef tbb::concurrent_hash_map<K, std::map<T, T>> lastReadsMap;
+  lastReadsMap lastReads;
+
+  bool inStore(const K &key);
+  void getValue(const K &key, const T &t,
+      typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator &it);
+};
+
+template<class K, class T, class V>
+VersionedKVStoreGeneric<K, T, V>::VersionedKVStoreGeneric() {
+  Notice("USING THREAD SAFE VERSIONSTORE GENERIC");
+  lock_time = 0;
+}
+
+template<class K, class T, class V>
+VersionedKVStoreGeneric<K, T, V>::~VersionedKVStoreGeneric() { }
+
+template<class K, class T, class V>
+int VersionedKVStoreGeneric<K, T, V>::KVStore_size() {
+    return store.size();
+ }
+
+ template<class K, class T, class V>
+ void VersionedKVStoreGeneric<K, T, V>::KVStore_Reserve(int size) {
+     //store.reserve(size);
+     return;
+  }
+
+
+ template<class K, class T, class V>
+ int VersionedKVStoreGeneric<K, T, V>::ReadStore_size() {
+     return lastReads.size();
+  }
+
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::inStore(const K &key) {
+  //std::shared_lock lock(storeMutex);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  return inStore && a->second.size() > 0;
+}
+
+template<class K, class T, class V>
+void VersionedKVStoreGeneric<K, T, V>::getValue(const K &key, const T &t,
+    typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator &it) {
+  //std::shared_lock lock(storeMutex);
+  //std::cerr << "find upper of: " << t.getTimestamp() << std::endl;
+  VersionedKVStoreGeneric<K, T, V>::VersionedValue v(t);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  it = a->second.upper_bound(v);
+  //TODO: Change get to use lower_bound? Do we want latest version <= TS (use upper_bound), or latest version < TS (use lower_bound)?
+
+  // for(auto &v_val: a->second){
+  //    std::cerr << "all vals: " << v_val.write.getTimestamp() << std::endl;
+  // }
+
+  // if there is no valid version at this timestamp
+  if (it == a->second.begin()) {
+      it = a->second.end();
+  } else {
+      it--;
+      //std::cerr << "next: " << it->write.getTimestamp() << std::endl;
+  }
+}
+
+/* Returns the most recent value and timestamp for given key.
+ * Error if key does not exist. */
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::get(const K &key,
+    std::pair<T, V> &value) {
+  // check for existence of key in store
+  if (inStore(key)) {
+    typename storeMap::const_accessor a;
+    bool inStore = store.find(a, key);
+    VersionedKVStoreGeneric<K, T, V>::VersionedValue v = *(a->second.rbegin());
+    value = std::make_pair(v.write, v.value);
+    return true;
+  }
+  return false;
+}
+
+/* Returns the value valid at given timestamp.
+ * Error if key did not exist at the timestamp. */
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::get(const K &key, const T &t,
+    std::pair<T, V> &value) {
+
+  if (inStore(key)) {
+    typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator it;
+    getValue(key, t, it);
+
+    typename storeMap::const_accessor a;
+    bool inStore = store.find(a, key);
+    if (it != a->second.end()) {
+      value = std::make_pair((*it).write, (*it).value);
+      return true;
+    }
+  }
+  return false;
+}
+
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getRange(const K &key, const T &t,
+    std::pair<T, T> &range) {
+
+  if (inStore(key)) {
+    typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator it;
+    getValue(key, t, it);
+
+    typename storeMap::const_accessor a;
+    bool inStore = store.find(a, key);
+    if (it != a->second.end()) {
+      range.first = (*it).write;
+      it++;
+      if (it != a->second.end()) {
+        range.second = (*it).write;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getUpperBound(const K& key, const T& t, T& result) {
+
+  VersionedKVStoreGeneric<K, T, V>::VersionedValue v(t);
+  typename storeMap::accessor a;
+  store.insert(a, key);
+  auto it = a->second.upper_bound(v);
+
+  // if there is no valid version at this timestamp
+  if (it == a->second.end()) {
+    return false;
+  } else {
+    result = (*it).write;
+    return true;
+  }
+
+}
+
+template<class K, class T, class V>
+void VersionedKVStoreGeneric<K, T, V>::put(const K &key, const V &value,
+    const T &t) {
+  // Key does not exist. Create a list and an entry.
+  typename storeMap::accessor a;
+  store.insert(a, key);
+  // bool fresh = store.insert(a, key);
+  // if(!fresh){
+  //   std::cerr << "Inserting key " << key << " twice!" << std::endl;
+  //   Panic("Quit");
+  // }
+  a->second.insert(VersionedKVStoreGeneric<K, T, V>::VersionedValue(t, value));
+}
+
+/*
+ * Commit a read by updating the timestamp of the latest read txn for
+ * the version of the key that the txn read.
+ */
+template<class K, class T, class V>
+void VersionedKVStoreGeneric<K, T, V>::commitGet(const K &key,
+    const T &readTime, const T &commit) {
+  // Hmm ... could read a key we don't have if we are behind ... do we commit this or wait for the log update?
+  if (inStore(key)) {
+    typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator it;
+    getValue(key, readTime, it);
+
+    typename storeMap::const_accessor a;
+    bool inStore = store.find(a, key);
+    if (it != a->second.end()) {
+      // figure out if anyone has read this version before
+      typename lastReadsMap::accessor b;
+      bool inLastReads = lastReads.find(b, key);
+      if (inLastReads &&
+        b->second.find((*it).write) != b->second.end() &&
+        b->second[(*it).write] < commit) {
+        b->second[(*it).write] = commit;
+      }
+    }
+  } // otherwise, ignore the read
+}
+
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getLastRead(const K &key, T &lastRead) {
+
+  if (inStore(key)) {
+    typename storeMap::const_accessor a;
+    store.find(a, key);
+    VersionedValue v = *(a->second.rbegin());
+
+    typename lastReadsMap::accessor b;
+    bool inLastReads = lastReads.find(b, key);
+    if (inLastReads &&  b->second.find(v.write) != b->second.end()) {
+      lastRead = b->second[v.write];
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * Get the latest read for the write valid at timestamp t
+ */
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getLastRead(const K &key, const T &t,
+    T &lastRead) {
+
+  if (inStore(key)) {
+    typename std::set<VersionedKVStoreGeneric<K, T, V>::VersionedValue>::iterator it;
+    getValue(key, t, it);
+
+    // TODO: this ASSERT seems incorrect. Why should we expect to find a value
+    //    at given time t? There is no constraint on t, so we have no guarantee
+    //    that a valid version exists.
+    // UW_ASSERT(it != store[key].end());
+
+    // figure out if anyone has read this version before
+    typename lastReadsMap::accessor b;
+    bool inLastReads = lastReads.find(b, key);
+    if (inLastReads && b->second.find((*it).write) != b->second.end()) {
+      lastRead = b->second[(*it).write];
+      return true;
+    }
+  }
+  return false;
+}
+
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getCommittedAfter(const K &key,
+    const T &t, std::vector<std::pair<T, V>> &values) {
+
+  VersionedKVStoreGeneric<K, T, V>::VersionedValue v(t);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    auto setItr = a->second.upper_bound(v);
+    while (setItr != a->second.end()) {
+      values.push_back(std::make_pair(setItr->write, setItr->value));
+      setItr++;
+    }
+    return true;
+  }
+  return false;
+}
+
+//Note: Could just use get function...
+template<class K, class T, class V>
+bool VersionedKVStoreGeneric<K, T, V>::getPreceedingCommit(const K &key,
+    const T &t, std::pair<T, V> &value) {  //Get last write before Time T
+
+  VersionedKVStoreGeneric<K, T, V>::VersionedValue v(t);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    auto setItr = a->second.lower_bound(v);  //First itr >= T
+    if(setItr == a->second.begin()) {    //there exists no write < T // all values are > timestamp ==> return false
+      return false;  
+    }
+    else{ //there is a write < T, decrement itr once.  
+      setItr--;                              //First itr < T
+      if(setItr != a->second.end()){
+        value = std::make_pair(setItr->write, setItr->value);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+//FIXME: REMOVE TEST   //TODO: MAybe check starting from upper bound?
+template<class K, class T, class V>
+void VersionedKVStoreGeneric<K, T, V>::testLatestCommits(const K &key,
+    const T &t, std::vector<std::pair<T, V>> &values) {  //Get last writes
+
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    int count = 0;
+    for(auto itr = a->second.rbegin(); itr != a->second.rend(); ++itr){
+        count++;
+        values.push_back(std::make_pair(itr->write, itr->value));
+        if(count == 10) return;
+    }
+  }
+}
+
+
+#endif  /* _VERSIONED_KV_STORE_GENERIC_H_ */
