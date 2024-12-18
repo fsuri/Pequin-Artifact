@@ -51,13 +51,12 @@ Before connecting to your control machine, start an SSH agent in your local term
 with `eval $(ssh-agent -s)`. Then add your Cloudlab SSH key to the agent `ssh-add <path to Cloudlab key>`.
 
 Connect using your Cloudlab username and the following domain name:
-`ssh -A <cloudlab-user>@control.<experiment-name>.<project-name>.utah.cloudlab.us`.
-It is crucial that you connect using the `-A` setting in order to transfer your
-local SSH agent to the control machine.  You may need to add `-pg0` to your
-project name in order to connect, i.e. if your project is called "pequin", it
-may need to be "pequin-pg0" in order to connect.
+`ssh -A <cloudlab-user>@control.<experiment-name>.<project-name>-pg0.utah.cloudlab.us`.
+You may need to add `-pg0` to your project name in order to connect, i.e. if your project is called "pequin", it may need to be "pequin-pg0" in order to connect.
+It is crucial that you connect using the `-A` setting in order to transfer your local SSH agent to the control machine. If you still run into connection issues, try manually uploading your ssh key (that is registered with CloudLab) to the control machine.
 
-Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. You can either free up space by deleting the 'images' folder, or clone the artifact into a directory such as `dev`.
+
+Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. You can either free up space by deleting the 'images' folder (it should be under `/proj/<project-name>-pg0`, or clone the artifact into a directory such as `dev`.
 
 ### Using a custom profile (skip if using pre-supplied profile)
 
