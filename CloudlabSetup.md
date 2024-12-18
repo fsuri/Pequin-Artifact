@@ -45,7 +45,7 @@ Our profile by default allocates 18 servers (36 total machines), enough to run P
 Note, that the names are just placeholder names and do NOT correspond to real region placement. To emulate WAN latencies our experiment configs allow assigning ping latencies to sever-names.
 
 ### Using a control machine (skip if using local machine)
-When using a control machine (and not your local machine) to start experiments, you will need to source setvars.sh and may need to export the LD_LIBRARY_PATH for the Java dependencies (see section "Install Dependencies") before building. You will need to do this everytime you start a new control machine because those may not be persisted across images.
+When using a control machine (and not your local machine) to start experiments, you will need to source setvars.sh and may need to export the LD_LIBRARY_PATH for the Java dependencies (see section "Install Dependencies") before building. You will need to do this everytime you start a new control machine because those are not be persisted across images.
 
 Before connecting to your control machine, start an SSH agent in your local terminal
 with `eval $(ssh-agent -s)`. Then add your Cloudlab SSH key to the agent `ssh-add <path to Cloudlab key>`.
@@ -54,8 +54,10 @@ Connect using your Cloudlab username and the following domain name:
 `ssh -A <cloudlab-user>@control.<experiment-name>.<project-name>.utah.cloudlab.us`.
 It is crucial that you connect using the `-A` setting in order to transfer your
 local SSH agent to the control machine.  You may need to add `-pg0` to your
-project name in order to connect, i.e. if your project is called "sosp108", it
-may need to be "sosp108-pg0" in order to connect.
+project name in order to connect, i.e. if your project is called "pequin", it
+may need to be "pequin-pg0" in order to connect.
+
+Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. You can either free up space by deleting the 'images' folder, or clone the artifact into a directory such as `dev`.
 
 ### Using a custom profile (skip if using pre-supplied profile)
 
