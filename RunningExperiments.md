@@ -91,14 +91,16 @@ First, you must modify scripts and the client connection string according to you
 - E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
 
 Additionally, modify the following scripts accordingly to your experiment details and host names.
-- `init_postgres.sh` 
-- `init_postgres_replicated.sh`
-- `postgres_primary2.sh`
-- `postgres_replica.sh`
+- `init_postgres.sh`               --> fill in user name, experiment details (name, project, cluster), replica host name. 
+- `init_postgres_replicated.sh`    --> fill in user name, experiment details (name, project, cluster), replica host names.  
+- `postgres_primary2.sh`           --> replace all instances of `shir` with your own cloudlab user name.
+- `postgres_replica.sh`            --> adjust `primary_ip` according to replica host names.
 
+Finally, in `experiment/scripts/utils/experiment_util.py` adjust the hard coded replica host name according to your setup. Search and adjust this line: `replica_host = "us-east-1-1.pg-smr.pequin-pg0.utah.cloudlab.us"`
 
 #### Uploading helper scripts:
 > ⚠️ The following scripts must explicitly be invoked from `Pequin-Artifact/src`, and not from the `scripts` foler directly.
+> **Note** If you modify the postgres scripts you will have to re-upload them again!
 - If you have not already modify the scripts!
 - For unreplicated Postgres, simply invoke `./scripts/init_postgres.sh`
 - For primary-backup Postgres invoke `./scripts/init_postgres_replicated.sh` 
