@@ -17,7 +17,8 @@
   
   "benchmark_name": "seats-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
-  
+
+  "pg_replicated":false,
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "server_load_time": 5,
