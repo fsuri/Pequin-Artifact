@@ -31,14 +31,16 @@ To generate benchmark data simple run the script `src/generate_benchmark_data.sh
 1) specify the benchmark you want to generate, e.g. to run TPC-C use `-b 'tpcc'`
 2) specify the benchmark parameters, e.g. to create 20 warehouses for TPC-C use `-n 20`
 
+> 📓 You may need to enable permissions for the scripts before running: `cmod +x <scriptname>`
+
 - Generate TPC-C data using: `./generate_benchmark_data -n 20` (tpcc is the default benchmark)
 - Generate Auctionmark data using: `./generate_benchmark_data -b 'auctionmark'` (using default scale factor)
 - Generate Seats data using: `./generate_benchmark_data -b 'seats'` (using default scale factor)
 
 Once you created the benchmark data (you can create all data upfront), upload the respective benchmark data to your CloudLab cluster using `src/upload_data_remote`.
-Simply specify which benchmark you are uploading, and to how many shards (1, 2 or 3) you are uploading:
-- E.g. use `./upload_data_remote -b 'tpcc' -s 2` to upload TPC-C data to 2 shards. 
-- TPC-C and 1 shard are default parameters.
+Simply specify which benchmark you are uploading, and to how many shards (1, 2 or 3) you are uploading. You can also pass in your cloudlab user and expeirment name.
+- E.g. use `./upload_data_remote -b 'tpcc' -s 2 -u `fs435`` to upload TPC-C data to 2 shards, with cloudlab user `fs435`
+- TPC-C and 1 shard are default parameters. Check our the script for exact usage!
 
 ## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
@@ -96,6 +98,7 @@ Additionally, modify the following scripts accordingly to your experiment detail
 
 
 #### Uploading helper scripts:
+> ⚠️ The following scripts must explicitly be invoked from `Pequin-Artifact/src`, and not from the `scripts` foler directly.
 - If you have not already modify the scripts!
 - For unreplicated Postgres, simply invoke `./scripts/init_postgres.sh`
 - For primary-backup Postgres invoke `./scripts/init_postgres_replicated.sh` 
