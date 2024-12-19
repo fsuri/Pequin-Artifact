@@ -93,7 +93,7 @@ First, you must modify scripts and the client connection string according to you
 Additionally, modify the following scripts accordingly to your experiment details and host names.
 - `init_postgres.sh`               --> fill in user name, experiment details (name, project, cluster), replica host name. 
 - `init_postgres_replicated.sh`    --> fill in user name, experiment details (name, project, cluster), replica host names.  
-- `postgres_primary2.sh`           --> replace all instances of `shir` with your own cloudlab user name.
+- `postgres_primary2.sh`           --> replace all instances of `shir` with your own cloudlab user name, and ajdust `replica_servers` to your replica host name.
 - `postgres_replica.sh`            --> adjust `primary_ip` according to replica host names.
 
 Finally, in `experiment/scripts/utils/experiment_util.py` adjust the hard coded replica host name according to your setup. Search and adjust this line: `replica_host = "us-east-1-1.pg-smr.pequin-pg0.utah.cloudlab.us"`
