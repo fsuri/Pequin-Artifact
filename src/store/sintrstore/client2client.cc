@@ -217,23 +217,25 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
   }
 }
 
-void Client2Client::HandlePolicyUpdate(const EndorsementPolicy &policy) {
-  EndorsementPolicy diffPolicy = endorseClient->UpdateRequirement(policy);
-  if (diffPolicy > EndorsementPolicy()) {
+void Client2Client::HandlePolicyUpdate(const Policy *policy) {
+  UW_ASSERT(policy != nullptr);
+  std::vector<int> diff = endorseClient->UpdateRequirement(policy);
+  if (diff.size() > 0) {
     Debug("Initiating more beginValTxnMsg");
     // need to initiate more endorsements
-    int numAdditional = static_cast<int>(diffPolicy.GetWeight());
-    for (const auto &acl_client_id : diffPolicy.GetAccessControlList()) {
-      auto ret = beginValSent.insert(acl_client_id);
-      if (ret.second == false) {
-        Panic("Client %lu already sent beginValTxnMsg", acl_client_id);
-      }
-      numAdditional--;
-      transport->SendMessageToReplica(this, acl_client_id, sentBeginValTxnMsg);
-      for (const auto &fwdReadResultMsg : sentFwdReadResults) {
-        transport->SendMessageToReplica(this, acl_client_id, fwdReadResultMsg);
-      }
-    }
+    int numAdditional = diff.size();
+    
+    // for (const auto &acl_client_id : diffPolicy.GetAccessControlList()) {
+    //   auto ret = beginValSent.insert(acl_client_id);
+    //   if (ret.second == false) {
+    //     Panic("Client %lu already sent beginValTxnMsg", acl_client_id);
+    //   }
+    //   numAdditional--;
+    //   transport->SendMessageToReplica(this, acl_client_id, sentBeginValTxnMsg);
+    //   for (const auto &fwdReadResultMsg : sentFwdReadResults) {
+    //     transport->SendMessageToReplica(this, acl_client_id, fwdReadResultMsg);
+    //   }
+    // }
 
     int last_offset = 1;
     while (numAdditional > 0) {
@@ -258,7 +260,7 @@ void Client2Client::HandlePolicyUpdate(const EndorsementPolicy &policy) {
     }
   }
   else {
-    Debug("Received policy with weight %lu", policy.GetWeight());
+    Debug("Received policy with weight %lu", policy->GetMinSatisfyingSet().size());
   }
 }
 

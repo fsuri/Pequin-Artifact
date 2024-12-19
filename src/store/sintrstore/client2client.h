@@ -49,6 +49,7 @@
 #include "store/sintrstore/validation_client.h"
 #include "store/sintrstore/validation_parse_client.h"
 #include "store/sintrstore/endorsement_client.h"
+#include "store/sintrstore/policy/policy.h"
 
 #include <map>
 #include <string>
@@ -85,7 +86,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
 
   // given a new policy, update the endorsement policy for this client 
   // also contact additional peers as necessary
-  void HandlePolicyUpdate(const EndorsementPolicy &policy);
+  void HandlePolicyUpdate(const Policy *policy);
 
   void SetFailureFlag(bool f) {
     failureActive = f;

@@ -49,7 +49,7 @@
 #include "store/sintrstore/table_store_interface_toy.h"
 #include "store/sintrstore/table_store_interface_peloton.h"
 //#include "store/sintrstore/sql_interpreter.h"
-#include "store/sintrstore/endorsement_policy.h"
+#include "store/sintrstore/policy/policy.h"
 #include "store/common/backend/versionstore_generic_safe.h"
 #include <sys/time.h>
 
@@ -933,10 +933,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
   // fill in policy from a transaction readset writeset
-  void ExtractPolicy(const proto::Transaction *txn, EndorsementPolicy &policy);
+  void ExtractPolicy(const proto::Transaction *txn, Policy &policy);
   // validate endorsements have valid signatures and matching data, and satisfy the policy
   // client id is for the client that initiated the transaction
-  bool ValidateEndorsements(const EndorsementPolicy &policy, const proto::SignedMessages *endorsements, 
+  bool ValidateEndorsements(const Policy &policy, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest);
 
   // Global objects.
@@ -1072,7 +1072,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //SQLTransformer sql_interpreter;
 
   VersionedKVStoreGeneric<std::string, Timestamp, Value> store;
-  VersionedKVStoreGeneric<uint64_t, Timestamp, EndorsementPolicy> policyStore;
+  VersionedKVStoreGeneric<uint64_t, Timestamp, Policy *> policyStore;
+  // not sure if VersionedKvStoreGeneric will actually free the policy pointers, so store separately and free on destruction
+  std::vector<Policy *> policiesToFree;
   // Key -> V
   //std::unordered_map<std::string, std::set<std::tuple<Timestamp, Timestamp, const proto::CommittedProof *>>> committedReads;
   typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead; //1) timestamp of reading tx, 2) timestamp of read value, 3) proof that Tx that wrote the read value (2) committed

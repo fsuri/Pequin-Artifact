@@ -47,6 +47,7 @@
 #include "store/sintrstore/phase1validator.h"
 #include "store/sintrstore/sharedbatchsigner.h"
 #include "store/sintrstore/sharedbatchverifier.h"
+#include "store/sintrstore/policy/weight_policy.h"
 #include <fmt/core.h>
 #include <valgrind/memcheck.h>
 
@@ -341,6 +342,11 @@ Server::~Server() {
   //Latency_Dump(&batchSigner->waitOnBatchLock);
   //Latency_Dump(&(store.storeLockLat));
 
+  // free policies
+  for (const auto &p : policiesToFree) {
+    delete p;
+  }
+
   if(sql_bench){
     Notice("Freeing Table Store interface");
     delete table_store;
@@ -520,11 +526,13 @@ void Server::Load(const std::string &key, const std::string &value,
   // TODO: actually set policy
   uint64_t policyId = 0;
   val.policyId = policyId;
-  std::pair<Timestamp, EndorsementPolicy> tsPolicy;
+  std::pair<Timestamp, Policy *> tsPolicy;
   bool exists = policyStore.get(policyId, tsPolicy);
   if (!exists) {
     Debug("Adding policy %lu to policyStore", policyId);
-    policyStore.put(policyId, EndorsementPolicy(2), timestamp);
+    WeightPolicy *wp = new WeightPolicy(2);
+    policyStore.put(policyId, wp, timestamp);
+    policiesToFree.push_back(wp);
   }
   store.put(key, val, timestamp);
   if (key.length() == 5 && key[0] == 0) {
@@ -1093,13 +1101,13 @@ void Server::HandleRead(const TransportAddress &remote,
     }
 
     // get policy from policyStore
-    std::pair<Timestamp, EndorsementPolicy> tsPolicy;
+    std::pair<Timestamp, Policy *> tsPolicy;
     bool policyExists = policyStore.get(tsVal.second.policyId, ts, tsPolicy);
     if (!policyExists) {
       Panic("Cannot find policy %lu in policyStore", tsVal.second.policyId);
     }
     readReply->mutable_write()->mutable_committed_policy()->set_policy_id(tsVal.second.policyId);
-    tsPolicy.second.SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy());
+    tsPolicy.second->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy());
   }
 
   TransportAddress *remoteCopy = remote.clone();
@@ -1177,13 +1185,13 @@ void Server::HandleRead(const TransportAddress &remote,
               *readReply->mutable_write()->mutable_prepared_txn_digest() = TransactionDigest(*mostRecent, params.hashDigest);
 
               // get policy from policyStore
-              std::pair<Timestamp, EndorsementPolicy> tsPolicy;
+              std::pair<Timestamp, Policy *> tsPolicy;
               bool policyExists = policyStore.get(preparedPolicyId, tsPolicy);
               if (!policyExists) {
                 Panic("Cannot find policy %lu in policyStore", preparedPolicyId);
               }
               readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
-              tsPolicy.second.SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy());
+              tsPolicy.second->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy());
             }
           }
         }
@@ -2912,12 +2920,12 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 }
 
 bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn) {
-  EndorsementPolicy policy;
+  WeightPolicy policy;
   ExtractPolicy(txn, policy);
   return ValidateEndorsements(policy, endorsements, txn->client_id(), txnDigest);
 }
 
-void Server::ExtractPolicy(const proto::Transaction *txn, EndorsementPolicy &policy) {
+void Server::ExtractPolicy(const proto::Transaction *txn, Policy &policy) {
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
       continue;
@@ -2927,7 +2935,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, EndorsementPolicy &pol
     uint64_t policyId = 0; 
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
 
-    std::pair<Timestamp, EndorsementPolicy> tsPolicy;
+    std::pair<Timestamp, Policy *> tsPolicy;
     bool exists = policyStore.get(policyId, tsPolicy);
     if (!exists) {
       Panic("Cannot find policy %lu in policyStore", policyId);
@@ -2978,7 +2986,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, EndorsementPolicy &pol
   // }
 }
 
-bool Server::ValidateEndorsements(const EndorsementPolicy &policy, const proto::SignedMessages *endorsements, 
+bool Server::ValidateEndorsements(const Policy &policy, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest) {
 
   std::set<uint64_t> endorsers;

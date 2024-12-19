@@ -34,16 +34,20 @@
 namespace sintrstore {
 
 EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager) : 
-  client_id(client_id), keyManager(keyManager) {}
-EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager, EndorsementPolicy policy) :
+  client_id(client_id), keyManager(keyManager), policy(nullptr) {}
+EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager, Policy *policy) :
   client_id(client_id), keyManager(keyManager), policy(policy) {}
-EndorsementClient::~EndorsementClient() {}
+EndorsementClient::~EndorsementClient() {
+  for (const auto &idPolicy : policyCache) {
+    delete idPolicy.second;
+  }
+}
 
 void EndorsementClient::SetClientSeqNum(uint64_t client_seq_num) {
   this->client_seq_num = client_seq_num;
 }
 
-EndorsementPolicy EndorsementClient::GetPolicy() {
+Policy *EndorsementClient::GetPolicy() {
   return policy;
 }
 
@@ -108,7 +112,7 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
   }
   for (int i = 0; i < expectedTxn.involved_groups_size(); i++) {
     if (txn.involved_groups(i) != expectedTxn.involved_groups(i)) {
-      Debug("involved groups mismatch: received group %d, expected group %d", txn.involved_groups(i), expectedTxn.involved_groups(i));
+      Debug("involved groups mismatch: received group %ld, expected group %ld", txn.involved_groups(i), expectedTxn.involved_groups(i));
     }
   }
 
@@ -164,10 +168,15 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
   }
 }
 
-EndorsementPolicy EndorsementClient::UpdateRequirement(const EndorsementPolicy &policy) {
-  EndorsementPolicy out = this->policy.DifferenceToPolicy(policy);
-  this->policy.MergePolicy(policy);
-  return out;
+std::vector<int> EndorsementClient::UpdateRequirement(const Policy *policy) {
+  UW_ASSERT(policy != nullptr);
+  if (this->policy == nullptr) {
+    this->policy = policy->Clone();
+    return policy->GetMinSatisfyingSet();
+  }
+  std::vector<int> diff = this->policy->DifferenceToPolicy(policy);
+  this->policy->MergePolicy(policy);
+  return diff;
 }
 
 void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest,
@@ -198,9 +207,10 @@ void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::
 }
 
 bool EndorsementClient::IsSatisfied() {
-  bool satisfied = policy.IsSatisfied(client_ids_received);
+  UW_ASSERT(policy != nullptr);
+  bool satisfied = policy->IsSatisfied(client_ids_received);
   if (!satisfied) {
-    Debug("policy not satisfied, need %lu endorsements, received %lu", policy.GetWeight(), client_ids_received.size());
+    Debug("policy not satisfied, need %lu endorsements, received %lu", policy->GetMinSatisfyingSet().size(), client_ids_received.size());
   }
   return satisfied;
 }
@@ -208,13 +218,15 @@ bool EndorsementClient::IsSatisfied() {
 void EndorsementClient::Reset() {
   expectedTxnDigest.clear();
   expectedTxn.Clear();
-  policy.Reset();
+  if (policy != nullptr) {
+    policy->Reset();
+  }
   client_ids_received.clear();
   endorsements.clear();
   pendingEndorsements.clear();
 }
 
-bool EndorsementClient::GetPolicyFromCache(const std::string &key, EndorsementPolicy &policy) {
+bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy *policy) {
   auto it = keyPolicyIdCache.find(key);
   if (it == keyPolicyIdCache.end()) {
     return false;
@@ -225,7 +237,7 @@ bool EndorsementClient::GetPolicyFromCache(const std::string &key, EndorsementPo
     return false;
   }
 
-  policy = it2->second;
+  policy = it2->second->Clone();
   return true;
 }
 
@@ -233,8 +245,12 @@ void EndorsementClient::UpdateKeyPolicyIdCache(const std::string &key, uint64_t 
   keyPolicyIdCache[key] = policyId;
 }
 
-void EndorsementClient::UpdatePolicyCache(uint64_t policyId, const EndorsementPolicy &policy) {
-  policyCache[policyId] = policy;
+void EndorsementClient::UpdatePolicyCache(uint64_t policyId, const Policy *policy) {
+  UW_ASSERT(policy != nullptr);
+  if (policyCache.find(policyId) != policyCache.end()) {
+    delete policyCache[policyId];
+  }
+  policyCache[policyId] = policy->Clone();
 }
 
 } // namespace sintrstore

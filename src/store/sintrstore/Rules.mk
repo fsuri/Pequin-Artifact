@@ -1,10 +1,16 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
+cd := $(d)
+
+include $(d)policy/Rules.mk
+
+# is there a better way to reset the d variable?
+d := $(cd)
 
 SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc server_fallback.cc servertools.cc concurrencycontrol.cc store.cc common.cc \
 		phase1validator.cc localbatchsigner.cc sharedbatchsigner.cc \
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
 		querysync-server.cc querysync-servertools.cc querysync-tests.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc \
-		concurrencycontrol_semantic.cc validation_parse_client.cc client2client.cc endorsement_client.cc endorsement_policy.cc \
+		concurrencycontrol_semantic.cc validation_parse_client.cc client2client.cc endorsement_client.cc \
 		validation_client.cc)
 
 PROTOS += $(addprefix $(d), sintr-proto.proto)
@@ -27,7 +33,7 @@ LIB-sintr-store := $(o)server.o $(o)server_fallback.o $(o)servertools.o $(o)quer
 	$(LIB-configuration) $(LIB-store-common) $(LIB-transport) $(o)phase1validator.o \
 	$(o)localbatchsigner.o $(o)sharedbatchsigner.o $(o)basicverifier.o $(o)localbatchverifier.o $(o)sharedbatchverifier.o \
 	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o \
-	$(o)endorsement_policy.o  #$(o)table_store_interface_old.o
+	$(LIB-sintr-policy)  #$(o)table_store_interface_old.o
 
 LIB-sintr-validation := $(LIB-store-frontend) $(LIB-validation-tpcc) $(o)validation_parse_client.o $(o)validation_client.o
 
@@ -36,7 +42,7 @@ LIB-sintr-client := $(LIB-udptransport) \
 	$(o)shardclient.o $(o)querysync-client.o $(o)client.o $(LIB-bft-tapir-config) \
 	$(LIB-crypto) $(LIB-batched-sigs) $(LIB-sintr-common) $(o)phase1validator.o \
 	$(o)basicverifier.o $(o)localbatchverifier.o $(LIB-sintr-validation) \
-	$(o)client2client.o $(o)endorsement_client.o $(o)endorsement_policy.o
+	$(o)client2client.o $(o)endorsement_client.o $(LIB-sintr-policy)
 
 
 LIB-proto := $(o)sintr-proto.o $(o)query-proto.o

@@ -34,7 +34,8 @@
 #include "store/sintrstore/localbatchverifier.h"
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
-#include "store/sintrstore/endorsement_policy.h"
+#include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/policy/weight_policy.h"
 #include <sys/time.h>
 #include <algorithm>
 
@@ -196,8 +197,9 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->Reset();
     endorseClient->SetClientSeqNum(client_seq_num);
     // dummy endorsement policy
-    EndorsementPolicy policy(2);
+    WeightPolicy *policy = new WeightPolicy(2);
     endorseClient->UpdateRequirement(policy);
+    delete policy;
     c2client->SendBeginValidateTxnMessage(client_seq_num, txnState, txnStartTime);
   
     txn.Clear(); //txn = proto::Transaction();
@@ -274,11 +276,12 @@ void Client::Get(const std::string &key, get_callback gcb,
         ts.serialize(read->mutable_readtime());
         
         // new policy can only come from server, which must correspond to addReadSet
-        EndorsementPolicy policy; 
+        Policy *policy; 
         if (policyMsg.IsInitialized()) {
-          policy = EndorsementPolicy(policyMsg);
-          endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
-          endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+          // TODO: parse policyMsg and update policy
+          // policy = new Policy(policyMsg);
+          // endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
+          // endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
         }
       }
       if (hasDep) {
@@ -323,13 +326,14 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_value(value);
 
     // look in cache for policy
-    EndorsementPolicy policy;
+    Policy *policy;
     bool exists = endorseClient->GetPolicyFromCache(key, policy);
     if (!exists) {
       // if not found, use default policy for now
-      policy = EndorsementPolicy(2);
+      policy = new WeightPolicy(2);
     }
     c2client->HandlePolicyUpdate(policy);
+    delete policy;
 
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);

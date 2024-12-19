@@ -24,10 +24,10 @@
  *
  **********************************************************************/
 
-#ifndef _SINTR_ENDORSEMENT_H_
-#define _SINTR_ENDORSEMENT_H_
+#ifndef _SINTR_ENDORSEMENT_CLIENT_H_
+#define _SINTR_ENDORSEMENT_CLIENT_H_
 
-#include "store/sintrstore/endorsement_policy.h"
+#include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "lib/keymanager.h"
 
@@ -41,18 +41,18 @@ namespace sintrstore {
 class EndorsementClient {
  public:
   EndorsementClient(uint64_t client_id, KeyManager *keyManager);
-  EndorsementClient(uint64_t client_id, KeyManager *keyManager, EndorsementPolicy policy);
+  EndorsementClient(uint64_t client_id, KeyManager *keyManager, Policy *policy);
   ~EndorsementClient();
 
-  EndorsementPolicy GetPolicy();
+  Policy *GetPolicy();
   std::vector<proto::SignedMessage> GetEndorsements();
   void SetClientSeqNum(uint64_t client_seq_num);
   void SetExpectedTxnOutput(const std::string &expectedTxnDigest);
   void DebugSetExpectedTxnOutput(const proto::Transaction &expectedTxn);
   void DebugCheck(const proto::Transaction &txn);
   // update current policy by merging with passed in policy
-  // returns the difference between current policy and passed in policy
-  EndorsementPolicy UpdateRequirement(const EndorsementPolicy &policy);
+  // returns a vector of client ids to get from current policy to passed in policy
+  std::vector<int> UpdateRequirement(const Policy *policy);
   void AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest, 
     const proto::SignedMessage &signedValTxnDigest);
   bool IsSatisfied();
@@ -60,9 +60,9 @@ class EndorsementClient {
 
   // update policy to be corresponding to the given key
   // return true if policy exists for key, false otherwise
-  bool GetPolicyFromCache(const std::string &key, EndorsementPolicy &policy);
+  bool GetPolicyFromCache(const std::string &key, Policy *policy);
   void UpdateKeyPolicyIdCache(const std::string &key, uint64_t policyId);
-  void UpdatePolicyCache(uint64_t policyId, const EndorsementPolicy &policy);
+  void UpdatePolicyCache(uint64_t policyId, const Policy *policy);
 
  private:
   // this client information
@@ -71,7 +71,7 @@ class EndorsementClient {
 
   // client side cache of policy store
   std::map<std::string, uint64_t> keyPolicyIdCache;
-  std::map<uint64_t, EndorsementPolicy> policyCache;
+  std::map<uint64_t, Policy *> policyCache;
   
   // transaction specific
   uint64_t client_seq_num;
@@ -80,7 +80,7 @@ class EndorsementClient {
   // debug by checking entire validation txn
   proto::Transaction expectedTxn;
   // endorsement policy which must be satisfied
-  EndorsementPolicy policy;
+  Policy *policy;
   // which peer clients have endorsed
   std::set<uint64_t> client_ids_received;
   // confirmed endorsement signatures to send to server
@@ -94,4 +94,4 @@ class EndorsementClient {
 
 } // namespace sintrstore
 
-#endif /* _SINTR_ENDORSEMENT_H_ */
+#endif /* _SINTR_ENDORSEMENT_CLIENT_H_ */
