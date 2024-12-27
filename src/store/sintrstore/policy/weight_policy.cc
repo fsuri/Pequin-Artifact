@@ -25,6 +25,7 @@
  **********************************************************************/
 
 #include "store/sintrstore/policy/weight_policy.h"
+#include "lib/assert.h"
 
 namespace sintrstore {
 
@@ -38,9 +39,7 @@ WeightPolicy::WeightPolicy(const proto::EndorsementPolicyMessage &endorsePolicyM
     weight = 0;
   }
 }
-WeightPolicy::WeightPolicy(const WeightPolicy &other) : weight(other.weight) {
-  mergedPolicies = other.mergedPolicies;
-}
+WeightPolicy::WeightPolicy(const WeightPolicy &other) : weight(other.weight) {}
 
 void WeightPolicy::operator= (const WeightPolicy &other) {
   weight = other.weight;
@@ -78,23 +77,22 @@ uint64_t WeightPolicy::GetWeight() const {
 }
 
 bool WeightPolicy::IsSatisfied(const std::set<uint64_t> &endorsements) const {
-  return Policy::IsSatisfied(endorsements) && endorsements.size() >= weight;
+  return endorsements.size() >= weight;
 }
 
 void WeightPolicy::MergePolicy(const Policy *other) {
-  Policy::MergePolicy(other);
-  if (type == other->Type()) {
-    const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
-    if (otherWeightPolicy->GetWeight() > weight) {
-      weight = otherWeightPolicy->GetWeight();
-    }
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
+
+  const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
+  if (otherWeightPolicy->GetWeight() > weight) {
+    weight = otherWeightPolicy->GetWeight();
   }
 }
 
 std::vector<int> WeightPolicy::DifferenceToPolicy(const Policy *other) const {
-  if (type != other->Type()) {
-    return Policy::DifferenceToPolicy(other);
-  }
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
 
   const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
   uint64_t additional_weight = 0;
@@ -119,12 +117,10 @@ std::vector<int> WeightPolicy::GetMinSatisfyingSet() const {
 }
 
 void WeightPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
-  Policy::SerializeToProtoMessage(msg);
   msg->set_weight(weight);
 }
 
 void WeightPolicy::Reset() {
-  Policy::Reset();
   weight = 0;
 }
 

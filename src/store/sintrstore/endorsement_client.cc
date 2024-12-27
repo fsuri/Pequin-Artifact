@@ -34,10 +34,11 @@
 namespace sintrstore {
 
 EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager) : 
-  client_id(client_id), keyManager(keyManager), policy(nullptr) {}
-EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager, Policy *policy) :
-  client_id(client_id), keyManager(keyManager), policy(policy) {}
+    client_id(client_id), keyManager(keyManager) {
+  policyClient = new PolicyClient();
+}
 EndorsementClient::~EndorsementClient() {
+  delete policyClient;
   for (const auto &idPolicy : policyCache) {
     delete idPolicy.second;
   }
@@ -45,10 +46,6 @@ EndorsementClient::~EndorsementClient() {
 
 void EndorsementClient::SetClientSeqNum(uint64_t client_seq_num) {
   this->client_seq_num = client_seq_num;
-}
-
-Policy *EndorsementClient::GetPolicy() {
-  return policy;
 }
 
 std::vector<proto::SignedMessage> EndorsementClient::GetEndorsements() {
@@ -170,12 +167,8 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
 
 std::vector<int> EndorsementClient::UpdateRequirement(const Policy *policy) {
   UW_ASSERT(policy != nullptr);
-  if (this->policy == nullptr) {
-    this->policy = policy->Clone();
-    return policy->GetMinSatisfyingSet();
-  }
-  std::vector<int> diff = this->policy->DifferenceToPolicy(policy);
-  this->policy->MergePolicy(policy);
+  std::vector<int> diff = policyClient->DifferenceToPolicy(policy);
+  policyClient->AddPolicy(policy);
   return diff;
 }
 
@@ -207,10 +200,9 @@ void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::
 }
 
 bool EndorsementClient::IsSatisfied() {
-  UW_ASSERT(policy != nullptr);
-  bool satisfied = policy->IsSatisfied(client_ids_received);
+  bool satisfied = policyClient->IsSatisfied(client_ids_received);
   if (!satisfied) {
-    Debug("policy not satisfied, need %lu endorsements, received %lu", policy->GetMinSatisfyingSet().size(), client_ids_received.size());
+    Debug("policy not satisfied, received %lu endorsements", client_ids_received.size());
   }
   return satisfied;
 }
@@ -218,9 +210,7 @@ bool EndorsementClient::IsSatisfied() {
 void EndorsementClient::Reset() {
   expectedTxnDigest.clear();
   expectedTxn.Clear();
-  if (policy != nullptr) {
-    policy->Reset();
-  }
+  policyClient->Reset();
   client_ids_received.clear();
   endorsements.clear();
   pendingEndorsements.clear();

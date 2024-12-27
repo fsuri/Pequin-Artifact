@@ -36,43 +36,32 @@ namespace sintrstore {
 
 // this abstract class represents a generic endorsement policy
 // underlying assumption - policies of the same type can be merged
-// server should have only "pure" policies, i.e. empty mergedPolicies field
-// mergedPolicies is for if a txn results in combination of multiple distinct policy types
 class Policy {
  public:
   Policy() {};
-  virtual ~Policy() {
-    for (auto &typePolicy : mergedPolicies) {
-      delete typePolicy.second;
-    }
-  };
+  virtual ~Policy() {};
 
   // policy type
   virtual std::string Type() const = 0;
   // clone a new copy on the heap
   virtual Policy *Clone() const = 0;
   // does endorsements satisfy this Policy object?
-  virtual bool IsSatisfied(const std::set<uint64_t> &endorsements) const;
+  virtual bool IsSatisfied(const std::set<uint64_t> &endorsements) const = 0;
   // merge this Policy with other
   // assume that other is owned by caller, not this policy object
-  // assume that other does not have any mergedPolicies field
-  // this is reasonable since other should always be coming from the server
-  virtual void MergePolicy(const Policy *other);
+  // other must be of the same type as this policy
+  virtual void MergePolicy(const Policy *other) = 0;
   // how much more does this Policy need to become a superset of other?
-  // note that if this policy is already a superset, return is empty policy
+  // note that if this policy is already a superset, return is empty vector
   // assume that other is owned by caller, not this policy object
-  virtual std::vector<int> DifferenceToPolicy(const Policy *other) const;
+  // other must be of the same type as this policy
+  virtual std::vector<int> DifferenceToPolicy(const Policy *other) const = 0;
   // return the minimum size set of client ids that would satisfy this policy
   // represent generic client ids with -1
   virtual std::vector<int> GetMinSatisfyingSet() const = 0;
   // serialize to proto version
-  virtual void SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const;
-  virtual void Reset();
-
- protected:
-  // mergedPolicies keeps track of all Policy objects that are not the same type merged into this one
-  // map from policy name to policy object
-  std::map<std::string, Policy *> mergedPolicies;
+  virtual void SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const = 0;
+  virtual void Reset() = 0;
 };
 
 } // namespace sintrstore

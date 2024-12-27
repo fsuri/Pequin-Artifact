@@ -27,7 +27,7 @@
 #ifndef _SINTR_ENDORSEMENT_CLIENT_H_
 #define _SINTR_ENDORSEMENT_CLIENT_H_
 
-#include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/policy/policy_client.h"
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "lib/keymanager.h"
 
@@ -41,10 +41,8 @@ namespace sintrstore {
 class EndorsementClient {
  public:
   EndorsementClient(uint64_t client_id, KeyManager *keyManager);
-  EndorsementClient(uint64_t client_id, KeyManager *keyManager, Policy *policy);
   ~EndorsementClient();
 
-  Policy *GetPolicy();
   std::vector<proto::SignedMessage> GetEndorsements();
   void SetClientSeqNum(uint64_t client_seq_num);
   void SetExpectedTxnOutput(const std::string &expectedTxnDigest);
@@ -79,8 +77,8 @@ class EndorsementClient {
   std::string expectedTxnDigest;
   // debug by checking entire validation txn
   proto::Transaction expectedTxn;
-  // endorsement policy which must be satisfied
-  Policy *policy;
+  // policy client tracks the policy which must be satisfied
+  PolicyClient *policyClient;
   // which peer clients have endorsed
   std::set<uint64_t> client_ids_received;
   // confirmed endorsement signatures to send to server

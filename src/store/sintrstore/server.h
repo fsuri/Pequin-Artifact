@@ -50,6 +50,7 @@
 #include "store/sintrstore/table_store_interface_peloton.h"
 //#include "store/sintrstore/sql_interpreter.h"
 #include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/policy/policy_client.h"
 #include "store/common/backend/versionstore_generic_safe.h"
 #include <sys/time.h>
 
@@ -932,11 +933,11 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
-  // fill in policy from a transaction readset writeset
-  void ExtractPolicy(const proto::Transaction *txn, Policy &policy);
-  // validate endorsements have valid signatures and matching data, and satisfy the policy
+  // policyClient tracks policy from transaction writeset
+  void ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient);
+  // validate endorsements have valid signatures and matching data, and satisfy the policyClient policy
   // client id is for the client that initiated the transaction
-  bool ValidateEndorsements(const Policy &policy, const proto::SignedMessages *endorsements, 
+  bool ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest);
 
   // Global objects.

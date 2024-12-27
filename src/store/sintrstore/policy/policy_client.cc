@@ -24,13 +24,19 @@
  *
  **********************************************************************/
 
-#include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/policy/policy_client.h"
 #include "lib/assert.h"
 
 namespace sintrstore {
 
-bool Policy::IsSatisfied(const std::set<uint64_t> &endorsements) const {
-  for (const auto &typePolicy : mergedPolicies) {
+PolicyClient::~PolicyClient() {
+  for (auto &typePolicy : currPolicies) {
+    delete typePolicy.second;
+  }
+}
+
+bool PolicyClient::IsSatisfied(const std::set<uint64_t> &endorsements) const {
+  for (const auto &typePolicy : currPolicies) {
     if (!typePolicy.second->IsSatisfied(endorsements)) {
       return false;
     }
@@ -38,40 +44,28 @@ bool Policy::IsSatisfied(const std::set<uint64_t> &endorsements) const {
   return true;
 }
 
-void Policy::MergePolicy(const Policy *other) {
-  UW_ASSERT(other != nullptr);
-  // if other is not same type, cannot directly merge it
-  if (this->Type() != other->Type()) {
-    if (mergedPolicies.find(other->Type()) == mergedPolicies.end()) {
-      mergedPolicies[other->Type()] = other->Clone();
-    }
-    else {
-      mergedPolicies[other->Type()]->MergePolicy(other);
-    }
+void PolicyClient::AddPolicy(const Policy *policy) {
+  UW_ASSERT(policy != nullptr);
+  if (currPolicies.find(policy->Type()) == currPolicies.end()) {
+    currPolicies[policy->Type()] = policy->Clone();
+  }
+  else {
+    currPolicies[policy->Type()]->MergePolicy(policy);
   }
 }
 
-std::vector<int> Policy::DifferenceToPolicy(const Policy *other) const {
-  UW_ASSERT(other != nullptr);
-  // if other is not same type, check mergedPolicies
-  if (this->Type() != other->Type()) {
-    if (mergedPolicies.find(other->Type()) == mergedPolicies.end()) {
-      return other->GetMinSatisfyingSet();
-    }
-    else {
-      return mergedPolicies.at(other->Type())->DifferenceToPolicy(other);
-    }
+std::vector<int> PolicyClient::DifferenceToPolicy(const Policy *policy) const {
+  UW_ASSERT(policy != nullptr);
+  if (currPolicies.find(policy->Type()) == currPolicies.end()) {
+    return policy->GetMinSatisfyingSet();
+  }
+  else {
+    return currPolicies.at(policy->Type())->DifferenceToPolicy(policy);
   }
 }
 
-void Policy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
-  for (const auto &typePolicy : mergedPolicies) {
-    typePolicy.second->SerializeToProtoMessage(msg);
-  }
-}
-
-void Policy::Reset() {
-  mergedPolicies.clear();
+void PolicyClient::Reset() {
+  currPolicies.clear();
 }
 
 } // namespace sintrstore

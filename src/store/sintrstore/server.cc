@@ -2920,12 +2920,12 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 }
 
 bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn) {
-  WeightPolicy policy;
-  ExtractPolicy(txn, policy);
-  return ValidateEndorsements(policy, endorsements, txn->client_id(), txnDigest);
+  PolicyClient policyClient;
+  ExtractPolicy(txn, policyClient);
+  return ValidateEndorsements(policyClient, endorsements, txn->client_id(), txnDigest);
 }
 
-void Server::ExtractPolicy(const proto::Transaction *txn, Policy &policy) {
+void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
       continue;
@@ -2941,7 +2941,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, Policy &policy) {
       Panic("Cannot find policy %lu in policyStore", policyId);
     }
 
-    policy.MergePolicy(tsPolicy.second);
+    policyClient.AddPolicy(tsPolicy.second);
   }
 
   // for (const auto &read : txn->read_set()) {
@@ -2986,7 +2986,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, Policy &policy) {
   // }
 }
 
-bool Server::ValidateEndorsements(const Policy &policy, const proto::SignedMessages *endorsements, 
+bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest) {
 
   std::set<uint64_t> endorsers;
@@ -3019,7 +3019,7 @@ bool Server::ValidateEndorsements(const Policy &policy, const proto::SignedMessa
   }
 
   // check if endorsers satisfy policy
-  return policy.IsSatisfied(endorsers);
+  return policyClient.IsSatisfied(endorsers);
 }
 
 } // namespace sintrstore

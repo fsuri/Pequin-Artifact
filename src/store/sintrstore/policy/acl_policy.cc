@@ -25,6 +25,7 @@
  **********************************************************************/
 
 #include "store/sintrstore/policy/acl_policy.h"
+#include "lib/assert.h"
 
 #include <algorithm>
 
@@ -37,9 +38,7 @@ ACLPolicy::ACLPolicy(const proto::EndorsementPolicyMessage &endorsePolicyMsg) {
     access_control_list.insert(client_id);
   }
 }
-ACLPolicy::ACLPolicy(const ACLPolicy &other) : access_control_list(other.access_control_list) {
-  mergedPolicies = other.mergedPolicies;
-}
+ACLPolicy::ACLPolicy(const ACLPolicy &other) : access_control_list(other.access_control_list) {}
 
 void ACLPolicy::operator= (const ACLPolicy &other) {
   access_control_list = other.access_control_list;
@@ -81,25 +80,24 @@ std::set<uint64_t> ACLPolicy::GetAccessControlList() const {
 }
 
 bool ACLPolicy::IsSatisfied(const std::set<uint64_t> &endorsements) const {
-  return Policy::IsSatisfied(endorsements) && std::includes(
+  return std::includes(
     endorsements.begin(), endorsements.end(), 
     access_control_list.begin(), access_control_list.end()
   );
 }
 
 void ACLPolicy::MergePolicy(const Policy *other) {
-  Policy::MergePolicy(other);
-  if (type == other->Type()) {
-    const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
-    std::set<uint64_t> other_access_control_list = otherACLPolicy->GetAccessControlList();
-    access_control_list.insert(other_access_control_list.begin(), other_access_control_list.end());
-  }
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
+
+  const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
+  std::set<uint64_t> other_access_control_list = otherACLPolicy->GetAccessControlList();
+  access_control_list.insert(other_access_control_list.begin(), other_access_control_list.end());
 }
 
 std::vector<int> ACLPolicy::DifferenceToPolicy(const Policy *other) const {
-  if (type != other->Type()) {
-    return Policy::DifferenceToPolicy(other);
-  }
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
 
   const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
   std::set<uint64_t> other_access_control_list = otherACLPolicy->GetAccessControlList();
@@ -123,14 +121,12 @@ std::vector<int> ACLPolicy::GetMinSatisfyingSet() const {
 }
 
 void ACLPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
-  Policy::SerializeToProtoMessage(msg);
   for (const auto &client_id : access_control_list) {
     msg->add_access_control_list(client_id);
   }  
 }
 
 void ACLPolicy::Reset() {
-  Policy::Reset();
   access_control_list.clear();
 }
 
