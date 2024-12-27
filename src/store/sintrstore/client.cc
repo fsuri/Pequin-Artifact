@@ -94,6 +94,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     config, clients_config, transport, client_id, nshards, ngroups, 0,
     pingReplicas, params, keyManager, verifier, part, endorseClient
   );
+  policyParseClient = new PolicyParseClient();
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());
@@ -151,6 +152,7 @@ Client::~Client()
   }
   delete c2client;
   delete endorseClient;
+  delete policyParseClient;
   delete verifier;
 }
 
@@ -276,12 +278,11 @@ void Client::Get(const std::string &key, get_callback gcb,
         ts.serialize(read->mutable_readtime());
         
         // new policy can only come from server, which must correspond to addReadSet
-        Policy *policy; 
         if (policyMsg.IsInitialized()) {
-          // TODO: parse policyMsg and update policy
-          // policy = new Policy(policyMsg);
-          // endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
-          // endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+          Policy *policy = policyParseClient->Parse(policyMsg);
+          endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
+          endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+          delete policy;
         }
       }
       if (hasDep) {
@@ -327,7 +328,7 @@ void Client::Put(const std::string &key, const std::string &value,
 
     // look in cache for policy
     Policy *policy;
-    bool exists = endorseClient->GetPolicyFromCache(key, policy);
+    bool exists = endorseClient->GetPolicyFromCache(key, &policy);
     if (!exists) {
       // if not found, use default policy for now
       policy = new WeightPolicy(2);

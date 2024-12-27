@@ -25,6 +25,7 @@
  **********************************************************************/
 
 #include "store/sintrstore/policy/acl_policy.h"
+#include "store/sintrstore/policy/policy-proto.pb.h"
 #include "lib/assert.h"
 
 #include <algorithm>
@@ -33,11 +34,6 @@ namespace sintrstore {
 
 ACLPolicy::ACLPolicy(const std::set<uint64_t> &access_control_list) : 
   access_control_list(access_control_list) {}
-ACLPolicy::ACLPolicy(const proto::EndorsementPolicyMessage &endorsePolicyMsg) {
-  for (const auto &client_id : endorsePolicyMsg.access_control_list()) {
-    access_control_list.insert(client_id);
-  }
-}
 ACLPolicy::ACLPolicy(const ACLPolicy &other) : access_control_list(other.access_control_list) {}
 
 void ACLPolicy::operator= (const ACLPolicy &other) {
@@ -121,9 +117,12 @@ std::vector<int> ACLPolicy::GetMinSatisfyingSet() const {
 }
 
 void ACLPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
+  proto::ACLPolicyMessage aclPolicyMsg;
   for (const auto &client_id : access_control_list) {
-    msg->add_access_control_list(client_id);
-  }  
+    aclPolicyMsg.add_access_control_list(client_id);
+  }
+  msg->set_policy_type(proto::EndorsementPolicyMessage::ACL_POLICY);
+  aclPolicyMsg.SerializeToString(msg->mutable_policy_data());
 }
 
 void ACLPolicy::Reset() {

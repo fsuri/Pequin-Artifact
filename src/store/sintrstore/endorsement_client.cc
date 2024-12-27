@@ -216,7 +216,9 @@ void EndorsementClient::Reset() {
   pendingEndorsements.clear();
 }
 
-bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy *policy) {
+bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy **policy) {
+  // it is possible that the key is not in the cache
+  // but if the key is, then the policyId should be in the cache
   auto it = keyPolicyIdCache.find(key);
   if (it == keyPolicyIdCache.end()) {
     return false;
@@ -224,10 +226,10 @@ bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy *polic
   uint64_t policyId = it->second;
   auto it2 = policyCache.find(policyId);
   if (it2 == policyCache.end()) {
-    return false;
+    Panic("Policy cache is missing policy with id %lu", policyId);
   }
 
-  policy = it2->second->Clone();
+  *policy = it2->second->Clone();
   return true;
 }
 

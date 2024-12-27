@@ -40,7 +40,6 @@ class WeightPolicy : public Policy {
  public:
   WeightPolicy();
   WeightPolicy(uint64_t weight);
-  WeightPolicy(const proto::EndorsementPolicyMessage &endorsePolicyMsg);
   WeightPolicy(const WeightPolicy &other);
 
   void operator= (const WeightPolicy &other);

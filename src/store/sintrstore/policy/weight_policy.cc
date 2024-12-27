@@ -25,20 +25,13 @@
  **********************************************************************/
 
 #include "store/sintrstore/policy/weight_policy.h"
+#include "store/sintrstore/policy/policy-proto.pb.h"
 #include "lib/assert.h"
 
 namespace sintrstore {
 
 WeightPolicy::WeightPolicy() : weight(0) {}
 WeightPolicy::WeightPolicy(uint64_t weight) : weight(weight) {}
-WeightPolicy::WeightPolicy(const proto::EndorsementPolicyMessage &endorsePolicyMsg) {
-  if (endorsePolicyMsg.has_weight()) {
-    weight = endorsePolicyMsg.weight();
-  }
-  else {
-    weight = 0;
-  }
-}
 WeightPolicy::WeightPolicy(const WeightPolicy &other) : weight(other.weight) {}
 
 void WeightPolicy::operator= (const WeightPolicy &other) {
@@ -117,7 +110,10 @@ std::vector<int> WeightPolicy::GetMinSatisfyingSet() const {
 }
 
 void WeightPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
-  msg->set_weight(weight);
+  proto::WeightPolicyMessage weightPolicyMsg;
+  weightPolicyMsg.set_weight(weight);
+  msg->set_policy_type(proto::EndorsementPolicyMessage::WEIGHT_POLICY);
+  weightPolicyMsg.SerializeToString(msg->mutable_policy_data());
 }
 
 void WeightPolicy::Reset() {

@@ -47,6 +47,7 @@
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "store/sintrstore/client2client.h"
 #include "store/sintrstore/endorsement_client.h"
+#include "store/sintrstore/policy/policy_parse_client.h"
 #include <sys/time.h>
 #include "store/common/stats.h"
 #include <unistd.h>
@@ -373,6 +374,7 @@ class Client : public ::Client {
   Client2Client *c2client;
   // collect endorsements for current transaction
   EndorsementClient *endorseClient;
+  PolicyParseClient *policyParseClient;
   Partitioner *part;
   bool syncCommit;
   const bool pingReplicas;

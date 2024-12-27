@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package sintrstore.proto;
+
+message WeightPolicyMessage {
+  required uint64 weight = 1;
+}
+
+message ACLPolicyMessage {
+  repeated uint64 access_control_list = 1;
+}
