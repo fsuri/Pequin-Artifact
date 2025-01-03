@@ -225,17 +225,21 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
     // need to initiate more endorsements
     int numAdditional = diff.size();
     
-    // for (const auto &acl_client_id : diffPolicy.GetAccessControlList()) {
-    //   auto ret = beginValSent.insert(acl_client_id);
-    //   if (ret.second == false) {
-    //     Panic("Client %lu already sent beginValTxnMsg", acl_client_id);
-    //   }
-    //   numAdditional--;
-    //   transport->SendMessageToReplica(this, acl_client_id, sentBeginValTxnMsg);
-    //   for (const auto &fwdReadResultMsg : sentFwdReadResults) {
-    //     transport->SendMessageToReplica(this, acl_client_id, fwdReadResultMsg);
-    //   }
-    // }
+    for (const auto &acl_client_id : diff) {
+      // -1 represents a generic client id, so don't send to a specific client
+      if (acl_client_id < 0) {
+        continue;
+      }
+      auto ret = beginValSent.insert(acl_client_id);
+      if (ret.second == false) {
+        Panic("Client %lu already sent beginValTxnMsg to client %d", client_id, acl_client_id);
+      }
+      numAdditional--;
+      transport->SendMessageToReplica(this, acl_client_id, sentBeginValTxnMsg);
+      for (const auto &fwdReadResultMsg : sentFwdReadResults) {
+        transport->SendMessageToReplica(this, acl_client_id, fwdReadResultMsg);
+      }
+    }
 
     int last_offset = 1;
     while (numAdditional > 0) {
