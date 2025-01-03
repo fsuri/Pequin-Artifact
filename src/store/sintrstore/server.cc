@@ -2944,46 +2944,32 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     policyClient.AddPolicy(tsPolicy.second);
   }
 
-  // for (const auto &read : txn->read_set()) {
-  //   if (!IsKeyOwned(read.key())) {
-  //     continue;
-  //   }
+  // disallow readset to contain a policy weaker than the write set
+  for (const auto &read : txn->read_set()) {
+    if (!IsKeyOwned(read.key())) {
+      continue;
+    }
 
-  //   uint64_t policyId;
-  //   std::pair<Timestamp, Server::Value> tsVal;
-  //   bool exists = store.get(read.key(), read.readtime(), tsVal);
-  //   if (exists) {
-  //     policyId = tsVal.second.policyId;
-  //   } 
+    uint64_t policyId;
+    std::pair<Timestamp, Server::Value> tsVal;
+    bool exists = store.get(read.key(), read.readtime(), tsVal);
+    if (exists) {
+      policyId = tsVal.second.policyId;
+    } 
     
-  //   // also check prepared
-  //   const auto preparedWritesItr = preparedWrites.find(read.key());
-  //   if (preparedWritesItr != preparedWrites.end()) {
-  //     std::shared_lock lock(preparedWritesItr->second.first);
-  //     const auto preparedWritesTimeItr = preparedWritesItr->second.second.find(read.readtime());
-  //     if (preparedWritesTimeItr != preparedWritesItr->second.second.end()) {      
-  //       const proto::Transaction *preparedTxn = preparedWritesTimeItr->second;
-  //       for (const auto &w : preparedTxn->write_set()) {
-  //         if (w.key() == read.key()) {
-  //           // TODO: get policyId
-  //           policyId = 0;
-  //           break;
-  //         }
-  //       }
-  //     }
-  //   }
-    
-  //   UW_ASSERT(policyId == 0);
+    UW_ASSERT(policyId == 0);
 
-  //   Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
-  //   std::pair<Timestamp, EndorsementPolicy> tsPolicy;
-  //   exists = policyStore.get(policyId, tsPolicy);
-  //   if (!exists) {
-  //     Panic("Cannot find policy %lu in policyStore", policyId);
-  //   }
+    Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
+    std::pair<Timestamp, Policy *> tsPolicy;
+    exists = policyStore.get(policyId, tsPolicy);
+    if (!exists) {
+      Panic("Cannot find policy %lu in policyStore", policyId);
+    }
 
-  //   policy.MergePolicy(tsPolicy.second);
-  // }
+    if (policyClient.IsOtherWeaker(tsPolicy.second)) {
+      Panic("Read policy is weaker than write policy");
+    } 
+  }
 }
 
 bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 

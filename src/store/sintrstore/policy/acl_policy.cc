@@ -116,6 +116,14 @@ std::vector<int> ACLPolicy::GetMinSatisfyingSet() const {
   return min_satisfying_set;
 }
 
+bool ACLPolicy::IsOtherWeaker(const Policy *other) const {
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
+
+  const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
+  return *otherACLPolicy < *this;
+}
+
 void ACLPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
   proto::ACLPolicyMessage aclPolicyMsg;
   for (const auto &client_id : access_control_list) {

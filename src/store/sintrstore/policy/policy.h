@@ -59,6 +59,8 @@ class Policy {
   // return the minimum size set of client ids that would satisfy this policy
   // represent generic client ids with -1
   virtual std::vector<int> GetMinSatisfyingSet() const = 0;
+  // is other strictly weaker than this policy?
+  virtual bool IsOtherWeaker(const Policy *other) const = 0;
   // serialize to proto version
   virtual void SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const = 0;
   virtual void Reset() = 0;

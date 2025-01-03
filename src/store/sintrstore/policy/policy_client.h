@@ -46,6 +46,8 @@ class PolicyClient {
   void AddPolicy(const Policy *policy);
   // what client ids does this PolicyClient need to get currPolicies to satisfy other?
   std::vector<int> DifferenceToPolicy(const Policy *other) const;
+  // is other strictly weaker than currPolicies?
+  bool IsOtherWeaker(const Policy *other) const;
   void Reset();
 
  private:

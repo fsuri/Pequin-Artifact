@@ -30,9 +30,7 @@
 namespace sintrstore {
 
 PolicyClient::~PolicyClient() {
-  for (auto &typePolicy : currPolicies) {
-    delete typePolicy.second;
-  }
+  Reset();
 }
 
 bool PolicyClient::IsSatisfied(const std::set<uint64_t> &endorsements) const {
@@ -54,17 +52,30 @@ void PolicyClient::AddPolicy(const Policy *policy) {
   }
 }
 
-std::vector<int> PolicyClient::DifferenceToPolicy(const Policy *policy) const {
-  UW_ASSERT(policy != nullptr);
-  if (currPolicies.find(policy->Type()) == currPolicies.end()) {
-    return policy->GetMinSatisfyingSet();
+std::vector<int> PolicyClient::DifferenceToPolicy(const Policy *other) const {
+  UW_ASSERT(other != nullptr);
+  if (currPolicies.find(other->Type()) == currPolicies.end()) {
+    return other->GetMinSatisfyingSet();
   }
   else {
-    return currPolicies.at(policy->Type())->DifferenceToPolicy(policy);
+    return currPolicies.at(other->Type())->DifferenceToPolicy(other);
+  }
+}
+
+bool PolicyClient::IsOtherWeaker(const Policy *other) const {
+  UW_ASSERT(other != nullptr);
+  if (currPolicies.find(other->Type()) == currPolicies.end()) {
+    return false;
+  }
+  else {
+    return currPolicies.at(other->Type())->IsOtherWeaker(other);
   }
 }
 
 void PolicyClient::Reset() {
+  for (auto &typePolicy : currPolicies) {
+    delete typePolicy.second;
+  }
   currPolicies.clear();
 }
 

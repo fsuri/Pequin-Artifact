@@ -109,6 +109,14 @@ std::vector<int> WeightPolicy::GetMinSatisfyingSet() const {
   return minSatisfyingSet;
 }
 
+bool WeightPolicy::IsOtherWeaker(const Policy *other) const {
+  UW_ASSERT(other != nullptr);
+  UW_ASSERT(type == other->Type());
+
+  const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
+  return *otherWeightPolicy < *this;
+}
+
 void WeightPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
   proto::WeightPolicyMessage weightPolicyMsg;
   weightPolicyMsg.set_weight(weight);
