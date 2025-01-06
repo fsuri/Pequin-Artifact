@@ -51,6 +51,7 @@
 //#include "store/sintrstore/sql_interpreter.h"
 #include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/policy/policy_client.h"
+#include "store/sintrstore/policy/policy_function.h"
 #include "store/common/backend/versionstore_generic_safe.h"
 #include <sys/time.h>
 
@@ -931,6 +932,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     }
   }
 
+  // get the policy id for a given key, value, timestamp
+  // if key is not found, call policyIdFunction
+  uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts);
+
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
   // policyClient tracks policy from transaction writeset
@@ -1076,6 +1081,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   VersionedKVStoreGeneric<uint64_t, Timestamp, Policy *> policyStore;
   // not sure if VersionedKvStoreGeneric will actually free the policy pointers, so store separately and free on destruction
   std::vector<Policy *> policiesToFree;
+  // policy_function policyFunction;
+  policy_id_function policyIdFunction;
+
   // Key -> V
   //std::unordered_map<std::string, std::set<std::tuple<Timestamp, Timestamp, const proto::CommittedProof *>>> committedReads;
   typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead; //1) timestamp of reading tx, 2) timestamp of read value, 3) proof that Tx that wrote the read value (2) committed

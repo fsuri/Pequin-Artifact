@@ -95,6 +95,9 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     pingReplicas, params, keyManager, verifier, part, endorseClient
   );
   policyParseClient = new PolicyParseClient();
+  policyIdFunction = [](const std::string &key, const std::string &value) {
+    return 0;
+  };
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());
@@ -331,7 +334,8 @@ void Client::Put(const std::string &key, const std::string &value,
     bool exists = endorseClient->GetPolicyFromCache(key, &policy);
     if (!exists) {
       // if not found, use default policy for now
-      policy = new WeightPolicy(2);
+      uint64_t policyId = policyIdFunction(key, value);
+      endorseClient->GetPolicyFromCache(policyId, &policy);
     }
     c2client->HandlePolicyUpdate(policy);
     delete policy;

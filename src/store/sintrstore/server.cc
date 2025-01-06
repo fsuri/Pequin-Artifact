@@ -161,6 +161,10 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
   UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
 
+  policyIdFunction = [](const std::string &key, const std::string &value) {
+    return 0;
+  };
+
   if (sql_bench) {
 
     // TODO: turn read_prepared into a function, not a lambda
@@ -524,7 +528,7 @@ void Server::Load(const std::string &key, const std::string &value,
   UW_ASSERT(committedItr != committed.end());
   val.proof = committedItr->second;
   // TODO: actually set policy
-  uint64_t policyId = 0;
+  uint64_t policyId = policyIdFunction(key, value);
   val.policyId = policyId;
   std::pair<Timestamp, Policy *> tsPolicy;
   bool exists = policyStore.get(policyId, tsPolicy);
@@ -1167,11 +1171,11 @@ void Server::HandleRead(const TransportAddress &remote,
           if (mostRecent != nullptr) {
             //if(Timestamp(mostRecent->timestamp()) > ts) Panic("Reading prepared write with TS larger than read ts");
             std::string preparedValue;
-            uint64_t preparedPolicyId = 0;
+            uint64_t preparedPolicyId;
             for (const auto &w : mostRecent->write_set()) {
               if (w.key() == msg.key()) {
                 preparedValue = w.value();
-                preparedPolicyId = 0;
+                preparedPolicyId = GetPolicyId(w.key(), w.value(), mostRecent->timestamp());
                 break;
               }
             }
@@ -1186,7 +1190,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
               // get policy from policyStore
               std::pair<Timestamp, Policy *> tsPolicy;
-              bool policyExists = policyStore.get(preparedPolicyId, tsPolicy);
+              bool policyExists = policyStore.get(preparedPolicyId, mostRecent->timestamp(), tsPolicy);
               if (!policyExists) {
                 Panic("Cannot find policy %lu in policyStore", preparedPolicyId);
               }
@@ -2637,7 +2641,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       Panic("When running in KV-store mode write should always have a value");
     }
 
-    val.policyId = 0;
+    val.policyId = GetPolicyId(write.key(), write.value(), ts);
     
     UW_ASSERT(txn->has_txndigest());
     if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;
@@ -2919,6 +2923,16 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
    mq.release();
 }
 
+uint64_t Server::GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts) {
+  // first try and find in policy store
+  std::pair<Timestamp, Server::Value> tsVal;
+  bool exists = store.get(key, ts, tsVal);
+  if (exists) {
+    return tsVal.second.policyId;
+  }
+  return policyIdFunction(key, value);
+}
+
 bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn) {
   PolicyClient policyClient;
   ExtractPolicy(txn, policyClient);
@@ -2926,17 +2940,17 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
 }
 
 void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
+  Timestamp ts(txn->timestamp());
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
       continue;
     }
 
-    // uint64_t policyId = GetWritePolicyId(write, 0);
-    uint64_t policyId = 0; 
+    uint64_t policyId = GetPolicyId(write.key(), write.value(), ts); 
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
 
     std::pair<Timestamp, Policy *> tsPolicy;
-    bool exists = policyStore.get(policyId, tsPolicy);
+    bool exists = policyStore.get(policyId, ts, tsPolicy);
     if (!exists) {
       Panic("Cannot find policy %lu in policyStore", policyId);
     }
@@ -2951,17 +2965,50 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     }
 
     uint64_t policyId;
+    Timestamp policyIdTs;
     std::pair<Timestamp, Server::Value> tsVal;
-    bool exists = store.get(read.key(), read.readtime(), tsVal);
-    if (exists) {
+    bool committed_exists = store.get(read.key(), read.readtime(), tsVal);
+    if (committed_exists) {
       policyId = tsVal.second.policyId;
-    } 
+      policyIdTs = tsVal.first;
+    }
+    // also check prepared
+    const proto::Transaction *mostRecent = nullptr;
+    auto itr = preparedWrites.find(read.key());
+    if (itr != preparedWrites.end()){
+      std::shared_lock lock(itr->second.first);
+      if(itr->second.second.size() > 0) {
+        // there is a prepared write for the key being read
+        for (const auto &t : itr->second.second) {
+          if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
+          if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
+          if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
+            mostRecent = t.second;
+          }
+        }
+
+        if (mostRecent != nullptr) {
+          uint64_t preparedPolicyId;
+          for (const auto &w : mostRecent->write_set()) {
+            if (w.key() == read.key()) {
+              preparedPolicyId = GetPolicyId(w.key(), w.value(), mostRecent->timestamp());
+              break;
+            }
+          }
+
+          if (params.maxDepDepth == -1 || DependencyDepth(mostRecent) <= params.maxDepDepth) {
+            policyId = preparedPolicyId;
+            policyIdTs = mostRecent->timestamp();
+          }
+        }
+      }
+    }
     
     UW_ASSERT(policyId == 0);
 
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
     std::pair<Timestamp, Policy *> tsPolicy;
-    exists = policyStore.get(policyId, tsPolicy);
+    bool exists = policyStore.get(policyId, policyIdTs, tsPolicy);
     if (!exists) {
       Panic("Cannot find policy %lu in policyStore", policyId);
     }

@@ -233,6 +233,16 @@ bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy **poli
   return true;
 }
 
+bool EndorsementClient::GetPolicyFromCache(uint64_t policyId, Policy **policy) {
+  auto it = policyCache.find(policyId);
+  if (it == policyCache.end()) {
+    Panic("Policy cache is missing policy with id %lu", policyId);
+  }
+
+  *policy = it->second->Clone();
+  return true;
+}
+
 void EndorsementClient::UpdateKeyPolicyIdCache(const std::string &key, uint64_t policyId) {
   keyPolicyIdCache[key] = policyId;
 }
