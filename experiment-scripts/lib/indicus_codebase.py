@@ -40,6 +40,8 @@ class IndicusCodebase(ExperimentCodebase):
                     config['bin_directory_name'], config['client_bin_name'])
             exp_directory = local_exp_directory
             config_path = os.path.join(local_exp_directory, config['network_config_file_name'])
+            if 'sintr_protocol_settings' in config:
+                client_config_path = os.path.join(local_exp_directory, config['sintr_protocol_settings']['client_network_config_file_name'])
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'], 'client-%d-%d' % (i, j),
                     'client-%d-%d-%d-stats-%d.json' % (i, j, k, run))
@@ -49,6 +51,8 @@ class IndicusCodebase(ExperimentCodebase):
                     config['bin_directory_name'], config['client_bin_name'])
             exp_directory = remote_exp_directory
             config_path = os.path.join(remote_exp_directory, config['network_config_file_name'])
+            if 'sintr_protocol_settings' in config:
+                client_config_path = os.path.join(remote_exp_directory, config['sintr_protocol_settings']['client_network_config_file_name'])
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'],
                     'client-%d-%d-%d-stats-%d.json' % (i, j, k, run))
@@ -84,7 +88,7 @@ class IndicusCodebase(ExperimentCodebase):
             client_command += ' --trans_protocol %s' % config['replication_protocol_settings']['message_transport_type']
 
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
-            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'sintr':
             if 'read_quorum' in config['replication_protocol_settings']:
                 client_command += ' --indicus_read_quorum %s' % config['replication_protocol_settings']['read_quorum']
             if 'optimistic_read_quorum' in config['replication_protocol_settings']:
@@ -142,6 +146,17 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --indicus_relayP1_timeout %d' % config['replication_protocol_settings']['relayP1_timeout']
             if 'all_to_all_fb' in config['replication_protocol_settings']:
                 client_command += ' --indicus_all_to_all_fb=%s' % str(config['replication_protocol_settings']['all_to_all_fb']).lower()
+
+        if config['replication_protocol'] == 'sintr':
+            client_command += ' --clients_config_path %s' % client_config_path
+            if 'sintr_max_val_threads' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_max_val_threads %d' % config['sintr_protocol_settings']['sintr_max_val_threads']
+            if 'sintr_sign_fwd_read_results' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_sign_fwd_read_results=%s' % str(config['sintr_protocol_settings']['sintr_sign_fwd_read_results']).lower()
+            if 'sintr_sign_finish_validation' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
+            if 'sintr_debug_endorse_check' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_debug_endorse_check=%s' % str(config['sintr_protocol_settings']['sintr_debug_endorse_check']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings
@@ -399,7 +414,7 @@ class IndicusCodebase(ExperimentCodebase):
                     config['out_directory_name'],
                     'server-%d-%d-stats-%d.json' % (i, k, run))
 
-        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
+        if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'sintr':
             n = 5 * config['fault_tolerance'] + 1
         elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
             config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
@@ -457,7 +472,7 @@ class IndicusCodebase(ExperimentCodebase):
 
 
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
-            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'sintr':
             if 'read_dep' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_read_dep %s' % config['replication_protocol_settings']['read_dep']
             if 'watermark_time_delta' in config['replication_protocol_settings']:
@@ -536,7 +551,10 @@ class IndicusCodebase(ExperimentCodebase):
             if 'replica_gossip' in config['replication_protocol_settings']:
                 replica_command += ' --indicus_replica_gossip=%s' % str(config['replication_protocol_settings']['replica_gossip']).lower()
 
-        
+        if config['replication_protocol'] == 'sintr':
+            if 'sintr_sign_finish_validation' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
+
         #if 'rw_or_retwis' in config:
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
 
@@ -712,7 +730,7 @@ class IndicusCodebase(ExperimentCodebase):
         local_exp_directory = super().prepare_local_exp_directory(config, config_file)
         config_file = os.path.join(local_exp_directory, config['network_config_file_name'])
         with open(config_file, 'w') as f:
-            if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
+            if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'sintr':
                 n = 5 * config['fault_tolerance'] + 1
             elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
                 config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
@@ -739,11 +757,28 @@ class IndicusCodebase(ExperimentCodebase):
                         print('replica %s:%d' % (config['server_names'][server_idx],
                             config['server_port'] + process_idx), file=f)
 
+        if config['replication_protocol'] == 'sintr':
+            client_config_file = os.path.join(local_exp_directory, config['sintr_protocol_settings']['client_network_config_file_name'])
+            with open(client_config_file, 'w') as f:
+                print('f %d' % config['fault_tolerance'], file=f)
+                print('group', file=f)
+                port_counter = 0
+                for i in range(len(config['server_names'])):
+                    for j in range(config['client_nodes_per_server']):
+                        for k in range(config['client_processes_per_client_node']):
+                            if 'run_locally' in config and config['run_locally']:
+                                print('replica %s:%d' % ('localhost',
+                                    config['sintr_protocol_settings']['client_port'] + port_counter), file=f)
+                            else:
+                                print('replica client-%d-%d:%d' % (i, j,
+                                    config['sintr_protocol_settings']['client_port'] + k), file=f)
+                            port_counter += 1
+
         return local_exp_directory
 
     def prepare_remote_server_codebase(self, config, host, local_exp_directory, remote_out_directory):
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or \
-            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+            config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus' or config['replication_protocol'] == 'sintr':
             run_remote_command_sync('sudo rm -rf /dev/shm/*', config['emulab_user'], host)
 
     def setup_nodes(self, config):
