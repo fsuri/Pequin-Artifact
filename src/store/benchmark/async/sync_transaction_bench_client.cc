@@ -62,7 +62,8 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
     try {
       *result = currTxn->Execute(client);
     }
-    catch(const std::exception& e) {
+    catch (const std::exception& e) {
+      // std::cerr << "Caught an exception: " << e.what() << std::endl;
       Notice("catch abort. Will retry last TX");
       *result = ABORTED_SYSTEM; //ABORTED_USER;
     }

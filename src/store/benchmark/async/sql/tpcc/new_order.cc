@@ -81,6 +81,8 @@ SQLNewOrder::SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
   ol_cnt = o_ol_i_ids.size();
   UW_ASSERT(ol_cnt == o_ol_supply_w_ids.size() && ol_cnt == o_ol_quantities.size());
   //std::cerr << "All local == " << all_local << std::endl;
+
+   std::cerr << "NEW ORDER (parallel)" << std::endl;
 }
 
 SQLNewOrder::~SQLNewOrder() {
@@ -94,7 +96,6 @@ transaction_status_t SQLNewOrder::Execute(SyncClient &client) {
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
   Debug("NEW_ORDER (parallel)"); 
-  std::cerr << "NEW ORDER (parallel)" << std::endl;
   
   Debug("Warehouse: %u", w_id);
 

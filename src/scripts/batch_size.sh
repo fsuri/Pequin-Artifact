@@ -20,7 +20,7 @@ do
     if [ ${shard} != "local_config" ]
     then
       echo modifying ${shard} for batch size $1
-      sed -i "1c\block-size = ${1}" ./config/${shard}/hotstuff.gen.conf
+      sed -i "1c\block-size = ${1}" ./config_pghs/${shard}/hotstuff.gen.conf
     fi
 done
 

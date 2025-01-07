@@ -111,21 +111,21 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
     client.Query(stmt, timeout);
   }                             
   client.Wait(results);
-  std::cerr << "expected results: " << gag_ids.size() << std::endl;
-  std::cerr << "actual results: " << results.size() << std::endl;
+//  std::cerr << "expected results: " << gag_ids.size() << std::endl;
+//  std::cerr << "actual results: " << results.size() << std::endl;
 
 
   for(int i = 0; i < results.size(); ++i){
     if(results[i]->empty()) continue;
-    std::cerr << "i: " << i << std::endl;
+//    std::cerr << "i: " << i << std::endl;
     std::string gag_name;
     std::string gav_name;
     auto &res = results[i];
-    std::cerr << "res size: " << res->size() << std::endl;
+//    std::cerr << "res size: " << res->size() << std::endl;
     deserialize(gag_name, results[i], 0, 0);
-    std::cerr <<"gagname: " << gag_name << std::endl;
+//    std::cerr <<"gagname: " << gag_name << std::endl;
     deserialize(gav_name, results[i], 0, 1);
-     std::cerr <<"gavname: " << gav_name << std::endl;
+//     std::cerr <<"gavname: " << gav_name << std::endl;
     description += fmt::format(" * {} -> {}\n", gag_name, gav_name);
   }                                             
 
@@ -133,7 +133,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::string getCategory = fmt::format("SELECT * FROM {} WHERE c_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategory, queryResult, timeout);
   UW_ASSERT(!queryResult->empty());
-  std::cerr <<"try deser cat" << std::endl;
+//  std::cerr <<"try deser cat" << std::endl;
  
     uint64_t category_p_id;
     uint64_t category_c_id;
@@ -145,7 +145,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::string getCategoryParent = fmt::format("SELECT * FROM {} WHERE c_parent_id = {}", TABLE_CATEGORY, category_id);
   client.Query(getCategoryParent, queryResult, timeout);
   std::string category_parent = "<ROOT>";
-   std::cerr <<"try deser cat" << std::endl;
+//   std::cerr <<"try deser cat" << std::endl;
   if(!queryResult->empty()){
     deserialize(category_c_id, queryResult, 0, 0);
     deserialize(category_p_id, queryResult, 0, 2);

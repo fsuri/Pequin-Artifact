@@ -8,7 +8,7 @@ DATA=$(pwd)/tmp-$CLUSTERID
 # echo $DATA
 PGV=12
 USER=postgres
-
+pin_pg=false
 
 display_banner() {
     local banner_text="$1"
@@ -20,17 +20,20 @@ display_banner() {
 }
 
 setting_system() {
+
+    echo "Try setting system configs"
+
     su - $USER -c "echo \"CREATE USER pequin_user WITH PASSWORD '123'\" | psql"
     #su - $USER -c "echo \"ALTER USER pequin_user WITH SUPERUSER\" | psql"
-
-    echo "Try settin system configss"
 
     su - $USER -c "echo \"ALTER SYSTEM SET max_connections = 250;\" | psql"
     # su - $USER -c "echo \"ALTER SYSTEM SET max_worker_processes = 16;\" | psql"
     # su - $USER -c "echo \"ALTER SYSTEM SET max_parallel_workers = 16;\" | psql"
     
     su - $USER -c "echo \"ALTER SYSTEM SET work_mem = '4GB';\" | psql"
-    su - $USER -c "echo \"ALTER SYSTEM SET shared_buffers='15GB';\" | psql"
+    su - $USER -c "echo \"ALTER SYSTEM SET shared_buffers='30GB';\" | psql"
+    su - $USER -c "echo \"ALTER SYSTEM SET effective_cache_size = '4GB';\" |psql"
+
     
     su - $USER -c "echo \"ALTER SYSTEM SET effective_io_concurrency = 8;\" |psql"
     #NOTE: If trying to use 'on' then must set some huge tables in linux
@@ -38,8 +41,38 @@ setting_system() {
     su - $USER -c "echo \"ALTER SYSTEM SET huge_pages = 'try';\" | psql"
     su - $USER -c "echo \"ALTER SYSTEM SET max_locks_per_transaction = 1024;\" | psql"
 
+    # su - $USER -c "echo \"ALTER SYSTEM SET synchronous_commit = 'remote_write';\" | psql"
+
+
+    sudo sed -i '$a\host    all             all              0.0.0.0/0                       md5' /etc/postgresql/12/pgdata/pg_hba.conf
+    d_line=$(sudo cat /etc/postgresql/12/pgdata/pg_hba.conf | grep -n  "IPv4 local" | cut -d: -f1)
+    d_line=$(expr $d_line + 1)
+    sudo sed -i "${d_line}d" /etc/postgresql/12/pgdata/pg_hba.conf
+
+    cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen
+    m_line=$(cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen | cut -d: -f1)
+    sudo sed -i "${m_line}s/localhost/*/g" /etc/postgresql/12/pgdata/postgresql.conf
+    sudo sed -i "${m_line}s/#/""/" /etc/postgresql/12/pgdata/postgresql.conf
+    cat /etc/postgresql/12/pgdata/postgresql.conf | grep -n  listen
+
+    # sudo -u postgres taskset -c 1 /usr/lib/postgresql/12/bin/postgres --config-file=/etc/postgresql/12/pgdata/postgresql.conf
+    # sudo -u postgres taskset -c 1 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # taskset -c 1 /usr/lib/postgresql/12/bin/postgres --config-file=/etc/postgresql/12/pgdata/postgresql.conf
+# 
+# CONFIG FILE:   /etc/postgresql/12/pgdata/postgresql.conf
+
+
     echo "Restart Postgres"
     sudo systemctl restart postgresql
+    # echo "Stopping Postgres"
+
+    # sudo systemctl stop postgresql
+
+    # echo "TaskSeting Postgres"
+
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+
 }
 
 setting_db() {
@@ -53,6 +86,7 @@ setting_db() {
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_MERGEJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_HASHJOIN TO FALSE ;\" | psql -d $dbname"
     su - $USER -c "echo \"ALTER DATABASE $dbname SET ENABLE_NESTLOOP TO TRUE ;\" | psql -d $dbname"
+    # su - $USER -c "echo \"ALTER DATABASE $dbname SET lock_timeout = 100 ;\" | psql -d $dbname"
 }
 
 unistall_flag=false
@@ -196,14 +230,30 @@ if [[ -n $output ]] ; then
     echo $output
 else
     echo "No cluster exists, moving on to creating pgdata cluster"
+    # exit -1
     # creating a PostgreSQL cluster in a ramdisk (in order to run experiments that are not bias by slow disk memory)
     mkdir -p $DATA/db $DATA/log || true
-    sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
-    
 
-    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+    ### Comment this to cancel mounting
+    sudo mount -t tmpfs -o size=$SIZE,nr_inodes=10k,mode=0777 tmpfs $DATA
+
+    # sudo systemctl stop postgresql
+
+    # sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+    sudo pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID --start-conf=manual -s $DATA/socket -p 5432
+    # sudo -u postgres taskset -c 10-19 pg_createcluster -u $USER -d $DATA/db $PGV $CLUSTERID -l $DATA/log --start-conf=manual -s $DATA/socket -p 5432
+
+
+    # exit -1
+
+
     sudo rsync -avz $DATA/db/ $DATA/dbinit/
     sudo sed -i '89s/^/local   all             all                                     trust\n/' /etc/postgresql/12/pgdata/pg_hba.conf
+
+    # echo "Here1"
+    # sudo systemctl stop postgresql
+    # sudo -u postgres taskset -c 10-19 /usr/lib/postgresql/12/bin/postgres -D /etc/postgresql/12/pgdata
+    # echo "Here2"
 
     # Start the PostgreSQL cluster
     sudo pg_ctlcluster $PGV $CLUSTERID start
@@ -211,6 +261,17 @@ else
     # Setting the system
     setting_system
   
+
+
+    if [ "$pin_pg" = true ] ; then
+
+        PIDS=$(pgrep -u postgres) 
+        for PID in $PIDS; do
+            sudo taskset -p -p 0xFFC00 $PID
+        done
+        
+    fi
+
     # Setting the databases
     for i in $(seq 1 $db_num);
     do
@@ -219,8 +280,8 @@ else
 
 fi
 
-sudo cp /usr/local/etc/postgresql_copy.conf /etc/postgresql/12/pgdata/postgresql.conf
-sudo cp /usr/local/etc/pg_hba_copy.conf /etc/postgresql/12/pgdata/pg_hba.conf
+# sudo cp /usr/local/etc/postgresql_copy.conf /etc/postgresql/12/pgdata/postgresql.conf
+# sudo cp /usr/local/etc/pg_hba_copy.conf /etc/postgresql/12/pgdata/pg_hba.conf
 
 
 #state where to run this scrit from

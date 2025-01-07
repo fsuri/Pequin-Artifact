@@ -37,6 +37,8 @@ SQLDelivery::SQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
     : TPCCSQLTransaction(timeout), w_id(w_id), d_id(d_id) {
   o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
   ol_delivery_d = std::time(0);
+
+  std::cerr << "DELIVERY (parallel)" << std::endl;
 } 
   
 SQLDelivery::~SQLDelivery() {
@@ -49,7 +51,6 @@ transaction_status_t SQLDelivery::Execute(SyncClient &client) {
 
   // Process a batch of 10 new (not yet delivered) orders. Each order delivery is it's own read/write TX.
   // Low frequency
-  std::cerr << "DELIVERY (parallel)" << std::endl;
   Debug("DELIVERY (parallel)");
   Debug("Warehouse: %u", w_id);
   Debug("District: %u", d_id);

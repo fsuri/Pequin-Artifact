@@ -31,8 +31,14 @@ namespace auctionmark {
 
 NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
   
-  std::cerr << "NEW FEEDBACK" << std::endl;
-  ItemInfo itemInfo = *profile.get_random_completed_item();
+  std::cerr << std::endl << "NEW FEEDBACK" << std::endl;
+  std::optional<ItemInfo> maybeItemInfo = profile.get_random_completed_item();
+  ItemInfo itemInfo;
+  if (maybeItemInfo.has_value()) {
+    itemInfo = maybeItemInfo.value();
+  } else {
+    throw std::runtime_error("new_feedback construction: failed to get random completed item");
+  }
   UserId sellerId = itemInfo.get_seller_id();
   UserId buyerId = profile.get_random_buyer_id(sellerId);
   rating = std::uniform_int_distribution<int>(-1, 1)(gen);
@@ -41,8 +47,7 @@ NewFeedback::NewFeedback(uint32_t timeout, AuctionMarkProfile &profile, std::mt1
   if(std::uniform_int_distribution<int>(0, 1)(gen)){
     user_id = sellerId.encode();
     from_id = buyerId.encode();
-  }
-  else{
+  } else {
     user_id = buyerId.encode();
     from_id = sellerId.encode();
   }

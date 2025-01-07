@@ -606,6 +606,15 @@ namespace auctionmark
 
     std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
     std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
+    // for (auto& items : all_item_sets) {
+    //   if (items->size() > ITEM_ID_CACHE_SIZE) {
+    //     std::cerr << "shuffling items old size: " << items->size() << " new size: " << ITEM_ID_CACHE_SIZE << std::endl;
+    //     std::vector<ItemInfo> result(ITEM_ID_CACHE_SIZE);
+    //     std::sample(items->begin(), items->end(), result.begin(), ITEM_ID_CACHE_SIZE, gen);
+    //     *items = std::move(result);
+    //   }
+    // }
+
     std::ofstream profile_save_file;
     profile_save_file.open(PROFILE_FILE_NAME);
     {

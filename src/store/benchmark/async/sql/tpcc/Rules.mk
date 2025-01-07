@@ -13,3 +13,4 @@ LIB-sql-tpcc := $(OBJ-sql-tpcc-client) $(OBJ-sql-tpcc-transaction) $(o)new_order
 $(d)sql_tpcc_generator: $(LIB-io-utils) $(o)tpcc_generator.o $(o)tpcc_utils.o
 
 BINS += $(d)sql_tpcc_generator
+

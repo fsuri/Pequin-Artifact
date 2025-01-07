@@ -160,7 +160,6 @@ std::unique_ptr<const query_result::QueryResult> SyncClient::SafeRelease(Promise
   }
 }
 
-
 void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout) {
   Promise promise(timeout);
   
@@ -168,7 +167,6 @@ void SyncClient::SQLRequest(std::string &statement, std::unique_ptr<const query_
         std::placeholders::_1, std::placeholders::_2), 
         std::bind(&SyncClient::SQLTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout);
-
   //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
@@ -192,7 +190,6 @@ void SyncClient::Write(std::string &statement, std::unique_ptr<const query_resul
         std::bind(&SyncClient::WriteTimeoutCallback, this,
         &promise, std::placeholders::_1), timeout, blind_write);
   result.reset();
-  //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
 
@@ -220,8 +217,6 @@ void SyncClient::Query(const std::string &query, std::unique_ptr<const query_res
         &promise, std::placeholders::_1), timeout, cache_result);
 
   result.reset();
-
-  //result = promise.ReleaseQueryResult(); 
   result = SafeRelease(promise);
 }
 

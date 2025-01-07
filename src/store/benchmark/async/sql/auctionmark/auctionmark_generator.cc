@@ -457,7 +457,7 @@ std::vector<UserId> GenerateUserAcctTable(TableWriter &writer, AuctionMarkProfil
  
   //DATA GEN
 
-   std::mt19937_64 gen;
+  std::mt19937_64 gen;
   
   Zipf randomRating(gen, USER_MIN_RATING, USER_MAX_RATING, 1.0001);
   Zipf randomBalance(gen, USER_MIN_BALANCE, USER_MAX_BALANCE, 1.001);
@@ -1236,7 +1236,7 @@ int main(int argc, char *argv[]) {
   // auctionmark::GenerateUserWatch(writer, profile, items);
   // std::cerr << "Finished UserWatch Table" << std::endl;
 
-   std::cerr << "Finished all User* Tables" << std::endl;
+  std::cerr << "Finished all User* Tables" << std::endl;
 
   writer.flush();
 
@@ -1246,7 +1246,7 @@ int main(int argc, char *argv[]) {
   profile.save_profile();
   std::cerr << "Saved profile." << std::endl;
 
-   auto end_time = std::time(0);
-    std::cerr << "Finished AUCTIONMARK Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
+  auto end_time = std::time(0);
+  std::cerr << "Finished AUCTIONMARK Table Generation. Took " << (end_time - start_time) << "seconds" << std::endl;
   return 0;
 }

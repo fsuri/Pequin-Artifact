@@ -72,7 +72,7 @@ class Client : public ::Client {
       query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override;
 
   virtual void Write(std::string &write_statement, write_callback wcb,
-      write_timeout_callback wtcb, uint32_t timeout, bool blind_write=false) override;
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false) override;
 
  protected:
   Stats stats;

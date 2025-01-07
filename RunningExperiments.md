@@ -1,7 +1,13 @@
 # Running experiments <a name="experiments"></a>
-Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process, and importantly requires good network connectivity to upload binaries to the remote machines and download experiment results. Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast. This section is split into 5 subsections: 1) Preparing Benchmarks, 2) Pre-configurations for Hotstuff and BFTSmart, 3) Using the experiment scripts, 4) Parsing outputs, and finally 5) reproducing experiment claims 1-by-1.
+Hurray! You have completed the tedious process of installing the binaries and setting up Cloudlab. 
+Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process.
 
-Before you proceed, please confirm that the following credentials are accurate:
+Ideally you have good network connectivity to quickly upload binaries to the remote machines and download experiment results. 
+Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast.
+
+This section is split into 5 subsections: 1) Preparing Benchmarks, 2) Pre-configurations for Hotstuff and BFTSmart, 3) Using the experiment scripts, 4) Parsing outputs, and finally 5) reproducing our experiments 1-by-1.
+
+Before you proceed, please confirm that your CloudLab credentials are accurate:
 1. Cloudlab-username `<cloudlab-user>`: e.g. "fs435"
 2. Cloudlab experiment name `<experiment-name>`: e.g. "pequin"
 3. Cloudlab project name `<project-name`>: e.g. "pequin-pg0"  (May need the "-pg0" extension)
@@ -11,36 +17,38 @@ Confirm these by attempting to ssh into a machine you started (on the Utah clust
 ## High level experiment checklist
 Running experiments involves 5 steps. Refer back to this checklist to stay on track!
 
-> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running!.
+> :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies) and built all binaries locally before running!
 
 1. The first step is to generate and upload initial data used by the benchmarks
-2. Next, if you're running an SMR-based store (e.g. Peloton-HS or Peloton-Smart), you will need to pre-configure the SMR module. The exact procedure depends on the module you are using.
-3. In order to run an experiment, you will need to write (or copy and adjust our pre-supplied) configuration file. This specifies the cluster setup, the benchmark to run, and the parameters of the system.
+2. Next, if you're running an SMR-based store (e.g. Peloton-HS or Peloton-Smart), you will need to pre-configure the SMR module. The exact procedure depends on the module you are using. Postgres requires some pre-setup as well.
+3. In order to run an experiment, you will need to write a configuration file (or copy and adjust our pre-supplied configs). This specifies the cluster setup, the benchmark to run, and the parameters of the system.
 4. You're ready to run the experiment! Run the experiment script and supply it with your prepared config.
 5. Finally, inspect the downloaded experiment run by checking the output data. 
 
-### 1) Preparing Benchmarks
+## (1) Preparing Benchmarks
 
-To generate benchmark data simple run the script `src/generate_benchmark_data.sh`, configuring it as follows:
+To generate benchmark data simple run the script `src/generate_benchmark_data.sh`. Configure it as follows:
 1) specify the benchmark you want to generate, e.g. to run TPC-C use `-b 'tpcc'`
 2) specify the benchmark parameters, e.g. to create 20 warehouses for TPC-C use `-n 20`
 
-Generate TPC-C data using: `./generate_benchmark_data -n 20` (tpcc is the default benchmark)
-Generate Auctionmark data using: `./generate_benchmark_data -b 'auctionmark'` (using default scale factor)
-Generate Seats data using: `./generate_benchmark_data -b 'seats'` (using default scale factor)
+> 📓 You may need to enable permissions for the scripts before running: `cmod +x <scriptname>`
+
+- Generate TPC-C data using: `./generate_benchmark_data -n 20` (tpcc is the default benchmark)
+- Generate Auctionmark data using: `./generate_benchmark_data -b 'auctionmark'` (using default scale factor)
+- Generate Seats data using: `./generate_benchmark_data -b 'seats'` (using default scale factor)
 
 Once you created the benchmark data (you can create all data upfront), upload the respective benchmark data to your CloudLab cluster using `src/upload_data_remote`.
-Simply specify which benchmark you are uploading, and to how many shards (1, 2 or 3) you are uploading:
-E.g. use `./upload_data_remote -b 'tpcc' -s 2` to upload TPC-C data to 2 shards. 
-TPC-C and 1 shard are default parameters.
+Simply specify which benchmark you are uploading, and to how many shards (1, 2 or 3) you are uploading. You can also pass in your cloudlab user and expeirment name.
+- E.g. use `./upload_data_remote -b 'tpcc' -s 2 -u `fs435`` to upload TPC-C data to 2 shards, with cloudlab user `fs435`
+- TPC-C and 1 shard are default parameters. Check our the script for exact usage!
 
-### 2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
+## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
-When evaluating Peloton-HS and Peloton-Smart you will need to complete the following pre-configuration steps before running an experiment script:
+When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete the following pre-configuration steps before running an experiment script:
 
-1. **Hotstuff**
+### **Hotstuff**
    1. Navigate to `Pequin-Artifact/src/scripts`
-   2. Run `./batch_size <batch_size>` to configure the internal batch size used by the Hotstuff Consensus module. See sub-section "1-by-1 experiment guide" for what settings to use. The default value is an *upper* cap  of 200. Since we modified Hotstuff to use more efficient, dynamic batch sizes, changing the default batch cap is not necessary.
+   2. [**OPTIONAL**] Run `./batch_size <batch_size>` to configure the internal batch size used by the HotStuff consensus module. See sub-section "1-by-1 experiment guide" for what settings to use. The default value is an *upper* cap of 200. Since we modified Hotstuff to use more efficient, dynamic batch sizes, changing the default batch cap is not necessary.
    3. Run `./pghs_config_remote.sh <cloudlab-user>` (e.g. `fs435`). This will upload the necessary configurations for the HotStuff Consensus module.
 
 > :warning:  HotStuff is pre-configured to use the server names `us-east-1-0`, `us-east-1-1`, `us-east-1-2`, and `eu-west-1-0`. If you want to change the names of your servers you must also adjust the files `src/scripts/hosts_pg_smr` and `scr/scripts/config_pghs/shard0/hotstuff.gen.conf` accordingly.
@@ -51,7 +59,7 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
    4. Finally, run `./config_remote.sh` 
    5. This will upload the necessary configurations for the Hotstuff Consensus module to the Cloudlab machines. -->
 
-2. **BFTSmart**
+### **BFTSmart**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. Build BFT-Smart using `./build_bftsmart.sh`. You only need to do this *once*.
    3. Navigate to `Pequin-Artifact/src/scripts/bftsmart-configs` 
@@ -68,14 +76,43 @@ When evaluating Peloton-HS and Peloton-Smart you will need to complete the follo
       - Troubleshooting: Make sure files `server-hosts` and `client-hosts` in `/src/scripts/` do not contain empty lines at the end -->
 
 
-3. **Postgres**
+### **Postgres**
 
+> :warning: The experiments reported in the paper were performed with a less clean, manual setup. The new scripts described below should simply processing, but if you run into issues, reach out to us and or follow the old manual instructions
 
-#### Setting up Postgres (old)
+To run an experiment with Postgres you will first need to start a database on your server. 
+To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
 
-The following steps are necessary to run Postgres.  **TODO**: Use new shir script...
+#### Pre-configuring 
+First, you must modify scripts and the client connection string according to your `<experiment-name>`, `<cloudlab-user>`, `<cloudlab-cluster>`, and `<project-name>`.
+
+- In `src/store/postgresstore/client.cc` make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
+- `connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
+- E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
+
+Additionally, modify the following scripts accordingly to your experiment details and host names.
+- `init_postgres.sh`               --> fill in user name, experiment details (name, project, cluster), replica host name. 
+- `init_postgres_replicated.sh`    --> fill in user name, experiment details (name, project, cluster), replica host names.  
+- `postgres_primary2.sh`           --> replace all instances of `shir` with your own cloudlab user name, and ajdust `replica_servers` to your replica host name.
+- `postgres_replica.sh`            --> adjust `primary_ip` according to replica host names.
+
+Finally, in `experiment/scripts/utils/experiment_util.py` adjust the hard coded replica host name according to your setup. Search and adjust this line: `replica_host = "us-east-1-1.pg-smr.pequin-pg0.utah.cloudlab.us"`
+
+#### Uploading helper scripts:
+> ⚠️ The following scripts must explicitly be invoked from `Pequin-Artifact/src`, and not from the `scripts` foler directly.
+> **Note** If you modify the postgres scripts you will have to re-upload them again!
+- If you have not already modify the scripts!
+- For unreplicated Postgres, simply invoke `./scripts/init_postgres.sh`
+- For primary-backup Postgres invoke `./scripts/init_postgres_replicated.sh` 
+- This will upload our replication helper scripts to the primary and backup replicas.
+- This needs to be only done once!
+
+During the experiment, our experiment scripts will invoke the uploaded helper scripts automatically to setup the required Postgres environment
+
+**Manual Instructions** (OLD) -- You can ignore this if the above scripts work fine!
+
    > :warning: **[NOTE]**: These steps have already been completed on our pre-supplied postgres image. However, you will need to adjust the paths in the `postgresql_copy.conf`, `pg_hba_copy.conf` files to match the current cloudlab user, and not fs435.
-First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
+First, locate the `postgres_service.sh` script (`usr/local/etc/postgres_service.sh`). Then do the following on the machine you intend to run postgres on (e.g. Cloudlab server)
 1. Uninstall existing Postgres state: run `./postgres_service.sh -u`
 2. If creating a disk iamge, also run `sudo groupadd postgres` and `sudo userdel postgres`
 3. Install postgres and initialize a first time: run `./postgres_service.sh -n 1`. This will delete the default main cluster, and create a new one (pgdata) with config files located in `/etc/postgres/12/pgdata`
@@ -85,52 +122,8 @@ First, locate the `postgres_service.sh` script (`src/scripts/postgres_service.sh
    - Each experiment run drops and resets the cluster, which resets also the configs. To avoid making these changes on every run, create copies of the files (`postgresql_copy.conf`, `pg_hba_copy.conf`) and place them in `/usr/local/etc/`. The service script will automatically override the reset configs with the saved copies in each run.
 
 
-### Setting up Postgres-PB and Postgres (new)
 
-WARNING: USE branch 'merged_shir'
-
-To configure Postgres to run in primary backup mode you will additionally need to set up a backup replica, and link the primary and backup.
-For this, we have an extra script. Currently, all the setup steps need to be performed manually, and between each experiment run -- we are working on a version that automates this.
-
-#### Pre-configuring 
-First, you must modify scripts and the client connection string according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
-
-In client.cc make sure that the connection path is properly set up to match your instantiated experiment, and your primary host name.
-`connection_str = "host="{machine-name}" + experiment_name + {project-name}.{cluster-name}.cloudlab.us" user=pequin_user password=123 dbname=db1 port={port}`. The experiment_name is read in automatically already.
-E.g.: ` connection_str = "host=us-east-1-0." + experiment_name + ".pequin-pg0.utah.cloudlab.us user=pequin_user password=123 dbname=db1 port=5432";`
-
-Additionally, modify the following scripts accordingly to your experiment host names.
-- `upload_data_remote.sh`
-- `init_postgres_replicated.sh`
-- `postgres_primary2.sh`
-- `postgres_replica.sh`
-- `init_postgres.sh` (only for unreplicated postgres)
-
-#### Uploading helper scripts:
-- If you have not already Modify the script `scripts/init_postgres_replicated.sh` according to your <experiment-name>, <cloudlab-user>, <cloudlab-cluster>, and <project-name>.
-- Invoke `./scripts/init_postgres_replicated.sh` to upload our replication helper scripts to the primary and backup replicas.
-- Likewise, for unreplicated postgres, invoke `./scripts/init_postgres.sh`
-- This needs to be only done once!
-
-### Automatic. 
-
-<!-- Outdated manual instructions -->
-<!-- #### Configuring replication (before each experiment)
-- Next, you will need to active the primary backup setup. To do so, you will have to log into the machines, and manually invoke the helper scripts. You need to do this before *each* experiment. Resetting the cluster setup ensures that Postgres starts from a clean slate each time, and does not retain prior state.
-- SSH into the primary machine and run:
-    - `./postgres_primary.sh`, followed by `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db start`. And finally run `./postgres_primary2.sh`. (NOTE: packaging these script into a single script somehow did not properly instantiate the service. Please bear with the detour!)
-- SSH into the backup machine and run:
-    - `./postgres_replica.sh`
-
-Now you are ready to run an experiment via the python script as usual. E.g. `python3 experiment-scripts/run_multiple_experiments.py Postgres-TPCC.json`
-
-#### Tearing down replication (after each experiment):
-- After you finish your experiment (and *before* you run another) you must stop the current Postgres cluster
-- SSH into the backup machine and run `/usr/lib/postgres/12/bin/pg_ctl -D ~/replica/db stop`
-- SSH into the primary machine and run `/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db stop` followed by `sudo unmount primary` -->
-
-
-### 3) Using the experiment scripts
+## (3) Using the experiment scripts
 
 To run an experiment, you simply need to run: `python3 Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <CONFIG>` using a specified configuration JSON file (see below). The script will load all binaries and configurations onto the remote Cloudlab machines, and collect experiment data upon completion. We have provided experiment configurations for all experiments claimed by the paper, which you can find under `Pequin-Artifact/experiment-configs`. In order for you to use them, you will need to make the following modifications to each file (Ctrl F and Replace in all the configs to save time):
 
@@ -147,6 +140,12 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
    - Set the value field to your local path (on your machine or the control machine) to the source directory 
 6. `"emulab_user": "<cloudlab-username>"`
    - Set the field `<cloudlab-user>`. 
+7. `"benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-tpcc-tables-schema.json",`
+    - change the user name (fs435) to your <cloudlab-username>
+    - note: the file itself depends on which workload you are using
+8. `"bftsmart_codebase_dir" : "/users/fs435"`
+    - change the user name (fs435) to your <cloudlab-username>
+    - this is only applicable to BFTSmart configs
 
 #### **Optional** Modifications 
 1. Experiment duration:
@@ -168,7 +167,9 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
          - "client_proccesses_per_client_node" specifies the number of client processes run on each server machine. 
       - "client_threads_per_process": [[1]],
          - "client_threads_per_process" specifies the number of client threads run by each client process.  
-   - The *absolute total number* of clients used by an experiment is: **Total clients** *= max(client_total, num_servers x client_node_per_server x client_processes_per_client_node) *x client_threads_per_process*. For example, for Pesto (1 shard) "num_servers" = 6, for Peloton (unreplicated) "num_servers" = 1, and for Peloton-SMR "num_servers" = 4.
+   - The *absolute total number* of clients used by an experiment is: 
+    - **Total clients** *= max(client_total, num_servers x client_node_per_server x client_processes_per_client_node) *x client_threads_per_process*. 
+    - For Pesto (1 shard) "num_servers" = 6, for Peloton (unreplicated) "num_servers" = 1, and for Peloton-SMR "num_servers" = 4.
 
    - An example client series:
       - "client_total": [[5, 10, 20, 30, 20]],
@@ -183,11 +184,11 @@ Run: `python3 <PATH>/Pequin-Artifact/experiment-scripts/run_multiple_experiments
 Optional: To monitor experiment progress you can ssh into a server machine (e.g., us-east-1-0) and run htop. During the experiment run-time the cpus will be loaded (to different degrees depending on contention and client count).
   
    
-### 4) Parsing outputs
+## (4) Parsing outputs
 After the experiment is complete, the scripts will generate an output folder at your specified `base_local_exp_directory`. Each folder is timestamped. 
 
 To parse experiment results you have 2 options:
-1. (Recommended) Looking at the `stats.json` file:
+1. Looking at the `stats.json` file:
    1. Navigate into the timestamped folder, and keep following the timestamped folders until you enter folder `/out`. Open the file `stats.json`. When running multiple client settings, each setting will generate its own internal timestamped folder, with its own `stats.json` file. Multiple runs of the same experiment setting instead will directly be aggregated in a single `stats.json` file.
    2. In the `stats.json` file search for the Json field: `run_stats: ` 
    3. Then, search for the JSON field: `combined:`
@@ -200,15 +201,19 @@ To parse experiment results you have 2 options:
  > **NOTE**: We've included a few sample results as illustrative examples. These are *not* the full experiment results. Please refer to section 5 *Running Experiments* to reproduce our results.
 
    Experiment output folder:
+
    ![image](https://github.com/user-attachments/assets/e8241b28-77af-42f6-886d-419c63e8e589)
 
    Contains the results (and configs) from a client series:
+
    ![image](https://github.com/user-attachments/assets/7e8aa53a-1399-44b5-a938-e31b15476edd)
 
    The plots folder contains some visualization.
+
    ![image](https://github.com/user-attachments/assets/89881415-cdf1-4073-8325-720b5e2b520a)
 
    Additionally, the plots folder contains csv files that automatically parse the Throughput and (mean) Latency for you
+
    ![image](https://github.com/user-attachments/assets/fa9ff226-6940-4af6-9e78-0f4f5d3f2bf0)
 
 
@@ -221,25 +226,17 @@ To parse experiment results you have 2 options:
    ![image](https://user-images.githubusercontent.com/42611410/129566877-87000119-c43b-4fa2-973a-2a9e571d9351.png)
 
    Throughput: 
+
    ![image](https://github.com/user-attachments/assets/7a4c841d-fded-4660-9ddb-0b71401233da)
    
    Latency: 
+
    ![image](https://github.com/user-attachments/assets/71878eec-8e34-4ded-b8b6-0b5aa98c6abb)
 
 
+## (5) Reproducing experiment claims 1-by-1
 
-
-
-TODO: 
-1. Clean up postgres instructions
-
-Optional:
-6. Add Wan instructions -> how to modify server_names/server_regions
-7. Add CRDB instructions (different branch, what to run?)
-
-### 5) Reproducing experiment claims 1-by-1
-
-Next, we will go over each included experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
+Next, we will go over each experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
 
 <!-- **TODO CHANGE ** 
 We have included our experiment outputs for easy cross-validation of the claimed througput (and latency) numbers under `/sample-output/ValidatedResults`. 
@@ -247,29 +244,36 @@ To directly compare against the numbers reported in our paper please refer to th
 
 > :warning: Make sure to have set up a CloudLab experiment (with correct disk images matching your local/controllers package dependencies), built all binaries, and created benchmark data before running (see instructions above).
 
+> :warning: Make sure you have correctly set the  `"benchmark_schema_file_path"` as described above!
+
 > **Notice**: When running experiments with load load (i.e. few clients) we observe that the average latency is typically higher than at moderate load (this is the case for all systems). This appears to be a protocol-independent system artifact that we have been unable to resolve so far. CPU and/or network speeds seem to increase under load.
 
-> **Notice**: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes). These should have none, if very little impact on performances, but we acknowledge it nonetheless for completeness. The main claims/takewayas remain consistent.
+> **Notice**: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes). These should have none, if very little impact on performances, but we acknowledge it nonetheless for completeness. The main claims remain consistent.
 
 
-#### **1 - Workloads**:
+### **1 - Workloads**:
 We report evaluation results for 3 workloads (TPCC, Auctionmark, and Seats) over 7 system setups: 
 1. **Pesto** -- our system. A BFT DB.
 2. **Pesto-unreplicated** -- Pesto but run with f=0, i.e. a single replica
 3. **Peloton** -- an unreplicated SQL DB. Pesto uses Peloton as foundation for its execution engine, so this is provides an apples-to-apples comparison of Pesto's overheads
-  3.5. **Peloton-signed** -- Peloton, but augmented to reply to clients with signed messages. This illustrates the impact of signatures (an overhead that Pesto incurs)
+  - 3.5. **Peloton-signed** -- Peloton, but augmented to reply to clients with signed messages. This illustrates the impact of signatures (an overhead that Pesto incurs)
 4. **Peloton-HS** -- Peloton (with reply signatures) run atop a BFT consensus protocol, HotStuff.
 5. **Peloton-Smart** -- Peloton (with reply signatures) run atop a BFT consensus protocol, BFTSmart.
 6. **Postgres** -- an unreplicated SQL DB of production grade.
 7. **Postgres-PB** - Postgres, but run in primary backup mode. Writes are synchronously replicated to a backup.
 
+> **NOTE**: Peloton-HS and Peloton-Smart are not safe systems to run. They do not implement "correct" State Machine Replication (SMR), as they opt to execute requests of different transactions in parallel (for better performance) instead of sequentially. These baselines serve as a generous *upper-bound* on the performance achievable with a simple SMR-based design. Operations from the *same* transaction must still be executed sequentially, however, as this is demanded by the DB interface. Notably though, our system allows independent operations from the same transaction to nonetheless be *issued* by the client in parallel: they can thus proceed through consensus in parallel (thus minimizing latency); only query execution itself must be sequential.
+
 All systems were evaluated using a single shard, but use different replication factors. For f=1, Pesto uses 6 replicas (5f+1), while Peloton-HS and Peloton-Smart use 4 (3f+1). All unreplicated systems use 1 replica. Postgres-PB uses 2 replicas (one primary, one backup).
 
-All systems using signatures (Pesto, Pesto-unreplcited, Peloton-HS, Peloton-Smart) are augmented to make use of the reply batching scheme proposed in Basil: replicas may batch together replies to clients and create a single signature to amortize costs. We defer exact details to Basil. We use a varying reply batch size (either b=1, or b=4) depending on the load; for low load, it is better to not batch to avoid incurring a batch timeout.
+All systems using signatures (Pesto, Pesto-unreplicated, Peloton-signed, Peloton-HS, Peloton-Smart) are augmented to make use of the reply batching scheme proposed in Basil: replicas may batch together replies to clients and create a single signature to amortize costs. We defer exact details to Basil. We use a varying reply batch size depending on the load; for low load, it is better to not batch to avoid incurring a batch timeout. 
+<!-- we used very small batch timer by accident because the unit is *microseconds* and not *miliseconds*. However, due to a libevent artifact, timer granularity is only 4ms, so most of the time our timers are implicitly 4ms. -->
 
-Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point.
+Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point, i.e. a bit before latency starts to spike.
 
-1. **Pesto**: 
+
+ 
+#### 1. **Pesto**:  
 
 Reproducing our claimed results is straightforward and requires no additional setup besides running the included configs under `/experiment-configs/Pesto/1-Workloads/<workload>/LAN`. 
 Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal point):
@@ -280,7 +284,6 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
         Use: `/experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-low.json` for low load
 
         For #Clients < 10 we used a reply batch size of b=1; for 10 and above we used b=4.  
-        <!-- very small batch timer (2ms = often 4ms with libevent?) -->
 
         | #Clients    |   1   |   3   |   5   |   10  |   15   |   20   |   30  |   35  |   40  |   45  |
         |-------------|-------|-------|-------|-------|--------|--------|-------|-------|-------|-------|
@@ -317,9 +320,9 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
     
 
 
-2. **Pesto-unreplicated**: 
+#### 2. **Pesto-unreplicated**: 
 
-> ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and is purely an option for microbenchmarking purposes.
+> ⚠️**[Warning]** Do **not** run the unreplicated Pesto configuration in practice. Running with a single replica is **not** BFT tolerant and exists only as an option for microbenchmarking purposes.
 
 
     - TPCC: Peak Throughput: ~1.3k tx/s, Ankle Latency: ~12 ms
@@ -362,9 +365,9 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
 
 
 
-3. **Peloton**: 
+#### 3. **Peloton**: 
 
-> **Note**: Peloton and its Peloton-SMR variants use the same store (postgresstore). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
+> **Note**: Peloton and its Peloton-SMR variants use the same store (`pelotonstore`). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
 <!-- - If SMR_mode = 0, nothing to do
 - If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
 - If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us` -->
@@ -399,11 +402,9 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
         | Lat (ms)    |  4.5  |  3    |  3.6   |  5.1   |  5.8   |  6.4   |   8.2  |  10.2  |
 
         
-   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
-
- 3.5 **Peloton + Reply Sigs**:  
+#### 3.5 **Peloton + Reply Sigs**:  
  
-    This system configuration is not shown in the paper, but we include it here for completeness. You may skip it
+This system configuration is not shown in the paper, but we include it here for completeness. You may skip it if just trying to reproduce the results in the paper.
    
     We used a reply batch size of b=4 across all experiments.
    
@@ -435,22 +436,16 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
         |-------------|-------|--------|--------|--------|--------|--------|--------|
         | Tput (tx/s) |  745  |  1851  |  3279  |  3414  |  3951  |  4460  |  4573  |
         | Lat (ms)    |  6.8  |  5.5   |  6.3   |  7.5   |  7.8   |  9.2   |  13.5  |
-        
-   > **[NOTE]** We also ran Peloton with reply signatures enabled. TODO: report results? (Not in the paper)
-
+  
          
-4. **Peloton-HS:** 
-
-   TODO: explain fake SMR
-   TODO: Explain how req can go in parallel through consensus
-   
+#### 4. **Peloton-HS:** 
 
    Before running Peloton-HS, you must configure Hotstuff using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
    <!-- Use a batch size of 4 when running TPCC, and 16 for Smallbank and Retwis for optimal results. Note, that you must re-run `src/scripts/remote_remote.sh` **after** updating the batch size and **before** starting an experiment.  -->
 
    > :warning: Due to its pipelined nature, HotStuff cannot be operated under very low load (i.e. for very few clients), or it will lose progress. This is because the HotStuff module does not implement a batch timer, yet requires 4 batches to be filled to "push" one proposal through the pipeline.
 
-   Because HotStuff, by default, implements no batch timer, we augment HotStuff to make use of dynamic (upper bound) batch sizes as used by BFTSmart. We instantiate HotStuff with an upper-bound batch size of 200, but allow batches to form with dynamic smaller size whenever a new pipeline step is ready. This results in optimal latency, which is desirable for contended workloads (e.g. TPCC), while still amortizing costs as much as possible.
+   > **NOTE**: Because HotStuff, by default, implements no batch timer, we augment HotStuff to make use of dynamic (upper bound) batch sizes as used by BFTSmart. We instantiate HotStuff with an upper-bound batch size of 200, but allow batches to form with dynamic smaller size whenever a new pipeline step is ready. This results in optimal latency, which is desirable for contended workloads (e.g. TPCC), while still amortizing costs as much as possible.
 
    We use a reply batch size of 4 throughout (param `ebatch`).
 
@@ -488,10 +483,12 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
             
       
       
-5. **Peloton-Smart**: 
+#### 5. **Peloton-Smart**: 
 
 Before running Peloton-Smart, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
-   
+
+> :warning:  Make sure to adjust the `"bftsmart_codebase_dir"` path to reflect your cloudlab-username!
+  
 You can, but do not need to manually set the batch size for BFTSmart (see optional instruction below). BFTSmart uses dynamically sized batches, and in our experience performs best with an upper bound of 64 and no batch timeout.
 
 We use a reply batch size of 4 throughout (param `ebatch`).
@@ -535,12 +532,10 @@ We use a reply batch size of 4 throughout (param `ebatch`).
 
 
 
-TODO: CLEAN UP POSTGRES CONFIGS AND INSTRUCTIONS
-      
-6. **Postgres**: 
+#### 6. **Postgres**: 
 
-TODO: Use the postgres config instructions
-    
+Before running Postgres, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
+
     - TPCC: Peak Throughput: ~1.8k tx/s, Ankle Latency: ~11 ms
 
         Config file: `/experiment-configs/Postgres/unreplicated/TPCC/1-LAN/Postgres-TPCC-20wh.json`
@@ -572,15 +567,19 @@ TODO: Use the postgres config instructions
 
 
 
-7. **Postgres-PB**: 
+#### 7. **Postgres-PB**: 
 
-TODO: Use the postgres primary backup config instructions
-    
-    - TPCC:   Ankle point: 1998, 17.2
-        -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
+Before running Postgres-PB, you must configure BFTSmart using the instructions from section "2) Pre-configurations for Hotstuff", BFTSmart, and Postgres". 
+
+> **NOTE**: Postgres-PB incurs synchronous replication for all write queries. This results in higher latency, and, on contention bottlenecked workloads such as TPCC, in a reduction of throughput.
+
+  <!-- -- replicated postgres has higher latency, so they need more clients to reach higher tput (since closed loop). But more clients = more contention = more latency/less tput
         -- TPCC is a write heavy workload, so the cost of synchronous PB affects it more
-
-        -- contention bottleneck, at high load starts to abort a lot.
+        -- contention bottleneck, at high load starts to abort a lot. -->
+    
+    - TPCC: Peak Throughput: 1257 tx/s, Ankle Latency: ~20ms
+    
+         Config file: `/experiment-configs/Postgres/primary-backup/PG-TPCC.json`
 
         | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
@@ -588,7 +587,9 @@ TODO: Use the postgres primary backup config instructions
         | Lat (ms)    |  12.7 |  11.9 |  13    |  17.2  |  25.1  |  33    |  42.5  |  56.4  |  64.2  |
 
 
-    - Auctionmark: Ankle Throughput: ~6084 tx/s Latency: ~8.4
+    - Auctionmark: Peak Throughput: 6084 tx/s, Ankle Latency: ~6ms
+
+         Config file: `/experiment-configs/Postgres/primary-backup/PG-Auction.json`
 
         | #Clients    |   1   |    5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
@@ -596,7 +597,9 @@ TODO: Use the postgres primary backup config instructions
         | Lat (ms)    |  5.4  |  5     |  4.7   |  4.5   |  5.3   |  6.8   |  8.4   |  10.2  |  11.9  |
 
 
-    - Seats: Ankle 7695, 6.7
+    - Seats: Peak Throughput: 7695 tx/s, Ankle Latency ~6ms
+
+        Config file: `/experiment-configs/Postgres/primary-backup/PG-Seats.json`
 
         | #Clients    |   1   |   5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
@@ -604,20 +607,21 @@ TODO: Use the postgres primary backup config instructions
         | Lat (ms)    |  4.4  |  4.3  |  4.1   |  3.7   |  4.4   |  5.5   |  6.7   |  8.1   |  9.7   |
 
 
-#### **2 - Sharding**:
+### **2 - Sharding**:
 
-In addition to Pesto, we also evaluated CockroachDB, a popular production-grade distributed database. We do not compare to Peloton and Postgres as they are not easily shardable.
+In addition to Pesto, we also evaluated CockroachDB (CRDB), a popular production-grade distributed database. We do not compare to Peloton and Postgres as they are not easily shardable.
 For Pesto we scale to 2 and 3 shards; for CockroachDB we scale to 5 and 9 shards (its peak).
 
 > **[NOTE]** We cannot shard the Peloton baselines. The DB is effectively a blackbox and does not have innate support for sharding. Postgres supports native table partitioning, but not horizontal sharding; one may work around this using the Foreign Data Wrapper (FDW) interface or the Citus extension, but we opted against it for simplicity. CRDB, in contrast, supports automatic sharding which is why we selected it for this experiment. Pesto's commit process supports sharding by design, as it integrates concurrency control and 2PC. Our Pesto prototype, however, does not support distributed queries (i.e. it supports only queries that are satisfied by a single shard); we thus can currently only shard TPC-C, but not Seats or Auctionmark.  
 
 We report below the peak reported throughput. The configuration files referened run a series of client loads to find the peak.
 
-1. Pesto
+#### 1. Pesto
 
-    > :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
+> :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
 
-    > :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
+> :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
+
 
     Use the following three configs:
     - 1 shard: `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh.json` (you do not need to re-run this, it is the same as reported above!!)
@@ -631,9 +635,19 @@ We report below the peak reported throughput. The configuration files referened 
     | Tput (tx/s) | 1784  | 2934  | 3949  |
 
 
-2. CRDB
+#### 2. CRDB
 
-    TODO: 
+
+No additional setup should be necessary to run CRDB. If you run into troubles, please e-mail <larzola@ucsd.edu>.
+
+> :warning: The `server_names` in the following configs are slightly different than our default profile ones. Adjust them according to your experiment!!
+
+> :warning: We've observed CRDB performance to be quite volatile.
+
+    Use the following three configs:
+    - 1 shard: `experiment-configs/Cockroach/CRDB-TPCC-SQL-1.json` 
+    - 5 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-5.json` 
+    - 9 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-9.json`. NOTE: You will need 9 server machines for this. Change your CloudLab expeirment according to the `server_names` in the config.
 
     Peak results reported were:
 
@@ -642,28 +656,29 @@ We report below the peak reported throughput. The configuration files referened 
     | Tput (tx/s) |  400  | 1095  | 1357  |
 
  > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
+
  > **[NOTE]** CockroachDB (like most databases) only allows for sequential execution of operations within a transaction. This results in high transaction latencies (relative to Pesto) for TPC-C, whose New-Order transaction might issue up to ~45 operations. Pesto, in contrast, can execute many of these operations in parallel, reducing execution latency. Our Peloton baselines strike a midpoint: although execution on the DB itself must be sequential within a transaction, clients do not connect to the DB directly (like for CRDB) but send a message to a replica proxy, which then invokes the DB. This allows clients to send independent operations in parallel, thus sidestepping network and amortizing consensus latency. 
 
-3. Basil
 
-    We report the 3 shard result from the [Basil paper](https://www.cs.cornell.edu/~fsp/reports/Suri21Basil.pdf): 4862 tx/s
+#### 3. Basil
+
+We report the 3 shard result from the [Basil paper](https://www.cs.cornell.edu/~fsp/reports/Suri21Basil.pdf): 4862 tx/s
   
 
 
 
-#### **3 - Point vs Range Reads **:
-The following experiments were run using a single client. Configs are located under `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point`.
+### **3 - Point vs Range Reads **:
+Our configs are located under `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point`.
 
-Each experiment tries to read a range of <num> rows, either using only point reads, or using the range read protocol. We also evaluate a case in which the read is predicated on a secondary condition (Range-Cond)
-that applies for only 1 in a 100 rows. 
+Our experiments were run using a single client. The client tries to (in a closed loop) issue a transction that reads a range of <num> rows, either using only point reads, or using the range read protocol. We also evaluate a case in which the read is predicated on a secondary condition (Range-Cond) that applies for only 1 in a 100 rows. 
 
 We used the following configs:
-1. Point: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Point/<num>.json 
+1. Point: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Point/<num>.json` 
 > **Note**: We evaluated two additional setups, Point-bare and Point-batched, which, respectively, execute a point read only against a KV-store (instead of the SQL backend) -- akin to Basil --, or try to batch replies to amortize signature costs. However, we did not find any meaningful differences so we opted to omit the results. We note further that point reads in this microbenchmark do NOT incur the cost of verifying CommitProofs: because the workload is read only, the only keys read are genesis keys that require no proof in our setup. This implies that in practice, the benefit of range reads is *even bigger* than we claim.
 
-2. Range: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/no condition/<num>.json
+2. Range: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/no condition/<num>.json`
 
-3. Range-Cond: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/with condition/<num>.json
+3. Range-Cond: `experiment-configs/Pesto/2-Microbenchmarks/1-Scan-Point/Scan/with condition/<num>.json`
 
 The reported results were:
 
@@ -674,17 +689,15 @@ The reported results were:
     | Range-Cond |  3.3   |  3.3   |  3.5   |  5.3   |  19.4  |  199    |  
            
 
-#### **4 - Stress testing Range Reads**:
-In this microbenchmark we simulate artificial inconsistency between replicas to invoke Pesto's snapshot protocol. 
+### **4 - Stress testing Range Reads**:
+In this microbenchmark we simulate artificial inconsistency between replicas to invoke Pesto's snapshot protocol. Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/2-Snapshot`
 
-We implement a microbenchmark based on the YCSB framework consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended uniform access pattern *U*, and a very highly contended Zipfian access pattern **Z** with coefficient 1.1
+We implement a microbenchmark based on the YCSB framework consisting of $10$ tables, each containing $1M$ keys. Every transaction issues one scan read to a range of size $10$ on one table, and attempts to update all $10$ read rows. We distinguish two workload instantiations: an uncontended uniform access pattern *U*, and a very highly contended Zipfian access pattern *Z* with coefficient 1.1
 
 We simulate two settings:
 1) We artificially fail eager execution for *every* transaction -- requiring a snapshot proposal, but no synchronization (since replicas are, in fact, consistent)
 2) We ommit/delay application of writes of every transaction at 1/3rd of replicas -- this results in actual inconsistency, and requires both a snapshot proposal and explicit synchronization.
   
-TODO: ADD DISCUSSION FROM NOTES
-
 <!-- \iffalse
 Simulation setup:
 At 1/3rd of replicas (2 out of 6) we *drop* application of prepared/committed writes in order to create inconsistency. This results in eager exec failing about 2/3rd of the time (a bit higher for zipf even). When a snapshot is proposed, replicas need to sync on missing data.
@@ -697,7 +710,6 @@ Notes:
 - An ideal setup would simulate client failures, but we don't want to do this or else we 1) aren't isolating the impact of sync, 2) we have to plot tput/honest
 \fi -->
 
-Configuration files are found under `experiment-configs/Pesto/2-Microbenchmarks/2-Snapshot`
 
 The reported results on the uniform workoad U were:
 
@@ -736,12 +748,12 @@ The reported results on the Zipfian workoad Z were:
 
 > **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
 
-> **[NOTE]**: We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affect performance slightly for all Zipfian runs (within 5%) as the workload is so heavily contended that there are a lot of dependencies. 
 
+ <!-- Bonus point for Z-Ideal. client 30: (3029.2,10.600514610370176) -->
     - Z-Ideal
 
         Use config `Zipf-Eager.json`
-        <!-- client 30: (3029.2,10.600514610370176) -->
 
         | #Clients    |   3   |   5   |   10   |   15   |   20   |   25   |     
         |-------------|-------|-------|--------|--------|--------|--------|
@@ -769,7 +781,7 @@ The reported results on the Zipfian workoad Z were:
         | Lat (ms)    |  5.1  |  5.1  |  6.2  |  9     |  10.5  |  14.4  |
 
 
-#### **5 - Impact of Failure**:
+### **5 - Impact of Failure**:
 Finally, we evaluate the performance of Pesto under a replica failure. We simulate the replica failure by simply dropping all incoming traffic at one replica.
 
 We distinguish two configurations: 
@@ -799,8 +811,6 @@ The reported results on the uniform workoad U were:
 
         Use config `Uniform-Failure-0.json`
 
-        > **Note**: Config `Uniform-NoFP` runs a fault-free experiment with fast path disabled. The resulting performance is pretty much equivalent to running with replica failure.
-
         | #Clients    |   12   |   16   |   21   |   25   |   30   |   35   |   40   |   45   |
         |-------------|--------|--------|--------|--------|--------|--------|--------|--------|
         | Tput (tx/s) |  3038  |  4009  |  4567  |  5156  |  5520  |  5816  |  5952  |  6018  |   
@@ -819,11 +829,14 @@ The reported results on the uniform workoad U were:
         | Lat (ms)    |  8.2   |  8.1   |  8.3   |  8.5   |  8.7   |  9.4   |  12.1  |
 
 
+> **Note**: We additionally ran an experiment (not shown in the paper) that runs a fault-free experiment with fast path disabled (config `Uniform-NoFP.json`). The resulting performance is pretty much equivalent to running with replica failure (`U-NoFP`).
+
+
 The reported results on the Zipfian workoad Z were:
 
 > **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
 
-> **[NOTE]** We've made a small bug fix to range read dependency handling since these numbers. That affects performance slightly for all Zipfian runs (within 5%) since it's so heavily contended that there are a lot of dependencies. 
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affect performance slightly for all Zipfian runs (within 5%) as the workload is so heavily contended that there are a lot of dependencies. 
 
     - Z-Ideal 
     
@@ -858,23 +871,57 @@ The reported results on the Zipfian workoad Z were:
 
 ## Other experiments, not in the paper
 
-#### TODO: WAN instructions
+### WAN instructions
+Our experiment setup allows simulation of wide area network (WAN) latencies. 
+We opted to omit WAN experiments in the paper because (1) contention bottlecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and (2) the Peloton-SMR prototypes perform even worse as latency rises.
 
-set up server names according to region fields.
-Specify regions
-emulate wan = true
+If you are nonetheless interested in using the codebase to simulate WAN experiments, you need to do the following:
 
-We ran 3 setups for Pesto: LAN, Regional, Contintental.
-Reg = 3 clusters, 10ms apart
-Con = 3 clusters, east and west coast
+1. (Optional) Give your CloudLab servers names that are indicative of their location. Update the `server_names` field in your config file accordingly
+2. Configure the `server_regions` parameter. Group server names into the region you want to assign them to.
+3. Configure the `region_rtt_latencies` parameter. Specify, for each region, what are the latencies to all other regions.
+4. Set `emulate_wan` to true. 
 
-Latency hurts tpcc a lot since its contention bound. Hurts Auction and Seats less.
-Affects baselines MUCH worse though (since they have high consensus latency) so we opt to omit. Pesto benefit *improves* as latency grows.
+This will allow the experiment scripts to automatically configure `tc` on all servers (and clients) according to the specified latencies.
+Note: After running an experiment in WAN mode, the `tc` setup remains active even if you set `emulate_wan` back to false. 
+This is an oversight on the experiment scripts, so please keep this in mind if you're switching back to LAN. In that case, you may need to re-start your servers, or manually disable `tc`.
+
+Our `experiment-configs` include experiments for Pesto on three latency setups.
+
+1. LAN: no simulated latency
+2. REG: servers are split into a "regional" setup, in which clusters are 10ms apart
+3. CON: servers are distributed across North America (contintental) into three locations (US east coast, and 2 locations on US west coast). 
+> **Note**: Our experiment configs by default name the third region `eu-west`, but are configured to be the US west coast. Please disregard the naming!
+
+TPCC performance is affected heavily as latency increases as it is contention bound. Auctionmark and Seats are affeted less.
 
 
+### Running PG_SMR store -- currently deprecated
+In addition to layering Peloton atop SMR, we also explored layering Postgres atop SMR. Unfortunately, this results in odd performance behaviors that we have been unable to debug.
+You may play around with `pg_SMRstore` if you are interested. However, active support is deprecated.
 
-#### Running PG_SMR store -- really bad perf
-- If SMR_mode = 0, nothing to do
-- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
-- If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us`
+PG-SMR supports three modes (`SMR_mode`): $0$ runs Postgres via a server proxy, but without SMR. $1$ runs Postgres atop HotStuff, and $2$ runs Postgres atop BFTSmart
 
+
+## CRDB configuration
+For an indepth look into our CRDB configuration please refer to `src/store/cockroachdb`.
+
+We disable replication (number of replica = 1), but shard the DB across several nodes.
+We start each CRDB node using `cockroach start` for a multi-node cluster or `cockroach start-single-node` in the case of a single node. 
+We configure connections to CRDB as follows:
+    - we use the `--insecure` flag to disable TLS encryption. 
+    - we set the listening address and port for incoming connections using `--listen-addr`. 
+    - the `--join` flag is used to specify the list of other nodes in the cluster. 
+    - `--http-addr` is used to specify the address for the database console UI. 
+The last node in the deployment sequence is used to initialize the cluster. 
+    - The last node is used to generate the HA Proxy configuration which is used by CRDB for load balancing. 
+    - We load balance client traffic to each server by having each client process send traffic to the server node corresponding to `client_id % number_of_servers`.
+
+We run CRDB in memory, and allow it to use full capacity: `--store=type=mem,size=1.0`. 
+For best performance, we disable logging except for logs at the FATAL level in the "OPS", "HEALTH", and "SQL_SCHEMA" channels. 
+
+Finally, we set the following parameters:
+- we set a lock timeout of 50ms to enhance performance under contention using `ALTER DATABASE defaultdb SET lock_timeout = '50ms';`. 
+- we set the minimum bytes for a range to 0 to improve sharding over tables like `Warehouse` in TPCC, which has few rows with few columns but high contention. 
+- we set the maximum bytes for a range to 134217728 (128Mb) to avoid overeagerly sharding ranges within a table
+ 

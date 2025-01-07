@@ -138,7 +138,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
   client.Wait(results);
 
   if(queryResult->empty()){
-    std::cerr << "NO MAX BID" << std::endl;
+//    std::cerr << "NO MAX BID" << std::endl;
     Debug("No ITEM_MAX_BID is available record for item");
     client.Abort(timeout);
     return ABORTED_USER;
@@ -162,7 +162,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
  
   //NOTE: THIS MAY FAIL BECAUSE CLIENTS CACHE OUT OF SYNC (ANOTHER CLIENT MIGHT HAVE DONE IT.) In this case: update cache and pick a different TX.
   if(!results[0]->empty()){
-    std::cerr << "ALREADY PURCHASED" << std::endl;
+//    std::cerr << "ALREADY PURCHASED" << std::endl;
     Debug("Item has already been purchased");
     //Update the cache
     ItemRecord item_rec(item_id, seller_id, "", iir.i_current_price, iir.i_num_bids, iir.i_end_date, ItemStatus::CLOSED); // iir.ib_id, iir.ib_buyer_id, ip_id missing? Doesn't seem to be needed.
@@ -194,7 +194,7 @@ transaction_status_t NewPurchase::Execute(SyncClient &client) {
 
   // And update this the USERACT_ITEM record to link it to the new ITEM_PURCHASE record
   // If we don't have a record to update, just go ahead and create it
-  std::cerr << "Inserting UserAcct_ITEM" << std::endl;
+//  std::cerr << "Inserting UserAcct_ITEM" << std::endl;
   std::string updateUserItem = fmt::format("UPDATE {} SET ui_ip_id = {}, ui_ip_ib_id = {}, ui_ip_ib_i_id = '{}', ui_ip_ib_u_id = '{}' "
                                                     "WHERE ui_u_id = '{}' AND ui_i_id = '{}' AND ui_i_u_id = '{}'", TABLE_USERACCT_ITEM, 
                                                     ip_id, iir.ib_id, item_id, seller_id, iir.ib_buyer_id, item_id, seller_id);

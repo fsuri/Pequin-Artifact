@@ -17,7 +17,8 @@
   
   "benchmark_name": "seats-sql",
   "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
-  
+
+  "pg_replicated":false,
   
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "server_load_time": 5,
@@ -56,26 +57,14 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
     
-   
-   "client_total": [
-    [8, 8, 8, 8]
+  "client_total": [
+    [1, 3, 5, 8, 6, 8, 8, 8, 8]
   ],
   "client_processes_per_client_node": [
-    [8, 8, 8, 8]
+    [8, 8, 8, 8, 8, 8, 8, 8, 8]
   ],
   "client_threads_per_process": [
-    [3, 4, 5, 6]
-  ],
-
-
-  "_client_total": [
-    [1, 3, 5, 8, 6, 8, 8, 8]
-  ],
-  "_client_processes_per_client_node": [
-    [8, 8, 8, 8, 8, 8, 8, 8]
-  ],
-  "_client_threads_per_process": [
-    [1, 1, 1, 1, 2, 2, 3, 4]
+    [1, 1, 1, 1, 2, 2, 3, 4, 5]
   ],
 
 

@@ -21,6 +21,8 @@
    "_NOTE: Set this to 15 if using 5 warehouses + no ASAN. 60 if ASAN true. 95 with 20 wh + ASAN":false,
    "server_load_time": 60,
   
+  "pg_replicated":true,
+  
    "_SEATS_SQL_ARGS_" :0,
    "scale_factor": 1,
  
@@ -52,13 +54,13 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
   "client_total": [
-    [1]
+    [1, 5, 10, 20, 30, 40, 50, 60, 70]
   ],
   "client_processes_per_client_node": [
-    [1]
+    [1, 5, 10, 20, 30, 40, 50, 60, 70]
   ],
   "client_threads_per_process": [
-    [1]
+    [1, 1, 1, 1, 1, 1, 1, 1, 1]
   ],
 
   "client_nodes_per_server": 1,

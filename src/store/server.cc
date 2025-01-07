@@ -78,14 +78,14 @@
 #include "store/bftsmartstore/replica.h"
 #include "store/bftsmartstore/server.h"
 // Augustus-BftSmart
-
-// CockroachDb
-#include "store/cockroachdb/server.h"
-
 #include "store/bftsmartstore_augustus/replica.h"
 #include "store/bftsmartstore_augustus/server.h"
 #include "store/bftsmartstore_stable/replica.h"
 #include "store/bftsmartstore_stable/server.h"
+
+// CockroachDb
+#include "store/cockroachdb/server.h"
+
 // Postgres store
 #include "store/postgresstore/server.h"
 
@@ -113,13 +113,15 @@ enum protocol_t {
     // BftSmart
     PROTO_BFTSMART,
     // Augustus-BFTSmart
-		PROTO_AUGUSTUS_SMART,
+    PROTO_AUGUSTUS_SMART,
     // Postgres
     PROTO_PG,
      // PG-SMR
     PROTO_PG_SMR,
     // Peloton-SMR
-    PROTO_PELOTON_SMR
+    PROTO_PELOTON_SMR,
+    // CockroachDB
+    PROTO_CRDB
 };
 
 enum transmode_t {
@@ -152,24 +154,27 @@ DEFINE_bool(debug_stats, false, "record stats related to debugging");
 DEFINE_uint64(num_client_hosts, 0, "total number of client processes");
 DEFINE_uint64(num_client_threads, 1, "total number of threads per client process");
 
+DEFINE_bool(pg_replicated, true, "postgres operates in replication mode");
+
 DEFINE_uint64(server_load_time, 0, "time servers spend loading before clients start");
 
 DEFINE_bool(rw_or_retwis, true, "true for rw, false for retwis");
 const std::string protocol_args[] = {
-	"tapir",
+  "tapir",
   "weak",
   "strong",
   "sintr",
   "pequin",
   "indicus",
-	"pbft",
-    "hotstuff",
-    "augustus-hs", //not used currently by experiment scripts (deprecated)
+  "pbft",
+  "hotstuff",
+  "augustus-hs", //not used currently by experiment scripts (deprecated)
   "bftsmart",
-	"augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
+  "augustus", //currently used as augustus version -- maps to BFTSmart Augustus implementation
   "pg",
   "pg-smr",
-  "peloton-smr"
+  "peloton-smr",
+  "crdb"
 };
 const protocol_t protos[] {
   PROTO_TAPIR,
@@ -185,7 +190,8 @@ const protocol_t protos[] {
   PROTO_AUGUSTUS_SMART,
   PROTO_PG,
   PROTO_PG_SMR,
-  PROTO_PELOTON_SMR
+  PROTO_PELOTON_SMR,
+  PROTO_CRDB
 };
 static bool ValidateProtocol(const char* flagname,
     const std::string &value) {
@@ -576,7 +582,7 @@ int main(int argc, char **argv) {
   if(proto == PROTO_HOTSTUFF || proto == PROTO_AUGUSTUS) threadpool_mode = 1;
   if(proto == PROTO_BFTSMART || proto == PROTO_AUGUSTUS_SMART) threadpool_mode = 2;
   if((proto == PROTO_PEQUIN || proto == PROTO_SINTR) && FLAGS_sql_bench) threadpool_mode = 0;
-  if(proto == PROTO_PG_SMR) threadpool_mode = 3;
+  // if(proto == PROTO_PG_SMR) threadpool_mode = 3;
 
   switch (trans) {
     case TRANS_TCP:
@@ -781,6 +787,8 @@ int main(int argc, char **argv) {
         else{ // FLAGS_num_shards should be 12 or 24
           protocol_cpu = FLAGS_indicus_process_id * num_cpus;
         }
+        break;
+      case PROTO_CRDB:
         break;
       default:
         NOT_REACHABLE();
@@ -1037,6 +1045,7 @@ int main(int argc, char **argv) {
 
      // HotStuffPG
   case PROTO_PG_SMR: {
+      Panic("PG_SMR store is currently deprecated"); //TODO: Sync code with pelotonstore (revert to pre shir merge)
       Notice("Using [%s] server config", FLAGS_local_config ? "LOCAL" : "REMOTE");
    
       server = new pg_SMRstore::Server(config, &keyManager,
@@ -1131,7 +1140,15 @@ int main(int argc, char **argv) {
 	}
 
   case PROTO_PG: {
-    server = new postgresstore::Server(tport);
+    server = new postgresstore::Server(tport, FLAGS_pg_replicated);
+    break;
+  }
+  case PROTO_CRDB: {
+    Notice("Starting CRDB Server Object");
+    server = new cockroachdb::Server(config, &keyManager, FLAGS_group_idx,
+                                      FLAGS_replica_idx, FLAGS_num_shards,
+                                      FLAGS_num_groups, FLAGS_data_file_path);
+    Notice("Finished creating CRDB Server Object");
     break;
   }
 

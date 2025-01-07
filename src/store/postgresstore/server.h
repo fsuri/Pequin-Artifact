@@ -52,7 +52,7 @@ typedef std::function<void(std::vector<google::protobuf::Message*>&)> execute_ca
 
 class Server : public ::Server {
 public:
-  Server(Transport* tp);
+  Server(Transport* tp, bool pg_replicated);
   ~Server();
 
   void Load(const std::string &key, const std::string &value,
@@ -94,3 +94,4 @@ private:
 }
 
 #endif
+

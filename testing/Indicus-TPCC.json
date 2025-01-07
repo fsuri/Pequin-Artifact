@@ -1,4 +1,4 @@
-{
+\{
   "experiment_independent_vars": [
     ["replication_protocol", "client_protocol_mode", "server_names",
       "replication_protocol_settings", "server_regions", "num_shards", "num_groups",

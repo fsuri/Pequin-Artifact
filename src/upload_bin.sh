@@ -37,13 +37,13 @@ for host in "${arr_servers[@]}"
 do
    echo "uploading binaries to $host"
    #ssh fs435@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
-   rsync -v -r -e ssh ./src/bin ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us:/users/${USER}/indicus
+    rsync -v -r -e ssh ./src/bin ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us:/users/${USER}/indicus
 done
 
 for host in "${arr_clients[@]}"
 do
    echo "uploading binaries to $host"
-   #ssh liam0215@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
+   #ssh fs435@$host.indicus.morty-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*"
    rsync -v -r -e ssh ./src/bin ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us:/users/${USER}/indicus
 done
 

@@ -208,6 +208,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'pg':
             client_command += " --experiment_name=%s" % str(config['experiment_name'])
+            client_command += " --pg_replicated=%s" % (str(config['pg_replicated']).lower())
 
         if config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr':
             client_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
@@ -232,6 +233,10 @@ class IndicusCodebase(ExperimentCodebase):
             if 'commit_delay_ms' in config['replication_protocol_settings']:
                 client_command += ' --morty_commit_delay_ms %d' % config['replication_protocol_settings']['commit_delay_ms']
 
+        if config['replication_protocol'] == 'crdb':
+            if 'sign_messages' in config['replication_protocol_settings']:
+                client_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
+                client_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
 
         if 'client_debug_stats' in config and config['client_debug_stats']:
             client_command += ' --debug_stats'
@@ -399,6 +404,8 @@ class IndicusCodebase(ExperimentCodebase):
         elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
             config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             n = 3 * config['fault_tolerance'] + 1
+        elif config['replication_protocol'] == 'crdb':
+            n = config['fault_tolerance']
         else:
             n = 2 * config['fault_tolerance'] + 1
         
@@ -586,6 +593,11 @@ class IndicusCodebase(ExperimentCodebase):
             ## Disable prepare visibility for Pesto   
             if 'disable_prepare_visibility' in config['replication_protocol_settings']:
                 replica_command += ' --pequin_disable_prepare_visibility=%s' % (str(config['replication_protocol_settings']['disable_prepare_visibility']).lower())
+
+        if config['replication_protocol'] == 'crdb':
+            if 'sign_messages' in config['replication_protocol_settings']:
+                replica_command += ' --indicus_sign_messages=%s' % str(config['replication_protocol_settings']['sign_messages']).lower()
+                replica_command += ' --indicus_key_path %s' % config['replication_protocol_settings']['key_path']
     
         if config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
             #TxSMR options
@@ -605,6 +617,8 @@ class IndicusCodebase(ExperimentCodebase):
                 if config['replication_protocol_settings']['SMR_mode'] == 2:
                     replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
+        if config['replication_protocol'] == 'pg':
+            replica_command += " --pg_replicated=%s" % (str(config['pg_replicated']).lower())
 
         if 'server_debug_stats' in config and config['server_debug_stats']:
             replica_command += ' --debug_stats'
@@ -703,6 +717,8 @@ class IndicusCodebase(ExperimentCodebase):
             elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
                 config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
                 n = 3 * config['fault_tolerance'] + 1
+            elif config['replication_protocol'] == 'crdb':
+                n = config['fault_tolerance']
             else:
                 n = 2 * config['fault_tolerance'] + 1
             if config['replication_protocol'] == 'pg':

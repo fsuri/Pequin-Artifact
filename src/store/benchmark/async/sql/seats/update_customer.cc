@@ -7,6 +7,7 @@ namespace seats_sql {
 SQLUpdateCustomer::SQLUpdateCustomer(uint32_t timeout, std::mt19937 &gen, SeatsProfile &profile) 
     : SEATSSQLTransaction(timeout), profile(profile) {
 
+        std::cerr << "UPDATE_CUSTOMER" << std::endl;
         c_id = profile.getRandomCustomerId();
 
         if (std::uniform_int_distribution<int>(1, 100)(gen) < PROB_UPDATE_WITH_CUSTOMER_ID_STR) {
@@ -25,7 +26,6 @@ transaction_status_t SQLUpdateCustomer::Execute(SyncClient &client) {
     std::vector<std::unique_ptr<const query_result::QueryResult>> results; 
     std::string query;
 
-    std::cerr << "UPDATE_CUSTOMER" << std::endl;
     Debug("UPDATE_CUSTOMER");
     client.Begin(timeout);
 

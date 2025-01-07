@@ -30,8 +30,8 @@
 
 namespace pg_SMRstore {
 
-static bool SEND_ONLY_TO_LEADER = true;
-static bool ONLY_WAIT_FOR_LEADER = true;
+static bool SEND_ONLY_TO_LEADER = false;
+static bool ONLY_WAIT_FOR_LEADER = false;
 
 ShardClient::ShardClient(const transport::Configuration& config, Transport *transport,
     uint64_t client_id, uint64_t group_idx, const std::vector<int> &closestReplicas_,
@@ -176,6 +176,9 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
   // //TEST
   // transport->SendMessageToReplica(this, 0, sql_rpc);
   // return;
+  // //TEST
+  // transport->SendMessageToReplica(this, 0, sql_rpc);
+  // return;
 
   // // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // // auto exec_end_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -192,15 +195,15 @@ void ShardClient::Query(const std::string &query, uint64_t client_id, uint64_t c
 
   
 
-  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
-    transport->SendMessageToReplica(this, 0, request);
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, sql_rpc);
   }
   else{
     if(SMR_mode == 2){
       SendMessageToGroup_viaBFTSMART(request, group_idx);
     }
     else{
-      transport->SendMessageToGroup(this, group_idx, request);
+      transport->SendMessageToGroup(this, group_idx, sql_rpc);
     }
   }
 }
@@ -231,6 +234,9 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
   // // //TEST
   // transport->SendMessageToReplica(this, 0, try_commit);
   // return;
+  // // //TEST
+  // transport->SendMessageToReplica(this, 0, try_commit);
+  // return;
 
   //Wrap it in generic Request (this goes into Hotstuff)
   proto::Request request;
@@ -241,15 +247,15 @@ void ShardClient::Commit(uint64_t client_id, uint64_t client_seq_num,
 
   Debug("Sending TryCommit. TxId: %lu reqID: %lu", client_seq_num, reqId);
 
-  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
-    transport->SendMessageToReplica(this, 0, request);
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, try_commit);
   }
   else{
     if(SMR_mode == 2){
       SendMessageToGroup_viaBFTSMART(request, group_idx);
     }
     else{
-      transport->SendMessageToGroup(this, group_idx, request);
+      transport->SendMessageToGroup(this, group_idx, try_commit);
     }
   }
 }
@@ -269,7 +275,7 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   user_abort.set_client_id(client_id);
   user_abort.set_txn_seq_num(client_seq_num);
 
-  //   // //TEST
+    // //TEST
   // transport->SendMessageToReplica(this, 0, user_abort);
   // return;
 
@@ -281,15 +287,15 @@ void ShardClient::Abort(uint64_t client_id, uint64_t client_seq_num) {
   request.mutable_packed_msg()->set_type(user_abort.GetTypeName());
 
   Debug("Sending Abort TxnSeq: %lu ", client_seq_num);
-  if(SMR_mode == 0 || SEND_ONLY_TO_LEADER){
-    transport->SendMessageToReplica(this, 0, request);
+  if(SEND_ONLY_TO_LEADER){
+    transport->SendMessageToReplica(this, 0, user_abort);
   }
   else{
     if(SMR_mode == 2){
       SendMessageToGroup_viaBFTSMART(request, group_idx);
     }
     else{
-      transport->SendMessageToGroup(this, group_idx, request);
+      transport->SendMessageToGroup(this, group_idx, user_abort);
     }
   }
 }
@@ -371,7 +377,7 @@ void ShardClient::HandleSQL_RPCReply(const proto::SQL_RPCReply& reply, int repli
   Debug("Handling a sql_rpc reply");
 
   const uint64_t &req_id = reply.req_id();
-  Debug("sql_rpc reply for req id: %lu. Status: %d", req_id, reply.status());
+  Debug("sql_rpc reply for req id: %lu. Status: %d from replica %d", req_id, reply.status(), replica_id);
 
   auto itr = pendingSQL_RPCs.find(req_id);
   if(itr == pendingSQL_RPCs.end()){

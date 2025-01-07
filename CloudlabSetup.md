@@ -17,38 +17,46 @@ Install ssh if you do not already have it: `sudo apt-get install ssh`. To create
 Next, you are ready to start up an experiment:
 
 To use a pre-declared profile supplied by us, start an experiment using the public profile ["pequin-base"](https://www.cloudlab.us/p/pequin/pequin-base). If you face any issues using this profile (or the disk images specified below), please make a post at the [Cloudlab forum](https://groups.google.com/g/cloudlab-users?pli=1) or contact Florian Suri-Payer <fsp@cs.cornell.edu>.
-![image](https://user-images.githubusercontent.com/42611410/129490911-8c97d826-caa7-4f04-95a7-8a2c8f3874f7.png)
+<!--- ![image](https://user-images.githubusercontent.com/42611410/129490911-8c97d826-caa7-4f04-95a7-8a2c8f3874f7.png) -->
 
 This profile by default starts with 18 server machines and 18 client machines, all of which use m510 hardware on the Utah cluster. 
 This profile includes two disk images "pequin-base.server" (`urn:publicid:IDN+utah.cloudlab.us+image+pequin-PG0:pequin-base.server`) and "pequin-base.client" (`urn:publicid:IDN+utah.cloudlab.us+image+pequin-PG0:pequin-base.client`) that already include all dependencies and additional setup necessary to run experiments. Check the box "Use Control Machine" if you want to build binaries and run all experiments from one of the Cloudlab machines.
-![image](https://user-images.githubusercontent.com/42611410/129490922-a99a1287-6ecc-4d50-b05d-dfe7bd0496d9.png)
-Click "Next" and name your experiment (e.g. "pequin"). In the example below, our experiment name is "indicus", and the project name is "morty". All our pre-supplied experiment configurations use these names as default, and you will need to change them accordingly to your chosen names (see section "Running Experiments").
-![image](https://user-images.githubusercontent.com/42611410/129490940-6c527b08-5def-4158-afd2-bc544e4758ab.png)
-Finally, set a duration and start your experiment. Starting all machines may take a decent amount of time, as the server disk images contain large datasets that need to be loaded. Wait for it to be "ready":
+<!--- ![image](https://user-images.githubusercontent.com/42611410/129490922-a99a1287-6ecc-4d50-b05d-dfe7bd0496d9.png) -->
+![image](https://github.com/user-attachments/assets/87a6c33c-9836-4113-b161-1bcd6847f948)
+
+
+Click "Next" and name your experiment and project. In the example below, our experiment name is "pequin", and the project name is "pequin" too. All our pre-supplied experiment configurations use these names as default, and you will need to change them accordingly to your chosen names (see section "Running Experiments").
+<!--- ![image](https://user-images.githubusercontent.com/42611410/129490940-6c527b08-5def-4158-afd2-bc544e4758ab.png) -->
+![image](https://github.com/user-attachments/assets/af46ad1f-908a-48e1-85b1-5cf024ccc0fe)
+
+Finally, set a duration and start your experiment. Starting all machines may take a decent amount of time, as the server disk images contain large datasets that need to be loaded. Wait for it to be "ready". 
+(The example below was taken for an experiment with name "indicus" in project "morty", using profile "SOSP108". Please adjust according to your naming!)
 ![image](https://user-images.githubusercontent.com/42611410/129490974-f2b26280-d5e9-42ca-a9fe-82b80b8e2349.png)
 You may ssh into the machines to test your connection using the ssh commands shown under "List View" or by using `ssh <cloudlab-username>@<node-name>.<experiment-name>.<project-name>-pg0.<cluster-domain-name>`. In the example below it would be: `ssh fs435@us-east-1-0.indicus.morty-pg0.utah.cloudlab.us`.
 ![image](https://user-images.githubusercontent.com/42611410/129490991-035a1865-43c3-4238-a264-e0d43dd0095f.png)
 
 
 Since experiments require a fairly large number of machines, you may have to create a reservation in order to have enough resources. Go to the "Make reservation tab" and make a reservation for 36 m510 machines on the Utah cluster (37 if you plan to use a control machine). 
+(The example below was taken for a project named "morty". Replace this with your project name.)
 ![image](https://user-images.githubusercontent.com/42611410/129491361-b13ef31b-707b-4e02-9c0f-800e6d9b4def.png)
 
-Our profile by default allocates 18 servers (36 total machines), enough to run Pesto on TPCC for 3 shards. Most experiments, however, do not need this many machines: if you cannot get access to enough machines, simply use 6 server machines (remove the trailing 9 server names from the profile, i.e. keep only `['us-east-1-0', 'us-east-1-1', 'us-east-1-2', 'eu-west-1-0', 'eu-west-1-1', 'eu-west-1-2']`). This suffices to run all but the sharding experiment. 
+Our profile by default allocates 18 servers (36 total machines), enough to run Pesto on TPCC for 3 shards. Most experiments, however, do not need this many machines: if you cannot get access to enough machines, simply use 6 server machines (remove the trailing 12 server names from the profile, i.e. keep only `['us-east-1-0', 'us-east-1-1', 'us-east-1-2', 'eu-west-1-0', 'eu-west-1-1', 'eu-west-1-2']`). This suffices to run all but the sharding experiment. 
 
 Note, that the names are just placeholder names and do NOT correspond to real region placement. To emulate WAN latencies our experiment configs allow assigning ping latencies to sever-names.
 
 ### Using a control machine (skip if using local machine)
-When using a control machine (and not your local machine) to start experiments, you will need to source setvars.sh and may need to export the LD_LIBRARY_PATH for the Java dependencies (see section "Install Dependencies") before building. You will need to do this everytime you start a new control machine because those may not be persisted across images.
+When using a control machine (and not your local machine) to start experiments, you will need to source setvars.sh and may need to export the LD_LIBRARY_PATH for the Java dependencies (see section "Install Dependencies") before building. You will need to do this everytime you start a new control machine because those are not be persisted across images.
 
 Before connecting to your control machine, start an SSH agent in your local terminal
 with `eval $(ssh-agent -s)`. Then add your Cloudlab SSH key to the agent `ssh-add <path to Cloudlab key>`.
 
 Connect using your Cloudlab username and the following domain name:
-`ssh -A <cloudlab-user>@control.<experiment-name>.<project-name>.utah.cloudlab.us`.
-It is crucial that you connect using the `-A` setting in order to transfer your
-local SSH agent to the control machine.  You may need to add `-pg0` to your
-project name in order to connect, i.e. if your project is called "sosp108", it
-may need to be "sosp108-pg0" in order to connect.
+`ssh -A <cloudlab-user>@control.<experiment-name>.<project-name>-pg0.utah.cloudlab.us`.
+You may need to add `-pg0` to your project name in order to connect, i.e. if your project is called "pequin", it may need to be "pequin-pg0" in order to connect.
+It is crucial that you connect using the `-A` setting in order to transfer your local SSH agent to the control machine. If you still run into connection issues, try manually uploading your ssh key (that is registered with CloudLab) to the control machine.
+
+
+Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. You can either free up space by deleting the 'images' folder (it should be under `/proj/<project-name>-pg0`, or clone the artifact into a directory such as `dev`.
 
 ### Using a custom profile (skip if using pre-supplied profile)
 
@@ -112,5 +120,5 @@ Additionally, you will have to install the following requisites:
 
    
 Once complete, create a new disk image (separate ones for server and client if you want to save space/time). Then, start the profile by choosing the newly created disk image.
-To create a disk image, select "Create Disk Image" and name it accordingly.
+To create a disk image, select "Create Disk Image" and name it (e.g. "SOSP108" in the example below).
 ![image](https://user-images.githubusercontent.com/42611410/129491499-eb7d0618-5dc4-4942-a25a-3b4a955c5077.png)

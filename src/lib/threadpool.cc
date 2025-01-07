@@ -411,6 +411,7 @@ event *ThreadPool::GetUnusedEvent(event_base *libeventBase, EventInfo *info) {
     event = event_new(libeventBase, -1, 0, ThreadPool::EventCallback, info);
   }
   return event;
+  
 }
 
 void ThreadPool::FreeEvent(event *event) {

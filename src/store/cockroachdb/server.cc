@@ -4,6 +4,7 @@
  * store/cockroachdb/server.cc:
  *
  *  @author Benton Li <cl2597@cornell.edu>
+ *  @author Liam Arzola <lma77@cornell.edu>
  *
  **********************************************************************/
 
@@ -68,25 +69,33 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
    * --listen-addr determines which address(es) to listen on for connections
    *   from other nodes and clients.
    */
-  std::string start_cmd = "cockroach start";
+  std::string start_cmd;
+  if (config.n > 1) {
+    start_cmd = "cockroach start";
+  } else {
+    start_cmd = "cockroach start-single-node";
+  }
   std::string security_flag = " --insecure";
   std::string listen_addr_flag = " --listen-addr=" + host + ":" + port;
-  std::string sql_addr_flag = " --advertise-sql-addr=" + host + ":" + port;
-  std::string advertise_flag = " --advertise-addr=" + host + ":" + port;
-  std::string join_flag = " --join=";
-  std::string load_flag = " --join=";
-
-  // Naive implementation: join all node
-  for (int i = 0; i < numGroups; i++) {
-    for (int j = 0; j < config.n; j++) {
-      transport::ReplicaAddress join_address = config.replica(i, j);
-      join_flag =
-          join_flag + join_address.host + site + ":" + join_address.port + ",";
-    }
+  std::string join_flag;
+  if (config.n > 1) {
+    join_flag = " --join=";
+  } else {
+    join_flag = "";
   }
-  // Remove last comma
-  join_flag.pop_back();
 
+  if (config.n > 1) {
+    // Naive implementation: join all node
+    for (int i = 0; i < numGroups; i++) {
+      for (int j = 0; j < config.n; j++) {
+        transport::ReplicaAddress join_address = config.replica(i, j);
+        join_flag =
+            join_flag + join_address.host + site + ":" + join_address.port + ",";
+      }
+    }
+    // Remove last comma
+    join_flag.pop_back();
+  }
   // TODO: better port number
   std::string http_addr_flag =
       " --http-addr=" + host + ":" + std::to_string(8069 + id);
@@ -95,28 +104,28 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
       std::to_string(id);
 
   // In memory cluster.
-  std::string store_flag_mem = " --store=type=mem,size=90%";
+  std::string store_flag_mem = " --store=type=mem,size=1.0";
 
   std::string log_flag =
       " --log=\"sinks: {file-groups: {ops: {channels: [OPS, HEALTH, "
-      "SQL_SCHEMA], filter: ERROR}}, stderr: {filter: NONE}}\"";
-
+      "SQL_SCHEMA], filter: FATAL}}, stderr: {filter: NONE}}\"";
   // std::string log_flag = " --log-config-file=./store/cockroachdb/logs.yaml";
 
   // TODO : Add encryption
 
   // region = shard group number
   // zone = host name
-  std::string locality_flag =
-      " --locality=region=" + std::to_string(groupIdx) + ",zone=" + zone;
-
+  std::string locality_flag;
+  if (config.n > 1) {
+   locality_flag =
+        " --locality=region=" + std::to_string(groupIdx) + ",zone=" + zone;
+  }
   // TODO: Add load balancer
   std::string other_flags = " --background ";
 
   std::string script_parts[] = {join_flag, security_flag,
                                 listen_addr_flag,  // for nodes and clients
                                 // advertise_flag,    // for nodes
-                                sql_addr_flag,   // for client's sql
                                 http_addr_flag,  // for  DB Console
                                 log_flag, store_flag_mem, locality_flag,
                                 other_flags};
@@ -146,14 +155,22 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     // Server::exec_sql(
     //     "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
     //     "TEXT NOT NULL)");
-    std::string lock_timeout_cmd = "cockroach sql --insecure --host=" + host +
-                             std::string() + ":" + port + 
-                             " --execute=\"ALTER DATABASE defaultdb SET lock_timeout = '50ms';\"" +
-                             " --user=root";
+    std::string lock_timeout_cmd = "ALTER DATABASE defaultdb SET lock_timeout = '50ms';";
     Notice("Issuing SQL command %s", lock_timeout_cmd.c_str());
-    status = system(lock_timeout_cmd.c_str());
+    exec_sql(lock_timeout_cmd);
+    std::string set_num_replicas = "ALTER RANGE default CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 134217728, num_replicas = 1;";
+//    std::string set_num_replicas = "ALTER RANGE default CONFIGURE ZONE USING num_replicas = 1;";
+    Notice("Issuing SQL command %s", set_num_replicas.c_str());
+    exec_sql(set_num_replicas);
+    std::string enable_merge_queue = "SET CLUSTER SETTING kv.range_merge.queue_enabled = true;";
+    Notice("Issuing SQL command %s", enable_merge_queue.c_str());
+    exec_sql(enable_merge_queue);
+    // Experimental: reduce Raft batch size
+    // std::string set_batch = "SET CLUSTER SETTING kv.transaction.write_pipelining.max_batch_size = 1;";
+    // Notice("Issuing SQL command %s", set_batch.c_str());
+    // exec_sql(set_batch);
   }
-  if (idx == numShards - 1) {
+  if (idx == config.n - 1) {
     // If node is the last one in the group, serve as load balancer
     std::string proxy_cmd =
         "cockroach gen haproxy --insecure --host=" + host + ":" + port +
@@ -238,6 +255,7 @@ void Server::LoadTableData(const std::string &table_name, const std::string &tab
         parent_dir, table_file_name);
 
     Notice("Load Table Data for table: %s", table_name.c_str());
+    // TODO: exec with thread
     exec_sql(copy_table_statement_crdb);
     stats.Increment("TablesLoaded", 1);
   }
@@ -253,7 +271,6 @@ void Server::CreateIndex(
     // and
     // https://www.postgresqltutorial.com/postgresql-indexes/postgresql-multicolumn-indexes/
     // CREATE INDEX index_name ON table_name(a,b,c,...);
-
     UW_ASSERT(!column_data_types.empty());
     UW_ASSERT(!index_col_idx.empty());
     UW_ASSERT(column_data_types.size() >= index_col_idx.size());

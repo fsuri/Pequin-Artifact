@@ -65,6 +65,8 @@ SQLPayment::SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
   }
   h_amount = std::uniform_int_distribution<uint32_t>(100, 500000)(gen);
   h_date = std::time(0);
+
+  std::cerr << "PAYMENT (parallel)" << std::endl;
 }
 
 SQLPayment::~SQLPayment() {
@@ -78,7 +80,6 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   //Update a customer's balance and reflect payment on district/warehouse sales statistics
   //Type: Light-weight read-write Tx, high frequency. (Uses Non-primar key access to CUSTOMER table)
   Debug("PAYMENT (parallel)");
-  std::cerr << "PAYMENT (parallel)" << std::endl;
   Debug("Amount: %u", h_amount);
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
@@ -188,10 +189,10 @@ transaction_status_t SQLPayment::Execute(SyncClient &client) {
   client.Write(statement, timeout);  
   //TODO: If we included *all* customer info, could make this a blind write.
 
-  // (5) Create History entry.
+   // (5) Create History entry.
   // statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
   //           "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}')", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
-   uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
+  uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
   statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}')", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   //Notice("History insert: %s", statement.c_str());
