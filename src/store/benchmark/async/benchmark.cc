@@ -39,12 +39,15 @@
 #include "store/common/truetime.h"
 #include "store/common/stats.h"
 #include "store/common/partitioner.h"
+#include "store/common/failures.h"
 #include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/async_client.h"
 #include "store/common/frontend/async_adapter_client.h"
 #include "store/strongstore/client.h"
 #include "store/weakstore/client.h"
 #include "store/tapirstore/client.h"
+
+//benchmark clients
 #include "store/benchmark/async/bench_client.h"
 #include "store/benchmark/async/common/key_selector.h"
 #include "store/benchmark/async/common/uniform_key_selector.h"
@@ -52,11 +55,31 @@
 #include "store/benchmark/async/rw/rw_client.h"
 #include "store/benchmark/async/tpcc/sync/tpcc_client.h"
 #include "store/benchmark/async/tpcc/async/tpcc_client.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_client.h"
+#include "store/benchmark/async/sql/seats/seats_client.h"
+#include "store/benchmark/async/sql/auctionmark/auctionmark_client.h"
+#include "store/benchmark/async/sql/tpcch/tpcch_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
+#include "store/benchmark/async/toy/toy_client.h"
+#include "store/benchmark/async/rw-sql/rw-sql_client.h"
+
+// probs for tpcch 
+#include "store/benchmark/async/sql/tpcch/tpcch_constants.h"
+
+//protocol clients
+//Blackhole test printer
+#include "store/blackholestore/client.h"
+//Pesto
+#include "store/pequinstore/client.h"
+// Basil
 #include "store/indicusstore/client.h"
 #include "store/pbftstore/client.h"
 // HotStuff
 #include "store/hotstuffstore/client.h"
+// HotStuffPostgres
+#include "store/pg_SMRstore/client.h"
+// PelotonSMR
+#include "store/pelotonstore/client.h"
 // Augustus-Hotstuff
 #include "store/augustusstore/client.h"
 //BFTSmart
@@ -64,6 +87,11 @@
 // Augustus-BFTSmart
 #include "store/bftsmartstore_augustus/client.h"
 #include "store/bftsmartstore_stable/client.h"
+// Postgres
+#include "store/postgresstore/client.h"
+// CRDB
+#include "store/cockroachdb/client.h"
+
 
 #include "store/common/frontend/one_shot_client.h"
 #include "store/common/frontend/async_one_shot_adapter_client.h"
@@ -78,21 +106,30 @@
 #include <thread>
 #include <vector>
 
+#include "store/benchmark/async/json_table_writer.h"
+
 enum protomode_t {
 	PROTO_UNKNOWN,
+  PROTO_BLACKHOLE,
 	PROTO_TAPIR,
 	PROTO_WEAK,
 	PROTO_STRONG,
+  PROTO_PEQUIN,
   PROTO_INDICUS,
 	PROTO_PBFT,
-    // HotStuff
-    PROTO_HOTSTUFF,
-    // Augustus-Hotstuff
-    PROTO_AUGUSTUS,
-    // Bftsmart
-    PROTO_BFTSMART,
-    // Augustus-Hotstuff
-		PROTO_AUGUSTUS_SMART
+  // HotStuff
+  PROTO_HOTSTUFF,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS,
+  // Bftsmart
+  PROTO_BFTSMART,
+  // Augustus-Hotstuff
+  PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES,
+   // PG-SMR
+  PROTO_PG_SMR,
+  PROTO_PELOTON_SMR,
+  PROTO_CRDB
 };
 
 enum benchmode_t {
@@ -101,7 +138,13 @@ enum benchmode_t {
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY,
+  BENCH_TPCC_SQL,
+  BENCH_RW_SQL, 
+  BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
+  BENCH_TPCCH_SQL
 };
 
 enum keysmode_t {
@@ -141,11 +184,15 @@ enum read_messages_t {
 /**
  * System settings.
  */
-DEFINE_uint64(client_id, 0, "unique identifier for client");
+DEFINE_uint64(client_id, 0, "unique identifier for client process");
 DEFINE_string(config_path, "", "path to shard configuration file");
 DEFINE_uint64(num_shards, 1, "number of shards in the system");
 DEFINE_uint64(num_groups, 1, "number of replica groups in the system");
 DEFINE_bool(ping_replicas, false, "determine latency to replicas via pings");
+
+DEFINE_string(experiment_name, "pequin", "Cloudlab experiment name");
+
+DEFINE_bool(pg_replicated, false, "postgres operates in replication mode");
 
 DEFINE_bool(tapir_sync_commit, true, "wait until commit phase completes before"
     " sending additional transactions (for TAPIR)");
@@ -175,7 +222,7 @@ static bool ValidateReadQuorum(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_quorum, read_quorum_args[0], "size of read quorums"
+DEFINE_string(indicus_read_quorum, read_quorum_args[1], "size of read quorums"
     " (for Indicus)");
 DEFINE_validator(indicus_read_quorum, &ValidateReadQuorum);
 
@@ -224,40 +271,29 @@ static bool ValidateReadMessages(const char* flagname,
   std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
   return false;
 }
-DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas"
-    " to send messages for reads (for Indicus)");
+DEFINE_string(indicus_read_messages, read_messages_args[0], "number of replicas to send messages for reads (for Indicus)");
 DEFINE_validator(indicus_read_messages, &ValidateReadMessages);
-DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as"
-    " necessary to prevent impersonation (for Indicus)");
-DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as"
-    " necessary to check Byzantine behavior (for Indicus)");
-DEFINE_bool(indicus_hash_digest, false, "use hash function compute transaction"
-    " digest (for Indicus)");
-DEFINE_bool(indicus_verify_deps, true, "check signatures of transaction"
-    " depdendencies (for Indicus)");
-DEFINE_uint64(indicus_sig_batch, 2, "signature batch size"
-    " sig batch size (for Indicus)");
-DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree"
-    " of batch (for Indicus)");
-DEFINE_string(indicus_key_path, "", "path to directory containing public and"
-    " private keys (for Indicus)");
-DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain"
-    " allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
-DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings)"
-    " key type (for Indicus)");
+DEFINE_bool(indicus_sign_messages, true, "add signatures to messages as necessary to prevent impersonation (for Indicus)");
+DEFINE_bool(indicus_validate_proofs, true, "send and validate proofs as necessary to check Byzantine behavior (for Indicus)");
+DEFINE_bool(indicus_hash_digest, false, "use hash function compute transaction digest (for Indicus)");
+DEFINE_bool(indicus_verify_deps, true, "check signatures of transaction depdendencies (for Indicus)");
+DEFINE_uint64(indicus_sig_batch, 2, "signature batch size sig batch size (for Indicus)");
+DEFINE_uint64(indicus_merkle_branch_factor, 2, "branch factor of merkle tree of batch (for Indicus)");
+DEFINE_string(indicus_key_path, "", "path to directory containing public and private keys (for Indicus)");
+DEFINE_int64(indicus_max_dep_depth, -1, "maximum length of dependency chain allowed by honest replicas [-1 is no maximum, -2 is no deps] (for Indicus)");
+DEFINE_uint64(indicus_key_type, 4, "key type (see create keys for mappings) key type (for Indicus)");
 
-DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals "
-    " -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
+DEFINE_bool(indicus_sign_client_proposals, false, "add signatures to client proposals -- used for optimistic tx-ids. Can be used for access control (unimplemented)");
 
 //Client failure configurations    
 DEFINE_uint64(indicus_inject_failure_ms, 0, "number of milliseconds to wait"
     " before injecting a failure (for Indicus)");
 DEFINE_uint64(indicus_inject_failure_proportion, 0, "proportion of clients that"
-    " will inject a failure (for Indicus)");
+    " will inject a failure (for Indicus)"); //default 0
 DEFINE_uint64(indicus_inject_failure_freq, 100, "number of transactions per ONE failure"
-		    " in a Byz client (for Indicus)");
+		    " in a Byz client (for Indicus)"); //default 100
 
-DEFINE_uint64(indicus_phase1DecisionTimeout, 1000UL, "p1 timeout before going slowpath");
+DEFINE_uint64(indicus_phase1_decision_timeout, 1000UL, "p1 timeout before going slowpath");
 //Verification computation configurations
 DEFINE_bool(indicus_multi_threading, false, "dispatch crypto to parallel threads");
 DEFINE_bool(indicus_batch_verification, false, "using ed25519 donna batch verification");
@@ -274,11 +310,16 @@ DEFINE_bool(indicus_parallel_CCC, true, "sort read/write set for parallel CCC lo
 
 DEFINE_bool(indicus_hyper_threading, true, "use hyperthreading");
 
+//PG-SM / PELOTON-SMR
+DEFINE_bool(pg_fake_SMR, true, "Indicate if server is asynchronous or not. If so, will return leader's results for consistency");
+DEFINE_uint64(pg_SMR_mode, 0, "Indicate with SMR protocol to use: 0 = off, 1 = Hotstuff, 2 = BFTSmart");
+
+//Indicus failure handling and injection
 DEFINE_bool(indicus_no_fallback, false, "turn off fallback protocol");
 DEFINE_uint64(indicus_max_consecutive_abstains, 1, "number of consecutive conflicts before fallback is triggered");
 DEFINE_bool(indicus_all_to_all_fb, false, "use the all to all view change method");
 DEFINE_uint64(indicus_relayP1_timeout, 1, "time (ms) after which to send RelayP1");
-
+//
 const std::string if_args[] = {
   "client-crash",
 	"client-equivocate",
@@ -286,12 +327,12 @@ const std::string if_args[] = {
 	"client-stall-after-p1",
 	"client-send-partial-p1"
 };
-const indicusstore::InjectFailureType iff[] {
-  indicusstore::InjectFailureType::CLIENT_CRASH,
-  indicusstore::InjectFailureType::CLIENT_EQUIVOCATE,
-	indicusstore::InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE,
-	indicusstore::InjectFailureType::CLIENT_STALL_AFTER_P1,
-	indicusstore::InjectFailureType::CLIENT_SEND_PARTIAL_P1
+const InjectFailureType iff[] {
+  InjectFailureType::CLIENT_CRASH, //client sends p1, but does not wait reply
+  InjectFailureType::CLIENT_EQUIVOCATE, //client receives p1 replies, and tried to equiv only if both commit and abort p2 quorums available
+	InjectFailureType::CLIENT_EQUIVOCATE_SIMULATE, //client receives p1 replies, and always equivs p2 (even though it is not allowed to -- we simualate as if)
+	InjectFailureType::CLIENT_STALL_AFTER_P1, //client sends p1, and waits for p1 replies --> finishes fallback of other transactions to unblock itself
+	InjectFailureType::CLIENT_SEND_PARTIAL_P1 //client sends p1 to only some replicas, does not wait.
 };
 static bool ValidateInjectFailureType(const char* flagname,
     const std::string &value) {
@@ -307,6 +348,122 @@ static bool ValidateInjectFailureType(const char* flagname,
 DEFINE_string(indicus_inject_failure_type, if_args[0], "type of failure to"
     " inject (for Indicus)");
 DEFINE_validator(indicus_inject_failure_type, &ValidateInjectFailureType);
+
+//Pequin Sync protocol
+enum query_sync_quorum_t {
+  QUERY_SYNC_QUORUM_UNKNOWN,
+  QUERY_SYNC_QUROUM_ONE,
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive)
+};
+const std::string query_sync_quorum_args[] = {
+	"query-one",                   //1
+  "query-one-honest",            //f+1
+  "query-majority-honest",       //2f+1
+  "query-super-majority-honest", //3f+1
+  "query-all-possible"           //4f+1
+};
+const query_sync_quorum_t query_sync_quorums[] {
+  QUERY_SYNC_QUROUM_ONE,         //1
+  QUERY_SYNC_QUORUM_ONE_HONEST,  //at least f+1 --> 1 honest
+  QUERY_SYNC_QUORUM_MAJORITY_HONEST, //at least 2f+1 --> f+1 honest
+  QUERY_SYNC_QUORUM_MAJORITY, // at least 3f+1 --> 2f+1 honest (supermajority)
+  QUERY_SYNC_QUORUM_ALL_POSSIBLE // at least 4f+1 (all that one can expect to receive, i.e. n-f)
+};
+static bool ValidateQuerySyncQuorum(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_sync_quorum_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+enum query_messages_t {
+  QUERY_MESSAGES_UNKNOWN,
+  QUERY_MESSAGES_QUERY_QUORUM, //send to no only #Query_sync_quorum many replicas
+  QUERY_MESSAGES_PESSIMISTIC_BONUS, //send to f additional replicas
+  QUERY_MESSAGES_ALL //send to all replicas
+};
+const std::string query_messages_args[] = {
+	"query-quorum",               //quorum+0
+  "query-pessimistic-bonus",    //quorum+f
+  "query-all"                   //n
+};
+const query_messages_t query_messagess[] {
+  QUERY_MESSAGES_QUERY_QUORUM,
+  QUERY_MESSAGES_PESSIMISTIC_BONUS,
+  QUERY_MESSAGES_ALL
+};
+static bool ValidateQueryMessages(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(query_messages_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == query_messages_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+
+/*
+ Pequin settings
+*/
+
+DEFINE_string(pequin_query_sync_quorum, query_sync_quorum_args[2], "number of replica replies required for sync quorum"); //by default: SyncClient should wait for 2f+1 replies
+DEFINE_validator(pequin_query_sync_quorum, &ValidateQuerySyncQuorum);
+
+DEFINE_string(pequin_query_messages, query_messages_args[0], "number of replicas to send query to"); //by default: To receive 2f+1 replies, need to send to 2f+1 
+DEFINE_validator(pequin_query_messages, &ValidateQueryMessages);
+
+DEFINE_string(pequin_query_merge_threshold, query_sync_quorum_args[1], "number of replica votes necessary to include tx in sync snapshot");  //by default: f+1
+//Can be optimistic and set it to 1 == include all tx ==> utmost freshness, but no guarantee of validity; can be pessimistic and set it higher ==> less fresh tx, but more widely prepared.
+            // Note: This only affects the client progress. Servers will only adopt committed values if they are certified, and prepared values only if they locally vote Prepare.
+DEFINE_validator(pequin_query_merge_threshold, &ValidateQuerySyncQuorum);
+
+DEFINE_bool(pequin_query_result_honest, true, "require at least 1 honest replica reply"); //by default: true
+//-->if false, use first reply; if true, wait for f+1 matching. Keep waiting (or retry) depending on sync_message size.
+
+DEFINE_string(pequin_sync_messages, query_messages_args[0], "number of replicas to send sync snapshot to for execution"); 
+//send to at least as many as results are required; f additional if optimistic ids enabled; 
+ //By default: Sync Client then sends sync CP to f+1, and waits for f+1 matching replies  (For liveness --pessimistic bonus -- must send to 2+1)
+                                                  //Send to f additional when using optimistic tx-ids.
+                                                  //Send to 5f+1 if we want to cache read set.
+
+DEFINE_validator(pequin_sync_messages, &ValidateQueryMessages);
+
+DEFINE_int32(pequin_retry_limit, -1, "max number of retries before aborting Tx.");
+
+DEFINE_uint32(pequin_snapshot_prepared_k, 1, "number of prepared reads to include in snapshot (before reaching first committed version)");
+
+DEFINE_bool(pequin_query_eager_exec, true, "skip query sync protocol and execute optimistically on local state");
+DEFINE_bool(pequin_query_point_eager_exec, false, "use eager query exec instead of proof based point read");
+
+DEFINE_bool(pequin_eager_plus_snapshot, true, "perform a snapshot and eager execution simultaneously; proceed with sync only if eager fails");
+DEFINE_bool(pequin_simulate_fail_eager_plus_snapshot, false, "simulate failing eager even though it may be successful");
+
+DEFINE_bool(pequin_query_read_prepared, true, "allow query to read prepared values");
+DEFINE_bool(pequin_query_cache_read_set, true, "cache query read set at replicas"); // Send syncMessages to all if read set caching is enabled -- but still only sync_messages many replicas are tasked to execute and reply.
+
+DEFINE_bool(pequin_query_optimistic_txid, true, "use optimistic tx-id for sync protocol");
+DEFINE_bool(pequin_query_compress_optimistic_txid, false, "compress optimistic tx-id for sync protocol");
+
+
+DEFINE_bool(pequin_query_merge_active_at_client, true, "merge active query read sets client-side");
+
+DEFINE_bool(pequin_sign_client_queries, false, "sign query and sync messages"); //proves non-equivocation of query contents, and query snapshot respectively. 
+//DEFINE_bool(pequin_sign_replica_to_replica_sync, false, "sign inter replica sync messages with HMACs"); //proves authenticity of channels.
+//Note: Should not be necessary. Unique hash of query should suffice for non-equivocation; autheniticated channels would suffice for authentication. 
+
+//DEFINE_bool(pequin_parallel_queries, false, "dispatch queries to parallel worker threads"); -- only serverside arg
+
+DEFINE_bool(pequin_use_semantic_cc, true, "use SemanticCC"); //Non-semantic mode is deprecated.
+DEFINE_bool(pequin_use_active_read_set, true, "store only keys that are Active w.r.t. to query predicate");
+
+
+///////////////////////////////////////////////////////////
 
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
 
@@ -335,6 +492,7 @@ DEFINE_string(trans_protocol, trans_args[1], "transport protocol to use for"
 DEFINE_validator(trans_protocol, &ValidateTransMode);
 
 const std::string protocol_args[] = {
+  "blackhole",
 	"txn-l",
   "txn-s",
   "qw",
@@ -342,6 +500,7 @@ const std::string protocol_args[] = {
   "lock",
   "span-occ",
   "span-lock",
+  "pequin",
   "indicus",
 	"pbft",
 // HotStuff
@@ -351,9 +510,14 @@ const std::string protocol_args[] = {
 // BFTSmart
   "bftsmart",
 // Augustus-BFTSmart
-	"augustus"
+	"augustus",
+  "pg",
+  "pg-smr", //Formerly: hotstuffpg
+  "peloton-smr",
+  "crdb"
 };
 const protomode_t protomodes[] {
+  PROTO_BLACKHOLE,
   PROTO_TAPIR,
   PROTO_TAPIR,
   PROTO_WEAK,
@@ -361,18 +525,30 @@ const protomode_t protomodes[] {
   PROTO_STRONG,
   PROTO_STRONG,
   PROTO_STRONG,
+  //
+  PROTO_PEQUIN,
   PROTO_INDICUS,
-      PROTO_PBFT,
+  PROTO_PBFT,
   // HotStuff
-      PROTO_HOTSTUFF,
+  PROTO_HOTSTUFF,
   // Augustus-Hotstuff
-      PROTO_AUGUSTUS,
+  PROTO_AUGUSTUS,
   // BFTSmart
   PROTO_BFTSMART,
   // Augustus-BFTSmart
-	PROTO_AUGUSTUS_SMART
+	PROTO_AUGUSTUS_SMART,
+  PROTO_POSTGRES,
+   // PG-SMR
+  PROTO_PG_SMR,
+  // Peloton-SMR,
+  PROTO_PELOTON_SMR,
+  // Cockroach Database
+  PROTO_CRDB
 };
+
+//Note: this should match the size of protomodes
 const strongstore::Mode strongmodes[] {
+  strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
@@ -383,11 +559,18 @@ const strongstore::Mode strongmodes[] {
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
   strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
 	strongstore::Mode::MODE_UNKNOWN,
-	strongstore::Mode::MODE_UNKNOWN
+	strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
+	strongstore::Mode::MODE_UNKNOWN, 
+  strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN,
+  strongstore::Mode::MODE_UNKNOWN
 };
 static bool ValidateProtocolMode(const char* flagname,
     const std::string &value) {
+
   int n = sizeof(protocol_args);
   for (int i = 0; i < n; ++i) {
     if (value == protocol_args[i]) {
@@ -406,14 +589,26 @@ const std::string benchmark_args[] = {
   "tpcc",
   "smallbank",
   "rw",
-  "tpcc-sync"
+  "tpcc-sync",
+  "toy",
+  "tpcc-sql",
+  "rw-sql",
+  "seats-sql",
+  "auctionmark-sql",
+  "tpcch-sql"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
   BENCH_TPCC,
   BENCH_SMALLBANK_SYNC,
   BENCH_RW,
-  BENCH_TPCC_SYNC
+  BENCH_TPCC_SYNC,
+  BENCH_TOY,
+  BENCH_TPCC_SQL,
+  BENCH_RW_SQL,
+  BENCH_SEATS_SQL,
+  BENCH_AUCTIONMARK_SQL,
+  BENCH_TPCCH_SQL
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -439,7 +634,7 @@ DEFINE_uint64(cooldown_secs, 5, "time (in seconds) to cool down system after"
     " recording stats");
 DEFINE_uint64(tput_interval, 0, "time (in seconds) between throughput"
     " measurements");
-DEFINE_uint64(num_client_threads, 1, "number of client threads to run in this process");
+DEFINE_uint64(num_client_threads, 1, "number of client threads to run on each process");
 DEFINE_uint64(num_client_hosts, 1, "number of client processes across all nodes and servers");
 DEFINE_uint64(num_requests, -1, "number of requests (transactions) per"
     " client");
@@ -460,12 +655,14 @@ DEFINE_uint64(max_backoff, 5000, "max time to sleep after aborting.");
 const std::string partitioner_args[] = {
 	"default",
   "warehouse_dist_items",
-  "warehouse"
+  "warehouse",
+  "rw_sql",
 };
 const partitioner_t parts[] {
   DEFAULT,
   WAREHOUSE_DIST_ITEMS,
-  WAREHOUSE
+  WAREHOUSE,
+  RW_SQL
 };
 static bool ValidatePartitioner(const char* flagname,
     const std::string &value) {
@@ -483,6 +680,17 @@ DEFINE_string(partitioner, partitioner_args[0],	"the partitioner to use during t
 DEFINE_validator(partitioner, &ValidatePartitioner);
 
 
+DEFINE_bool(store_mode, true, "true => Runs Table-store + CC-store (SQL); false => Runs pure KV-store");
+/**
+ * SQL Benchmark settings
+*/
+DEFINE_string(data_file_path, "", "path to file containing Table information to be loaded");
+DEFINE_bool(sql_bench, false, "Register Tables for SQL benchmarks. Input file is JSON Table args");
+
+/**
+ * Postgres settings
+*/
+DEFINE_string(connection_str, "postgres://postgres:password@localhost:5432/tpccdb", "connection string to postgres database");
 
 /**
  * Retwis settings.
@@ -490,6 +698,11 @@ DEFINE_validator(partitioner, &ValidatePartitioner);
 DEFINE_string(keys_path, "", "path to file containing keys in the system"
 		" (for retwis)");
 DEFINE_uint64(num_keys, 0, "number of keys to generate (for retwis");
+
+/**
+ * Seats/Auctionmark setting
+*/
+DEFINE_uint32(benchbase_scale_factor, 1, "scale factor for seats/auctionmark");
 
 const std::string keys_args[] = {
 	"uniform",
@@ -524,6 +737,26 @@ DEFINE_uint64(num_ops_txn, 1, "number of ops in each txn"
 DEFINE_bool(rw_read_only, false, "only do read operations");
 // RW benchmark also uses same config parameters as Retwis.
 
+/**
+ * RW-sql additional settings.
+ */
+DEFINE_uint64(rw_read_only_rate, 0, "percentage of read only operations");
+DEFINE_bool(rw_secondary_condition, true, "whether the read/update has a condition on a secondary key");
+
+DEFINE_uint64(num_tables, 1, "number of tables for rw-sql");
+DEFINE_uint64(num_keys_per_table, 1000, "number of keys per table for rw-sql");
+DEFINE_int32(value_size, 10, "-1 = value is int, > 0, value is string => if value is string: size of the value strings"); //Currently not supported. Requires rw-sql input that is value String and not bigint
+DEFINE_int32(value_categories, 50, "number of unique states value can be in; -1 = unlimited");
+
+DEFINE_bool(rw_no_wrap, true, "disallow scans that wrap around. E.g. >= 97 AND < 5");
+DEFINE_bool(fixed_range, true, "whether each read should have the same range");
+DEFINE_uint64(max_range, 100, "max amount of reads in a single scan for rw-sql");
+DEFINE_uint64(point_op_freq, 0, "percentage of times an operation is a point operation (the others are scan)");
+
+DEFINE_bool(scan_as_point, true, "whether to execute all logical scans via individual point operations");
+DEFINE_bool(scan_as_point_parallel, false, "whether to execute the individual point operations of a scan in parallel");
+DEFINE_bool(rw_simulate_point_kv, false, "whether to simulate point read execution in Pesto by not invoking the Table store, but just storing in the KV store");
+
 
 /**
  * TPCC settings.
@@ -534,6 +767,7 @@ DEFINE_int32(clients_per_warehouse, 1, "number of clients per warehouse"
 		" (for tpcc)");
 DEFINE_int32(remote_item_milli_p, 0, "remote item milli p (for tpcc)");
 
+DEFINE_bool(tpcc_run_sequential, false, "run all queries within a TPCC transaction sequentiallly");
 DEFINE_int32(tpcc_num_warehouses, 1, "number of warehouses (for tpcc)");
 DEFINE_int32(tpcc_w_id, 1, "home warehouse id for this client (for tpcc)");
 DEFINE_int32(tpcc_C_c_id, 1, "C value for NURand() when selecting"
@@ -551,6 +785,11 @@ DEFINE_int32(tpcc_payment_ratio, 43, "ratio of payment transactions to other"
 DEFINE_int32(tpcc_order_status_ratio, 4, "ratio of order_status transactions to other"
     " transaction types (for tpcc)");
 DEFINE_bool(static_w_id, false, "force clients to use same w_id for each treansaction");
+
+/**
+ * TPC-CH settings.
+ */
+DEFINE_double(ch_client_proportion, tpcch_sql::PROB_TPCCH_CLIENT, "proportion of CH clients (rest are TPC-C clients)");
 
 /**
  * Smallbank settings.
@@ -585,6 +824,8 @@ Transport *tport;
 transport::Configuration *config;
 KeyManager *keyManager;
 Partitioner *part;
+KeySelector *keySelector;
+QuerySelector *querySelector;
 
 void Cleanup(int signal);
 void FlushStats();
@@ -617,7 +858,8 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numProtoModes; ++i) {
     if (FLAGS_protocol_mode == protocol_args[i]) {
       mode = protomodes[i];
-      strongmode = strongmodes[i];
+      if(i < (sizeof(strongmodes)/sizeof(strongmode))) 
+        strongmode = strongmodes[i];
       break;
     }
   }
@@ -637,7 +879,7 @@ int main(int argc, char **argv) {
     }
   }
   if (benchMode == BENCH_UNKNOWN) {
-    std::cerr << "Unknown benchmark." << std::endl;
+    Warning("Unknown benchmark.");
     return 1;
   }
 
@@ -674,7 +916,7 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_quorum == READ_QUORUM_UNKNOWN) {
+  if (mode != PROTO_TAPIR && read_quorum == READ_QUORUM_UNKNOWN) { //All other ProtoModes require a ReadQuorum Size as input.
     std::cerr << "Unknown read quorum." << std::endl;
     return 1;
   }
@@ -688,13 +930,13 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_messages == READ_MESSAGES_UNKNOWN) {
+  if ((mode != PROTO_TAPIR && mode != PROTO_PBFT) && read_messages == READ_MESSAGES_UNKNOWN) { //All other protocols require a ReadMessage Size as input
     std::cerr << "Unknown read messages." << std::endl;
     return 1;
   }
 
   // parse inject failure
-  indicusstore::InjectFailureType injectFailureType = indicusstore::InjectFailureType::CLIENT_EQUIVOCATE;
+  InjectFailureType injectFailureType = InjectFailureType::CLIENT_EQUIVOCATE;
   int numInjectFailure = sizeof(if_args);
   for (int i = 0; i < numInjectFailure; ++i) {
     if (FLAGS_indicus_inject_failure_type == if_args[i]) {
@@ -712,10 +954,69 @@ int main(int argc, char **argv) {
       break;
     }
   }
-  if (mode == PROTO_INDICUS && read_dep == READ_DEP_UNKNOWN) {
+  if ((mode == PROTO_INDICUS || mode == PROTO_PEQUIN) && read_dep == READ_DEP_UNKNOWN) {
     std::cerr << "Unknown read dep." << std::endl;
     return 1;
   }
+
+  // parse query sync quorum
+  query_sync_quorum_t query_sync_quorum = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQuerySyncQuorums = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQuerySyncQuorums; ++i) {
+    if (FLAGS_pequin_query_sync_quorum == query_sync_quorum_args[i]) {
+      query_sync_quorum = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_sync_quorum == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query sync quorum." << std::endl;
+    return 1;
+  }
+  
+  // parse query messages
+  query_messages_t query_messages = QUERY_MESSAGES_UNKNOWN;
+  int numQueryMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numQueryMessages; ++i) {
+    if (FLAGS_pequin_query_messages == query_messages_args[i]) {
+      query_messages = query_messagess[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_messages == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown query messages." << std::endl;
+    return 1;
+  }
+
+    // parse query sync quorum merge threshold
+  query_sync_quorum_t query_merge_threshold = QUERY_SYNC_QUORUM_UNKNOWN;
+  int numQueryMergeThresholds = sizeof(query_sync_quorum_args);
+  for (int i = 0; i < numQueryMergeThresholds; ++i) {
+    if (FLAGS_pequin_query_merge_threshold == query_sync_quorum_args[i]) {
+      query_merge_threshold = query_sync_quorums[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && query_merge_threshold == QUERY_SYNC_QUORUM_UNKNOWN) { 
+    std::cerr << "Unknown query merge threshold." << std::endl;
+    return 1;
+  }
+
+  // parse sync messages
+  query_messages_t sync_messages = QUERY_MESSAGES_UNKNOWN;
+  int numSyncMessages = sizeof(query_messages_args);
+  for (int i = 0; i < numSyncMessages; ++i) {
+    if (FLAGS_pequin_sync_messages == query_messages_args[i]) {
+      sync_messages = query_messagess[i];
+      break;
+    }
+  }
+  if (mode == PROTO_PEQUIN && sync_messages == QUERY_MESSAGES_UNKNOWN) { 
+    std::cerr << "Unknown sync messages." << std::endl;
+    return 1;
+  }
+
+
+//////////////////////////
 
   // parse closest replicas
   std::vector<int> closestReplicas;
@@ -723,6 +1024,7 @@ int main(int argc, char **argv) {
   int replica;
   iss >> replica;
   while (!iss.fail()) {
+    std::cerr << "Next closest replica: " << replica << std::endl;
     closestReplicas.push_back(replica);
     iss >> replica;
   }
@@ -770,8 +1072,8 @@ int main(int argc, char **argv) {
 
   Debug("transport protocol used: %d",trans);
 
+  if(FLAGS_zipf_coefficient == 1.0) Panic("Use a Zipf coefficient != 1.0. E.g. 0.99 or 1.01. 1.0 is not supported");
 
-  KeySelector *keySelector;
   switch (keySelectionMode) {
     case KEYS_UNIFORM:
       keySelector = new UniformKeySelector(keys);
@@ -783,22 +1085,108 @@ int main(int argc, char **argv) {
       NOT_REACHABLE();
   }
 
+  /// QuerySelector
+  if(FLAGS_sql_bench && benchMode == BENCH_RW_SQL){
+    //Create QuerySelector
+    KeySelector *tableSelector;
+    KeySelector *baseSelector;
+    KeySelector *rangeSelector = new UniformKeySelector(keys, FLAGS_max_range); //doesn't make sense really to have a zipfean range selector - does not strongly correlate to contention. The bigger the range = the bigger contention
+
+    auto maxBase = FLAGS_rw_no_wrap? FLAGS_num_keys_per_table - (FLAGS_max_range-1) : FLAGS_num_keys_per_table;
+    Notice("maxBase: %d", maxBase);
+
+    //Note: "keys" is an empty/un-used argument for this setup.
+    switch (keySelectionMode) {
+      case KEYS_UNIFORM:
+      {
+        Notice("Using Uniform selector");
+        tableSelector = new UniformKeySelector(keys, FLAGS_num_tables);
+       
+        baseSelector = new UniformKeySelector(keys, maxBase);
+        //rangeSelector = new UniformKeySelector(keys, FLAGS_max_range);
+        break;
+      }
+      case KEYS_ZIPF:
+      {
+        Notice("Using Zipf selector. Coefficient: %f", FLAGS_zipf_coefficient);
+        tableSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_num_tables);
+        baseSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, maxBase);
+        //rangeSelector = new ZipfKeySelector(keys, FLAGS_zipf_coefficient, FLAGS_max_range);
+        break;
+      }
+      default:
+        NOT_REACHABLE();
+    }
+
+    querySelector = new QuerySelector(FLAGS_num_keys_per_table, tableSelector, baseSelector, rangeSelector, FLAGS_point_op_freq);
+
+
+     //RW-SQL ==> auto-generate TableRegistry
+    FLAGS_data_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename("rw-sql-gen-client" + std::to_string(FLAGS_client_id));
+    TableWriter table_writer(FLAGS_data_file_path, false);
+
+    //Set up a bunch of Tables: Num_tables many; with num_items...
+    const std::vector<std::pair<std::string, std::string>> &column_names_and_types = {{"key", "INT"}, {"value", (FLAGS_value_size < 0 ? "INT" : "VARCHAR")}}; //switch value type depending on FLAG
+    const std::vector<uint32_t> &primary_key_col_idx = {0};
+        //Create Table
+        
+    for(int i=0; i<FLAGS_num_tables; ++i){
+      //string table_name = "table_" + std::to_string(i);
+      string table_name = "t" + std::to_string(i);
+      table_writer.add_table(table_name, column_names_and_types, primary_key_col_idx);
+    }
+
+    table_writer.flush();
+    FLAGS_data_file_path += "-tables-schema.json";
+    //Read in a TableRegistry? (Probably not needed, but can add)
+  }
+
+
+
+  ///
+
+
   std::mt19937 rand(FLAGS_client_id); // TODO: is this safe?
 
   switch (partType) {
     case DEFAULT:
-      part = new DefaultPartitioner();
+    {
+      if(FLAGS_sql_bench){
+        part = new DefaultSQLPartitioner();
+      }
+      else{
+        part = new DefaultPartitioner();
+      }
       break;
+    }
     case WAREHOUSE_DIST_ITEMS:
+    {
+      if(FLAGS_sql_bench) Panic("deprecated partitioner for sql bench");
       part = new WarehouseDistItemsPartitioner(FLAGS_tpcc_num_warehouses);
       break;
+    }
     case WAREHOUSE:
-      part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+    {
+      if(FLAGS_sql_bench){
+        UW_ASSERT(benchMode == BENCH_TPCC_SQL);
+        part = new WarehouseSQLPartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
+      else{
+        UW_ASSERT(benchMode == BENCH_TPCC_SYNC || benchMode == BENCH_TPCC);
+        part = new WarehousePartitioner(FLAGS_tpcc_num_warehouses, rand);
+      }
       break;
+    }
+    case RW_SQL:
+    {
+      UW_ASSERT(benchMode == BENCH_RW_SQL);
+      part = new RWSQLPartitioner(FLAGS_num_tables);
+      break;
+    }
     default:
       NOT_REACHABLE();
   }
-
+  
 	std::string latencyFile;
   std::string latencyRawFile;
   std::vector<uint64_t> latencies;
@@ -864,8 +1252,9 @@ int main(int argc, char **argv) {
 
   uint64_t replica_total = FLAGS_num_shards * config->n;
   uint64_t client_total = FLAGS_num_client_hosts * FLAGS_num_client_threads;
-  KeyManager* keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
-  keyManager->PreLoadPubKeys(false);
+
+  KeyManager *keyManager = new KeyManager(FLAGS_indicus_key_path, keyType, true, replica_total, client_total, FLAGS_num_client_hosts);
+  //keyManager->PreLoadPubKeys(false);
 
   if (closestReplicas.size() > 0 && closestReplicas.size() != static_cast<size_t>(config->n)) {
     std::cerr << "If specifying closest replicas, must specify all "
@@ -880,19 +1269,288 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  Notice("num hosts=%d; num_threads=%d", FLAGS_num_client_hosts, FLAGS_num_client_threads);
+  
   for (size_t i = 0; i < FLAGS_num_client_threads; i++) {
     Client *client = nullptr;
     AsyncClient *asyncClient = nullptr;
     SyncClient *syncClient = nullptr;
     OneShotClient *oneShotClient = nullptr;
 
-    uint64_t clientId = (FLAGS_client_id << 6) | i;
-    //uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
-    std::cerr <<  "num hosts=" << FLAGS_num_client_hosts << "; num_threads=" << FLAGS_num_client_threads << std::endl;
+    //uint64_t clientId = (FLAGS_client_id << 6) | i;
+    //uint64_t clientId = (FLAGS_client_id << 2) | i;
+    //uint64_t clientId = FLAGS_client_id | i;
+    uint64_t clientId = FLAGS_client_id + FLAGS_num_client_hosts * i;
+  
     //keyManager->PreLoadPrivKey(clientId, true);
     // Alternatively: uint64_t clientId = FLAGS_client_id * FLAGS_num_client_threads + i;
     
+    ////////////////// PROTOCOL CLIENTS
+
+    ///////////////// Additional parameter configurations
+    uint64_t readQuorumSize = 0; //number of replies necessary to form a read quorum
+    uint64_t readMessages = 0; //number of read messages sent to replicas to request replies
+    uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
+    uint64_t readDepSize = 0; //number of replica replies needed to form dependency  
+    InjectFailure failure; //Type of Failure to be injected
+
+    uint64_t syncQuorumSize = 0; //number of replies necessary to form a sync quorum
+    uint64_t queryMessages = 0; //number of query messages sent to replicas to request sync replies
+    uint64_t mergeThreshold = 1; //number of tx instances required to observe to include in sync snapshot
+    uint64_t syncMessages = 0;    //number of sync messages sent to replicas to request result replies
+    uint64_t resultQuorum = FLAGS_pequin_query_result_honest? config->f + 1 : 1;
+
+
     switch (mode) {
+      case PROTO_POSTGRES:
+      case PROTO_CRDB:
+      case PROTO_TAPIR:
+           break;
+      case PROTO_PEQUIN:
+         switch (query_sync_quorum) {
+          case QUERY_SYNC_QUROUM_ONE:
+            syncQuorumSize = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            syncQuorumSize = config->f + 1;
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            syncQuorumSize = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            syncQuorumSize = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            syncQuorumSize = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         switch (query_merge_threshold) { 
+          case QUERY_SYNC_QUROUM_ONE:
+            mergeThreshold = 1;
+            break;
+          case QUERY_SYNC_QUORUM_ONE_HONEST:
+            mergeThreshold = config->f + 1;
+            break;
+          //NOTE: These cases realistically will never be used -- but supported here anyways
+          case QUERY_SYNC_QUORUM_MAJORITY_HONEST:
+            mergeThreshold = config->f * 2 + 1;  //majority of quorum will be honest
+            break;
+          case QUERY_SYNC_QUORUM_MAJORITY:
+            mergeThreshold = config->f * 3 + 1; //== majority of all honest will be included in quorum
+            break;
+          case QUERY_SYNC_QUORUM_ALL_POSSIBLE:
+            mergeThreshold = config->f * 4 + 1;
+            break;
+          default: 
+            NOT_REACHABLE();
+         }
+         if(mergeThreshold > syncQuorumSize) Panic("Merge Threshold for Query Sync cannot be larger than Quorum itself");
+         if(mergeThreshold + config->f > syncQuorumSize) std::cerr << "WARNING: Under given Config Query Sync Merge is not live in presence of byzantine replies in Query Sync Quorum" << std::endl;
+        
+         switch (query_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              queryMessages = syncQuorumSize;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              queryMessages = syncQuorumSize + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              queryMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
+          if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+         
+         switch (sync_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              syncMessages = resultQuorum;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              syncMessages = resultQuorum + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              syncMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+
+          if(resultQuorum > syncMessages) Panic("Query Result Quorum size cannot be larger than number of Sync Messages sent");
+          if(resultQuorum + config->f > syncMessages) std::cerr << "WARNING: Under given Config Query Result is not live in presence of byzantine replies witholding query results (omission faults)" << std::endl;
+         
+         
+         // ==> Moved to client logic in order to account for retries.
+         //if(FLAGS_pequin_query_optimistic_txid) syncMessages = std::max((uint64_t) config->n, syncMessages + config->f); //If optimisticTxID enabled send to f additional replicas to guarantee result. 
+         // if read_cache is True:--> send sync to all, but still only ask syncMessages many to execute.
+
+        Debug("Configuring Pequin to send query messages to %lu replicas and wait for %lu replies. Merge Threshold is %lu. %lu Sync messages are being sent", queryMessages, syncQuorumSize, mergeThreshold, syncMessages);
+
+      case PROTO_INDICUS:
+         switch (read_quorum) {
+            case READ_QUORUM_ONE:
+                readQuorumSize = 1;
+                break;
+            case READ_QUORUM_ONE_HONEST:
+                readQuorumSize = config->f + 1;
+                break;
+            case READ_QUORUM_MAJORITY_HONEST:
+                readQuorumSize = config->f * 2 + 1;
+                break;
+            case READ_QUORUM_MAJORITY:
+                readQuorumSize = (config->n + 1) / 2;
+                break;
+            case READ_QUORUM_ALL:
+                readQuorumSize = config->f * 4 + 1;
+                break;
+            default:
+                NOT_REACHABLE();
+        }
+
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus;
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+          Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
+          UW_ASSERT(readMessages >= readQuorumSize);
+
+          switch (read_dep) {
+          case READ_DEP_ONE:
+              readDepSize = 1;
+              break;
+          case READ_DEP_ONE_HONEST:
+              readDepSize = config->f + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+          }
+
+          failure.type = injectFailureType;
+          failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
+          //	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
+            std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
+          failure.frequency = FLAGS_indicus_inject_failure_freq;
+        break;
+      case PROTO_PBFT:
+      case PROTO_HOTSTUFF:
+      case PROTO_PG_SMR:
+      case PROTO_PELOTON_SMR:
+      case PROTO_BFTSMART:
+      case PROTO_AUGUSTUS_SMART:
+      case PROTO_AUGUSTUS:
+        switch (read_quorum) {
+          case READ_QUORUM_ONE:
+              readQuorumSize = 1;
+              break;
+          case READ_QUORUM_ONE_HONEST:
+              readQuorumSize = config->f + 1;
+              break;
+          case READ_QUORUM_MAJORITY_HONEST:
+              readQuorumSize = config->f * 2 + 1;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+				
+        switch (read_messages) {
+          case READ_MESSAGES_READ_QUORUM:
+              readMessages = readQuorumSize + pessimistic_quorum_bonus; 
+              break;
+          case READ_MESSAGES_MAJORITY:
+              readMessages = (config->n + 1) / 2;
+              break;
+          case READ_MESSAGES_ALL:
+              readMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+    }
+
+   
+    if(true){
+      //TODO: Parameterize better: This version by default always uses pessimistic bonus.
+      //If SemanticCC enabled need at least these Quorum sizes.
+      if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+        if(FLAGS_pequin_query_eager_exec){ //TODO: Even when query does not use eager, might want to increase quorum sizes for retries
+          queryMessages = std::max((int)queryMessages, 4 * config->f + 1);
+          syncQuorumSize = std::max((int)syncQuorumSize, 3 * config->f + 1); 
+          //Note: syncQuorum size does not necessarily need to increase, but might as well for better freshness since we already have larger queryMessages
+        }
+        syncMessages = std::max((int)syncMessages, 4 * config->f + 1);
+        resultQuorum = 3 * config->f + 1;
+      }
+    }
+    else{
+      //NEW version: parameterized.
+      if(FLAGS_pequin_use_semantic_cc && !FLAGS_pequin_query_cache_read_set){
+        Notice("Upgrading number of messages and Quorum sizes for SemanticCC");
+        resultQuorum = 3 * config->f + 1;
+
+        switch (sync_messages) {
+          case QUERY_MESSAGES_QUERY_QUORUM:
+              syncMessages = resultQuorum;
+              break;
+          case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+              syncMessages = resultQuorum + config->f;
+              break;
+          case QUERY_MESSAGES_ALL:
+              syncMessages = config->n;
+              break;
+          default:
+              NOT_REACHABLE();
+        }
+
+        if(FLAGS_pequin_query_eager_exec){
+            switch (query_messages) {
+              case QUERY_MESSAGES_QUERY_QUORUM:
+                  queryMessages = std::max(syncQuorumSize, syncMessages);
+                  break;
+              case QUERY_MESSAGES_PESSIMISTIC_BONUS:
+                  queryMessages = std::max(syncQuorumSize, syncMessages) + config->f;
+                  break;
+              case QUERY_MESSAGES_ALL:
+                  queryMessages = config->n;
+                  break;
+              default:
+                  NOT_REACHABLE();
+              }
+              if(syncQuorumSize > queryMessages) Panic("Query Quorum size cannot be larger than number of Query requests sent");
+              if(syncQuorumSize + config->f > queryMessages) std::cerr << "WARNING: Under given Config Query Sync is not live in presence of byzantine replies witholding query sync replies (omission faults)" << std::endl;
+        }
+      }
+    }
+
+    Notice("Quorum sizes:");
+    Notice("queryMessages: %d", queryMessages);
+    Notice("syncQuorum: %d", syncQuorumSize);
+    Notice("mergeThreshold: %d", mergeThreshold);
+
+    Notice("syncMessages: %d", syncMessages);
+    Notice("resultQuorum: %d", resultQuorum);
+    Notice("optimistic Id: %d",  FLAGS_pequin_query_optimistic_txid);
+
+
+//Declare Protocol Clients
+
+    switch (mode) {
+    case PROTO_BLACKHOLE: {
+        client = new blackhole::Client();
+        break;
+    }
     case PROTO_TAPIR: {
         client = new tapirstore::Client(config, clientId,
                                         FLAGS_num_shards, FLAGS_num_groups, FLAGS_closest_replica,
@@ -901,69 +1559,71 @@ int main(int argc, char **argv) {
                                                  FLAGS_clock_error));
         break;
     }
+    case PROTO_PEQUIN: {
+      pequinstore::QueryParameters query_params(FLAGS_store_mode,
+                                                 syncQuorumSize,
+                                                 queryMessages,
+                                                 mergeThreshold,
+                                                 syncMessages,
+                                                 resultQuorum,
+                                                 FLAGS_pequin_retry_limit,
+                                                 FLAGS_pequin_snapshot_prepared_k,
+                                                 FLAGS_pequin_query_eager_exec,
+                                                 FLAGS_pequin_query_point_eager_exec,
+                                                 FLAGS_pequin_eager_plus_snapshot,
+                                                 FLAGS_pequin_simulate_fail_eager_plus_snapshot,
+                                                 false, //ForceReadFromSnapshot
+                                                 FLAGS_pequin_query_read_prepared,
+                                                 FLAGS_pequin_query_cache_read_set,
+                                                 FLAGS_pequin_query_optimistic_txid,
+                                                 FLAGS_pequin_query_compress_optimistic_txid, 
+                                                 FLAGS_pequin_query_merge_active_at_client,
+                                                 FLAGS_pequin_sign_client_queries,
+                                                 false,    // FLAGS_pequin_sign_replica_to_replica_sync,
+                                                 false,   //FLAGS_pequin_parallel_queries);
+                                                 FLAGS_pequin_use_semantic_cc,
+                                                 FLAGS_pequin_use_active_read_set,
+                                                 0UL, 0UL); //monotonicity grace (first & second)
+
+        pequinstore::Parameters params(FLAGS_indicus_sign_messages,
+                                        FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
+                                        FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
+                                        FLAGS_indicus_max_dep_depth, readDepSize,
+																				false, false,
+																				false, false,
+                                        FLAGS_indicus_merkle_branch_factor, failure,
+                                        FLAGS_indicus_multi_threading, FLAGS_indicus_batch_verification,
+																				FLAGS_indicus_batch_verification_size,
+																				false,
+																				false,
+																				false,
+																				FLAGS_indicus_parallel_CCC,
+																				false,
+																				FLAGS_indicus_all_to_all_fb,
+																			  FLAGS_indicus_no_fallback,
+																				FLAGS_indicus_relayP1_timeout,
+																			  false,
+                                        FLAGS_indicus_sign_client_proposals,
+                                        0,
+                                        query_params);
+
+        Notice("Warmup secs: %d", FLAGS_warmup_secs);
+        client = new pequinstore::Client(config, clientId,
+                                          FLAGS_num_shards,
+                                          FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
+                                          FLAGS_tapir_sync_commit, 
+                                          readMessages, readQuorumSize,
+                                          params, 
+                                          FLAGS_data_file_path, //table_registry
+                                          keyManager, 
+                                          FLAGS_indicus_phase1_decision_timeout,
+                                          FLAGS_warmup_secs,
+																					FLAGS_indicus_max_consecutive_abstains,
+                                          FLAGS_sql_bench,
+																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
     case PROTO_INDICUS: {
-        uint64_t readQuorumSize = 0; //number of replies necessary to form a quorum
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        case READ_QUORUM_MAJORITY:
-            readQuorumSize = (config->n + 1) / 2;
-            break;
-        case READ_QUORUM_ALL:
-            readQuorumSize = config->f * 4 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        uint64_t readMessages = 0; //number of messages sent to replicas to request replies
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f; //by default only sends read to the same amount of replicas that we need replies from; if there are faults, we may need to send to more.
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-        Debug("Configuring Indicus to send read messages to %lu replicas and wait for %lu replies.", readMessages, readQuorumSize);
-        UW_ASSERT(readMessages >= readQuorumSize);
-
-        uint64_t readDepSize = 0;
-        switch (read_dep) {
-        case READ_DEP_ONE:
-            readDepSize = 1;
-            break;
-        case READ_DEP_ONE_HONEST:
-            readDepSize = config->f + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
-        indicusstore::InjectFailure failure;
-        failure.type = injectFailureType;
-        failure.timeMs = FLAGS_indicus_inject_failure_ms + rand() % 100; //offset client failures a bit.
-        //failure.enabled = rand() % 100 < FLAGS_indicus_inject_failure_proportion;
-				//TODO: WARNING: This is a hack based on 72 total clients --> pass total_clients down as flag.
-				//failure.enabled = FLAGS_client_id < floor(72 * FLAGS_indicus_inject_failure_proportion / 100);
-				//	std::cerr << "client_id = " << FLAGS_client_id << " < ?" << (72* FLAGS_indicus_inject_failure_proportion/100) << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.enabled = FLAGS_num_client_hosts * i + FLAGS_client_id < floor(FLAGS_num_client_hosts * FLAGS_num_client_threads * FLAGS_indicus_inject_failure_proportion / 100);
-					std::cerr << "client_id = " << clientId << ", client_process = " << FLAGS_client_id << ", thread_id = " << i << ". Failure enabled: "<< failure.enabled <<  std::endl;
-				failure.frequency = FLAGS_indicus_inject_failure_freq;
-
         indicusstore::Parameters params(FLAGS_indicus_sign_messages,
                                         FLAGS_indicus_validate_proofs, FLAGS_indicus_hash_digest,
                                         FLAGS_indicus_verify_deps, FLAGS_indicus_sig_batch,
@@ -989,27 +1649,14 @@ int main(int argc, char **argv) {
                                           FLAGS_num_shards,
                                           FLAGS_num_groups, closestReplicas, FLAGS_ping_replicas, tport, part,
                                           FLAGS_tapir_sync_commit, readMessages, readQuorumSize,
-                                          params, keyManager, FLAGS_indicus_phase1DecisionTimeout,
+                                          params, keyManager, FLAGS_indicus_phase1_decision_timeout,
 																					FLAGS_indicus_max_consecutive_abstains,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
         break;
     }
     case PROTO_PBFT: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
+      //Currently deprecated
+      //Note: does not use readMessage size as input parameter. Should have this option. 
         client = new pbftstore::Client(*config, FLAGS_num_shards,
                                        FLAGS_num_groups, tport, part,
                                        readQuorumSize,
@@ -1020,38 +1667,8 @@ int main(int argc, char **argv) {
         break;
     }
 
-// HotStuff
+    // HotStuff
     case PROTO_HOTSTUFF: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new hotstuffstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1063,38 +1680,32 @@ int main(int argc, char **argv) {
         break;
     }
 
+    // HotStuff Postgres
+    case PROTO_PG_SMR: {
+        client = new pg_SMRstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_pg_fake_SMR, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
+        break;
+    }
+
+    // Peloton SMR
+    case PROTO_PELOTON_SMR: {
+        client = new pelotonstore::Client(*config, clientId, FLAGS_num_shards,
+                                       FLAGS_num_groups, closestReplicas,
+																			  tport, part,
+                                       readMessages, readQuorumSize,
+                                       FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
+                                       keyManager,
+																			 TrueTime(FLAGS_clock_skew, FLAGS_clock_error), FLAGS_pg_fake_SMR, FLAGS_pg_SMR_mode, FLAGS_bftsmart_codebase_dir);
+        break;
+    }
+
 		// BFTSmart
 		    case PROTO_BFTSMART: {
-		      uint64_t readQuorumSize = 0;
-		        switch (read_quorum) {
-		        case READ_QUORUM_ONE:
-		            readQuorumSize = 1;
-		            break;
-		        case READ_QUORUM_ONE_HONEST:
-		            readQuorumSize = config->f + 1;
-		            break;
-		        case READ_QUORUM_MAJORITY_HONEST:
-		            readQuorumSize = config->f * 2 + 1;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-						uint64_t readMessages = 0;
-            uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-		        switch (read_messages) {
-		        case READ_MESSAGES_READ_QUORUM:
-		            readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-		            break;
-		        case READ_MESSAGES_MAJORITY:
-		            readMessages = (config->n + 1) / 2;
-		            break;
-		        case READ_MESSAGES_ALL:
-		            readMessages = config->n;
-		            break;
-		        default:
-		            NOT_REACHABLE();
-		        }
-
 		        client = new bftsmartstore::Client(*config, clientId, FLAGS_num_shards,
 		                                       FLAGS_num_groups, closestReplicas,
 																					  tport, part,
@@ -1106,37 +1717,8 @@ int main(int argc, char **argv) {
 		        break;
 		    }
 
+    //Augustus on top of BFTSmart
 		case PROTO_AUGUSTUS_SMART: {
-			uint64_t readQuorumSize = 0;
-				switch (read_quorum) {
-				case READ_QUORUM_ONE:
-						readQuorumSize = 1;
-						break;
-				case READ_QUORUM_ONE_HONEST:
-						readQuorumSize = config->f + 1;
-						break;
-				case READ_QUORUM_MAJORITY_HONEST:
-						readQuorumSize = config->f * 2 + 1;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-				switch (read_messages) {
-				case READ_MESSAGES_READ_QUORUM:
-						readMessages = readQuorumSize + pessimistic_quorum_bonus; //config->n;
-						break;
-				case READ_MESSAGES_MAJORITY:
-						readMessages = (config->n + 1) / 2;
-						break;
-				case READ_MESSAGES_ALL:
-						readMessages = config->n;
-						break;
-				default:
-						NOT_REACHABLE();
-				}
-
 				client = new bftsmartstore_stable::Client(*config, clientId, FLAGS_num_shards,
 																			 FLAGS_num_groups, closestReplicas,
 																				tport, part,
@@ -1148,38 +1730,8 @@ int main(int argc, char **argv) {
 				break;
 		}
 
-// Augustus
+// Augustus on top of Hotstuff
     case PROTO_AUGUSTUS: {
-        uint64_t readQuorumSize = 0;
-        switch (read_quorum) {
-        case READ_QUORUM_ONE:
-            readQuorumSize = 1;
-            break;
-        case READ_QUORUM_ONE_HONEST:
-            readQuorumSize = config->f + 1;
-            break;
-        case READ_QUORUM_MAJORITY_HONEST:
-            readQuorumSize = config->f * 2 + 1;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-				uint64_t readMessages = 0;
-        uint64_t pessimistic_quorum_bonus = FLAGS_indicus_optimistic_read_quorum? 0 : config->f;
-        switch (read_messages) {
-        case READ_MESSAGES_READ_QUORUM:
-            readMessages = readQuorumSize; + pessimistic_quorum_bonus; //config->n;
-            break;
-        case READ_MESSAGES_MAJORITY:
-            readMessages = (config->n + 1) / 2;
-            break;
-        case READ_MESSAGES_ALL:
-            readMessages = config->n;
-            break;
-        default:
-            NOT_REACHABLE();
-        }
-
         client = new augustusstore::Client(*config, clientId, FLAGS_num_shards,
                                        FLAGS_num_groups, closestReplicas,
 																			  tport, part,
@@ -1191,9 +1743,35 @@ int main(int argc, char **argv) {
         break;
     }
 
+    case PROTO_POSTGRES: {
+      client = new postgresstore::Client(FLAGS_connection_str, FLAGS_experiment_name, FLAGS_pg_replicated, clientId);
+      break;
+    }
+
+    case PROTO_CRDB: {
+      client = new cockroachdb::Client(
+            *config, clientId, FLAGS_num_shards, FLAGS_num_groups, tport,
+            TrueTime(FLAGS_clock_skew, FLAGS_clock_error));
+        break;
+    }
+
     default:
         NOT_REACHABLE();
     }
+
+//////////////////////////////////// Benchmark Clients
+////////////////////////////
+///////// Structure:  
+////////              Protocol Proxy: syncClient/asyncClient (depending on whether benchmark uses synchronous or asynchronous design --> common/frontend/async_adapter_client.cc or sync_client.cc)
+/////////             Workload Driver: bench = BenchmarkTypeClient (benchmark/async/workload/workload_client.cc, e.g. smallbank_client) --> inherits Sync/AsyncTransactionBenchClient (benchmark/async/async_transaction_bench_client.cc) 
+//                                             --> inherits BenchmarkClient (benchmark/async/bench_client.cc).   BenchmarkClient manages warump/cooldown, measures latencies
+///                                                
+//////// Workflow: 
+///////               Sync:  bench->Start() calls BenchmarkClient->Start() --> calls SyncTransactionBenchClient-->SendNext() --> calls BenchmarkTypeClient --> GetNextTransaction which returns a txn to execute (type_transaction.cc); 
+///////                      SendNext() also calls txn->Execute(syncClient) which in turn calls syncClient->Begin/Get/Put/Commit(operation) -- returns a Commit/Abort result for the txn. Retries Txn if aborted by system
+//////                       Execution loop keeps calling SendNext() until workload->isFullyDone() ()
+//////                Async: works mostly the same, but calls are wrapped in callbacks for asynchronous workflow: AsyncTransactionBenchClient->SendNext() calls GetNextTransaction and asyncClient.Execute(txn, callback) which in turn 
+/////                         calls asyncAdapterClient->Begin/Put/Get/Commit (in an async fashion). Callback calls BenchmarkClient-->OnReply(result), which then calls AsyncTransactionBenchClient->SendNext() again
 
     switch (benchMode) {
       case BENCH_RETWIS:
@@ -1204,8 +1782,14 @@ int main(int argc, char **argv) {
           asyncClient = new AsyncAdapterClient(client, FLAGS_message_timeout);
         }
         break;
+      case BENCH_TOY: 
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
+      case BENCH_TPCC_SQL:
+      case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
+      case BENCH_TPCCH_SQL:
         if (syncClient == nullptr) {
           UW_ASSERT(client != nullptr);
           syncClient = new SyncClient(client);
@@ -1217,6 +1801,7 @@ int main(int argc, char **argv) {
 
     uint32_t seed = (FLAGS_client_id << 4) | i;
 	  BenchmarkClient *bench;
+    
 	  switch (benchMode) {
       case BENCH_RETWIS:
         UW_ASSERT(asyncClient != nullptr);
@@ -1252,6 +1837,19 @@ int main(int argc, char **argv) {
             FLAGS_static_w_id, FLAGS_abort_backoff,
             FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
         break;
+      case BENCH_TPCC_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new tpcc_sql::TPCCSQLClient(FLAGS_tpcc_run_sequential, *syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+            FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+            FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+            FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+            FLAGS_static_w_id, FLAGS_abort_backoff,
+            FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+        break;
       case BENCH_SMALLBANK_SYNC:
         UW_ASSERT(syncClient != nullptr);
         bench = new smallbank::SmallbankClient(*syncClient, *tport,
@@ -1273,7 +1871,68 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
             FLAGS_max_attempts);
         break;
-
+      case BENCH_TOY:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new toy::ToyClient(*syncClient, *tport,
+            seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
+      case BENCH_RW_SQL:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new rwsql::RWSQLClient(FLAGS_num_ops_txn, querySelector, FLAGS_rw_read_only, FLAGS_rw_read_only_rate, FLAGS_rw_secondary_condition, 
+                                      FLAGS_fixed_range, FLAGS_value_size, FLAGS_value_categories, FLAGS_scan_as_point, FLAGS_scan_as_point_parallel,
+            *syncClient, *tport, seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts,
+            FLAGS_timeout);
+        break;
+      case BENCH_SEATS_SQL:
+        {
+          UW_ASSERT(syncClient != nullptr);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(seats_sql::PROFILE_LOCATION);
+          bench = new seats_sql::SEATSSQLClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
+              seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
+        }
+      case BENCH_AUCTIONMARK_SQL:
+        {
+          UW_ASSERT(syncClient != nullptr);
+          std::string profile_file_path = std::filesystem::path(FLAGS_data_file_path).replace_filename(auctionmark::PROFILE_FILE_NAME);
+          bench = new auctionmark::AuctionMarkClient( *syncClient, *tport, profile_file_path, FLAGS_benchbase_scale_factor,
+              clientId, client_total, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+              FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+              FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          break;
+        }
+      case BENCH_TPCCH_SQL: {
+          UW_ASSERT(syncClient != nullptr);
+          int id = FLAGS_num_client_hosts * i + FLAGS_client_id;
+          int num_tpcch_threads = std::max(static_cast<int>(FLAGS_ch_client_proportion * client_total), 0);
+          if (id < num_tpcch_threads) {
+            std::mt19937 gen_tpcch(seed); //Seems to be unused.
+            bench = new tpcch_sql::TPCCHSQLClient(*syncClient, *tport,
+                seed, FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          } else {
+            bench = new tpcc_sql::TPCCSQLClient(FLAGS_tpcc_run_sequential, *syncClient, *tport, seed,
+                FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+                FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+                FLAGS_tpcc_num_warehouses, FLAGS_tpcc_w_id, FLAGS_tpcc_C_c_id,
+                FLAGS_tpcc_C_c_last, FLAGS_tpcc_new_order_ratio,
+                FLAGS_tpcc_delivery_ratio, FLAGS_tpcc_payment_ratio,
+                FLAGS_tpcc_order_status_ratio, FLAGS_tpcc_stock_level_ratio,
+                FLAGS_static_w_id, FLAGS_abort_backoff,
+                FLAGS_retry_aborted, FLAGS_max_backoff, FLAGS_max_attempts, FLAGS_message_timeout);
+          }
+          break;
+      }
       default:
         NOT_REACHABLE();
     }
@@ -1285,7 +1944,12 @@ int main(int argc, char **argv) {
         // async benchmarks
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
+      case BENCH_RW_SQL:
       case BENCH_SMALLBANK_SYNC:
+      case BENCH_SEATS_SQL:
+      case BENCH_AUCTIONMARK_SQL:
+      case BENCH_TPCC_SQL:
+      case BENCH_TPCCH_SQL:
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
@@ -1297,6 +1961,17 @@ int main(int argc, char **argv) {
               syncBench->SendNext(&result);
               syncBench->IncrementSent(result);
             }
+            bdcb();
+        }));
+        break;
+      }
+      case BENCH_TOY: {
+       SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
+        toy::ToyClient *toyClient =  dynamic_cast<toy::ToyClient *>(syncBench);
+        threads.push_back(new std::thread([toyClient, bdcb](){
+          //Simply calls whatever toy code is declared in ExecuteToy.
+          //Could extend toyClient interface to declare toy code as explicit transaction, and run transaction multiple times.
+            toyClient->ExecuteToy();
             bdcb();
         }));
         break;
@@ -1326,8 +2001,8 @@ int main(int argc, char **argv) {
 
   tport->Timer(FLAGS_exp_duration * 1000 - 1000, FlushStats);
 
-  std::signal(SIGKILL, Cleanup);
-  std::signal(SIGTERM, Cleanup);
+  std::signal(SIGKILL, Cleanup); //signal 9
+  std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
   tport->Run();
@@ -1338,9 +2013,13 @@ int main(int argc, char **argv) {
 }
 
 void Cleanup(int signal) {
+  Notice("clean up with signal %d", signal);
   FlushStats();
   delete config;
-  delete keyManager;
+  //keyManager->Cleanup();
+  delete keyManager; //somehow destructor is not being triggered
+  delete keySelector;
+
   for (auto i : threads) {
     i->join();
     delete i;
@@ -1363,6 +2042,10 @@ void Cleanup(int signal) {
   tport->Stop();
   delete tport;
   delete part;
+
+  if(FLAGS_sql_bench && querySelector != nullptr) delete querySelector;
+  Notice("Finished Cleanup. Exiting");
+  //exit(0); Allow segfault for duplicate config deletion to mask printing endless ASAN leaks that we can't fix...
 }
 
 void FlushStats() {

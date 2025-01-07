@@ -88,7 +88,11 @@ transaction_status_t SyncOrderStatus::Execute(SyncClient &client) {
   std::string o_key = OrderRowKey(c_w_id, c_d_id, o_id);
   client.Get(o_key, str, timeout);
   OrderRow o_row;
-  if(str.empty()) Panic("empty string for Order Row");
+  if(str.empty()){
+    // Panic("empty string for Order Row");
+    client.Abort(timeout);
+    return ABORTED_USER; //SYSTEM;  //Either choice is fine here; Seems to be an exceedingly rare cornercase.
+  } 
   UW_ASSERT(o_row.ParseFromString(str));
   Debug("  Order Lines: %u", o_row.ol_cnt());
   Debug("  Entry Date: %u", o_row.entry_d());

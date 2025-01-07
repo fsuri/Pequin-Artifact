@@ -32,6 +32,7 @@
 #ifndef _STRONG_SERVER_H_
 #define _STRONG_SERVER_H_
 
+#include "lib/message.h"
 #include "lib/udptransport.h"
 #include "replication/vr/replica.h"
 #include "store/common/truetime.h"

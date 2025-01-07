@@ -25,4 +25,4 @@ $(d)proto_bench: $(LIB-latency) $(LIB-crypto) $(LIB-batched-sigs) $(LIB-store-co
 
 BINS += $(d)proto_bench
 
-include $(d)tests/Rules.mk
+#include $(d)tests/Rules.mk

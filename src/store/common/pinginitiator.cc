@@ -32,7 +32,7 @@
 
 PingInitiator::PingInitiator(PingTransport *pingTransport, Transport *transport,
     size_t numReplicas) : pingTransport(pingTransport),
-    transport(transport), numReplicas(numReplicas), alpha(0.75), length(5000) {
+    transport(transport), numReplicas(numReplicas), alpha(0.75), length(3000) { //length = how long we send pings to estimate (ms)
 }
 
 PingInitiator::~PingInitiator() {
@@ -47,6 +47,23 @@ void PingInitiator::StartPings() {
     for (const auto &estimate : roundTripEstimates) {
       sortedEstimates.insert(std::make_pair(estimate.second, estimate.first));
     }
+
+    //Make sure we have estimate for all replicas... //TODO: A more graceful solution would dynamically extend timer as long as needed.
+    if(sortedEstimates.size() < numReplicas){
+      //supplement with missing replica.
+      std::set<uint64_t> missingReplicas;
+      for (int i = 0; i < numReplicas; ++i){
+          missingReplicas.insert(missingReplicas.end(), i);
+      }
+      for(auto &[_, r]: sortedEstimates){
+        missingReplicas.erase(r);
+      }
+      //add all missingReplicas to end.
+      for(uint64_t r: missingReplicas){
+        sortedEstimates.insert(std::make_pair(UINT64_MAX, r));
+      }
+    }
+    //
 
     orderedReplicas.clear();
     std::stringstream ss;

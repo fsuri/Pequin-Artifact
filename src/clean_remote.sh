@@ -21,16 +21,27 @@ declare -a arr_clients=("client-0-0" "client-1-0" "client-2-0"
 						"client-15-0" "client-16-0" "client-17-0"
 			  		   )
 
+
+USER="fs435"
+EXP_NAME="pequin"
+
+while getopts u:e: option; do
+case "${option}" in
+u) USER=${OPTARG};;
+e) EXP_NAME=${OPTARG};;
+esac;
+done
+
 ## now loop through the above array
 for host in "${arr_servers[@]}"
 do
    echo "emptying experiments folder of $host"
-   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
+   ssh ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
 done
 
 for host in "${arr_clients[@]}"
 do
    echo "emptying experiments folder of $host"
-   ssh fs435@$host.pequin.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
+   ssh ${USER}@$host.${EXP_NAME}.pequin-pg0.utah.cloudlab.us "sudo rm -rf /mnt/extra/experiments/*; sudo rm -rf indicus"
 done
 

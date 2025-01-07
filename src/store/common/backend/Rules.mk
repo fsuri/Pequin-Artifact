@@ -7,3 +7,4 @@ LIB-store-backend := $(o)kvstore.o $(o)lockserver.o $(o)txnstore.o $(o)versionst
 	$(o)pingserver.o
 
 include $(d)tests/Rules.mk
+#include $(d)tests/Rules.mk $(d)sql_engine/Rules.mk

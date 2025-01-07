@@ -1,5 +1,6 @@
 .obj/
 
+.VSCodeCounter/
 .DS_Store
 
 lockserver/client-main
@@ -14,6 +15,7 @@ store/benchmark/ping_server
 store/benchmark/async/benchmark
 store/benchmark/async/benchmark_oneshot
 store/benchmark/async/tpcc/tpcc_generator
+store/benchmark/async/sql/tpcc/sql_tpcc_generator
 store/benchmark/async/smallbank/smallbank_generator_main
 store/benchmark/async/smallbank/smallbank_generator
 store/benchmark/async/smallbank/smallbank_client
@@ -27,6 +29,7 @@ store/benchmark/async/smallbank/tests/transact_test
 store/benchmark/async/smallbank/tests/write_check_test
 store/benchmark/async/smallbank/tests/smallbank_client_test
 store/benchmark/async/smallbank/tests/smallbank_generator_test
+store/pequinstore/tests/table_loader_test
 timeserver/timeserver
 
 lib/tests/configuration-test
@@ -47,6 +50,9 @@ src/store/bftsmartstore_augustus/library/remote
 src/store/bftsmartstore_stable/library/remote
 src/store/bftsmartstore/library/jars
 
+output/
+
+.vscode/
 src/.vscode
 src/.vscode/*
 
@@ -103,3 +109,10 @@ tags
 *.exe
 *.out
 *.app
+
+# VS Code
+.vscode/
+
+# Clang
+src/.cache/*
+compile_commands.json

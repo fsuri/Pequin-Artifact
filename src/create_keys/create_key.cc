@@ -70,4 +70,7 @@ int main(int argc, char** argv) {
   std::string publicKeyname = keyFileName + ".pub";
   crypto::SavePublicKey(publicKeyname, pubKey);
   std::cout << "Saved public key to: " << publicKeyname << std::endl;
+
+  crypto::FreePrivKey(privKey); 
+  crypto::FreePubKey(pubKey, true);
 }

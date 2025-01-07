@@ -1,0 +1,16 @@
+DEBUG=store/cockroachdb/* store/benchmark/async/benchmark --config_path "/home/liam/Code/Pequin-Artifact/testing/toy.config" \
+ --data_file_path "/home/liam/Code/Pequin-Artifact/src/store/benchmark/async/sql/auctionmark/auctionmark_profile" \
+ --num_client_hosts 1 \
+ --num_groups 1 \
+ --num_shards 1 \
+ --protocol_mode "crdb" \
+ --num_keys 1 \
+ --benchmark auctionmark-sql \
+ --num_ops_txn 2 \
+ --exp_duration 5 \
+ --client_id 0 \
+ --warmup_secs 0 \
+ --cooldown_secs 0 \
+ --key_selector zipf \
+ --zipf_coefficient 0.0 \
+ --indicus_key_path keys &> ./0_local_test_outputs/client-0.out

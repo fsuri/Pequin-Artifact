@@ -1,0 +1,505 @@
+{
+  "EarliestNewOrder": {
+    "column_names_and_types": [
+      [
+        "eno_w_id",
+        "INTEGER"
+      ],
+      [
+        "eno_d_id",
+        "INTEGER"
+      ],
+      [
+        "eno_o_id",
+        "INTEGER"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-tpcc-data/EarliestNewOrder.csv",
+    "table_name": "EarliestNewOrder"
+  },
+  "customer": {
+    "column_names_and_types": [
+      [
+        "c_w_id",
+        "INT"
+      ],
+      [
+        "c_d_id",
+        "INT"
+      ],
+      [
+        "c_id",
+        "INT"
+      ],
+      [
+        "c_first",
+        "TEXT"
+      ],
+      [
+        "c_middle",
+        "TEXT"
+      ],
+      [
+        "c_last",
+        "TEXT"
+      ],
+      [
+        "c_street_1",
+        "TEXT"
+      ],
+      [
+        "c_street_2",
+        "TEXT"
+      ],
+      [
+        "c_city",
+        "TEXT"
+      ],
+      [
+        "c_state",
+        "TEXT"
+      ],
+      [
+        "c_zip",
+        "TEXT"
+      ],
+      [
+        "c_phone",
+        "TEXT"
+      ],
+      [
+        "c_since",
+        "INT"
+      ],
+      [
+        "c_credit",
+        "TEXT"
+      ],
+      [
+        "c_credit_lim",
+        "INT"
+      ],
+      [
+        "c_discount",
+        "INT"
+      ],
+      [
+        "c_balance",
+        "INT"
+      ],
+      [
+        "c_ytd_payment",
+        "INT"
+      ],
+      [
+        "c_payment_cnt",
+        "INT"
+      ],
+      [
+        "c_delivery_cnt",
+        "INT"
+      ],
+      [
+        "c_data",
+        "TEXT"
+      ]
+    ],
+    "indexes": {
+      "CustomerByName": [
+        0,
+        1,
+        5
+      ]
+    },
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-tpcc-data/customer.csv",
+    "table_name": "customer"
+  },
+  "district": {
+    "column_names_and_types": [
+      [
+        "d_w_id",
+        "INT"
+      ],
+      [
+        "d_id",
+        "INT"
+      ],
+      [
+        "d_name",
+        "TEXT"
+      ],
+      [
+        "d_street_1",
+        "TEXT"
+      ],
+      [
+        "d_street_2",
+        "TEXT"
+      ],
+      [
+        "d_city",
+        "TEXT"
+      ],
+      [
+        "d_state",
+        "TEXT"
+      ],
+      [
+        "d_zip",
+        "TEXT"
+      ],
+      [
+        "d_tax",
+        "INT"
+      ],
+      [
+        "d_ytd",
+        "INT"
+      ],
+      [
+        "d_next_o_id",
+        "INT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-tpcc-data/district.csv",
+    "table_name": "district"
+  },
+  "history": {
+    "column_names_and_types": [
+      [
+        "row_id",
+        "BIGINT"
+      ],
+      [
+        "h_c_id",
+        "INT"
+      ],
+      [
+        "h_c_d_id",
+        "INT"
+      ],
+      [
+        "h_c_w_id",
+        "INT"
+      ],
+      [
+        "h_d_id",
+        "INT"
+      ],
+      [
+        "h_w_id",
+        "INT"
+      ],
+      [
+        "h_date",
+        "INT"
+      ],
+      [
+        "h_amount",
+        "INT"
+      ],
+      [
+        "h_data",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "row_data_path": "sql-tpcc-data/history.csv",
+    "table_name": "history"
+  },
+  "item": {
+    "column_names_and_types": [
+      [
+        "i_id",
+        "INT"
+      ],
+      [
+        "i_im_id",
+        "INT"
+      ],
+      [
+        "i_name",
+        "TEXT"
+      ],
+      [
+        "i_price",
+        "INT"
+      ],
+      [
+        "i_data",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-tpcc-data/item.csv",
+    "table_name": "item"
+  },
+  "new_order": {
+    "column_names_and_types": [
+      [
+        "no_w_id",
+        "INTEGER"
+      ],
+      [
+        "no_d_id",
+        "INTEGER"
+      ],
+      [
+        "no_o_id",
+        "INTEGER"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-tpcc-data/new_order.csv",
+    "table_name": "new_order"
+  },
+  "oorder": {
+    "column_names_and_types": [
+      [
+        "o_w_id",
+        "INTEGER"
+      ],
+      [
+        "o_d_id",
+        "INTEGER"
+      ],
+      [
+        "o_id",
+        "INTEGER"
+      ],
+      [
+        "o_c_id",
+        "INTEGER"
+      ],
+      [
+        "o_entry_d",
+        "INTEGER"
+      ],
+      [
+        "o_carrier_id",
+        "INTEGER"
+      ],
+      [
+        "o_ol_cnt",
+        "INTEGER"
+      ],
+      [
+        "o_all_local",
+        "BOOLEAN"
+      ]
+    ],
+    "indexes": {
+      "OrderByCustomer": [
+        0,
+        1,
+        3
+      ]
+    },
+    "primary_key_col_idx": [
+      0,
+      1,
+      2
+    ],
+    "row_data_path": "sql-tpcc-data/oorder.csv",
+    "table_name": "oorder"
+  },
+  "order_line": {
+    "column_names_and_types": [
+      [
+        "ol_w_id",
+        "INTEGER"
+      ],
+      [
+        "ol_d_id",
+        "INTEGER"
+      ],
+      [
+        "ol_o_id",
+        "INTEGER"
+      ],
+      [
+        "ol_number",
+        "INTEGER"
+      ],
+      [
+        "ol_i_id",
+        "INTEGER"
+      ],
+      [
+        "ol_supply_w_id",
+        "INTEGER"
+      ],
+      [
+        "ol_delivery_d",
+        "INTEGER"
+      ],
+      [
+        "ol_quantity",
+        "INTEGER"
+      ],
+      [
+        "ol_amount",
+        "INTEGER"
+      ],
+      [
+        "ol_dist_info",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "row_data_path": "sql-tpcc-data/order_line.csv",
+    "table_name": "order_line"
+  },
+  "stock": {
+    "column_names_and_types": [
+      [
+        "s_i_id",
+        "INT"
+      ],
+      [
+        "s_w_id",
+        "INT"
+      ],
+      [
+        "s_quantity",
+        "INT"
+      ],
+      [
+        "s_dist_01",
+        "TEXT"
+      ],
+      [
+        "s_dist_02",
+        "TEXT"
+      ],
+      [
+        "s_dist_03",
+        "TEXT"
+      ],
+      [
+        "s_dist_04",
+        "TEXT"
+      ],
+      [
+        "s_dist_05",
+        "TEXT"
+      ],
+      [
+        "s_dist_06",
+        "TEXT"
+      ],
+      [
+        "s_dist_07",
+        "TEXT"
+      ],
+      [
+        "s_dist_08",
+        "TEXT"
+      ],
+      [
+        "s_dist_09",
+        "TEXT"
+      ],
+      [
+        "s_dist_10",
+        "TEXT"
+      ],
+      [
+        "s_ytd",
+        "INT"
+      ],
+      [
+        "s_order_cnt",
+        "INT"
+      ],
+      [
+        "s_remote_cnt",
+        "INT"
+      ],
+      [
+        "s_data",
+        "TEXT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0,
+      1
+    ],
+    "row_data_path": "sql-tpcc-data/stock.csv",
+    "table_name": "stock"
+  },
+  "warehouse": {
+    "column_names_and_types": [
+      [
+        "w_id",
+        "INT"
+      ],
+      [
+        "w_name",
+        "TEXT"
+      ],
+      [
+        "w_street_1",
+        "TEXT"
+      ],
+      [
+        "w_street_2",
+        "TEXT"
+      ],
+      [
+        "w_city",
+        "TEXT"
+      ],
+      [
+        "w_state",
+        "TEXT"
+      ],
+      [
+        "w_zip",
+        "TEXT"
+      ],
+      [
+        "w_tax",
+        "INT"
+      ],
+      [
+        "w_ytd",
+        "INT"
+      ]
+    ],
+    "primary_key_col_idx": [
+      0
+    ],
+    "row_data_path": "sql-tpcc-data/warehouse.csv",
+    "table_name": "warehouse"
+  }
+}

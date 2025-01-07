@@ -144,6 +144,11 @@ public:
     virtual void DispatchTP_main(std::function<void*()> f) = 0;
     virtual void IssueCB(std::function<void(void*)> cb, void* arg) = 0;
     virtual void IssueCB_main(std::function<void(void*)> cb, void* arg) = 0;
+    inline virtual void CancelLoadBonus() {std::cerr << "Cancel_n_Threads not implemented by this transport type" << std::endl;}
+    //Indexed Threadpool
+    virtual void AddIndexedThreads(int num_threads) = 0; 
+    virtual void DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb) = 0;
+    virtual void DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f) = 0; 
 };
 
 class Timeout

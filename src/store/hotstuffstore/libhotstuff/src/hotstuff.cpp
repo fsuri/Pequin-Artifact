@@ -31,6 +31,8 @@ using salticidae::static_pointer_cast;
 
 namespace hotstuff {
 
+static std::mutex decision_mutex;
+
 const opcode_t MsgPropose::opcode;
 MsgPropose::MsgPropose(const Proposal &proposal) { serialized << proposal; }
 void MsgPropose::postponed_parse(HotStuffCore *hsc) {
@@ -113,14 +115,17 @@ void MsgConsensusRespCmd::postponed_parse() {
 
 // TODO: improve this function
 void HotStuffBase::exec_command(uint256_t cmd_hash, commit_cb_t callback) {
+    //std::cerr << "cmd pending enqueue: " << cmd_hash.to_hex() << std::endl;
     cmd_pending.enqueue(std::make_pair(cmd_hash, callback));
 }
 
 void HotStuffBase::exec_ordering1(uint256_t cmd_hash, ordering1_cb_t callback){
+    assert(false);
     ordering1.enqueue(std::make_pair(cmd_hash, callback));
 }
 
 void HotStuffBase::exec_ordering2(uint256_t cmd_hash, ordering2_cb_t callback){
+    assert(false);
     ordering2.enqueue(std::make_pair(cmd_hash, callback));
 }
 
@@ -238,6 +243,9 @@ promise_t HotStuffBase::async_deliver_blk(const uint256_t &blk_hash,
         return promise_t([this, &blk_hash](promise_t pm) {
             pm.resolve(storage->find_blk(blk_hash));
         });
+
+    fprintf(stderr, "[CPU:%d]: Deliver block %d", sched_getcpu());
+
     auto it = blk_delivery_waiting.find(blk_hash);
     if (it != blk_delivery_waiting.end())
         return static_cast<promise_t &>(it->second);
@@ -286,6 +294,7 @@ void HotStuffBase::vote_handler(MsgVote &&msg, const Net::conn_t &conn) {
     if (peer.is_null()) return;
     msg.postponed_parse(this);
     //auto &vote = msg.vote;
+    //fprintf(stderr, "[CPU:%d]: Vote handler\n", sched_getcpu());
     RcObj<Vote> v(new Vote(std::move(msg.vote)));
     promise::all(std::vector<promise_t>{
         async_deliver_blk(v->blk_hash, peer),
@@ -393,7 +402,7 @@ void HotStuffBase::print_stat() const {
     LOG_INFO("====== end stats ======");
 }
 
-HotStuffBase::HotStuffBase(uint32_t blk_size,
+HotStuffBase::HotStuffBase(uint32_t blk_size, uint32_t blk_timeout,
                            uint32_t stable_period,
                            uint32_t liveness_delta,
                     ReplicaID rid,
@@ -412,6 +421,7 @@ HotStuffBase::HotStuffBase(uint32_t blk_size,
         exec_count(0), exec_sent(0),
         listen_addr(listen_addr),
         blk_size(blk_size),
+        batch_timeout(blk_timeout),
         ec(ec),
         tcall(ec),
         vpool(ec, nworker),
@@ -521,23 +531,100 @@ void HotStuffBase::do_consensus(const block_t &blk) {
 void HotStuffBase::do_decide(Finality &&fin) {
     part_decided++;
     state_machine_execute(fin);
+
+        // std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
+        //      // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
+        //      uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
+        //      if(cmd_hash == fin.cmd_hash) {
+        //         std::cerr << "skip dummy cmd" << std::endl;
+        //         return;
+        //      }
+
+    decision_mutex.lock();
     auto it = decision_waiting.find(fin.cmd_hash);
     if (it != decision_waiting.end())
     {
+       // std::cerr << "Has decision waiting: " << fin.cmd_hash.to_hex() << std::endl;
         //it->second(std::move(fin));
         exec_pending.enqueue(std::make_pair(it->second, std::move(fin)));
         decision_waiting.erase(it);
     } else {
         // std::cout << "hotstuff do_decide not finding cmd_hash at height" << fin.cmd_height << std::endl;
+         //std::cerr << "Register decision made... Cant find cmd hash: " << fin.cmd_hash.to_hex() << std::endl;
         decision_made[fin.cmd_hash] = std::make_pair(fin.cmd_idx, fin.cmd_height);
     }
+    decision_mutex.unlock();
 }
 
 HotStuffBase::~HotStuffBase() {}
 
+static std::mutex batch_mutex;
+void HotStuffBase::batch(){
+   
+    
+    batch_mutex.lock();
+
+//         std::string dummy_digest(32, '0'); //+std::to_string(bubbles));
+//    // string dummy_digest = dummy_digest_init.substr(dummy_digest_init.length()-32); //take the last 32 chars
+//    uint256_t cmd_hash((const uint8_t *)dummy_digest.c_str());
+
+    size_t avail = std::min(cmd_pending_buffer.size(), blk_size);
+
+    std :: cerr << "Trigger Batch Timer. Avail cmds: " << avail << ". CPU: " << sched_getcpu() << std::endl;
+
+
+    // //Instead of starting batch.. Try pushing n dummys? Still seg faults..
+    // for(int i =0; i<blk_size-avail;++i){
+    //    auto cb = [this](Finality fin) {
+    //        std::cerr << "Ignore batch dummy" << std::endl;
+    //     };
+
+    //     cmd_pending.enqueue(std::make_pair(cmd_hash, cb));
+    // }
+    // batch_mutex.unlock();
+    // return;
+
+    //TODO: Think what happens if cmds is empty. ==> do_decide will not be called.
+    //TODO: Do we need to fill with dummy? 
+
+
+    std::vector<uint256_t> cmds;
+    for (uint32_t i = 0; i < avail; i++)
+    {
+        cmds.push_back(cmd_pending_buffer.front());
+        cmd_pending_buffer.pop();
+    }
+
+    // if(avail == 0) {
+    //     cmds.push_back(cmd_hash);
+    // std::cerr << "push dummy cmd" << std::endl;
+    // }
+
+    //std::cerr << "wait for pacemaker to beat" << std::endl;
+    pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
+        //std::cerr << "pacemaker beat" << std::endl;
+        if (proposer == get_id()){
+            //std::cerr << "on proposer..." << std::endl;
+            on_propose(cmds, pmaker->get_parents());
+        }
+        else{
+            //std::cerr << "not proposer..." << std::endl;
+        }
+    });
+
+    timer.del();
+    //Start next timer
+    timer = TimerEvent(ec, [this](TimerEvent &){
+        batch();
+    });
+    timer.add_m(batch_timeout);
+    batch_mutex.unlock();
+}
+
 void HotStuffBase::start(
         std::vector<std::tuple<NetAddr, pubkey_bt, uint256_t>> &&replicas,
         bool ec_loop) {
+   
     for (size_t i = 0; i < replicas.size(); i++)
     {
         auto &addr = std::get<0>(replicas[i]);
@@ -560,6 +647,10 @@ void HotStuffBase::start(
         LOG_WARN("too few replicas in the system to tolerate any failure");
     on_init(nfaulty);
     pmaker->init(this);
+
+    //batch_thread = std::thread([this]() { ecb.dispatch(); });
+    
+    std::cerr << "Ec loop: " << ec_loop << std::endl;
     if (ec_loop)
         ec.dispatch();
 
@@ -643,59 +734,143 @@ void HotStuffBase::start(
              return false;
      });
 
+
     exec_pending.reg_handler(ec, [this](exec_queue_t &q) {
         std::pair<commit_cb_t, Finality> e;
+
         while (q.try_dequeue(e))
         {
+            //std::cerr << "exec cmd hash: " << e.second.cmd_hash.to_hex() << std::endl;
             // execute the command
+            //std::cerr << "try execute" << std::endl;
             e.first(e.second);
+            //std::cerr << "complete execute" << std::endl;
         }
         return false;
     });
 
     cmd_pending.reg_handler(ec, [this](cmd_queue_t &q) {
+        //std::cerr << "pending req handler: Core: " << sched_getcpu() << std::endl;
         std::pair<uint256_t, commit_cb_t> e;
         while (q.try_dequeue(e))
         {
+
             ReplicaID proposer = pmaker->get_proposer();
             const auto &cmd_hash = e.first;
 
+           // std::cerr << "dequeue cmd hash: " << cmd_hash.to_hex() << std::endl;
+
+            decision_mutex.lock();
+
             // Fix bug triggered by Indicus
             if (decision_made.count(cmd_hash)) {
-                // command has been committed
+                  // command has been committed
                 auto seqinfo = decision_made[cmd_hash];
+
+                //std::cerr << "dequeue cmd hash: " << cmd_hash.to_hex() << "already has decision. seq info:" << seqinfo.first << "." << seqinfo.second << std::endl;
+              
                 //e.second(Finality(id, 0, 0, height, cmd_hash, uint256_t()));
                 exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, seqinfo.first, seqinfo.second, cmd_hash, uint256_t())));
+                decision_mutex.unlock();
                 continue;
             }
-            
+
             auto it = decision_waiting.find(cmd_hash);
 
             if (it == decision_waiting.end())
+            {
                 it = decision_waiting.insert(std::make_pair(cmd_hash, e.second)).first;
-            else
+                //std::cerr << "register decision waiting cmd hash: " << cmd_hash.to_hex() << std::endl;
+            }
+            else{
                 //e.second(Finality(id, 0, 0, 0, cmd_hash, uint256_t()));
-                exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
+                std::cerr << "register 0.0 seq info for cmd hash: " << cmd_hash.to_hex() << std::endl;
+                //exec_pending.enqueue(std::make_pair(e.second, Finality(id, 0, 0, 0, cmd_hash, uint256_t())));
+            }
+            decision_mutex.unlock();
 
             if (proposer != get_id()) continue;
+            //std::cerr << "Current proposer: Replica: " << std::endl;
+            batch_mutex.lock();
             cmd_pending_buffer.push(cmd_hash);
-            if (cmd_pending_buffer.size() >= blk_size)
-            {
-                std::vector<uint256_t> cmds;
-                for (uint32_t i = 0; i < blk_size; i++)
-                {
-                    cmds.push_back(cmd_pending_buffer.front());
-                    cmd_pending_buffer.pop();
-                }
-                pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
 
-                    if (proposer == get_id())
-                        on_propose(cmds, pmaker->get_parents());
-                });
+            //Re-factor of Batching process: Instead of creating batches and then triggering pacemaker. Trigger pacemaker and let pacemaker create batches of whatever is available.
+            batch_mutex.unlock();
+            continue;
+            //END REFACTOR
+            
+            // if (cmd_pending_buffer.size() >= blk_size)
+            // {
+            //      //std::cerr << "enough to fill batch!" << std::endl;
+            //     // std::cerr << "CPU: " << sched_getcpu() << std::endl;
+            //     //timer.del(); //stop current batch timer.
+            //      //std::cerr << "stopped timer" << std::endl;
 
-                return true;
-            }
+            //     std::vector<uint256_t> cmds;
+            //     for (uint32_t i = 0; i < blk_size; i++)
+            //     {
+            //         cmds.push_back(cmd_pending_buffer.front());
+            //         cmd_pending_buffer.pop();
+            //     }
+
+            //     pmaker->beat().then([this, cmds = std::move(cmds)](ReplicaID proposer) {
+
+            //        // std::cerr << "pacemaker beat" << std::endl;
+            //         if (proposer == get_id()){
+            //             //std::cerr << "on proposer..." << std::endl;
+            //             on_propose(cmds, pmaker->get_parents());
+            //         }
+            //         else{
+            //             //std::cerr << "not proposer..." << std::endl;
+            //         }
+            //     });
+
+            //     // Start a batch timer
+            //     // timer = TimerEvent(ec, [this](TimerEvent &){
+            //     //     batch();
+            //     // });
+            //     // timer.add_m(batch_timeout);
+
+            //     batch_mutex.unlock();
+            //     return true;
+            // }
+            // // else if(!timer){ //If we have no timer: start the first batch timer
+            // //     std :: cerr << "Start first batch timer " << std::endl;
+            // //     timer = TimerEvent(ec, [this](TimerEvent &){
+            // //         batch();
+            // //     });
+            // //     timer.add_m(batch_timeout);
+            // // }
+            // batch_mutex.unlock();
+      
+            
         }
+
+        //TODO: Ideally beat gets triggered without having to add anything new (for pipelining)
+        // Add all available commands to buffer. Then trigger next beat. Upon beat: pick up to batch size many commands to propose
+        pmaker->beat().then([this](ReplicaID proposer) {
+            //std::cerr << "pacemaker: Core: " << sched_getcpu() << std::endl;
+            batch_mutex.lock();
+
+            //std::cerr << "avail cmds: " << cmd_pending_buffer.size() << std::endl;
+            size_t avail = std::min(cmd_pending_buffer.size(), blk_size);
+            //std::cerr << "propose cmds: " << avail << std::endl;
+
+            std::vector<uint256_t> cmds;
+            for (uint32_t i = 0; i < avail; i++)
+            {
+                cmds.push_back(cmd_pending_buffer.front());
+                cmd_pending_buffer.pop();
+            }
+
+            batch_mutex.unlock();
+
+            
+            if (proposer == get_id()){
+                on_propose(cmds, pmaker->get_parents());
+            }
+        });
+
         return false;
     });
 
@@ -727,7 +902,6 @@ void HotStuffBase::start(
          return false;
     });
 
-
      ordering2.reg_handler(ec, [this](ordering2_queue_t &q) {
          std::pair<uint256_t, ordering2_cb_t> e;
 
@@ -756,6 +930,7 @@ void HotStuffBase::start(
               SigSecp256k1 sig2(secp256k1_default_verify_ctx);
               s1 >> sig2;
 
+             fprintf(stderr, "[CPU:%d]: Ordering2", sched_getcpu());
               // a dummy implementation simulating the workload of decrypting 2f+1 timestamps
               uint32_t nfaulty = peers.size() / 3;
               for (int i = 0; i < 2*nfaulty+1; i++) {
@@ -767,6 +942,7 @@ void HotStuffBase::start(
          }
          return false;
     });
+
 
 }
 

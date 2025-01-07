@@ -63,6 +63,12 @@ public:
                 const Message &m) override
     {
         const ADDR &dstAddr = dynamic_cast<const ADDR &>(dst);
+
+        // const ADDR *srcAddr = dynamic_cast<const ADDR *>(src->GetAddress());
+        // if (*srcAddr == dstAddr) {
+        //     Panic("Sending message to self");
+        // }
+
         return SendMessageInternal(src, dstAddr, m);
     }
 
@@ -92,7 +98,18 @@ public:
         //mtx.unlock();
 
         auto kv = replicaAddresses[cfg][groupIdx].find(replicaIdx);
-        UW_ASSERT(kv != replicaAddresses[cfg][groupIdx].end());
+        //UW_ASSERT(kv != replicaAddresses[cfg][groupIdx].end());
+        if(kv == replicaAddresses[cfg][groupIdx].end()){
+            for(auto &[grp, repl]: replicaAddresses[cfg]){
+        
+                    Notice("G[%d]", grp);
+                    for(auto &[r, _]: repl){
+                        Notice("  R[%d]", r);
+                    }
+            
+            }
+            Panic("replicaIdx: %d. groupIdx: %d", replicaIdx, groupIdx);
+        }
 
         return SendMessageInternal(src, kv->second, m);
     }

@@ -98,9 +98,9 @@ bool Verify(PubKey* publicKey, const char *message, size_t messageLen,
 bool BatchVerify(KeyType t, PubKey* publicKeys[], const char *messages[], size_t messageLens[], const char *signatures[], int num, int *valid);
 bool BatchVerifyS(KeyType t, PubKey* publicKeys[], string* messages[], size_t messageLens[], string* signatures[], int num, int *valid);
 
-std::string HMAC(std::string message, std::string key);
+std::string HMAC(const std::string &message, const std::string &key);
 
-bool verifyHMAC(std::string message, std::string mac, std::string key);
+bool verifyHMAC(const std::string &message, const std::string &mac, const std::string &key);
 
 void SavePublicKey(const string &filename, PubKey* key);
 
@@ -111,6 +111,9 @@ PubKey* LoadPublicKey(const string &filename, KeyType t, bool precompute);
 PrivKey* LoadPrivateKey(const string &filename, KeyType t, bool precompute);
 
 std::pair<PrivKey*, PubKey*> GenerateKeypair(KeyType t, bool precompute);
+
+void FreePubKey(PubKey *pubKey, bool free_generated = false);
+void FreePrivKey(PrivKey *privKey);
 
 // TODO should have canonical serialization for this to be correct,
 // but this should be fine for now

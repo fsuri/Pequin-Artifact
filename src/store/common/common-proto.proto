@@ -8,11 +8,26 @@ message TimestampMessage {
 message ReadMessage {
     required bytes key = 1;
     optional TimestampMessage readtime = 2;
+    optional bool is_table_col_version = 3;  //exclude this key from CC. only for locking and stat-keeping purposes
+    
 }
 
 message WriteMessage {
-    required bytes key = 1;
-    required bytes value = 2;
+    required bytes key = 1;   //Key-value store key -- Can be decoded into table key.
+    //required bytes value = 2;
+    //oneof write_value {  //TODO: In prepare and commit: must add has_value() checks.
+    optional bytes value = 2;
+        //TableWrite table_writes = 3;
+    
+    optional RowUpdates rowupdates = 3;  //Table name and primary key cols are included in key encoding. //NOTE: WriteMessage is just using row_idx field currently
+    //}
+  
+    //exclude this key from CC. used for locking and stat-keeping purposes, and to skip CC-store application of Table/Col versions until after writes are applied
+    optional bool is_table_col_version = 4; 
+}
+
+message QueryMessage {
+    required bytes query = 1;
 }
 
 message PingMessage {
@@ -23,4 +38,49 @@ message PingMessage {
 message TransactionMessage {
     repeated ReadMessage readset = 1;
     repeated WriteMessage writeset = 2;
+}
+
+
+
+//Table Writes.  -- Alternatively -- add optional RowUpdates field
+message RowUpdates {
+    //Version 1 (DEPRECATED)
+    map<string, bytes> attribute_writes = 1; //map from attribute name to new value (in bytes for general encoding) //TODO: Maybe re-factor this to hold column id instead of name -- or to be in order
+    optional TimestampMessage readtime = 2; //version of the row that was read (optional: for ReadModWrites) in order to fetch remaining row values (in case an update only updates some columns)
+    
+    //Version 2: Use only this. --> use column names from TableWrite
+    optional bool deletion = 3;
+    repeated bytes column_values = 4;
+
+    //This is super hacky, but these just allows us to easily lookup the row from a write key, and vice versa
+    optional int32 row_idx = 5; //Idx of the RowUpdate (stored by writeset) (used to find correct row update from WriteMessage for proof
+    //Note: This only works if we are NOT sorting the write set. If we are, then the assigned index may be wrong. (Need to either fix it post sorting, or not use this)
+    optional int32 write_set_idx = 6; //Idx of the write set entry == encoded key (stored by TableWrites) //
+
+    optional bool not_relevant_to_local_shard = 7; //LOCAL marker: Don't need to store this RowUpdate
+}
+
+message TableWrite {
+    //Version 1 (DEPRECATED)
+    map<string, RowUpdates> row_updates = 1; //map from row-name to all attribute writes
+
+    //Version 2: Use only this:
+
+    //Note: Currently all this meta data is optional. ONLY using rows. (We expect all columns to be written each time)
+    repeated string column_names = 2;  //store column names in order
+    repeated bool column_quotes = 3;
+    repeated uint32 col_primary_idx = 4 ; //TODO: might not even need column names at all, just store primary col names then. Must make sure col_values are in schema order.
+
+    //IN USE:
+    repeated RowUpdates rows = 5;            // each RowUpdate stores the column values in order.
+    optional bool changed_table = 6;         //Records locally at client whether or not the table was changed (i.e. whether to set Tableversion)
+   
+    //repeated string primary_cols = 5;
+
+    optional bool not_relevant_to_local_shard = 7; //LOCAL marker: Don't need to store this TableWrite.
+}
+
+//Deprecated -- unused.
+message TableWrites {
+    map<string, TableWrite> tablewrites= 1; //map from table name to all writes for this table.
 }

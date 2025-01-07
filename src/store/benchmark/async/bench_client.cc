@@ -103,8 +103,7 @@ void BenchmarkClient::TimeInterval() {
 
 void BenchmarkClient::WarmupDone() {
   started = true;
-  Notice("Completed warmup period of %d seconds with %d requests", warmupSec,
-      n);
+  Notice("Completed warmup period of %d seconds with %d requests", warmupSec, n);
   n = 0;
 }
 
@@ -181,7 +180,11 @@ void BenchmarkClient::IncrementSent(int result) {
           //std::cout << "#start," << startMeasureTime.tv_sec << "," << startMeasureTime.tv_usec << std::endl;
         }
         uint64_t currNanos = curr.tv_sec * 1000000000ULL + curr.tv_nsec;
-        std::cout << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
+
+        std::stringstream msg;
+        msg << GetLastOp() << ',' << ns << ',' << currNanos << ',' << id << std::endl;
+        std::cout << msg.str();
+        std::cout.flush(); //Note: Since endl is now done in the stringstream, rather than cout, cout doesn't flush by default
         latencies.push_back(ns);
       }
     }
@@ -193,12 +196,15 @@ void BenchmarkClient::IncrementSent(int result) {
       struct timeval diff = timeval_sub(currTime, startTime);
       if (diff.tv_sec > expDuration - cooldownSec && !cooldownStarted) {
         Debug("Starting cooldown after %ld seconds.", diff.tv_sec);
+        Notice("Starting cooldown after %ld seconds.", diff.tv_sec);
         Finish();
       } else if (diff.tv_sec > expDuration) {
         Debug("Finished cooldown after %ld seconds.", diff.tv_sec);
+        //Notice("Finished cooldown after %ld seconds.", diff.tv_sec);
         CooldownDone();
       } else {
         Debug("Not done after %ld seconds.", diff.tv_sec);
+        //Notice("Not done after %ld seconds.", diff.tv_sec);
       }
     } else if (n >= numRequests){
       CooldownDone();
@@ -212,7 +218,11 @@ void BenchmarkClient::Finish() {
   gettimeofday(&endTime, NULL);
   struct timeval diff = timeval_sub(endTime, startMeasureTime);
 
-  std::cout << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  std::stringstream msg;
+  msg << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  std::cout << msg.str();
+  //std::cout << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
+  //std::osyncstream(std::cout) << "#end," << diff.tv_sec << "," << diff.tv_usec << "," << id << std::endl;
 
   Notice("Completed %d requests in " FMT_TIMEVAL_DIFF " seconds", n,
       VA_TIMEVAL_DIFF(diff));

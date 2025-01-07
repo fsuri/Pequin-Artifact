@@ -30,6 +30,7 @@
 #include <iostream>
 #include <random>
 #include <thread>
+#include <sys/time.h>
 
 SyncTransactionBenchClient::SyncTransactionBenchClient(SyncClient &client,
     Transport &transport, uint64_t id, int numRequests, int expDuration,
@@ -51,12 +52,27 @@ void SyncTransactionBenchClient::SendNext() {
   SendNext(&result);
 }
 
+
+static int tries = 0;
 void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
   currTxn = GetNextTransaction();
   currTxnAttempts = 0;
   *result = ABORTED_SYSTEM; // default to failure
   while (true) {
-    *result = currTxn->Execute(client);
+    try {
+      *result = currTxn->Execute(client);
+    }
+    catch (const std::exception& e) {
+      // std::cerr << "Caught an exception: " << e.what() << std::endl;
+      Notice("catch abort. Will retry last TX");
+      *result = ABORTED_SYSTEM; //ABORTED_USER;
+    }
+    catch(...){
+      Panic("Caught misfire in Tx");
+    }
+    //usleep(10000); //sleep 10 miliseconds to guarantee Tx are sequential FIXME: THIS IS PURELY fOR DEBUGGING PURPOSES
+    // Panic("stop after one");
+    //if(++tries==2) Panic("stop after two");
     stats.Increment(GetLastOp() + "_attempts", 1);
     ++currTxnAttempts;
     if (*result == COMMITTED || *result == ABORTED_USER
@@ -74,17 +90,19 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
       currTxn = nullptr;
       break;
     } else {
+      
       stats.Increment(GetLastOp() + "_" + std::to_string(*result), 1);
       uint64_t backoff = 0;
       if (abortBackoff > 0) {
         uint64_t exp = std::min(currTxnAttempts - 1UL, 56UL);
-        uint64_t upper = std::min((1UL << exp) * static_cast<uint64_t>(abortBackoff),
-            maxBackoff);
+        uint64_t upper = std::min((1UL << exp) * static_cast<uint64_t>(abortBackoff), maxBackoff);
         backoff = std::uniform_int_distribution<uint64_t>(upper >> 1, upper)(GetRand());
         stats.Increment(GetLastOp() + "_backoff", backoff);
         Debug("Backing off for %lums", backoff);
       }
+      Debug("TXN was aborted. Need to retry. First backoff for milisecs: %d", backoff);
       std::this_thread::sleep_for(std::chrono::milliseconds(backoff));
+      //std::cerr << "Woke up, continue!" << std::endl;
     }
   }
   Debug("Transaction finished with result %d.", *result);

@@ -1,3 +1,5 @@
+#include <filesystem>
+
 #include "indicus_interface.h"
 #include "hotstuff_app.cpp"
 
@@ -7,21 +9,43 @@ namespace hotstuff {
 
 namespace hotstuffstore {
 
+    void IndicusInterface::register_smr_callback(smr_callback smr_cb){
+        hotstuff_papp->register_smr_callback(smr_cb);    
+    }
+
     void IndicusInterface::propose(const std::string& hash, hotstuff_exec_callback execb) {
-        //std::cout << "############# HotStuff Interface #############" << std::endl;
+        // std::cout << "############# HotStuff Interface #############" << std::endl;
         hotstuff_papp->interface_propose(hash, execb);
     }
 
-    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId):
-        shardId(shardId), replicaId(replicaId), cpuId(cpuId)
+    IndicusInterface::IndicusInterface(int shardId, int replicaId, int cpuId, bool local_config):
+        shardId(shardId), replicaId(replicaId), cpuId(cpuId), local_config(local_config)
     {
 
         hotstuff::hotstuff_core_offset = (cpuId + 4) % 8;
 
-        string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
+        string config_dir_base = REMOTE_CONFIG_DIR;
+       
 
-        string config_file = config_dir + "hotstuff.gen.conf";
+        if (local_config){
+            std::cerr << "using local config (hotstuffstore)\n";
+            auto curr_path=std::filesystem::current_path();
+            auto target_dir="src";
+            while (!curr_path.empty()) {
+                // Check if the current path contains the "target_dir" directory
+                if (std::filesystem::is_directory(curr_path / target_dir)) {
+                    break; // Found 'src', no need to continue searching
+                }
+                curr_path = curr_path.parent_path();
+            }
+    
+            config_dir_base=std::filesystem::path(curr_path / target_dir/"scripts/config/local_config/");
+        }
+    
+        string config_dir = config_dir_base + "shard" + std::to_string(shardId) + "/";
+       
         string key_file = config_dir + "hotstuff.gen-sec" + std::to_string(replicaId) + ".conf";
+        string config_file = config_dir + "hotstuff.gen.conf";
 
         char* argv[4];
         char arg1[200];
@@ -34,8 +58,8 @@ namespace hotstuffstore {
         argv[1] = arg1;
         argv[2] = "--conf";
         argv[3] = arg3;
-
-        std::cout << std::endl << "############## HotStuff Config: " << config_file << "   " << key_file << std::endl << std::endl;
+       
+        std::cerr << std::endl << "############## HotStuff Config (hotstuffstore): " << config_file << "   " << key_file << std::endl << std::endl;
 
         initialize(4, argv);
     }
@@ -48,6 +72,7 @@ namespace hotstuffstore {
         elapsed.start();
 
         auto opt_blk_size = Config::OptValInt::create(1);
+        auto opt_blk_timeout = Config::OptValInt::create(5);
         auto opt_parent_limit = Config::OptValInt::create(-1);
         auto opt_stat_period = Config::OptValDouble::create(10);
         auto opt_replicas = Config::OptValStrVec::create();
@@ -72,6 +97,7 @@ namespace hotstuffstore {
         auto opt_max_cli_msg = Config::OptValInt::create(65536); // 64K by default
 
         config.add_opt("block-size", opt_blk_size, Config::SET_VAL);
+        config.add_opt("block-timeout", opt_blk_timeout, Config::SET_VAL);
         config.add_opt("parent-limit", opt_parent_limit, Config::SET_VAL);
         config.add_opt("stat-period", opt_stat_period, Config::SET_VAL);
         config.add_opt("replica", opt_replicas, Config::APPEND, 'a', "add an replica to the list");
@@ -95,6 +121,7 @@ namespace hotstuffstore {
         config.add_opt("max-cli-msg", opt_max_cli_msg, Config::SET_VAL, 'S', "the maximum client message size");
         config.add_opt("help", opt_help, Config::SWITCH_ON, 'h', "show this help info");
 
+
         EventContext ec;
         config.parse(argc, argv);
         if (opt_help->get())
@@ -114,7 +141,7 @@ namespace hotstuffstore {
             }
 
         if (!(0 <= idx && (size_t)idx < replicas.size())) {
-            std::cout << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
+            std::cerr << "########## OUT OF RANGE INDEX: " << idx << " < " << replicas.size() << std::endl;
             throw HotStuffError("replica idx out of range");
         }
         std::string binding_addr = std::get<0>(replicas[idx]);
@@ -133,10 +160,15 @@ namespace hotstuffstore {
 
         auto parent_limit = opt_parent_limit->get();
         hotstuff::pacemaker_bt pmaker;
-        if (opt_pace_maker->get() == "dummy")
+        if (opt_pace_maker->get() == "dummy"){
+            std::cerr << "USING DUMMY PACEMAKER" << std::endl;
             pmaker = new hotstuff::PaceMakerDummyFixed(opt_fixed_proposer->get(), parent_limit);
-        else
+        }
+        else{
+            std::cerr << "USING ROUND-ROBIN PACEMAKER" << std::endl;  //Note: It appears that the RR pacemaker performs better. 
             pmaker = new hotstuff::PaceMakerRR(ec, parent_limit, opt_base_timeout->get(), opt_prop_delay->get());
+        }
+        std::cerr << "HOTSTUFF BLOCK SIZE IS: "<<  opt_blk_size->get() << std::endl;  
 
         HotStuffApp::Net::Config repnet_config;
         ClientNetwork<opcode_t>::Config clinet_config;
@@ -161,7 +193,7 @@ namespace hotstuffstore {
         clinet_config
             .burst_size(opt_cliburst->get())
             .nworker(opt_clinworker->get());
-        hotstuff_papp = new HotStuffApp(opt_blk_size->get(),
+        hotstuff_papp = new HotStuffApp(opt_blk_size->get(), opt_blk_timeout->get(),
                                opt_stat_period->get(),
                                opt_imp_timeout->get(),
                                idx,
@@ -190,16 +222,18 @@ namespace hotstuffstore {
 
         hotstuff_papp->start(reps);
 
+        //hotstuff_papp->interface_entry();
         // spawning a new thread to run hotstuff logic asynchronously
         std::thread t([this](){
-                cpu_set_t cpuset;
-                CPU_ZERO(&cpuset);
-                CPU_SET(cpuId, &cpuset);
-                pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
-                std::cout << "HotStuff runs on CPU" << cpuId << std::endl;
+                // cpu_set_t cpuset;
+                // CPU_ZERO(&cpuset);
+                // CPU_SET(cpuId, &cpuset);
+                // pthread_setaffinity_np(pthread_self(),	sizeof(cpu_set_t), &cpuset);
+                // std::cerr << "HotStuff runs on CPU" << cpuId << std::endl;
                 hotstuff_papp->interface_entry();
                 //elapsed.stop(true);
             });
         t.detach();
     }
+
 }

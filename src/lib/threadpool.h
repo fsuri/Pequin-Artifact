@@ -39,6 +39,8 @@
 #include "concurrentqueue/concurrentqueue.h"
 #include "concurrentqueue/blockingconcurrentqueue.h"
 //#include "tbb/concurrent_queue.h"
+#include "tbb/concurrent_unordered_map.h"
+#include "tbb/concurrent_hash_map.h"
 
 //using namespace tbb;
 
@@ -51,16 +53,25 @@ public:
   // copy constructor panics
   ThreadPool(const ThreadPool& tp) { Panic("Unimplemented"); }
 
-  void start(int process_id=0, int total_processes=1, bool hyperthreading =  true, bool server = true, int mode = 0);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
+  void start(int process_id = 0, int total_processes = 1, bool hyperthreading = true, bool server = true, int mode = 0, bool optimize_for_dev_machine = false);  // 0 = Indicus, 1 = Hotstuff, 2 = BFTSmart
   void stop();
+
+  inline void cancel_load_threads(){load_running=false;}
 
   void dispatch(std::function<void*()> f, std::function<void(void*)> cb, event_base* libeventBase);
   void dispatch_local(std::function<void*()> f, std::function<void(void*)> cb);
-  void detatch(std::function<void*()> f);
-  void detatch_ptr(std::function<void*()> *f);
-  void detatch_main(std::function<void*()> f);
+  void detach(std::function<void*()> f);
+  void detach_ptr(std::function<void*()> *f);
+  void detach_main(std::function<void*()> f);
   void issueCallback(std::function<void(void*)> cb, void* arg, event_base* libeventBase);
   void issueMainThreadCallback(std::function<void(void*)> cb, void* arg);
+
+  //void cancel_n_threads(uint64_t n);
+
+  //Indexed threadpool
+  void add_n_indexed(int num_threads); 
+  void dispatch_indexed(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb, event_base *libeventBase);
+  void detach_indexed(uint64_t id, std::function<void *()> f); 
 
 private:
 
@@ -89,11 +100,17 @@ private:
   std::vector<event*> events;
   
   bool running;
+  bool load_running;
   std::vector<std::thread*> threads;
 
   moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>> worker_thread_request_list;
   moodycamel::BlockingConcurrentQueue<std::function<void*()>> main_thread_request_list;
 
+  //For indexed threadpool
+  std::atomic_uint64_t total_indexed_workers;
+  // typedef tbb::concurrent_hash_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  typedef tbb::concurrent_unordered_map<uint64_t, moodycamel::BlockingConcurrentQueue<std::pair<std::function<void*()>, EventInfo*>>> IndexWorkerMap;
+  IndexWorkerMap indexed_worker_thread_request_list;
 };
 
 #endif  // _LIB_THREADPOOL_H_

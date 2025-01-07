@@ -13,7 +13,7 @@ sudo apt-get upgrade
 
 sudo apt install python3-pip
 sudo -H pip3 install numpy
-sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant
+sudo apt-get install autoconf automake libtool curl make g++ unzip valgrind cmake gnuplot pkg-config ant parallel
 
 echo "$(tput setaf 2) COMPLETE: GENERAL PRE-REQ $(tput sgr0)"
 read -p "Press enter to continue"
@@ -22,13 +22,61 @@ echo ""
 #Development library dependencies
 echo "Installing Development library dependencies"
 echo ""
-sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev
+sudo apt install libsodium-dev libgflags-dev libssl-dev libevent-dev libevent-openssl-2.1-7 libevent-pthreads-2.1-7 libboost-all-dev libuv1-dev libpq-dev postgresql-server-dev-all libfmt-dev libreadline-dev libeigen3-dev libboost-all-dev
 echo "$(tput setaf 2) COMPLETE: GENERAL DEVELOPMENT LIB DEPS $(tput sgr0)"
 echo ""
 read -p "Press enter to continue"
 
 mkdir dependencies
 cd dependencies
+
+#Optional: Hoard
+#echo "Installing Hoard Allocator"
+#echo ""
+#sudo apt-get install clang
+#git clone https://github.com/emeryberger/Hoard
+#cd Hoard
+#cd src
+#make
+#sudo cp libhoard.so /usr/local/lib
+#sudo echo 'export LD_PRELOAD=/usr/local/lib/libhoard.so' >>~/.bashrc
+#export LD_PRELOAD=/usr/local/lib/libhoard.so
+#cd ../..
+
+#Optional: Jemalloc
+echo "Installing Jemalloc Allocator"
+echo ""
+git clone https://github.com/jemalloc/jemalloc.git
+cd jemalloc
+./autogen.sh
+make
+sudo make install
+
+sudo echo 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so' >>~/.bashrc
+export LD_PRELOAD=/usr/local/lib/libjemalloc.so
+cd ..
+
+#Installing taopq
+echo "Installing TaoPq"
+echo ""
+git clone https://github.com/taocpp/taopq.git
+cd taopq
+git checkout 943d827
+sudo cmake .
+sudo cmake --build . -j $(nproc)
+sudo make install
+sudo ldconfig
+cd ..
+
+#Installing nlohman/json
+echo "Installing Nlohman/Json"
+echo ""
+git clone https://github.com/nlohmann/json.git
+cd json
+cmake .
+sudo make install
+sudo ldconfig
+cd ..
 
 #googletest
 echo "Installing googletest"
@@ -120,17 +168,61 @@ sudo ldconfig
 cd ..
 echo "$(tput setaf 2) COMPLETE: ed25519-donna $(tput sgr0)"
 echo ""
-read -p "Press enter to continue -- Manual interaction required: See install guide IntelTBB"
+read -p "Press enter to continue"
 
+###################
+echo "Installing Peloton dependencies"
+echo ""
+
+echo "--libcount"
+echo ""
+git clone https://github.com/dialtr/libcount
+cd libcount
+sudo make
+sudo make install
+cd ..
+
+echo "--libpg_query"
+echo ""
+git clone https://github.com/cmu-db/peloton.git
+cd peloton/third_party/libpg_query
+sudo make
+cd ..
+sudo cp -r libpg_query /usr/local/include
+sudo cp libpg_query/libpg_query.a /usr/local/lib
+
+echo "--libcuckoo"
+echo ""
+sudo cp -r libcuckoo /usr/local/include
+
+echo "--date"
+echo ""
+sudo cp -r date /usr/local/include
+
+echo "--adaptive_radix_tree"
+echo ""
+sudo cp -r adaptive_radix_tree /usr/local/include
+
+sudo ldconfig
+cd ../..
+
+echo "$(tput setaf 2) COMPLETE: Peloton deps $(tput sgr0)"
+echo ""
+
+########################
+
+read -p "Press enter to continue -- Manual interaction required for the next step: See install guide, section IntelTBB"
 #IntelTBB
 echo "Installing Intel TBB"
 echo ""
 apt -y install ncurses-term
-wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
-sudo bash l_BaseKit_p_2021.3.0.3219.sh
+wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/e6ff8e9c-ee28-47fb-abd7-5c524c983e1c/l_BaseKit_p_2024.2.1.100.sh --no-check-certificate
+sudo bash l_BaseKit_p_2024.2.1.100.sh
+#wget https://registrationcenter-download.intel.com/akdlm/irc_nas/17977/l_BaseKit_p_2021.3.0.3219.sh
+#sudo bash l_BaseKit_p_2021.3.0.3219.sh
 cd ~
 source /opt/intel/oneapi/setvars.sh
-echo source /opt/intel/oneapi/setvars.sh --force >> ~/.bashrc
+echo source /opt/intel/oneapi/setvars.sh --force >>~/.bashrc
 source ~/.bashrc
 echo "$(tput setaf 2) COMPLETE: IntelTBB $(tput sgr0)"
 echo ""
@@ -142,11 +234,26 @@ echo ""
 sudo apt-get install openjdk-11-jdk
 export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH
 sudo ldconfig
+sudo echo 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-1.11.0-openjdk-amd64/lib/server:$LD_LIBRARY_PATH' >>~/.bashrc
 echo "$(tput setaf 2) TODO: SEE MANUAL INSTALLATION REQ BFT-SMART $(tput sgr0)"
 
+read -p "Press enter to continue"
+#CockroachDB
+echo "Installing CockroachDB"
+echo ""
+sudo mkdir -p /usr/local/lib/cockroach
+wget https://binaries.cockroachdb.com/cockroach-v22.2.2.linux-amd64.tgz --no-check-certificate
+tar -xf cockroach-v22.2.2.linux-amd64.tgz
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/lib/libgeos_c.so /usr/local/lib/cockroach/
+sudo cp -i cockroach-v22.2.2.linux-amd64/cockroach /usr/local/bin
+
+read -p "Press enter to continue"
+#PostgreSQL
+echo "Installing PostgreSQL"
+echo ""
+sudo apt install postgresql-12
 
 echo ""
+source ~/.bashrc
 echo "$(tput setaf 2) FINISHED INSTALLATION: SUCCESS $(tput sgr0)"
-
-
-

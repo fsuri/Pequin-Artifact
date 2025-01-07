@@ -592,6 +592,11 @@ void ShardClient::SignedPrepare(const proto::Transaction& txn, signed_prepare_ca
     Debug("Sending txn to all replicas in shard");
     transport->SendMessageToGroup(this, group_idx, request);
 
+    // for (size_t i = 0; i < config.f+1; ++i) {
+    //   Debug("[group %i] Sending GET to replica %lu", group_idx, i);
+    //   transport->SendMessageToReplica(this, group_idx, i, request);
+    // }
+
     // struct timeval tv;
     // gettimeofday(&tv, NULL);
     // start_time = (tv.tv_sec*1000000+tv.tv_usec);  //in microseconds

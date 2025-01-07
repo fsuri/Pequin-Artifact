@@ -75,7 +75,7 @@ public:
     TCPTransport(double dropRate = 0.0, double reogrderRate = 0.0,
                     int dscp = 0, bool handleSignals = true,
                      int process_id = 0, int total_processes = 1,
-                     bool hyperthreading = true, bool server = true, int mode = 0);
+                     bool hyperthreading = true, bool server = true, int mode = 0, bool optimize_tpool_for_dev_machine = false);
     virtual ~TCPTransport();
     virtual void Register(TransportReceiver *receiver,
                   const transport::Configuration &config,
@@ -100,6 +100,11 @@ public:
     void DispatchTP_main(std::function<void*()> f);
     void IssueCB(std::function<void(void*)> cb, void* arg);
     void IssueCB_main(std::function<void(void*)> cb, void* arg);
+    void CancelLoadBonus() override;
+    //Indexed Threadpool
+    void AddIndexedThreads(int num_threads); 
+    void DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb);
+    void DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f); 
 
     TCPTransportAddress
     LookupAddress(const transport::Configuration &cfg,
@@ -117,6 +122,7 @@ public:
 private:
     int TimerInternal(struct timeval &tv, timer_callback_t cb);
     std::shared_mutex mtx;
+    std::shared_mutex timer_mtx;
     struct TCPTransportTimerInfo
     {
         TCPTransport *transport;

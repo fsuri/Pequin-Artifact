@@ -32,6 +32,7 @@
 #ifndef _INDICUS_SERVER_H_
 #define _INDICUS_SERVER_H_
 
+#include "lib/message.h"
 #include "lib/latency.h"
 #include "lib/transport.h"
 #include "store/common/backend/pingserver.h"
@@ -161,6 +162,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     proto::Transaction* txn, void* valid); //bool valid);
   
   //Handle Abort during Execution
+  void ManageDispatchAbort(const TransportAddress &remote, const std::string &data);
   void HandleAbort(const TransportAddress &remote, const proto::Abort &msg);
 
   //Fallback handler functions
@@ -411,6 +413,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   proto::Phase1 *GetUnusedPhase1message();
   proto::Phase2 *GetUnusedPhase2message();
   proto::Writeback *GetUnusedWBmessage();
+  proto::Abort *GetUnusedAbortMessage();
   void FreeReadReply(proto::ReadReply *reply);
   void FreePhase1Reply(proto::Phase1Reply *reply);
   void FreePhase2Reply(proto::Phase2Reply *reply);
@@ -418,6 +421,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void FreePhase1message(proto::Phase1 *msg);
   void FreePhase2message(proto::Phase2 *msg);
   void FreeWBmessage(proto::Writeback *msg);
+  void FreeAbortMessage(const proto::Abort *msg);
   //Fallback messages:
   proto::Phase1FB *GetUnusedPhase1FBmessage();
   proto::Phase2FB *GetUnusedPhase2FBmessage();
@@ -560,7 +564,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<committedRead>>> committedReads;
   //std::unordered_map<std::string, std::set<Timestamp>> rts;
-  tbb::concurrent_unordered_map<std::string, std::atomic_int> rts;
+  tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t> rts;
   //tbb::concurrent_hash_map<std::string, std::set<Timestamp>> rts; //TODO: if want to use this again: need per key locks like below.
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<Timestamp>>> rts_list;
 

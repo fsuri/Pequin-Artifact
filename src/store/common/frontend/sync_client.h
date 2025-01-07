@@ -41,6 +41,7 @@
 #include "store/common/partitioner.h"
 #include "store/common/frontend/client.h"
 #include "store/common/promise.h"
+#include "store/common/query_result/query_result.h"
 
 #include <functional>
 #include <string>
@@ -58,7 +59,8 @@ class SyncClient {
   virtual void Get(const std::string &key, std::string &value,
       uint32_t timeout);
 
-  // Get value without waiting.
+  // Get value without in-built waiting.
+  // Use for example if trying to query multiple rows. Use Wait to wait for all queried values.
   void Get(const std::string &key, uint32_t timeout);
 
   // Wait for outstanding Gets to finish in FIFO order.
@@ -74,6 +76,27 @@ class SyncClient {
   // Abort all Get(s) and Put(s) since Begin().
   virtual void Abort(uint32_t timeout);
 
+  //Issue sql statement, wait for computation result
+  void SQLRequest(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout);
+  //sql statement without in-built waiting -- e.g. for parallel requests.
+  void SQLRequest(std::string &statement, uint32_t timeout);
+
+  //Issue write Sql statement, wait for computation result
+  virtual void Write(std::string &statement, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool blind_write = false); 
+  //Write without in-built waiting -- e.g. for parallel writes.
+  void Write(std::string &statement, uint32_t timeout, bool async = false, bool blind_write = false);
+
+  //Issue query Sql statement, wait for computation result. 
+  virtual void Query(const std::string &query, std::unique_ptr<const query_result::QueryResult> &result, uint32_t timeout, bool cache_result = false);
+  // Query without in-built waiting -- e.g. for parallel queries.
+  void Query(const std::string &query, uint32_t timeout, bool cache_result = false);
+
+  // Wait for all outstanding Queries/Writes to finish in FIFO order.
+  void Wait(std::vector<std::unique_ptr<const query_result::QueryResult>> &values);
+
+  // Wait for all outstanding Queries/Writes to finish in FIFO order -- but do not consume any results (Use this for async Updates/Deletes that have no future dependents)
+  void asyncWait();
+
  private:
   void GetCallback(Promise *promise, int status, const std::string &key, const std::string &value,
       Timestamp ts);
@@ -87,7 +110,20 @@ class SyncClient {
   void AbortCallback(Promise *promise);
   void AbortTimeoutCallback(Promise *promise);
 
+  void SQLCallback(Promise *promise, int status, query_result::QueryResult* result);
+  void SQLTimeoutCallback(Promise *promise, int status);
+ 
+  void WriteCallback(Promise *promise, int status, query_result::QueryResult* result);
+  void WriteTimeoutCallback(Promise *promise, int status);
+  void QueryCallback(Promise *promise, int status, query_result::QueryResult* result); //const std::string &query,
+  void QueryTimeoutCallback(Promise *promise, int status); //, const std::string &query);
+  std::unique_ptr<const query_result::QueryResult> SafeRelease(Promise &promise);
+
+
   std::vector<Promise *> getPromises;
+  std::vector<Promise *> queryPromises;
+  //std::vector<std::unique_ptr<Promise>> queryPromises;
+  std::vector<Promise *> asyncPromises;
 
   Client *client;
 };

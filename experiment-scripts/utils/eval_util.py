@@ -145,8 +145,14 @@ def calculate_statistics_for_run(config, local_out_directory, run):
         n = 5 * config['fault_tolerance'] + 1
     elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
+
+    if config['replication_protocol'] == 'pg':
+        n = 1
+
     xx = len(config['server_names']) // n
     process_per_server = int(math.ceil(config['num_groups'] / xx))
     for i in range(num_regions):
@@ -207,18 +213,27 @@ def calculate_statistics_for_run(config, local_out_directory, run):
 
                                         opTime = 0.0
                                         if x + 2 < len(opCols):
-                                            if 'input_latency_scale' in config:
-                                                opTime = float(opCols[x+2]) / config['input_latency_scale']
-                                            else:
-                                                opTime = float(opCols[x+2]) / 1e9
-                                            if 'output_latency_scale' in config:
-                                                opTime = opTime * config['output_latency_scale']
-                                            else:
-                                                opTime = opTime * 1e3
+                                            try:
+                                                if 'input_latency_scale' in config:
+                                                    opTime = float(opCols[x+2]) / config['input_latency_scale']
+                                                else:
+                                                    opTime = float(opCols[x+2]) / 1e9
+                                                if 'output_latency_scale' in config:
+                                                    opTime = opTime * config['output_latency_scale']
+                                                else:
+                                                    opTime = opTime * 1e3
+                                            except ValueError:
+                                                print('Invalid row: ', opCols)
+                                                break #skip this row
 
                                         cid = 0
                                         if x + 3 < len(opCols):
-                                            cid = int(opCols[x + 3])
+                                            #cid = int(opCols[x + 3])
+                                            try:
+                                                cid = int(opCols[x + 3])
+                                            except ValueError:
+                                                print('Invalid row: ', opCols)
+                                                break #skip this row
 
                                         if cid not in op_latencies:
                                             op_latencies[cid] = {}
@@ -432,6 +447,7 @@ def calculate_statistics_for_run(config, local_out_directory, run):
     for k, v in stats_new.items():
         stats[k] = v
 
+    stats['attempts'] = 1
     if total_attempts > 0:
         stats['committed'] = total_committed
         stats['attempts'] = total_attempts
@@ -450,6 +466,44 @@ def calculate_statistics_for_run(config, local_out_directory, run):
     if 'failure_attempts' in stats:
         total_attempted_failures = stats['failure_attempts']
     stats['tx_attempted_failure_percentage'] = total_attempted_failures/stats['attempts']
+
+    stats['read_write_ratio'] = 1
+    if 'total_writes' in stats:
+        total_ops = stats['total_writes'] + stats['total_reads']
+        if not 'total_recon_reads' in stats:
+            stats['total_recon_reads'] = 0
+        stats['read_write_ratio_nr'] = (stats['total_reads'] - stats['total_recon_reads']) / (total_ops - stats['total_recon_reads'])
+        stats['read_write_ratio'] = stats['total_reads'] / total_ops
+
+    #Record the ratio of Point Reads to Queries (invoked only - not counting retries). This also counts Recon-Reads
+    if 'PointQueryAttempts' in stats:
+        if 'QueryAttempts' in stats:
+            stats['point_univ_ratio'] = stats['PointQueryAttempts'] / (stats['PointQueryAttempts'] + stats['QueryAttempts'])
+        else:
+            stats['point_univ_ratio'] = 1
+    else:
+        stats['point_univ_ratio'] = 0
+
+    #Record the ratio of successful eager executions. I.e. what percentage of queries succeeded without snapshot
+    if 'QueryAttempts' in stats:
+        stats['eager_success_rate'] = 0
+        if 'EagerExec_successes' in stats:
+            stats['eager_success_rate'] = stats['EagerExec_successes'] / stats['QueryAttempts']
+        else:
+            stats['EagerExec_successes'] = 0
+
+
+    #Record Sync Failures, i.e. the percentage of times query failed.
+        # among all queries that tried to sync (i.e. didn't succeed on eager), how many had to retry?
+        stats['retried_queries_rate'] = 0
+        if 'First_Sync_fail' in stats:
+            stats['retried_queries_rate'] = stats['First_Sync_fail'] / ( stats['QueryAttempts'] - stats['EagerExec_successes'])
+        #b) percentage of unsuccessful sync
+        stats['sync_fail_rate'] = 0
+        if 'Sync_failures' in stats:
+            stats['sync_fail_rate'] = stats['Sync_failures'] / (stats['QueryAttempts'] - stats['EagerExec_successes'] + stats['Sync_failures'])
+
+        ##TODO: max number of retries
 
     norm_op_latencies, norm_op_times = calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs)
     for k, v in norm_op_latencies.items():
@@ -483,6 +537,7 @@ def calculate_op_statistics(config, stats, total_recorded_time, op_type, latenci
         if (not 'server_emulate_wan' in config or config['server_emulate_wan']) and len(norm_latencies) > 0:
             stats['%s_norm' % op_type] = calculate_statistics_for_data(norm_latencies)
             stats['%s_norm' % op_type]['samples'] = len(norm_latencies)
+
 
 def calculate_all_op_statistics(config, stats, region_op_latencies, region_op_times, region_op_latency_counts, region_op_tputs):
     total_recorded_time = float(config['client_experiment_length'] - config['client_ramp_up'] - config['client_ramp_down'])
@@ -659,13 +714,24 @@ def generate_gnuplot_script_agg(plot, plot_script_file, plot_out_file, series):
                 f.write(', \\\n')
 
 def generate_plots(config, base_out_directory, out_dirs):
+    """ Read in outputs in directory using the config
+
+    Parameters
+    ----------
+    config : dict
+        jsonfied experiment config
+    base_out_directory : str
+        base directory
+    out_dirs : list
+        list of output directories
+
+    """
     plots_directory = os.path.join(base_out_directory, config['plot_directory_name'])
     os.makedirs(plots_directory, exist_ok=True)
     csv_classes = set()
     csv_files = []
     subprocesses = []
 
-    ###
     # Generate aggregate cdf plots
     for i in range(len(out_dirs[0])):
         # for each series i

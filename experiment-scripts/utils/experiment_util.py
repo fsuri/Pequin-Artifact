@@ -53,38 +53,72 @@ def collect_exp_data(config, remote_exp_directory, local_directory_base, executo
     return download_futures
 
 def kill_servers(config, executor, kill_args=' -9'):
+    """kills all servers in config using kill_args
+
+    Parameters
+    ----------
+    config : dic
+        config file
+    executor : ThreadPoolExecutor
+    kill_args : str, optional
+        The kill signal for kill command
+        The default is -9 
+    """
+
     futures = []
-    if config['replication_protocol'] == 'indicus':
+
+    # Define n as the minimun number of replicas that is satisfies the fault tolerance
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
+        config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
+
+    if config['replication_protocol'] == 'pg':
+        n = 1
+
+    # Build a server idx -> kill script map
     x = len(config['server_names']) // n
     kill_commands = {}
     for group in range(config['num_groups']):
+        
         process_idx = group // x
+        
         for i in range(n):
             server_idx = (i * x + group) % len(config['server_names'])
             if is_exp_remote(config):
                 if not server_idx in kill_commands:
+                    # add kill command by its process name
+                    # e.g. ../bin/server
                     kill_commands[server_idx] = kill_remote_process_by_name_cmd(
                         os.path.join(config['base_remote_bin_directory_nfs'],
                             config['bin_directory_name'],
                             config['server_bin_name']), kill_args)
+                # add kill command by its port name
+                # e.g. xxx:7087
                 kill_commands[server_idx] += '; %s' % kill_remote_process_by_port_cmd(
                     config['server_port'] + process_idx, kill_args)
             else:
                 if not server_idx in kill_commands:
+                    # add kill command by its process name
+                    # e.g. ../bin/server
                     kill_commands[server_idx] = kill_remote_process_by_name_cmd(
                         os.path.join(config['src_directory'],
                             config['bin_directory_name'],
                             config['server_bin_name']), kill_args)
+                # add kill command by its port name
+                # e.g. xxx:7087
                 kill_commands[server_idx] += '; %s' % kill_remote_process_by_port_cmd(
                     config['server_port'] + process_idx, kill_args)
+    
     for idx, cmd in kill_commands.items():
         if is_exp_remote(config):
             server_host = get_server_host(config, idx)
+            # Run kill script in remote server
             futures.append(executor.submit(run_remote_command_sync, cmd,
                 config['emulab_user'], server_host))
         else:
@@ -165,6 +199,19 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                     config['out_directory_name'],
                     'client-%d-%d' % (i, j)))
             client_host = get_client_host(config, i, j)
+
+            if is_exp_remote(config): #Do these commands only once per client host.
+                if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
+                        print("Disabling HT and Turbo; sourcing TBB")
+                        cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                        #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
+                        #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
+                        run_remote_command_async(cmd1, config['emulab_user'], client_host)
+                        cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
+                        run_remote_command_async(cmd2, config['emulab_user'], client_host)
+                        #perm = 'sudo chmod +x ~/indicus/bin/benchmark'
+                        #run_remote_command_async(perm, config['emulab_user'], client_host)
+
             appended_client_commands = ''
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
@@ -191,17 +238,11 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
                 if appended_client_commands[-2:] == '& ':
                         appended_client_commands = appended_client_commands[:-2]
                 if is_exp_remote(config):
-                    if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
-                        print("Disabling HT and Turbo; sourcing TBB")
-                        cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
-                        run_remote_command_async(cmd1, config['emulab_user'], client_host)
-                        cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
-                        run_remote_command_async(cmd2, config['emulab_user'], client_host)
-                        #perm = 'sudo chmod +x ~/indicus/bin/benchmark'
-                        #run_remote_command_async(perm, config['emulab_user'], client_host)
-
-                    cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
-                    appended_client_commands = cmd4 + appended_client_commands
+                    #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'  #Moved cmd4+5 to set_env.sh
+                    #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+                    #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
+                    cmd6 = 'source /usr/local/etc/set_env.sh;' # echo $LD_PRELOAD;' # source .bashrc' (disk image doesnt store bashrc. Could write to it dynamically though.) 
+                    appended_client_commands = cmd6 + appended_client_commands
 
                     client_processes.append(run_remote_command_async(
                         appended_client_commands + ' & wait', config['emulab_user'],
@@ -218,12 +259,19 @@ def start_clients(config, local_exp_directory, remote_exp_directory, run):
 
 def start_servers(config, local_exp_directory, remote_exp_directory, run):
     server_threads = []
-    if config['replication_protocol'] == 'indicus' :
+    if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin':
         n = 5 * config['fault_tolerance'] + 1
-    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
+    elif config['replication_protocol'] == 'pbft' or config['replication_protocol'] == 'hotstuff' or config['replication_protocol'] == 'pg-smr' or \
+        config['replication_protocol'] == 'peloton-smr' or config['replication_protocol'] == 'bftsmart' or config['replication_protocol'] == 'augustus':
         n = 3 * config['fault_tolerance'] + 1
+    elif config['replication_protocol'] == 'crdb':
+        n = config['fault_tolerance']
     else:
         n = 2 * config['fault_tolerance'] + 1
+    
+    if config['replication_protocol'] == 'pg':
+        n = 1
+        
     x = len(config['server_names']) // n
     start_commands = {}
     for group in range(config['num_groups']):
@@ -245,23 +293,99 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
     for idx, cmd in start_commands.items():
         if is_exp_remote(config):
             server_host = get_server_host(config, idx)
+           
             ## add ssh for hyperthreading off and turbo off
             #config['replication_protocol_settings']['hyper_threading']
             if(True or config['replication_protocol_settings']['hyper_threading'] == 'false') :
                 print("Disabling HT and Turbo; sourcing TBB")
                 cmd1 = 'sudo /usr/local/etc/disable_HT.sh'
+                #cmd1 = 'sudo /usr/local/etc/enable_HT.sh'
+                #cmd1 = 'sudo echo off | sudo tee /sys/devices/system/cpu/smt/control'
                 run_remote_command_async(cmd1, config['emulab_user'], server_host)
                 cmd2 = 'sudo /usr/local/etc/turn_off_turbo.sh'
                 run_remote_command_async(cmd2, config['emulab_user'], server_host)
                 #perm = 'sudo chmod +x ~/indicus/bin/server'
                 #run_remote_command_async(perm, config['emulab_user'], server_host)
+            
+            
+            ## set-up dbs for pg
+            if config['replication_protocol'] == 'pg':
+                print("setting up databases for postgres usage")
+
+                if config['pg_replicated'] == True:
+                    print ("using replicated postgres")
+
+                    ### Clean previous data:
+                    replica_host = "us-east-1-1.pg-smr.pequin-pg0.utah.cloudlab.us"
+                    cmd100 = '/usr/lib/postgresql/12/bin/pg_ctl -D ~/replica/db stop >/dev/null'
+                    run_remote_command_sync(cmd100, config['emulab_user'], replica_host)
+                    cmd100 = '/usr/lib/postgresql/12/bin/pg_ctl -D ~/primary/db stop >/dev/null'
+                    run_remote_command_sync(cmd100, config['emulab_user'], server_host)
+                    cmd101 = 'sudo umount primary'
+                    run_remote_command_sync(cmd101, config['emulab_user'], server_host)
+
+                    ### Set up new primary:
+                    cmd102 = './primary_aux.sh'
+                    run_remote_command_sync(cmd102, config['emulab_user'], server_host)
+
+                    ### Set up new replica:
+                    cmd103 = './postgres_replica.sh 1'
+                    run_remote_command_sync(cmd103, config['emulab_user'], replica_host)
+
+                else:
+                    print("using non-replicated postgres")
+                    # Dropping old pg cluster (if exists)
+                    cmd7 = 'sudo ./postgres_service.sh -r'
+                    run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                    # Creating a single db per machine
+                    cmd8 = 'sudo ./postgres_service.sh -n 1'
+                    run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                    cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
+                    run_remote_command_sync(cmd11, config['emulab_user'], server_host)
+                    cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
+                    run_remote_command_sync(cmd12, config['emulab_user'], server_host)
+                    print("Waiting for the setup")
+
+                    # # Dropping old pg cluster (if exists)
+                    # cmd7 = 'sudo /usr/local/etc/postgres_service.sh -r'
+                    # run_remote_command_sync(cmd7, config['emulab_user'], server_host)
+                    # # Creating a single db per machine
+                    # cmd8 = 'sudo /usr/local/etc/postgres_service.sh -n 1'
+                    # run_remote_command_sync(cmd8, config['emulab_user'], server_host)
+                    # cmd11 = 'sudo pg_ctlcluster 12 pgdata stop'
+                    # run_remote_command_sync(cmd11, config['emulab_user'], server_host)
+                    # cmd12 = 'sudo pg_ctlcluster 12 pgdata start'
+                    # run_remote_command_sync(cmd12, config['emulab_user'], server_host)
+                    # print("Waiting for the setup")
+
+
+            
+            ## set-up dbs for pg-smr
+            if config['replication_protocol'] == 'pg-smr':
+                cmd7 = 'sudo ./postgres_service.sh -r > /dev/null 2>&1;'
+                # # Creating a single db per machine
+                cmd8 = 'sudo ./postgres_service.sh -n 1 > /dev/null 2>&1;'
+                cmd11 = 'sudo pg_ctlcluster 12 pgdata stop;'
+                cmd12 = 'sudo pg_ctlcluster 12 pgdata start;'
+                #cmd13 = 'echo \"Finished PG setup\";'
+                cmd = cmd7 + cmd8 + cmd11 + cmd12+ cmd
+
+                #cmd7 = 'sudo /usr/local/etc/postgres_service.sh -c;'
+                #cmd = cmd7  +cmd
+
+
 
             ##
             cmd3 = 'source /opt/intel/oneapi/setvars.sh --force; '
             #run_remote_command_async(cmd3, config['emulab_user'], server_host, detach=False)
             cmd =  cmd3 + cmd
-            cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
-            cmd = cmd4 + cmd
+            #cmd4 = 'export LD_LIBRARY_PATH=/usr/lib/jvm/java-11-openjdk-amd64/lib/server/:$LD_LIBRARY_PATH;'
+            #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libhoard.so;'
+            #cmd5 = 'export LD_PRELOAD=/usr/local/lib/libjemalloc.so;'
+            cmd6 = 'source /usr/local/etc/set_env.sh; export ASAN_OPTIONS=new_delete_type_mismatch=0;' # echo $LD_PRELOAD;' #; source .bashrc' #TODO: Or try sourcing .bashrc //Replace cmd4+cmd5..
+            cmd = cmd6 + cmd
+
+
             server_threads.append(run_remote_command_async(cmd,
                 config['emulab_user'], server_host, detach=False))
         else:
@@ -269,6 +393,8 @@ def start_servers(config, local_exp_directory, remote_exp_directory, run):
             server_threads.append(subprocess.Popen(cmd, shell=True))
         time.sleep(0.1)
     time.sleep(1)
+
+
     return server_threads
 
 def start_master(config, local_exp_directory, remote_exp_directory, run):
@@ -323,6 +449,9 @@ def prepare_remote_server(config, server_host, local_exp_directory, remote_out_d
 
 def prepare_remote_client(config, i, j, local_exp_directory, remote_out_directory):
     client_host = get_client_host(config, i, j)
+    clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
+    run_remote_command_async(clean, config['emulab_user'], client_host)
+
     if client_host not in SERVERS_SETUP:
         set_file_descriptor_limit(config['max_file_descriptors'], config['emulab_user'], client_host)
         change_mounted_fs_permissions(config['project_name'], config['emulab_user'], client_host, config['base_mounted_fs_path'])
@@ -349,6 +478,9 @@ def prepare_remote_exp_directories(config, local_exp_directory, executor):
     futures = []
     for i in range(len(config['server_names'])):
         server_host = get_server_host(config, i)
+        clean = 'sudo rm -rf /mnt/extra/experiments/*;' #Clean experiments folder.
+        run_remote_command_async(clean, config['emulab_user'], server_host)
+
         futures.append(executor.submit(prepare_remote_server, config, server_host,
             local_exp_directory, remote_out_directory))
         prepare_remote_server(config, server_host, local_exp_directory, remote_out_directory)
@@ -426,19 +558,23 @@ def copy_binaries_to_nfs(config, executor):
     futures = []
     for i in range(n):
         server_host = get_server_host(config, i)
+        #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], server_host)
+        run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], server_host)
         if server_host not in SERVERS_SETUP:
             futures.append(executor.submit(copy_path_to_remote_host,
                 os.path.join(config['src_directory'],
-                    config['bin_directory_name']), config['emulab_user'],
-                server_host, config['base_remote_bin_directory_nfs']))
+                    config['bin_directory_name'], config['server_bin_name']), config['emulab_user'],
+                server_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['server_bin_name'])))
         if not nfs_enabled:
             for j in range(config['client_nodes_per_server']):
                 client_host = get_client_host(config, i, j)
+                #run_remote_command_sync('mkdir %s' % config['base_remote_bin_directory_nfs'], config['emulab_user'], client_host)
+                run_remote_command_sync('mkdir -p %s' % os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name']), config['emulab_user'], client_host)
                 if client_host not in SERVERS_SETUP:
                     futures.append(executor.submit(copy_path_to_remote_host,
                         os.path.join(config['src_directory'],
-                            config['bin_directory_name']), config['emulab_user'],
-                        client_host, config['base_remote_bin_directory_nfs']))
+                            config['bin_directory_name'], config['client_bin_name']), config['emulab_user'],
+                        client_host, os.path.join(config['base_remote_bin_directory_nfs'], config['bin_directory_name'], config['client_bin_name'])))
     concurrent.futures.wait(futures)
 
 
@@ -519,6 +655,7 @@ def run_experiment(config_file, client_config_idx, executor):
 
             client_threads = start_clients(config, local_exp_directory,
                     remote_exp_directory, i)
+            
             wait_for_clients_to_terminate(config, client_threads)
             kill_clients(config, executor)
             time.sleep(1)
@@ -533,6 +670,22 @@ def run_experiment(config_file, client_config_idx, executor):
                 executor)
 
 def run_multiple_experiments(config_file, executor):
+    """ Runs experiments specified in configuration file
+
+    Parameters
+    ----------
+    config_file : str
+        config file name
+    executor : ThreadPoolExecutor
+
+    Returns
+    ----------
+    exp_dir: exp_dir
+        experiemnt output directory
+    out: list
+        list of output directory and sub directory
+
+    """
     start = time.time()
     exp_dir = None
     out_dirs = None
@@ -559,8 +712,8 @@ def run_multiple_experiments(config_file, executor):
 
         config_name = os.path.splitext(os.path.basename(config_file))[0]
 
-        exp_futs = []
-        exp_futs_idxs = []
+        exp_futs = [] # future experiments
+        exp_futs_idxs = [] # future experiment indices
         config_files = []
         indep_vars_list = []
 

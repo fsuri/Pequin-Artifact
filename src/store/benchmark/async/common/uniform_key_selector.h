@@ -32,6 +32,7 @@
 class UniformKeySelector : public KeySelector {
  public:
   UniformKeySelector(const std::vector<std::string> &keys);
+  UniformKeySelector(const std::vector<std::string> &keys, uint64_t num_keys);
   virtual ~UniformKeySelector();
 
   virtual int GetKey(std::mt19937 &rand) override;

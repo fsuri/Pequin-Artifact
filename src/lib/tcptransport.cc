@@ -165,9 +165,9 @@ BindToPort(int fd, const string &host, const string &port)
 }
 
 TCPTransport::TCPTransport(double dropRate, double reorderRate,
-			   int dscp, bool handleSignals, int process_id, int total_processes, bool hyperthreading, bool server, int mode)
+			   int dscp, bool handleSignals, int process_id, int total_processes, bool hyperthreading, bool server, int mode, bool optimize_tpool_for_dev_machine)
 {
-    tp.start(process_id, total_processes, hyperthreading, server, mode);
+    tp.start(process_id, total_processes, hyperthreading, server, mode, optimize_tpool_for_dev_machine);
 
     lastTimerId = 0;
 
@@ -175,6 +175,17 @@ TCPTransport::TCPTransport(double dropRate, double reorderRate,
     evthread_use_pthreads();
     event_set_log_callback(LogCallback);
     event_set_fatal_callback(FatalCallback);
+    
+    // auto cfg = event_config_new();
+    // // // event_config_init(cfg);
+    // event_config_set_flag(cfg, EVENT_BASE_FLAG_PRECISE_TIMER);
+    // // event_config_set_flag(cfg, EVENT_BASE_FLAG_EPOLL_DISALLOW_TIMERFD); //This flag is only supported on master branch of libevent, not on stable release.
+    // // //libeventBase = event_base_new_with_config(cfg);
+    // if ((libeventBase = event_base_new_with_config(cfg)) == NULL){
+    //     Panic("Failed to create an event base");
+    // }
+    // event_config_free(cfg);
+
 
     libeventBase = event_base_new();
     //tp2.emplace(); this works?
@@ -230,8 +241,7 @@ TCPTransport::~TCPTransport()
     event_base_free(libeventBase);
 }
 
-void TCPTransport::ConnectTCP(
-    const std::pair<TCPTransportAddress, TransportReceiver *> &dstSrc) {
+void TCPTransport::ConnectTCP(const std::pair<TCPTransportAddress, TransportReceiver *> &dstSrc) {
   Debug("Opening new TCP connection to %s:%d", inet_ntoa(dstSrc.first.addr.sin_addr),
         htons(dstSrc.first.addr.sin_port));
 
@@ -280,11 +290,8 @@ void TCPTransport::ConnectTCP(
     tcpAddresses.insert(pair<struct bufferevent*, pair<TCPTransportAddress, TransportReceiver*>>(bev, dstSrc));
     //mtx.unlock();
 
-    bufferevent_setcb(bev, TCPReadableCallback, NULL,
-                      TCPOutgoingEventCallback, info);
-    if (bufferevent_socket_connect(bev,
-                                   (struct sockaddr *)&(dstSrc.first.addr),
-                                   sizeof(dstSrc.first.addr)) < 0) {
+    bufferevent_setcb(bev, TCPReadableCallback, NULL, TCPOutgoingEventCallback, info);
+    if (bufferevent_socket_connect(bev, (struct sockaddr *)&(dstSrc.first.addr), sizeof(dstSrc.first.addr)) < 0) {
         bufferevent_free(bev);
 
         //mtx.lock();
@@ -306,9 +313,9 @@ void TCPTransport::ConnectTCP(
     if (getsockname(fd, (sockaddr *) &sin, &sinsize) < 0) {
         PPanic("Failed to get socket name");
     }
-    TCPTransportAddress *addr = new TCPTransportAddress(sin);
-
+    
     if (dstSrc.second->GetAddress() == nullptr) {
+      TCPTransportAddress *addr = new TCPTransportAddress(sin);
       dstSrc.second->SetAddress(addr);
     }
 
@@ -429,6 +436,7 @@ TCPTransport::SendMessageInternal(TransportReceiver *src,
         m.GetTypeName().c_str(), inet_ntoa(dst.addr.sin_addr),
         htons(dst.addr.sin_port));
     auto dstSrc = std::make_pair(dst, src);
+
     mtx.lock();
     auto kv = tcpOutgoing.find(dstSrc);
     // See if we have a connection open
@@ -492,6 +500,7 @@ TCPTransport::SendMessageInternal(TransportReceiver *src,
     }
     //evbuffer_unlock(ev);
     //mtx.unlock();
+  
 
     /*Latency_Start(&sockWriteLat);
     if (write(ev->ev_write.ev_fd, buf, totalLen) < 0) {
@@ -594,7 +603,7 @@ int TCPTransport::TimerMicro(uint64_t us, timer_callback_t cb) {
 }
 
 int TCPTransport::TimerInternal(struct timeval &tv, timer_callback_t cb) {
-  std::unique_lock<std::shared_mutex> lck(mtx);
+  std::unique_lock<std::shared_mutex> lck(timer_mtx);
 
   TCPTransportTimerInfo *info = new TCPTransportTimerInfo();
 
@@ -615,7 +624,7 @@ int TCPTransport::TimerInternal(struct timeval &tv, timer_callback_t cb) {
 bool
 TCPTransport::CancelTimer(int id)
 {
-    std::unique_lock<std::shared_mutex> lck(mtx);
+    std::unique_lock<std::shared_mutex> lck(timer_mtx);
     TCPTransportTimerInfo *info = timers[id];
 
     if (info == NULL) {
@@ -633,22 +642,22 @@ TCPTransport::CancelTimer(int id)
 void
 TCPTransport::CancelAllTimers()
 {
-    mtx.lock();
+    timer_mtx.lock();
     while (!timers.empty()) {
         auto kv = timers.begin();
         int id = kv->first;
-        mtx.unlock();
+        timer_mtx.unlock();
         CancelTimer(id);
-        mtx.lock();
+        timer_mtx.lock();
     }
-    mtx.unlock();
+    timer_mtx.unlock();
 }
 
 void
 TCPTransport::OnTimer(TCPTransportTimerInfo *info)
 {
     {
-	    std::unique_lock<std::shared_mutex> lck(mtx);
+	    std::unique_lock<std::shared_mutex> lck(timer_mtx);
 
 	    timers.erase(info->id);
 	    event_del(info->ev);
@@ -663,8 +672,7 @@ TCPTransport::OnTimer(TCPTransportTimerInfo *info)
 void
 TCPTransport::TimerCallback(evutil_socket_t fd, short what, void *arg)
 {
-    TCPTransport::TCPTransportTimerInfo *info =
-        (TCPTransport::TCPTransportTimerInfo *)arg;
+    TCPTransport::TCPTransportTimerInfo *info = (TCPTransport::TCPTransportTimerInfo *)arg;
 
     UW_ASSERT(what & EV_TIMEOUT);
 
@@ -680,13 +688,13 @@ void TCPTransport::DispatchTP_local(std::function<void*()> f, std::function<void
 }
 
 void TCPTransport::DispatchTP_noCB(std::function<void*()> f) {
-  tp.detatch(std::move(f));
+  tp.detach(std::move(f));
 }
 void TCPTransport::DispatchTP_noCB_ptr(std::function<void*()> *f) {
-  tp.detatch_ptr(f);
+  tp.detach_ptr(f);
 }
 void TCPTransport::DispatchTP_main(std::function<void*()> f) {
-  tp.detatch_main(std::move(f));
+  tp.detach_main(std::move(f));
 }
 void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
   //std::lock_guard<std::mutex> lck(mtx);
@@ -695,6 +703,22 @@ void TCPTransport::IssueCB(std::function<void(void*)> cb, void* arg){
 void TCPTransport::IssueCB_main(std::function<void(void*)> cb, void* arg){
   tp.issueMainThreadCallback(std::move(cb), arg);
 }
+
+void TCPTransport::CancelLoadBonus(){
+  tp.cancel_load_threads();
+}
+
+void TCPTransport::AddIndexedThreads(int num_threads){
+  tp.add_n_indexed(num_threads);
+}
+void TCPTransport::DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb){
+  tp.dispatch_indexed(id, std::move(f), std::move(cb), libeventBase);
+}
+void TCPTransport::DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f){
+  tp.detach_indexed(id, std::move(f));
+}
+
+
 
 void
 TCPTransport::LogCallback(int severity, const char *msg)

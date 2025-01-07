@@ -222,6 +222,10 @@ public:
     void DispatchTP_main(std::function<void*()> f);
     void IssueCB(std::function<void(void*)> cb, void* arg);
     void IssueCB_main(std::function<void(void*)> cb, void* arg);
+     //Indexed Threadpool
+    void AddIndexedThreads(int num_threads); 
+    void DispatchIndexedTP(uint64_t id, std::function<void *()> f, std::function<void(void *)> cb);
+    void DispatchIndexedTP_noCB(uint64_t id, std::function<void *()> f); 
 
     // DeliverMessage(addr, i) delivers the ith queued inbound message to the
     // receiver with address addr. It's possible to send a message to the

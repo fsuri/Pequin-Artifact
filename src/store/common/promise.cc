@@ -96,6 +96,14 @@ Promise::Reply(int r, Timestamp t, string v)
     ReplyInternal(r);
 }
 
+void
+Promise::Reply(int r, std::unique_ptr<const query_result::QueryResult>&& res)
+{
+    lock_guard<mutex> l(lock);
+    result = std::move(res);
+    ReplyInternal(r);
+}
+
 // Functions for getting a reply from the promise
 int
 Promise::GetReply()
@@ -125,4 +133,18 @@ Promise::GetValue()
         cv.wait(l);
     }
     return value;
+}
+
+std::unique_ptr<const query_result::QueryResult>
+Promise::ReleaseQueryResult()
+{
+    unique_lock<mutex> l(lock);
+    while(!done) {
+        cv.wait(l);
+    }
+    if (reply > 0) {
+        throw std::exception(); //If we receive REPLY_FAIL throw an exception. The syncBenchClient will catch it and return ABORT_SYSTEM
+        //Panic("Promise::ReleaseQueryResult called on failed promise");
+    }
+    return std::move(result);
 }

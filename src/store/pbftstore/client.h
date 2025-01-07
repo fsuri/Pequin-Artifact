@@ -66,6 +66,9 @@ class Client : public ::Client {
       put_callback pcb, put_timeout_callback ptcb,
       uint32_t timeout) override;
 
+  // virtual void Query(const std::string &query, query_callback qcb,
+  //   query_timeout_callback qtcb, uint32_t timeout) override;
+
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
       uint32_t timeout) override;

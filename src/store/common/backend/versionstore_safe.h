@@ -63,9 +63,14 @@ class VersionedKVStore {
   bool getLastRead(const std::string &key, const T &t, T &readTime);
   bool getCommittedAfter(const std::string &key, const T &t,
       std::vector<std::pair<T, V>> &values);
+  bool getPreceedingCommit(const std::string &key,
+    const T &t, std::pair<T, V> &value);
   void put(const std::string &key, const V &v, const T &t);
   void commitGet(const std::string &key, const T &readTime, const T &commit);
   bool getUpperBound(const std::string& key, const T& t, T& result);
+
+  void testLatestCommits(const std::string &key,
+    const T &t, std::vector<std::pair<T, V>> &values);
 
  private:
   struct VersionedValue {
@@ -99,8 +104,9 @@ class VersionedKVStore {
 
 template<class T, class V>
 VersionedKVStore<T, V>::VersionedKVStore() {
-  std::cerr << "USING SAFE VERSIONSTORE" << std::endl;
-  lock_time = 0;}
+  Notice("USING THREAD SAFE VERSIONSTORE");
+  lock_time = 0;
+}
 
 template<class T, class V>
 VersionedKVStore<T, V>::~VersionedKVStore() { }
@@ -134,16 +140,23 @@ template<class T, class V>
 void VersionedKVStore<T, V>::getValue(const std::string &key, const T &t,
     typename std::set<VersionedKVStore<T, V>::VersionedValue>::iterator &it) {
   //std::shared_lock lock(storeMutex);
+  //std::cerr << "find upper of: " << t.getTimestamp() << std::endl;
   VersionedKVStore<T, V>::VersionedValue v(t);
   typename storeMap::const_accessor a;
   bool inStore = store.find(a, key);
-  it = a->second.upper_bound(v);
+  it = a->second.upper_bound(v);  
+  //TODO: Change get to use lower_bound? Do we want latest version <= TS (use upper_bound), or latest version < TS (use lower_bound)?
+
+  // for(auto &v_val: a->second){
+  //    std::cerr << "all vals: " << v_val.write.getTimestamp() << std::endl;
+  // }
 
   // if there is no valid version at this timestamp
   if (it == a->second.begin()) {
       it = a->second.end();
   } else {
       it--;
+      //std::cerr << "next: " << it->write.getTimestamp() << std::endl;
   }
 }
 
@@ -229,6 +242,11 @@ void VersionedKVStore<T, V>::put(const std::string &key, const V &value,
   // Key does not exist. Create a list and an entry.
   typename storeMap::accessor a;
   store.insert(a, key);
+  // bool fresh = store.insert(a, key);
+  // if(!fresh){
+  //   std::cerr << "Inserting key " << key << " twice!" << std::endl;
+  //   Panic("Quit");
+  // }
   a->second.insert(VersionedKVStore<T, V>::VersionedValue(t, value));
 }
 
@@ -322,5 +340,49 @@ bool VersionedKVStore<T, V>::getCommittedAfter(const std::string &key,
   return false;
 }
 
+//Note: Could just use get function...
+template<class T, class V>
+bool VersionedKVStore<T, V>::getPreceedingCommit(const std::string &key,
+    const T &t, std::pair<T, V> &value) {  //Get last write before Time T
+
+  VersionedKVStore<T, V>::VersionedValue v(t);
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    auto setItr = a->second.lower_bound(v);  //First itr >= T
+    if(setItr == a->second.begin()) {    //there exists no write < T // all values are > timestamp ==> return false
+      return false;  
+    }
+    else{ //there is a write < T, decrement itr once.  
+      setItr--;                              //First itr < T
+      if(setItr != a->second.end()){
+        value = std::make_pair(setItr->write, setItr->value);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+//FIXME: REMOVE TEST   //TODO: MAybe check starting from upper bound?
+template<class T, class V>
+void VersionedKVStore<T, V>::testLatestCommits(const std::string &key,
+    const T &t, std::vector<std::pair<T, V>> &values) {  //Get last writes
+
+  typename storeMap::const_accessor a;
+  bool inStore = store.find(a, key);
+  if (inStore) {
+    int count = 0;
+    for(auto itr = a->second.rbegin(); itr != a->second.rend(); ++itr){
+        count++;
+        values.push_back(std::make_pair(itr->write, itr->value));
+        if(count == 10) return;
+    }
+  }
+}
+
+
+    ///
 
 #endif  /* _VERSIONED_KV_STORE_H_ */

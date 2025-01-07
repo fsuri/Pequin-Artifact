@@ -33,6 +33,7 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "lib/message.h"
 #include "store/hotstuffstore/app.h"
 #include "store/hotstuffstore/server-proto.pb.h"
 #include "store/server.h"
@@ -131,6 +132,9 @@ private:
     std::vector<int> txnGroups;
     return static_cast<int>((*part)(key, numShards, groupIdx, txnGroups) % numGroups) == groupIdx;
   }
+
+  //Testing:
+  std::unordered_set<std::string> executed_tx;
 };
 
 }
