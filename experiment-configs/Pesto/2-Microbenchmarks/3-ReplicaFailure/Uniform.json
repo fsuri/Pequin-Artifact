@@ -131,8 +131,6 @@
 		  "snapshot_prepared_k": 1,
 		  "query_eager_exec": true,
 		  "eager_plus_snapshot": true,
-		  
-		  
 		  "query_point_eager_exec": false,
 		  "force_read_from_snapshot": false,
 		   

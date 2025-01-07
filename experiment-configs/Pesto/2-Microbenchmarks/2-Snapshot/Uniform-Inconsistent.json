@@ -163,23 +163,12 @@
   
  
   "client_total": [
-    [30, 35]
-  ],
-  "client_processes_per_client_node": [
-    [8, 8]
-  ],
-  "client_threads_per_process": [
-    [1, 1]
-  ],
-  
-   "_Use batch = 4 for larger clients":false,
-  "_client_total": [
     [12, 16, 20, 25, 30, 35, 40]
   ],
-  "_client_processes_per_client_node": [
+  "client_processes_per_client_node": [
     [8, 8, 8, 8, 8, 8, 8]
   ],
-  "_client_threads_per_process": [
+  "client_threads_per_process": [
     [1, 1, 1, 1, 1, 1, 1]
   ],
  
