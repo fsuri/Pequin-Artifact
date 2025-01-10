@@ -185,14 +185,14 @@
 
   "default_remote_shell": "bash",
 
-  "server_host_format_str": "%s.%s.%s.emulab.net",
-  "client_host_format_str": "client-%d-%d.%s.%s.emulab.net",
-  "_server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
-  "_client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
+  "_server_host_format_str": "%s.%s.%s.emulab.net",
+  "_client_host_format_str": "client-%d-%d.%s.%s.emulab.net",
+  "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
+  "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
   "__server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
   "__client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
 
-  "project_name": "pequin",
+  "project_name": "pequin-pg0",
 
   "fault_tolerance": 0,
 
