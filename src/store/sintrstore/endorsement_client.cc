@@ -202,7 +202,7 @@ void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::
 bool EndorsementClient::IsSatisfied() {
   bool satisfied = policyClient->IsSatisfied(client_ids_received);
   if (!satisfied) {
-    Debug("policy not satisfied, received %lu endorsements", client_ids_received.size());
+    // Debug("policy not satisfied, received %lu endorsements", client_ids_received.size());
   }
   return satisfied;
 }

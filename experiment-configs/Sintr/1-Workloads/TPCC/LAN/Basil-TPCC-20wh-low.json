@@ -18,8 +18,8 @@
       "client_threads_per_process"
     ]
   ],
-  "replication_protocol": ["indicus"],
-  "client_protocol_mode": ["indicus"],
+  "replication_protocol": ["pequin"],
+  "client_protocol_mode": ["pequin"],
   "num_shards": [1],
   "num_groups": [1],
 

@@ -510,9 +510,10 @@ void Client2Client::ValidationThreadFunction() {
       Debug("Completed validation for client id %lu, seq num %lu", curr_client_id, curr_client_seq_num);
       proto::Transaction *txn = valClient->GetCompletedTxn(curr_client_id, curr_client_seq_num);
 
-      // for consistent hashing results
-      std::sort(txn->mutable_read_set()->begin(), txn->mutable_read_set()->end(), sortReadSetByKey);
-      std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
+      if (params.parallel_CCC) {
+        std::sort(txn->mutable_read_set()->begin(), txn->mutable_read_set()->end(), sortReadSetByKey);
+        std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
+      }
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());
 
       proto::FinishValidateTxnMessage finishValTxnMsg = proto::FinishValidateTxnMessage();
