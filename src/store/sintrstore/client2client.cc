@@ -372,6 +372,18 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
 
 void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg) {
   uint64_t peer_client_id = finishValTxnMsg.client_id();
+  uint64_t val_txn_seq_num = finishValTxnMsg.validation_txn_seq_num();
+
+  // stale finish validation message
+  if (val_txn_seq_num != client_seq_num) {
+    Debug(
+      "Received stale finishValidateTxnMessage from client id %lu, seq num %lu; curr seq num %lu", 
+      peer_client_id, 
+      val_txn_seq_num,
+      client_seq_num
+    );
+    return;
+  }
 
   proto::SignedMessage signedMsg;
   std::string valTxnDigest;
@@ -518,6 +530,7 @@ void Client2Client::ValidationThreadFunction() {
 
       proto::FinishValidateTxnMessage finishValTxnMsg = proto::FinishValidateTxnMessage();
       finishValTxnMsg.set_client_id(client_id);
+      finishValTxnMsg.set_validation_txn_seq_num(curr_client_seq_num);
 
       // only send over digest, not actual contents
       std::string digest = TransactionDigest(*txn, params.hashDigest);

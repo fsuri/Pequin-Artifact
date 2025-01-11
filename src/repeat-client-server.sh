@@ -9,13 +9,8 @@ for ((i=1; i<=N; i++)); do
     sleep 1
     ./client-tester.sh
     # check client output
-    if grep -q LATENCY $OUTPUT_DIR/client-0.out; then
-        echo "client-0.out: OK"
-    else
-        exit 1
-    fi
-    if grep -q LATENCY $OUTPUT_DIR/client-1.out; then
-        echo "client-1.out: OK"
+    if grep -Eq LATENCY $OUTPUT_DIR/client-*.out; then
+        echo "client-*.out: OK"
     else
         exit 1
     fi

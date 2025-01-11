@@ -482,12 +482,14 @@ message ForwardReadResultMessage {
 message FinishValidateTxnMessage {
   // client_id is the client that is sending this message
   required uint64 client_id = 1;
+  // validation_txn_seq_num is the sequence number of the txn that was validated
+  required uint64 validation_txn_seq_num = 2;
   oneof validation_one_of {
-    bytes validation_txn_digest = 2;
-    SignedMessage signed_validation_txn_digest = 3;
+    bytes validation_txn_digest = 3;
+    SignedMessage signed_validation_txn_digest = 4;
   }
   // optionally can compare entire transaction directly
-  optional Transaction val_txn = 4;
+  optional Transaction val_txn = 5;
 }
 
 message EndorsementPolicyMessage {

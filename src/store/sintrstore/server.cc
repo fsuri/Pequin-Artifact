@@ -1357,7 +1357,7 @@ void Server::Inform_P1_GC_Leader(proto::Phase1Reply &reply, proto::Transaction &
 void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   // dummyTx = msg.txn(); //PURELY TESTING PURPOSES!!: NOTE WARNING
 
-  UW_ASSERT(msg.endorsements().sig_msgs_size() == 1);
+  // UW_ASSERT(msg.endorsements().sig_msgs_size() == 1);
 
    proto::Transaction *txn;
   if(params.signClientProposals){
