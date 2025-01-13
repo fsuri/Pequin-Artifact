@@ -36,6 +36,8 @@
 #include "store/sintrstore/common.h"
 
 #include <google/protobuf/util/message_differencer.h>
+#include <sched.h>
+#include <pthread.h>
 
 namespace sintrstore {
 
@@ -68,6 +70,12 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
 
   for (size_t i = 0; i < params.sintr_params.maxValThreads; i++) {
     valThreads.push_back(new std::thread(&Client2Client::ValidationThreadFunction, this));
+    // // set cpu affinity
+    // cpu_set_t cpuset;
+    // CPU_ZERO(&cpuset);
+    // int num_cpus = std::thread::hardware_concurrency();
+    // CPU_SET(i % num_cpus, &cpuset);
+    // pthread_setaffinity_np(valThreads[i]->native_handle(), sizeof(cpu_set_t), &cpuset);
   }
 }
 
@@ -510,6 +518,12 @@ void Client2Client::ValidationThreadFunction() {
     uint64_t curr_client_seq_num = valInfo->txn_client_seq_num;
     Timestamp curr_ts = valInfo->txn_ts;
     ValidationTransaction *valTxn = valInfo->valTxn;
+    Debug(
+      "%lu will validate for client %lu, seq num %lu",
+      std::this_thread::get_id(),
+      curr_client_id,
+      curr_client_seq_num
+    );
     // std::cerr << std::this_thread::get_id() << " will validate for client " << curr_client_id 
     //           << ", seq num " << curr_client_seq_num << std::endl;
 
