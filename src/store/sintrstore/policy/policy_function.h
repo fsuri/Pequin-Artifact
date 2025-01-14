@@ -39,6 +39,17 @@ typedef std::function<Policy *(const std::string &, const std::string &)> policy
 // a policy id function takes in the key and value and returns a policy id
 typedef std::function<uint64_t(const std::string &, const std::string &)> policy_id_function;
 
+// function that takes in a policy function name and returns the corresponding policy function
+inline policy_id_function GetPolicyIdFunction(const std::string &policy_function_name) {
+  if (policy_function_name == "basic_id") {
+    return [](const std::string &key, const std::string &value) -> uint64_t {
+      return 0;
+    };
+  }
+  else {
+    Panic("Unknown policy function name %s", policy_function_name.c_str());
+  }
+}
 
 } // namespace sintrstore
 

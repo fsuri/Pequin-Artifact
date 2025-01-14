@@ -95,9 +95,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     pingReplicas, params, keyManager, verifier, part, endorseClient
   );
   policyParseClient = new PolicyParseClient();
-  policyIdFunction = [](const std::string &key, const std::string &value) {
-    return 0;
-  };
+  policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());

@@ -473,7 +473,7 @@ DEFINE_bool(sintr_sign_fwd_read_results, true, "sintr sign forward read results"
 DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
 DEFINE_bool(sintr_debug_endorse_check, true, "sintr do a full debug validation txn endorsement check");
 DEFINE_bool(sintr_client_check_evidence, true, "sintr client check prepared committed evidence on forward read results");
-
+DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to use");
 
 ///////////////////////////////////////////////////////////
 
@@ -1591,7 +1591,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_sign_fwd_read_results,
         FLAGS_sintr_sign_finish_validation,
         FLAGS_sintr_debug_endorse_check,
-        FLAGS_sintr_client_check_evidence
+        FLAGS_sintr_client_check_evidence,
+        FLAGS_sintr_policy_function_name
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

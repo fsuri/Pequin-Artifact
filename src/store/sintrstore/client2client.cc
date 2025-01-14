@@ -524,8 +524,6 @@ void Client2Client::ValidationThreadFunction() {
       curr_client_id,
       curr_client_seq_num
     );
-    // std::cerr << std::this_thread::get_id() << " will validate for client " << curr_client_id 
-    //           << ", seq num " << curr_client_seq_num << std::endl;
 
     valClient->SetThreadValTxnId(curr_client_id, curr_client_seq_num);
     valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts);

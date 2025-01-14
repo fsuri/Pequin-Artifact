@@ -807,14 +807,16 @@ typedef struct SintrParameters {
   const bool signFinishValidation; // sign (and validate) finish validation messages
   const bool debugEndorseCheck; // debug endorsement check
   const bool clientCheckEvidence; // client checks prepared and committed evidence on forward read results
+  const std::string policyFunctionName; // name of the policy function to use
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
-    bool debugEndorseCheck, bool clientCheckEvidence) :
+    bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
     debugEndorseCheck(debugEndorseCheck),
-    clientCheckEvidence(clientCheckEvidence) {}
+    clientCheckEvidence(clientCheckEvidence),
+    policyFunctionName(policyFunctionName) {}
 } SintrParameters;
 
 typedef struct Parameters {

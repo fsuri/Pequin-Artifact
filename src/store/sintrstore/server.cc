@@ -161,9 +161,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
   UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
 
-  policyIdFunction = [](const std::string &key, const std::string &value) {
-    return 0;
-  };
+  policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
 
   if (sql_bench) {
 
