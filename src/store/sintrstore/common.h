@@ -808,15 +808,18 @@ typedef struct SintrParameters {
   const bool debugEndorseCheck; // debug endorsement check
   const bool clientCheckEvidence; // client checks prepared and committed evidence on forward read results
   const std::string policyFunctionName; // name of the policy function to use
+  const std::string policyConfigPath; // path to the policy configuration file
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
-    bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName) :
+    bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
+    std::string policyConfigPath) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
     debugEndorseCheck(debugEndorseCheck),
     clientCheckEvidence(clientCheckEvidence),
-    policyFunctionName(policyFunctionName) {}
+    policyFunctionName(policyFunctionName),
+    policyConfigPath(policyConfigPath) {}
 } SintrParameters;
 
 typedef struct Parameters {

@@ -32,6 +32,23 @@
 
 namespace sintrstore {
 
+Policy *PolicyParseClient::Create(const std::string &policyType, const std::vector<std::string> &policyArgs) {
+  if (policyType == "weight") {
+    if (policyArgs.size() != 1) {
+      Panic("Weight policy requires exactly one argument");
+    }
+    return new WeightPolicy(std::stoull(policyArgs[0]));
+  } else if (policyType == "acl") {
+    std::set<uint64_t> access_control_list;
+    for (const std::string &arg : policyArgs) {
+      access_control_list.insert(std::stoull(arg));
+    }
+    return new ACLPolicy(access_control_list);
+  } else {
+    Panic("Received unexpected policy type: %s", policyType.c_str());
+  }
+}
+
 Policy *PolicyParseClient::Parse(const proto::EndorsementPolicyMessage &endorsePolicyMsg) {
   switch (endorsePolicyMsg.policy_type()) {
     case proto::EndorsementPolicyMessage::WEIGHT_POLICY: {

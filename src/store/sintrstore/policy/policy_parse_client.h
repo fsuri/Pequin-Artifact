@@ -29,6 +29,8 @@
 #include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/sintr-proto.pb.h"
 
+#include <string>
+
 namespace sintrstore {
 
 // this class takes parses TxnState proto message into the underlying validation transaction
@@ -37,6 +39,7 @@ class PolicyParseClient {
   PolicyParseClient() {}
   ~PolicyParseClient(){}
 
+  Policy *Create(const std::string &policyType, const std::vector<std::string> &policyArgs);
   Policy *Parse(const proto::EndorsementPolicyMessage &endorsePolicyMsg);
 };
 

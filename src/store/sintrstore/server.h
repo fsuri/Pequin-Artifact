@@ -132,6 +132,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   virtual void Load(const std::string &key, const std::string &value,
       const Timestamp timestamp) override;
   
+  // load policy store data
+  void LoadPolicyStore(const std::string &policyStorePath);
+  
   virtual void CreateTable(const std::string &table_name, const std::vector<std::pair<std::string, std::string>> &column_data_types, 
       const std::vector<uint32_t> &primary_key_col_idx) override;
   

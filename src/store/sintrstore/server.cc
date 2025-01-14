@@ -47,7 +47,7 @@
 #include "store/sintrstore/phase1validator.h"
 #include "store/sintrstore/sharedbatchsigner.h"
 #include "store/sintrstore/sharedbatchverifier.h"
-#include "store/sintrstore/policy/weight_policy.h"
+#include "store/sintrstore/policy/policy_parse_client.h"
 #include <fmt/core.h>
 #include <valgrind/memcheck.h>
 
@@ -87,7 +87,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
 
   stats.Increment("total_equiv_received_adopt", 0);
 
-  Notice("Starting Indicus replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
+  Notice("Starting Sintr replica. ID: %d, IDX: %d, GROUP: %d\n", id, idx, groupIdx);
   Notice("Sign Client Proposals? %s\n", params.signClientProposals ? "True" : "False");
   Debug("Starting Indicus replica %d.", id);
   transport->Register(this, config, groupIdx, idx);
@@ -160,6 +160,10 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   Notice("write_monotonicity_grace: %d", write_monotonicity_grace);
   //std::cerr << "Reverse: " << timeServer.TStoMS(write_monotonicity_grace) << std::endl;
   UW_ASSERT(timeServer.TStoMS(write_monotonicity_grace) == params.query_params.monotonicityGrace);
+
+  // load policy store
+  Notice("Loading Policy Store from config file: %s", params.sintr_params.policyConfigPath.c_str());
+  LoadPolicyStore(params.sintr_params.policyConfigPath);
 
   policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
 
@@ -531,16 +535,54 @@ void Server::Load(const std::string &key, const std::string &value,
   std::pair<Timestamp, Policy *> tsPolicy;
   bool exists = policyStore.get(policyId, tsPolicy);
   if (!exists) {
-    Debug("Adding policy %lu to policyStore", policyId);
-    WeightPolicy *wp = new WeightPolicy(2);
-    policyStore.put(policyId, wp, timestamp);
-    policiesToFree.push_back(wp);
+    Panic("Policy %lu does not exist", policyId);
   }
   store.put(key, val, timestamp);
   if (key.length() == 5 && key[0] == 0) {
     std::cerr << std::bitset<8>(key[0]) << ' ' << std::bitset<8>(key[1]) << ' '
               << std::bitset<8>(key[2]) << ' ' << std::bitset<8>(key[3]) << ' '
               << std::bitset<8>(key[4]) << ' ' << std::endl;
+  }
+}
+
+void Server::LoadPolicyStore(const std::string &policyStorePath) {
+  std::ifstream policyStoreFile(policyStorePath);
+  if (policyStoreFile.fail()) {
+    Panic("Cannot open policy store file %s", policyStorePath.c_str());
+  }
+
+  PolicyParseClient policyParseClient;
+
+  std::string line;
+  while (std::getline(policyStoreFile, line)) {
+    // expected format is "policyId policyType args..."
+    uint64_t policyId;
+    std::string policyType;
+    std::vector<std::string> args;
+
+    // parse line
+    std::istringstream iss(line);
+    std::string temp;
+    int i = 0;
+    while (std::getline(iss, temp, ' ')) {
+      if (i == 0) {
+        policyId = std::stoull(temp);
+      } else if (i == 1) {
+        policyType = temp;
+      } else {
+        args.push_back(temp);
+      }
+      i++;
+    }
+
+    // create policy
+    Policy *policy = policyParseClient.Create(policyType, args);
+
+    // insert to policy store
+    policyStore.put(policyId, policy, Timestamp());
+
+    // to free later
+    policiesToFree.push_back(policy);
   }
 }
 

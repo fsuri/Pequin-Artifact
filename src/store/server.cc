@@ -475,6 +475,7 @@ DEFINE_validator(indicus_read_dep, &ValidateReadDep);
 // Sintr specific args
 DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
 DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to use");
+DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
 
 /**
  * Experiment settings.
@@ -835,7 +836,8 @@ int main(int argc, char **argv) {
         0, false,
         FLAGS_sintr_sign_finish_validation,
         false, false,
-        FLAGS_sintr_policy_function_name
+        FLAGS_sintr_policy_function_name,
+        FLAGS_sintr_policy_config_path
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,
