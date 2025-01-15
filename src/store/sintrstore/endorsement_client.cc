@@ -255,4 +255,11 @@ void EndorsementClient::UpdatePolicyCache(uint64_t policyId, const Policy *polic
   policyCache[policyId] = policy->Clone();
 }
 
+void EndorsementClient::InitializePolicyCache(const std::map<uint64_t, Policy *> &policies) {
+  UW_ASSERT(this->policyCache.empty());
+  for (const auto &p : policies) {
+    policyCache[p.first] = std::move(p.second);
+  }
+}
+
 } // namespace sintrstore

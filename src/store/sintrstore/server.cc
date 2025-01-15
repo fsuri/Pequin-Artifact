@@ -546,43 +546,13 @@ void Server::Load(const std::string &key, const std::string &value,
 }
 
 void Server::LoadPolicyStore(const std::string &policyStorePath) {
-  std::ifstream policyStoreFile(policyStorePath);
-  if (policyStoreFile.fail()) {
-    Panic("Cannot open policy store file %s", policyStorePath.c_str());
-  }
-
   PolicyParseClient policyParseClient;
 
-  std::string line;
-  while (std::getline(policyStoreFile, line)) {
-    // expected format is "policyId policyType args..."
-    uint64_t policyId;
-    std::string policyType;
-    std::vector<std::string> args;
+  std::map<uint64_t, Policy *> policies = policyParseClient.ParseConfigFile(policyStorePath);
 
-    // parse line
-    std::istringstream iss(line);
-    std::string temp;
-    int i = 0;
-    while (std::getline(iss, temp, ' ')) {
-      if (i == 0) {
-        policyId = std::stoull(temp);
-      } else if (i == 1) {
-        policyType = temp;
-      } else {
-        args.push_back(temp);
-      }
-      i++;
-    }
-
-    // create policy
-    Policy *policy = policyParseClient.Create(policyType, args);
-
-    // insert to policy store
-    policyStore.put(policyId, policy, Timestamp());
-
-    // to free later
-    policiesToFree.push_back(policy);
+  for (const auto &p : policies) {
+    policyStore.put(p.first, p.second, Timestamp());
+    policiesToFree.push_back(p.second);
   }
 }
 

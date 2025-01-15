@@ -61,6 +61,7 @@ class EndorsementClient {
   bool GetPolicyFromCache(uint64_t policyId, Policy **policy);
   void UpdateKeyPolicyIdCache(const std::string &key, uint64_t policyId);
   void UpdatePolicyCache(uint64_t policyId, const Policy *policy);
+  void InitializePolicyCache(const std::map<uint64_t, Policy *> &policyCache);
 
  private:
   // this client information

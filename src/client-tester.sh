@@ -5,6 +5,7 @@ F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"
 CLIENTS_CONFIG="0_local_test_outputs/configs/clients-r${CLIENTS}.config"
+POLICY_CONFIG="0_local_test_outputs/configs/policy-basic.config"
 PROTOCOL="sintr"
 STORE=${PROTOCOL}store
 DURATION=5
@@ -59,7 +60,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
     --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH \
     --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
-    --sintr_max_val_threads=2 &> ./0_local_test_outputs/client-$i.out &
+    --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG &> ./0_local_test_outputs/client-$i.out &
 done;
 
 #valgrind
@@ -69,7 +70,7 @@ DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clien
   --cooldown_secs 0 --key_selector zipf --zipf_coefficient $ZIPF \
   --stats_file "stats-0.json" --indicus_key_path $KEY_PATH \
   --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
-  --sintr_max_val_threads=2 &> ./0_local_test_outputs/client-0.out &
+  --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG &> ./0_local_test_outputs/client-0.out &
 
 
 sleep $((DURATION+4))

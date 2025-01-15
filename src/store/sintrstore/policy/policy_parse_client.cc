@@ -30,7 +30,53 @@
 #include "store/sintrstore/policy/acl_policy.h"
 #include "lib/message.h"
 
+#include <fstream>
+#include <sstream>
+
 namespace sintrstore {
+
+std::map<uint64_t, Policy *> PolicyParseClient::ParseConfigFile(const std::string &configFilePath) {
+  std::map<uint64_t, Policy *> policies;
+
+  std::ifstream policyStoreFile(configFilePath);
+  if (policyStoreFile.fail()) {
+    Panic("Cannot open policy store file %s", configFilePath.c_str());
+  }
+
+  std::string line;
+  while (std::getline(policyStoreFile, line)) {
+    // expected format is "policyId policyType args..."
+    uint64_t policyId;
+    std::string policyType;
+    std::vector<std::string> args;
+
+    // parse line
+    std::istringstream iss(line);
+    std::string temp;
+    int i = 0;
+    while (std::getline(iss, temp, ' ')) {
+      if (i == 0) {
+        policyId = std::stoull(temp);
+      } else if (i == 1) {
+        policyType = temp;
+      } else {
+        args.push_back(temp);
+      }
+      i++;
+    }
+
+    // create policy
+    Policy *policy = Create(policyType, args);
+
+    // add to policies
+    auto result = policies.insert(std::make_pair(policyId, policy));
+    if (!result.second) {
+      Panic("Policy id %lu occurs twice in config file", policyId);
+    }
+  }
+
+  return policies;
+}
 
 Policy *PolicyParseClient::Create(const std::string &policyType, const std::vector<std::string> &policyArgs) {
   if (policyType == "weight") {

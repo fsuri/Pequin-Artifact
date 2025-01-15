@@ -35,7 +35,6 @@
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
 #include "store/sintrstore/policy/policy.h"
-#include "store/sintrstore/policy/weight_policy.h"
 #include <sys/time.h>
 #include <algorithm>
 
@@ -96,6 +95,9 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   );
   policyParseClient = new PolicyParseClient();
   policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
+
+  std::map<uint64_t, Policy *> policies = policyParseClient->ParseConfigFile(params.sintr_params.policyConfigPath);
+  endorseClient->InitializePolicyCache(policies);
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());
@@ -200,7 +202,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->Reset();
     endorseClient->SetClientSeqNum(client_seq_num);
     // dummy endorsement policy
-    WeightPolicy *policy = new WeightPolicy(2);
+    Policy *policy;
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, &policy));
     endorseClient->UpdateRequirement(policy);
     delete policy;
     c2client->SendBeginValidateTxnMessage(client_seq_num, txnState, txnStartTime);
