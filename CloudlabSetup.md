@@ -56,7 +56,7 @@ You may need to add `-pg0` to your project name in order to connect, i.e. if you
 It is crucial that you connect using the `-A` setting in order to transfer your local SSH agent to the control machine. If you still run into connection issues, try manually uploading your ssh key (that is registered with CloudLab) to the control machine.
 
 
-Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. You can either free up space by deleting the 'images' folder (it should be under `/proj/<project-name>-pg0`, or clone the artifact into a directory such as `dev`.
+Control machines may be low on disk space in the default home directory, and have insufficient space to clone the artifact. If this should become a problem, try to clone the artifact into a directory such as `dev`or `mnt`.
 
 ### Using a custom profile (skip if using pre-supplied profile)
 
