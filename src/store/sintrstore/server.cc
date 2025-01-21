@@ -1148,6 +1148,11 @@ void Server::HandleRead(const TransportAddress &remote,
     /* add prepared deps */
     if (params.maxDepDepth > -2) {
       Debug("Look for prepared value to READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
+      CheckPreparedWrites(msg.key(), ts, committed_exists, tsVal, readReply);
+    }
+    /*
+    if (params.maxDepDepth > -2) {
+      Debug("Look for prepared value to READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
       const proto::Transaction *mostRecent = nullptr;
 
       //std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
@@ -1211,6 +1216,7 @@ void Server::HandleRead(const TransportAddress &remote,
         }
       }
     }
+    */
   }
 
   //Sign and Send Reply
@@ -1226,6 +1232,96 @@ void Server::HandleRead(const TransportAddress &remote,
 
   if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.parallel_reads)) FreeReadmessage(&msg);
 }
+
+void Server::CheckPreparedWrites(const std::string &key, const Timestamp &ts, const bool committed_exists, 
+    const std::pair<Timestamp, Server::Value> &tsVal, proto::ReadReply* readReply, 
+    Policy **policy, const bool onlyExtractPolicy) {
+  const proto::Transaction *mostRecent = nullptr;
+  const proto::Transaction *mostRecentPolicyChange = nullptr;
+
+  auto itr = preparedWrites.find(key);
+  if (itr != preparedWrites.end()){
+    std::shared_lock lock(itr->second.first);
+    if(itr->second.second.size() > 0) {
+      // there is a prepared write for the key being read
+      for (const auto &t : itr->second.second) {
+        if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
+        if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
+        if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
+          if (t.second->policy_type() == proto::Transaction::NONE) {
+            mostRecent = t.second;
+          }
+        }
+        if (mostRecentPolicyChange == nullptr || t.first > Timestamp(mostRecentPolicyChange->timestamp())) {
+          if (t.second->policy_type() == proto::Transaction::KEY_POLICY_ID) {
+            mostRecentPolicyChange = t.second;
+          }
+        }
+      }
+
+      if (mostRecent != nullptr || mostRecentPolicyChange != nullptr) {
+        std::string preparedValue;
+        uint64_t preparedPolicyId;
+        if (mostRecent != nullptr) {
+          for (const auto &w : mostRecent->write_set()) {
+            if (w.key() == key) {
+              preparedValue = w.value();
+              preparedPolicyId = GetPolicyId(w.key(), w.value(), mostRecent->timestamp());
+              break;
+            }
+          }
+        }
+        uint64_t preparedChangePolicyId;
+        if (mostRecentPolicyChange != nullptr) {
+          for (const auto &w : mostRecentPolicyChange->write_set()) {
+            if (w.key() == key) {
+              preparedChangePolicyId = std::stoull(w.value());
+              break;
+            }
+          }
+        }
+
+        // only if policy change is more recent
+        if (mostRecent != nullptr && mostRecentPolicyChange != nullptr) {
+          if (Timestamp(mostRecentPolicyChange->timestamp()) > Timestamp(mostRecent->timestamp())) {
+            preparedPolicyId = preparedChangePolicyId;
+          }
+        }
+        else if (mostRecentPolicyChange != nullptr) { // && mostRecent == nullptr
+          // in this case, this transaction has a dependency that is pure policy change
+          mostRecent = mostRecentPolicyChange;
+          // what to set preparedValue to?
+          preparedValue = "";
+        }
+
+        Debug("Prepared write with most recent ts %lu.%lu.",
+            mostRecent->timestamp().timestamp(), mostRecent->timestamp().id());
+        if (params.maxDepDepth == -1 || DependencyDepth(mostRecent) <= params.maxDepDepth) {
+          if (!onlyExtractPolicy) {
+            readReply->mutable_write()->set_prepared_value(preparedValue);
+            *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
+            *readReply->mutable_write()->mutable_prepared_txn_digest() = TransactionDigest(*mostRecent, params.hashDigest);
+          }
+
+          // get policy from policyStore
+          std::pair<Timestamp, Policy *> tsPolicy;
+          bool policyExists = policyStore.get(preparedPolicyId, mostRecent->timestamp(), tsPolicy);
+          if (!policyExists) {
+            Panic("Cannot find policy %lu in policyStore", preparedPolicyId);
+          }
+          if (!onlyExtractPolicy) {
+            readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
+            tsPolicy.second->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy());
+          }
+          else {
+            *policy = tsPolicy.second;
+          }
+        }
+      }
+    }
+  }
+}
+
 
 //////////////////////
 
@@ -2974,56 +3070,26 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
       continue;
     }
 
-    uint64_t policyId;
-    Timestamp policyIdTs;
+    Policy **policy = nullptr;
     std::pair<Timestamp, Server::Value> tsVal;
     bool committed_exists = store.get(read.key(), read.readtime(), tsVal);
     if (committed_exists) {
-      policyId = tsVal.second.policyId;
-      policyIdTs = tsVal.first;
+      uint64_t policyId = tsVal.second.policyId;
+      Timestamp policyIdTs = tsVal.first;
+      Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
+      std::pair<Timestamp, Policy *> tsPolicy;
+      bool exists = policyStore.get(policyId, policyIdTs, tsPolicy);
+      if (!exists) {
+        Panic("Cannot find policy %lu in policyStore", policyId);
+      }
+      policy = &tsPolicy.second;
     }
     // also check prepared
-    const proto::Transaction *mostRecent = nullptr;
-    auto itr = preparedWrites.find(read.key());
-    if (itr != preparedWrites.end()){
-      std::shared_lock lock(itr->second.first);
-      if(itr->second.second.size() > 0) {
-        // there is a prepared write for the key being read
-        for (const auto &t : itr->second.second) {
-          if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
-          if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
-          if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
-            mostRecent = t.second;
-          }
-        }
-
-        if (mostRecent != nullptr) {
-          uint64_t preparedPolicyId;
-          for (const auto &w : mostRecent->write_set()) {
-            if (w.key() == read.key()) {
-              preparedPolicyId = GetPolicyId(w.key(), w.value(), mostRecent->timestamp());
-              break;
-            }
-          }
-
-          if (params.maxDepDepth == -1 || DependencyDepth(mostRecent) <= params.maxDepDepth) {
-            policyId = preparedPolicyId;
-            policyIdTs = mostRecent->timestamp();
-          }
-        }
-      }
-    }
-    
-    UW_ASSERT(policyId == 0);
-
-    Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
-    std::pair<Timestamp, Policy *> tsPolicy;
-    bool exists = policyStore.get(policyId, policyIdTs, tsPolicy);
-    if (!exists) {
-      Panic("Cannot find policy %lu in policyStore", policyId);
+    if (params.maxDepDepth > -2) {
+      CheckPreparedWrites(read.key(), read.readtime(), committed_exists, tsVal, nullptr, policy, true);
     }
 
-    if (policyClient.IsOtherWeaker(tsPolicy.second)) {
+    if (policyClient.IsOtherWeaker(*policy)) {
       Panic("Read policy is weaker than write policy");
     } 
   }

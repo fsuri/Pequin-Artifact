@@ -198,6 +198,12 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //Read Handling
   void ManageDispatchRead(const TransportAddress &remote, const std::string &data);
   void HandleRead(const TransportAddress &remote, proto::Read &msg);
+  // helper for checking preparedWrites and modifying readReply accordingly
+  // tsVal is the committed value if it exists
+  // if onlyExtractPolicy is true, only the policy is extracted and the readReply is not modified
+  void CheckPreparedWrites(const std::string &key, const Timestamp &ts, const bool committed_exists, 
+    const std::pair<Timestamp, Server::Value> &tsVal, proto::ReadReply* readReply, 
+    Policy **policy = nullptr, const bool onlyExtractPolicy = false);
 
   //Phase1 Handling
   void ManageDispatchPhase1(const TransportAddress &remote, const std::string &data);

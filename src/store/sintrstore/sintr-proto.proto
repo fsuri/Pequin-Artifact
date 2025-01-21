@@ -163,6 +163,17 @@ message Transaction {
   optional bytes txndigest = 12; //NOT PART OF TX. HACK HERE TO STORE txn digest in the local txn version without changing data structures that hold TXN.
   optional ReadSet merged_read_set = 13; //NOT PART OF TX. HACK HERE TO STORE oltp read set while merging query read sets during CC (serverside)
   //repeated WriteMessage enc_write_set = 13; //NOT PART OF TX. HACK HERE TO STORE encoded write set before performing CC on TableWrites (serverside)
+
+  // is this transaction a change policy transaction? this affects what is in the readset/writeset
+  // NONE means it is not
+  // KEY_POLICY_ID means it changing the policy id of keys
+  // POLICY_ID_POLICY means it is changing the policy of policy ids
+  enum TxnPolicyType {
+    NONE = 0;
+    KEY_POLICY_ID = 1;
+    POLICY_ID_POLICY = 2;
+  }
+  optional TxnPolicyType policy_type = 14 [default = NONE];
 }
 
 message Phase1 {
