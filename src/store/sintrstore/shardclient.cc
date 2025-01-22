@@ -1070,7 +1070,10 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
   //TODO: change so client does not accept reads with depth > some t... (fine for now since
   // servers dont fail and use the same param setting)
-  if (params.maxDepDepth > -2 && write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) {
+  // also possible for there to be only prepared policy and no value if dependency is policy change
+  if (params.maxDepDepth > -2 &&
+      (write->has_prepared_value() && write->has_prepared_timestamp() && write->has_prepared_txn_digest()) ||
+      write->has_prepared_policy()) {
     Timestamp preparedTs(write->prepared_timestamp());
     Debug("[group %i] ReadReply for %lu with prepared %lu byte value and ts %lu.%lu.", 
         group, reply.req_id(), write->prepared_value().length(), preparedTs.getTimestamp(), preparedTs.getID());
@@ -1100,14 +1103,16 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
         if (preparedItr->second.second >= req->rds) {
           req->maxTs = preparedItr->first;
-          req->maxValue = preparedItr->second.first.prepared_value();
+          if (preparedItr->second.first.has_prepared_value()) {
+            req->maxValue = preparedItr->second.first.prepared_value();
+            // if we are going to be forwarding a prepared value, no need for committed proof and signed write
+            req->maxCommittedProof.Clear();
+            req->maxSerializedWrite.clear();
+            req->maxSerializedWriteTypeName.clear();
+          }
           if (preparedItr->second.first.has_prepared_policy()) {
             req->maxPolicy = preparedItr->second.first.prepared_policy();
           }
-          // if we are going to be forwarding a prepared value, no need for committed proof and signed write
-          req->maxCommittedProof.Clear();
-          req->maxSerializedWrite.clear();
-          req->maxSerializedWriteTypeName.clear();
           *req->dep.mutable_write() = preparedItr->second.first;
           if (params.validateProofs && params.signedMessages && params.verifyDeps) {
             *req->dep.mutable_write_sigs() = req->preparedSigs[preparedItr->first];

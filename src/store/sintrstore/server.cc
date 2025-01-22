@@ -1271,33 +1271,29 @@ void Server::CheckPreparedWrites(const std::string &key, const Timestamp &ts, co
             }
           }
         }
-        uint64_t preparedChangePolicyId;
+
+        // always take prepared policy change since above GetPolicyId will only take from committed values
+        // even if mostRecent > mostRecentPolicyChange, mostRecentPolicyChange may not have committed
         if (mostRecentPolicyChange != nullptr) {
           for (const auto &w : mostRecentPolicyChange->write_set()) {
             if (w.key() == key) {
-              preparedChangePolicyId = std::stoull(w.value());
+              preparedPolicyId = std::stoull(w.value());
               break;
             }
           }
         }
 
-        // only if policy change is more recent
-        if (mostRecent != nullptr && mostRecentPolicyChange != nullptr) {
-          if (Timestamp(mostRecentPolicyChange->timestamp()) > Timestamp(mostRecent->timestamp())) {
-            preparedPolicyId = preparedChangePolicyId;
-          }
-        }
-        else if (mostRecentPolicyChange != nullptr) { // && mostRecent == nullptr
-          // in this case, this transaction has a dependency that is pure policy change
+        bool preparedValueExists = true;
+        if (mostRecent == nullptr && mostRecentPolicyChange != nullptr) {
+          // in this case, this transaction only has a dependency that is pure policy change
           mostRecent = mostRecentPolicyChange;
-          // what to set preparedValue to?
-          preparedValue = "";
+          preparedValueExists = false;
         }
 
         Debug("Prepared write with most recent ts %lu.%lu.",
             mostRecent->timestamp().timestamp(), mostRecent->timestamp().id());
         if (params.maxDepDepth == -1 || DependencyDepth(mostRecent) <= params.maxDepDepth) {
-          if (!onlyExtractPolicy) {
+          if (!onlyExtractPolicy && preparedValueExists) {
             readReply->mutable_write()->set_prepared_value(preparedValue);
             *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
             *readReply->mutable_write()->mutable_prepared_txn_digest() = TransactionDigest(*mostRecent, params.hashDigest);
