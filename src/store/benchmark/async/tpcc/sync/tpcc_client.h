@@ -52,6 +52,10 @@ class SyncTPCCClient : public SyncTransactionBenchClient, public TPCCClient {
   virtual SyncTransaction *GetNextTransaction();
   virtual std::string GetLastOp() const;
 
+ private:
+  uint32_t count;
+  uint64_t id;
+
 };
 
 } //namespace tpcc

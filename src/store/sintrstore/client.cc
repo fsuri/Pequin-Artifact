@@ -197,16 +197,18 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     client_seq_num++;
 
     uint64_t txnStartTime = timeServer.GetTime();
+    TxnState protoTxnState;
+    protoTxnState.ParseFromString(txnState);
     
     // begin sintr validation
     endorseClient->Reset();
     endorseClient->SetClientSeqNum(client_seq_num);
     // dummy endorsement policy
     Policy *policy;
-    EstimateTxnPolicy(txnState, &policy);
+    EstimateTxnPolicy(protoTxnState, &policy);
     endorseClient->UpdateRequirement(policy);
     delete policy;
-    c2client->SendBeginValidateTxnMessage(client_seq_num, txnState, txnStartTime);
+    c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime);
   
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
@@ -214,6 +216,11 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // Optimistically choose a read timestamp for all reads in this transaction
     txn.mutable_timestamp()->set_timestamp(txnStartTime);
     txn.mutable_timestamp()->set_id(client_id);
+
+    if (IsPolicyChangeTxn(protoTxnState)) {
+      Debug("Begin policy change transaction from client id %lu, seq num %lu", client_id, client_seq_num);
+      txn.set_policy_type(proto::Transaction::KEY_POLICY_ID);
+    }
 
       //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;
     Debug("BEGIN [%lu]. TS[%lu:%lu]", client_seq_num, txn.timestamp().timestamp(), txn.timestamp().id());
@@ -238,12 +245,14 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
   });
 }
 
-void Client::EstimateTxnPolicy(const std::string &txnState, Policy **policy) {
-  TxnState protoTxnState;
-  protoTxnState.ParseFromString(txnState);
-  if (protoTxnState.txn_name().find("policy") != std::string::npos) {
+bool Client::IsPolicyChangeTxn(const TxnState &protoTxnState) const {
+  return protoTxnState.txn_name().find("policy") != std::string::npos;
+}
+
+void Client::EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy) {
+  if (IsPolicyChangeTxn(protoTxnState)) {
     // policy change transaction requires separate handling
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+    UW_ASSERT(endorseClient->GetPolicyFromCache(1, policy));
   } 
   else {
     // for now always return default policy
@@ -343,16 +352,18 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_key(key);
     write->set_value(value);
 
-    // look in cache for policy
-    Policy *policy;
-    bool exists = endorseClient->GetPolicyFromCache(key, &policy);
-    if (!exists) {
-      // if not found, use default policy for now
-      uint64_t policyId = policyIdFunction(key, value);
-      endorseClient->GetPolicyFromCache(policyId, &policy);
+    if (txn.policy_type() == proto::Transaction::NONE) {
+      // look in cache for policy
+      Policy *policy;
+      bool exists = endorseClient->GetPolicyFromCache(key, &policy);
+      if (!exists) {
+        // if not found, use default policy for now
+        uint64_t policyId = policyIdFunction(key, value);
+        endorseClient->GetPolicyFromCache(policyId, &policy);
+      }
+      c2client->HandlePolicyUpdate(policy);
+      delete policy;
     }
-    c2client->HandlePolicyUpdate(policy);
-    delete policy;
 
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);

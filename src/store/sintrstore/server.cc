@@ -2737,13 +2737,22 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     //Notice("Commit key:[%s]. Ts[%lu:%lu]", write.key().c_str(), txn->timestamp().timestamp(), txn->timestamp().id());
 
     Debug("COMMIT[%lu,%lu] Committing write for key %s.", txn->client_id(), txn->client_seq_num(), write.key().c_str());
-    
-    if(write.has_value()) val.val = write.value();
-    else if(!params.query_params.sql_mode){
-      Panic("When running in KV-store mode write should always have a value");
-    }
 
-    val.policyId = GetPolicyId(write.key(), write.value(), ts);
+    if (txn->policy_type() == proto::Transaction::NONE) {
+      if(write.has_value()) val.val = write.value();
+      else if(!params.query_params.sql_mode){
+        Panic("When running in KV-store mode write should always have a value");
+      }
+      val.policyId = GetPolicyId(write.key(), write.value(), ts);      
+    }
+    else if (txn->policy_type() == proto::Transaction::KEY_POLICY_ID) {
+      Debug("Committing for key %s new policy id %s.", BytesToHex(write.key(), 16).c_str(), write.value().c_str());
+      // use existing value
+      std::pair<Timestamp, Server::Value> tsVal;
+      UW_ASSERT(store.get(write.key(), ts, tsVal));
+      val.val = tsVal.second.val;
+      val.policyId = std::stoull(write.value());
+    }
     
     UW_ASSERT(txn->has_txndigest());
     if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;

@@ -33,6 +33,7 @@
 #include "store/benchmark/async/tpcc/sync/order_status.h"
 #include "store/benchmark/async/tpcc/sync/stock_level.h"
 #include "store/benchmark/async/tpcc/sync/delivery.h"
+#include "store/benchmark/async/tpcc/sync/policy_change.h"
 
 namespace tpcc {
 
@@ -49,7 +50,8 @@ SyncTPCCClient::SyncTPCCClient(SyncClient &client, Transport &transport,
         retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename),
       TPCCClient(num_warehouses, w_id, C_c_id, C_c_last, new_order_ratio,
         delivery_ratio, payment_ratio, order_status_ratio, stock_level_ratio,
-        static_w_id, GetRand()) {
+        static_w_id, GetRand()),
+      count(0), id(seed) {
   stockLevelDId = std::uniform_int_distribution<uint32_t>(1, 10)(GetRand());
 }
 
@@ -57,6 +59,12 @@ SyncTPCCClient::~SyncTPCCClient() {
 }
 
 SyncTransaction* SyncTPCCClient::GetNextTransaction() {
+  count++;
+
+  // if (id == 0 && count == 200) {
+  //   return new SyncPolicyChange(GetTimeout(), 0);
+  // }
+
   uint32_t wid, did;
   TPCCTransactionType ttype = TPCCClient::GetNextTransaction(&wid, &did, GetRand());
 

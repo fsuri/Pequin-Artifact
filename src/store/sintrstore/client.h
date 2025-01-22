@@ -45,6 +45,7 @@
 #include "store/common/frontend/bufferclient.h"
 #include "store/sintrstore/shardclient.h"
 #include "store/sintrstore/sintr-proto.pb.h"
+#include "store/common/common-proto.pb.h"
 #include "store/sintrstore/client2client.h"
 #include "store/sintrstore/endorsement_client.h"
 #include "store/sintrstore/policy/policy_parse_client.h"
@@ -357,8 +358,9 @@ class Client : public ::Client {
 
   bool IsParticipant(int g) const;
 
+  bool IsPolicyChangeTxn(const TxnState &protoTxnState) const;
   // estimate the transaction policy from the transaction state
-  void EstimateTxnPolicy(const std::string &txnState, Policy **policy);
+  void EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy);
 
   /* Configuration State */
   transport::Configuration *config;

@@ -121,15 +121,13 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
   return true;
 }
 
-void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const std::string &txnState, uint64_t txnStartTime) {
+void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime) {
   this->client_seq_num = client_seq_num;
 
   sentBeginValTxnMsg = proto::BeginValidateTxnMessage();
   sentBeginValTxnMsg.set_client_id(client_id);
   sentBeginValTxnMsg.set_client_seq_num(client_seq_num);
-  TxnState *protoTxnState = new TxnState();
-  protoTxnState->ParseFromString(txnState);
-  sentBeginValTxnMsg.set_allocated_txn_state(protoTxnState);
+  *sentBeginValTxnMsg.mutable_txn_state() = protoTxnState;
   sentBeginValTxnMsg.mutable_timestamp()->set_timestamp(txnStartTime);
   sentBeginValTxnMsg.mutable_timestamp()->set_id(client_id);
 

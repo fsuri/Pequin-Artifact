@@ -77,7 +77,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // start up the sintr validation for current transaction
   // txnState should be parsable as proto::TxnState
   // sends BeginValidateTxnMessage to peers
-  void SendBeginValidateTxnMessage(uint64_t client_seq_num, const std::string &txnState, uint64_t txnStartTime);
+  void SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime);
 
   // forward server read reply to other peers
   void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
