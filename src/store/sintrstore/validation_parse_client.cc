@@ -31,6 +31,7 @@
 #include "store/benchmark/async/tpcc/validation/order_status.h"
 #include "store/benchmark/async/tpcc/validation/payment.h"
 #include "store/benchmark/async/tpcc/validation/stock_level.h"
+#include "store/benchmark/async/tpcc/validation/policy_change.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/benchmark/async/tpcc/tpcc_common.h"
 
@@ -52,29 +53,34 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
     ::tpcc::TPCCTransactionType tpcc_txn_type = ::tpcc::GetBenchmarkTxnTypeEnum(txn_type);
     switch (tpcc_txn_type) {
       case ::tpcc::TXN_DELIVERY: {
-        ::tpcc::validation::proto::Delivery valTxnData = ::tpcc::validation::proto::Delivery();
+        ::tpcc::validation::proto::Delivery valTxnData;
         valTxnData.ParseFromString(txnState.txn_data());
         return new ::tpcc::ValidationDelivery(timeout, valTxnData);
       }
       case ::tpcc::TXN_NEW_ORDER: {
-        ::tpcc::validation::proto::NewOrder valTxnData = ::tpcc::validation::proto::NewOrder();
+        ::tpcc::validation::proto::NewOrder valTxnData;
         valTxnData.ParseFromString(txnState.txn_data());
         return new ::tpcc::ValidationNewOrder(timeout, valTxnData);
       }
       case ::tpcc::TXN_ORDER_STATUS: {
-        ::tpcc::validation::proto::OrderStatus valTxnData = ::tpcc::validation::proto::OrderStatus();
+        ::tpcc::validation::proto::OrderStatus valTxnData;
         valTxnData.ParseFromString(txnState.txn_data());
         return new ::tpcc::ValidationOrderStatus(timeout, valTxnData);
       }
       case ::tpcc::TXN_PAYMENT: {
-        ::tpcc::validation::proto::Payment valTxnData = ::tpcc::validation::proto::Payment();
+        ::tpcc::validation::proto::Payment valTxnData;
         valTxnData.ParseFromString(txnState.txn_data());
         return new ::tpcc::ValidationPayment(timeout, valTxnData);
       }
       case ::tpcc::TXN_STOCK_LEVEL: {
-        ::tpcc::validation::proto::StockLevel valTxnData = ::tpcc::validation::proto::StockLevel();
+        ::tpcc::validation::proto::StockLevel valTxnData;
         valTxnData.ParseFromString(txnState.txn_data());
         return new ::tpcc::ValidationStockLevel(timeout, valTxnData);
+      }
+      case ::tpcc::TXN_POLICY_CHANGE: {
+        ::tpcc::validation::proto::PolicyChange valTxnData;
+        valTxnData.ParseFromString(txnState.txn_data());
+        return new ::tpcc::ValidationPolicyChange(timeout, valTxnData);
       }
       default:
         Panic("Received unexpected txn type: %s", txn_type.c_str());

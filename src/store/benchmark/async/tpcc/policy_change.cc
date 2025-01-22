@@ -23,61 +23,37 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef TPCC_COMMON_H
-#define TPCC_COMMON_H
 
-#include "lib/message.h"
-#include "store/benchmark/async/tpcc/tpcc_client.h"
+#include "store/benchmark/async/tpcc/policy_change.h"
+#include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
+#include "store/common/common-proto.pb.h"
 
-#include <string>
 
 namespace tpcc {
 
-const std::string BENCHMARK_NAME = "tpcc";
-
-inline std::string GetBenchmarkTxnTypeName(TPCCTransactionType txn_type) {
-  switch (txn_type) {
-    case TXN_DELIVERY:
-      return "delivery";
-    case TXN_NEW_ORDER:
-      return "new_order";
-    case TXN_ORDER_STATUS:
-      return "order_status";
-    case TXN_PAYMENT:
-      return "payment";
-    case TXN_STOCK_LEVEL:
-      return "stock_level";
-    case TXN_POLICY_CHANGE:
-      return "policy_change";
-    default:
-      Panic("Received unexpected txn type: %d", txn_type);
-  }
+PolicyChange::PolicyChange(uint32_t w_id) : w_id(w_id) {
 }
 
-inline TPCCTransactionType GetBenchmarkTxnTypeEnum(std::string &txn_type) {
-  if (txn_type == "delivery") {
-    return TXN_DELIVERY;
-  }
-  else if (txn_type == "new_order") {
-    return TXN_NEW_ORDER;
-  }
-  else if (txn_type == "order_status") {
-    return TXN_ORDER_STATUS;
-  }
-  else if (txn_type == "payment") {
-    return TXN_PAYMENT;
-  }
-  else if (txn_type == "stock_level") {
-    return TXN_STOCK_LEVEL;
-  }
-  else if (txn_type == "policy_change") {
-    return TXN_POLICY_CHANGE;
-  }
-  else {
-    Panic("Received unexpected txn type: %s", txn_type.c_str());
-  }
+PolicyChange::~PolicyChange() {
+}
+
+void PolicyChange::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState;
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_POLICY_CHANGE));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::PolicyChange curr_txn = validation::proto::PolicyChange();
+  curr_txn.set_w_id(w_id);
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+
+  currTxnState.SerializeToString(&txnState);
 }
 
 }
-
-#endif /* TPCC_COMMON_H */

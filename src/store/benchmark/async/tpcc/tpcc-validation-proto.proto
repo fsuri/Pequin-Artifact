@@ -51,3 +51,7 @@ message StockLevel {
   required uint32 d_id = 2;
   required uint32 min_quantity = 3;
 }
+
+message PolicyChange {
+  required uint32 w_id = 1;
+}

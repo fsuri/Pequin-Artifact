@@ -23,61 +23,37 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef TPCC_COMMON_H
-#define TPCC_COMMON_H
 
-#include "lib/message.h"
-#include "store/benchmark/async/tpcc/tpcc_client.h"
+#include "store/benchmark/async/tpcc/validation/policy_change.h"
+#include "store/benchmark/async/tpcc/tpcc_utils.h"
 
-#include <string>
 
 namespace tpcc {
 
-const std::string BENCHMARK_NAME = "tpcc";
-
-inline std::string GetBenchmarkTxnTypeName(TPCCTransactionType txn_type) {
-  switch (txn_type) {
-    case TXN_DELIVERY:
-      return "delivery";
-    case TXN_NEW_ORDER:
-      return "new_order";
-    case TXN_ORDER_STATUS:
-      return "order_status";
-    case TXN_PAYMENT:
-      return "payment";
-    case TXN_STOCK_LEVEL:
-      return "stock_level";
-    case TXN_POLICY_CHANGE:
-      return "policy_change";
-    default:
-      Panic("Received unexpected txn type: %d", txn_type);
-  }
+ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, uint32_t w_id) :
+    ValidationTPCCTransaction(timeout) {
+  this->w_id = w_id;
 }
 
-inline TPCCTransactionType GetBenchmarkTxnTypeEnum(std::string &txn_type) {
-  if (txn_type == "delivery") {
-    return TXN_DELIVERY;
-  }
-  else if (txn_type == "new_order") {
-    return TXN_NEW_ORDER;
-  }
-  else if (txn_type == "order_status") {
-    return TXN_ORDER_STATUS;
-  }
-  else if (txn_type == "payment") {
-    return TXN_PAYMENT;
-  }
-  else if (txn_type == "stock_level") {
-    return TXN_STOCK_LEVEL;
-  }
-  else if (txn_type == "policy_change") {
-    return TXN_POLICY_CHANGE;
-  }
-  else {
-    Panic("Received unexpected txn type: %s", txn_type.c_str());
-  }
+ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg) : 
+    ValidationTPCCTransaction(timeout) {
+  w_id = valPolicyChangeMsg.w_id();
 }
 
+ValidationPolicyChange::~ValidationPolicyChange() {
 }
 
-#endif /* TPCC_COMMON_H */
+transaction_status_t ValidationPolicyChange::Validate(::SyncClient &client) {
+  Debug("POLICY_CHANGE");
+  Debug("Warehouse: %u", w_id);
+
+  client.Begin(timeout);
+
+  for (uint32_t i_id = 1; i_id <= 10; ++i_id) {
+    std::string i_key = ItemRowKey(i_id);
+    client.Put(i_key, "1", timeout);
+  }
+  return client.Commit(timeout);
+}
+
+} // namespace tpcc

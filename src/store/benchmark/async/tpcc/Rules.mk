@@ -1,6 +1,7 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), tpcc_client.cc tpcc_transaction.cc new_order.cc tpcc_generator.cc tpcc_utils.cc payment.cc order_status.cc stock_level.cc delivery.cc)
+SRCS += $(addprefix $(d), tpcc_client.cc tpcc_transaction.cc new_order.cc tpcc_generator.cc tpcc_utils.cc \
+		payment.cc order_status.cc stock_level.cc delivery.cc policy_change.cc)
 
 PROTOS += $(addprefix $(d), tpcc-proto.proto tpcc-validation-proto.proto)
 
@@ -10,7 +11,7 @@ OBJ-tpcc-client := $(o)tpcc_client.o
 
 LIB-tpcc := $(OBJ-tpcc-client) $(OBJ-tpcc-transaction) $(o)new_order.o \
 	$(o)tpcc-proto.o $(o)tpcc_utils.o $(o)payment.o $(o)order_status.o \
-	$(o)stock_level.o $(o)delivery.o $(o)tpcc-validation-proto.o
+	$(o)stock_level.o $(o)delivery.o $(o)tpcc-validation-proto.o $(o)policy_change.o
 
 $(d)tpcc_generator: $(LIB-io-utils) $(o)tpcc-proto.o $(o)tpcc_generator.o $(o)tpcc_utils.o
 

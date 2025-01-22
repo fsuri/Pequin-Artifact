@@ -203,7 +203,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->SetClientSeqNum(client_seq_num);
     // dummy endorsement policy
     Policy *policy;
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, &policy));
+    EstimateTxnPolicy(txnState, &policy);
     endorseClient->UpdateRequirement(policy);
     delete policy;
     c2client->SendBeginValidateTxnMessage(client_seq_num, txnState, txnStartTime);
@@ -236,6 +236,19 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     bcb(client_seq_num);
   });
+}
+
+void Client::EstimateTxnPolicy(const std::string &txnState, Policy **policy) {
+  TxnState protoTxnState;
+  protoTxnState.ParseFromString(txnState);
+  if (protoTxnState.txn_name().find("policy") != std::string::npos) {
+    // policy change transaction requires separate handling
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+  } 
+  else {
+    // for now always return default policy
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+  }
 }
 
 void Client::Get(const std::string &key, get_callback gcb,

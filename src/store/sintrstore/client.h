@@ -357,6 +357,9 @@ class Client : public ::Client {
 
   bool IsParticipant(int g) const;
 
+  // estimate the transaction policy from the transaction state
+  void EstimateTxnPolicy(const std::string &txnState, Policy **policy);
+
   /* Configuration State */
   transport::Configuration *config;
   // client to client transport configuration state
