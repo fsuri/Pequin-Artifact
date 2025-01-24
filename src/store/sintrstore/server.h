@@ -200,10 +200,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void HandleRead(const TransportAddress &remote, proto::Read &msg);
   // helper for checking preparedWrites and modifying readReply accordingly
   // tsVal is the committed value if it exists
-  // if onlyExtractPolicy is true, only the policy is extracted and the readReply is not modified
   void CheckPreparedWrites(const std::string &key, const Timestamp &ts, const bool committed_exists, 
-    const std::pair<Timestamp, Server::Value> &tsVal, proto::ReadReply* readReply, 
-    Policy **policy = nullptr, const bool onlyExtractPolicy = false);
+    const std::pair<Timestamp, Server::Value> &tsVal, proto::ReadReply* readReply);
 
   //Phase1 Handling
   void ManageDispatchPhase1(const TransportAddress &remote, const std::string &data);
@@ -490,7 +488,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                               bool add_to_snapshot, SnapshotManager *snapshotMgr,
                               bool materialize_from_snapshot, const snapshot *ss_txns);
     void FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
-    const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal);
+    const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal,
+      const bool findPolicyChange = false);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
@@ -942,8 +941,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   }
 
   // get the policy id for a given key, value, timestamp
-  // if key is not found, call policyIdFunction
-  uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts);
+  // if checkPrepared is true, also check preparedWrites for change policy
+  // if key is not found in committed or prepared, call policyIdFunction
+  uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts, const bool checkPrepared = false);
 
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
