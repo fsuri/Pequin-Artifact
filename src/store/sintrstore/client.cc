@@ -251,8 +251,8 @@ bool Client::IsPolicyChangeTxn(const TxnState &protoTxnState) const {
 
 void Client::EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy) {
   if (IsPolicyChangeTxn(protoTxnState)) {
-    // policy change transaction requires separate handling
-    UW_ASSERT(endorseClient->GetPolicyFromCache(1, policy));
+    // policy change transaction could require separate handling
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
   } 
   else {
     // for now always return default policy
@@ -352,18 +352,16 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_key(key);
     write->set_value(value);
 
-    if (txn.policy_type() == proto::Transaction::NONE) {
-      // look in cache for policy
-      Policy *policy;
-      bool exists = endorseClient->GetPolicyFromCache(key, &policy);
-      if (!exists) {
-        // if not found, use default policy for now
-        uint64_t policyId = policyIdFunction(key, value);
-        endorseClient->GetPolicyFromCache(policyId, &policy);
-      }
-      c2client->HandlePolicyUpdate(policy);
-      delete policy;
+    // look in cache for policy
+    Policy *policy;
+    bool exists = endorseClient->GetPolicyFromCache(key, &policy);
+    if (!exists) {
+      // if not found, use default policy for now
+      uint64_t policyId = policyIdFunction(key, value);
+      endorseClient->GetPolicyFromCache(policyId, &policy);
     }
+    c2client->HandlePolicyUpdate(policy);
+    delete policy;
 
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);

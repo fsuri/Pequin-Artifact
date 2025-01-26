@@ -45,9 +45,9 @@ transaction_status_t SyncPolicyChange::Execute(SyncClient &client) {
 
   client.Begin(timeout, txnState);
 
-  for (uint32_t i_id = 1; i_id <= 10; ++i_id) {
-    std::string i_key = ItemRowKey(i_id);
-    client.Put(i_key, "1", timeout);
+  for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
+    std::string d_key = DistrictRowKey(w_id, d_id);
+    client.Put(d_key, "1", timeout);
   }
   return client.Commit(timeout);
 }

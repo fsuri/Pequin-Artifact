@@ -1284,6 +1284,7 @@ void Server::CheckPreparedWrites(const std::string &key, const Timestamp &ts, co
 
         bool preparedValueExists = true;
         if (mostRecent == nullptr && mostRecentPolicyChange != nullptr) {
+          Debug("only policy change dependency exists for key %s", BytesToHex(key, 16).c_str());
           // in this case, this transaction only has a dependency that is pure policy change
           mostRecent = mostRecentPolicyChange;
           preparedValueExists = false;
@@ -3049,10 +3050,12 @@ uint64_t Server::GetPolicyId(const std::string &key, const std::string &value, c
   }
   else if (exists) {
     // if no prepared policy change transaction, use the committed policy id
+    Debug("Found policy for key %s in store", BytesToHex(key, 16).c_str());
     return tsVal.second.policyId;
   }
 
   // if no prepared or committed policy id, use the policy function
+  Debug("No policy found for key %s, using policy function", BytesToHex(key, 16).c_str());
   return policyIdFunction(key, value);
 }
 
@@ -3064,12 +3067,16 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
 
 void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
   Timestamp ts(txn->timestamp());
+  // if regular txn, then need to check prepared policy
+  // if txn is a change policy txn, checking prepared would result it checking itself
+  const bool checkPreparedPolicy = txn->policy_type() == proto::Transaction::NONE;
+
   for (const auto &write : txn->write_set()) {
     if (!IsKeyOwned(write.key())) {
       continue;
     }
 
-    uint64_t policyId = GetPolicyId(write.key(), write.value(), ts, true); 
+    uint64_t policyId = GetPolicyId(write.key(), write.value(), ts, checkPreparedPolicy);
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
 
     std::pair<Timestamp, Policy *> tsPolicy;
@@ -3087,7 +3094,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
       continue;
     }
 
-    uint64_t policyId = GetPolicyId(read.key(), "", read.readtime(), true);
+    uint64_t policyId = GetPolicyId(read.key(), "", read.readtime(), checkPreparedPolicy);
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
     std::pair<Timestamp, Policy *> tsPolicy;
     bool exists = policyStore.get(policyId, read.readtime(), tsPolicy);
