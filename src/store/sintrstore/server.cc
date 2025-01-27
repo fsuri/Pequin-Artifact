@@ -529,6 +529,7 @@ void Server::Load(const std::string &key, const std::string &value,
   auto committedItr = committed.find("");
   UW_ASSERT(committedItr != committed.end());
   val.proof = committedItr->second;
+  val.policyProof = committedItr->second;
   // TODO: actually set policy
   uint64_t policyId = policyIdFunction(key, value);
   val.policyId = policyId;
@@ -1112,6 +1113,7 @@ void Server::HandleRead(const TransportAddress &remote,
     tsVal.first.serialize(readReply->mutable_write()->mutable_committed_timestamp());
     if (params.validateProofs) {
       *readReply->mutable_proof() = *tsVal.second.proof;
+      *readReply->mutable_policy_proof() = *tsVal.second.policyProof;
     }
 
     // get policy from policyStore
@@ -2600,7 +2602,12 @@ void Server::Commit(const std::string &txnDigest, proto::Transaction *txn,
   }
 
   Value val;
-  val.proof = proof;
+  if (txn->policy_type() == proto::Transaction::NONE) {
+    val.proof = proof;
+  }
+  else {
+    val.policyProof = proof;
+  }
 
   auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof));
   Debug("Inserted txn %s into Committed on CPU %d",BytesToHex(txnDigest, 16).c_str(), sched_getcpu());
@@ -2634,7 +2641,12 @@ void Server::CommitWithProof(const std::string &txnDigest, proto::CommittedProof
     Timestamp ts(txn->timestamp());
 
     Value val;
-    val.proof = proof;
+    if (txn->policy_type() == proto::Transaction::NONE) {
+      val.proof = proof;
+    }
+    else {
+      val.policyProof = proof;
+    }
 
     // committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
     auto [committedItr, first_commit] = committed.insert(std::make_pair(txnDigest, proof)); //Note: This may override an existing commit proof -- that's fine.
@@ -2738,14 +2750,26 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       else if(!params.query_params.sql_mode){
         Panic("When running in KV-store mode write should always have a value");
       }
-      val.policyId = GetPolicyId(write.key(), write.value(), ts);      
+      val.policyId = GetPolicyId(write.key(), write.value(), ts);
+      // policy proof remains the same or is the initial if new key
+      std::pair<Timestamp, Server::Value> tsVal;
+      bool exists = store.get(write.key(), ts, tsVal);
+      if (exists) {
+        val.policyProof = tsVal.second.policyProof;
+      }
+      else {
+        auto committedItr = committed.find("");
+        UW_ASSERT(committedItr != committed.end());
+        val.policyProof = committedItr->second;
+      }
     }
     else if (txn->policy_type() == proto::Transaction::KEY_POLICY_ID) {
       Debug("Committing for key %s new policy id %s.", BytesToHex(write.key(), 16).c_str(), write.value().c_str());
-      // use existing value
+      // use existing value and proof
       std::pair<Timestamp, Server::Value> tsVal;
       UW_ASSERT(store.get(write.key(), ts, tsVal));
       val.val = tsVal.second.val;
+      val.proof = tsVal.second.proof;
       val.policyId = std::stoull(write.value());
     }
     

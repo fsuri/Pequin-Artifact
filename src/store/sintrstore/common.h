@@ -334,6 +334,19 @@ bool ValidateTransactionWrite(const proto::CommittedProof &proof,
     const transport::Configuration *config, bool signedMessages,
     KeyManager *keyManager, Verifier *verifier);
 
+// validate transaction write for when there are policy changes and thus two proofs are needed
+bool ValidateTransactionWriteValue(const proto::CommittedProof &proof, 
+    const std::string *txnDigest, const Timestamp &policyProofTs,
+    const std::string &key, const std::string &val, const Timestamp &timestamp,
+    const transport::Configuration *config, bool signedMessages,
+    KeyManager *keyManager, Verifier *verifier);
+
+bool ValidateTransactionWritePolicy(const proto::CommittedProof &policyProof,
+    const std::string *policyTxnDigest, const Timestamp &proofTs,
+    const std::string &key, const uint64_t policyId, const Timestamp &timestamp,
+    const transport::Configuration *config, bool signedMessages,
+    KeyManager *keyManager, Verifier *verifier);
+
 void asyncValidateTransactionWrite(const proto::CommittedProof &proof,
     const std::string *txnDigest,
     const std::string &key, const std::string &val, const Timestamp &timestamp,

@@ -1787,6 +1787,110 @@ bool ValidateTransactionWrite(const proto::CommittedProof &proof,
   return true;
 }
 
+bool ValidateTransactionWriteValue(const proto::CommittedProof &proof, 
+    const std::string *txnDigest, const Timestamp &policyProofTs,
+    const std::string &key, const std::string &val, const Timestamp &timestamp,
+    const transport::Configuration *config, bool signedMessages,
+    KeyManager *keyManager, Verifier *verifier) {
+  if (proof.txn().client_id() == 0UL && proof.txn().client_seq_num() == 0UL) {
+    // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
+    //    without needing to write all existing data with transactions
+    return true;
+  }
+
+  if (signedMessages && !ValidateCommittedProof(proof, txnDigest,
+        keyManager, config, verifier)) {
+    Debug("VALIDATE CommittedProof failed for txn %lu.%lu.",
+        proof.txn().client_id(), proof.txn().client_seq_num());
+    return false;
+  }
+
+  // because the timestamp is the latest, it could have come from the proof or the policyProof
+  if (Timestamp(proof.txn().timestamp()) != timestamp && policyProofTs != timestamp) {
+    Debug("VALIDATE timestamp failed for txn %lu.%lu: txn ts %lu.%lu != returned"
+        " ts %lu.%lu.", proof.txn().client_id(), proof.txn().client_seq_num(),
+        proof.txn().timestamp().timestamp(), proof.txn().timestamp().id(),
+        timestamp.getTimestamp(), timestamp.getID());
+    return false;
+  }
+
+  bool keyInWriteSet = false;
+  for (const auto &write : proof.txn().write_set()) {
+    if (write.key() == key) {
+      keyInWriteSet = true;
+      if (write.value() != val) {
+        Debug("VALIDATE value failed for txn %lu.%lu key %s: txn value %s != "
+            "returned value %s.", proof.txn().client_id(),
+            proof.txn().client_seq_num(), BytesToHex(key, 16).c_str(),
+            BytesToHex(write.value(), 16).c_str(), BytesToHex(val, 16).c_str());
+        return false;
+      }
+      break;
+    }
+  }
+
+  if (!keyInWriteSet) {
+    Debug("VALIDATE value failed for txn %lu.%lu; key %s not written.",
+        proof.txn().client_id(), proof.txn().client_seq_num(),
+        BytesToHex(key, 16).c_str());
+    return false;
+  }
+
+  return true;
+}
+
+bool ValidateTransactionWritePolicy(const proto::CommittedProof &policyProof,
+    const std::string *policyTxnDigest, const Timestamp &proofTs,
+    const std::string &key, const uint64_t policyId, const Timestamp &timestamp,
+    const transport::Configuration *config, bool signedMessages,
+    KeyManager *keyManager, Verifier *verifier) {
+  if (policyProof.txn().client_id() == 0UL && policyProof.txn().client_seq_num() == 0UL) {
+    // TODO: this is unsafe, but a hack so that we can bootstrap a benchmark
+    //    without needing to write all existing data with transactions
+    return true;
+  }
+
+  if (signedMessages && !ValidateCommittedProof(policyProof, policyTxnDigest,
+        keyManager, config, verifier)) {
+    Debug("VALIDATE CommittedProof failed for txn %lu.%lu.",
+        policyProof.txn().client_id(), policyProof.txn().client_seq_num());
+    return false;
+  }
+
+  // because the timestamp is the latest, it could have come from the proof or the policyProof
+  if (Timestamp(policyProof.txn().timestamp()) != timestamp && proofTs != timestamp) {
+    Debug("VALIDATE timestamp failed for txn %lu.%lu: txn ts %lu.%lu != returned"
+        " ts %lu.%lu.", policyProof.txn().client_id(), policyProof.txn().client_seq_num(),
+        policyProof.txn().timestamp().timestamp(), policyProof.txn().timestamp().id(),
+        timestamp.getTimestamp(), timestamp.getID());
+    return false;
+  }
+
+  bool keyInWriteSet = false;
+  for (const auto &write : policyProof.txn().write_set()) {
+    if (write.key() == key) {
+      keyInWriteSet = true;
+      if (std::stoull(write.value()) != policyId) {
+        Debug("VALIDATE policy id failed for txn %lu.%lu key %s: txn value %s != "
+            "returned value %lu.", policyProof.txn().client_id(),
+            policyProof.txn().client_seq_num(), BytesToHex(key, 16).c_str(),
+            BytesToHex(write.value(), 16).c_str(), policyId);
+        return false;
+      }
+      break;
+    }
+  }
+
+  if (!keyInWriteSet) {
+    Debug("VALIDATE value failed for txn %lu.%lu; key %s not written.",
+        policyProof.txn().client_id(), policyProof.txn().client_seq_num(),
+        BytesToHex(key, 16).c_str());
+    return false;
+  }
+
+  return true;
+}
+
 bool ValidateDependency(const proto::Dependency &dep,
     const transport::Configuration *config, uint64_t readDepSize,
     KeyManager *keyManager, Verifier *verifier) {

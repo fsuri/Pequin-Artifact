@@ -496,7 +496,8 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
         }
         
         std::string committedTxnDigest = TransactionDigest(fwdReadResultMsg.proof().txn(), params.hashDigest);
-        if (!ValidateTransactionWrite(fwdReadResultMsg.proof(), &committedTxnDigest,
+        // for now, just pass in the policy proof timestamp as the actual write timestamp
+        if (!ValidateTransactionWriteValue(fwdReadResultMsg.proof(), &committedTxnDigest, write.committed_timestamp(),
             write.key(), write.committed_value(), write.committed_timestamp(),
             config, params.signedMessages, keyManager, verifier)) {
           Debug(

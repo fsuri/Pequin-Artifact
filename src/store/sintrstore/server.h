@@ -188,6 +188,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     std::string val;
     const proto::CommittedProof *proof;
     uint64_t policyId;
+    const proto::CommittedProof *policyProof;
   };
 
 //Protocol
