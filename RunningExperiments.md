@@ -42,6 +42,8 @@ Simply specify which benchmark you are uploading, and to how many shards (1, 2 o
 - E.g. use `./upload_data_remote -b 'tpcc' -s 2 -u `fs435`` to upload TPC-C data to 2 shards, with cloudlab user `fs435`
 - TPC-C and 1 shard are default parameters. Check our the script for exact usage!
 
+Note: Benchmark data, by default, is uploaded to `/users/<cloudlab-user>/benchmark_data/`. 
+
 ## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
 When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete the following pre-configuration steps before running an experiment script:
