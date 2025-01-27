@@ -52,14 +52,42 @@ void PolicyClient::AddPolicy(const Policy *policy) {
   }
 }
 
-std::vector<int> PolicyClient::DifferenceToPolicy(const Policy *other) const {
-  UW_ASSERT(other != nullptr);
-  if (currPolicies.find(other->Type()) == currPolicies.end()) {
-    return other->GetMinSatisfyingSet();
+std::vector<int> PolicyClient::DifferenceToSatisfied(const std::set<int> &potentialEndorsements) const {
+  std::vector<int> ret;
+
+  // first determine from the current policies what clients are needed
+  int genericClientCount = 0;
+  std::set<uint64_t> clientsNeeded;
+  for (const auto &typePolicy : currPolicies) {
+    int currGenericClientCount = 0;
+    std::vector<int> satSet = typePolicy.second->GetMinSatisfyingSet();
+    for (const auto &client : satSet) {
+      if (client < 0) {
+        currGenericClientCount++;
+      }
+      else {
+        clientsNeeded.insert(client);
+      }
+    }
+    genericClientCount = std::max(genericClientCount, currGenericClientCount);
   }
-  else {
-    return currPolicies.at(other->Type())->DifferenceToPolicy(other);
+
+  // what specific clients are needed but not in endorsements
+  std::set_difference(
+    clientsNeeded.begin(), clientsNeeded.end(), 
+    potentialEndorsements.begin(), potentialEndorsements.end(),
+    std::inserter(ret, ret.begin())
+  );
+
+  // add on generic clients
+  int specificClientCovered = ret.size() + potentialEndorsements.size();
+  genericClientCount -= specificClientCovered;
+  while (genericClientCount > 0) {
+    ret.push_back(-1);
+    genericClientCount--;
   }
+
+  return ret;
 }
 
 bool PolicyClient::IsOtherWeaker(const Policy *other) const {

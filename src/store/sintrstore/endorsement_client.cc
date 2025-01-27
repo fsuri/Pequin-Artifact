@@ -165,11 +165,13 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
   }
 }
 
-std::vector<int> EndorsementClient::UpdateRequirement(const Policy *policy) {
+void EndorsementClient::UpdateRequirement(const Policy *policy) {
   UW_ASSERT(policy != nullptr);
-  std::vector<int> diff = policyClient->DifferenceToPolicy(policy);
   policyClient->AddPolicy(policy);
-  return diff;
+}
+
+std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<int> &potentialEndorsements) {
+  return policyClient->DifferenceToSatisfied(potentialEndorsements);
 }
 
 void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest,

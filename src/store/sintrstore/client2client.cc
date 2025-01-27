@@ -136,11 +136,11 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
 
   Debug("beginValTxnMsg client id %lu, seq num %lu", client_id, client_seq_num);
   for (int i = 0; i < clients_config->n; i++) {
+    beginValSent.insert(i);
     // do not send to self
     if (i == client_id) {
       continue;
     }
-    beginValSent.insert(i);
     transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
   }
 }
@@ -219,17 +219,23 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
     BytesToHex(value, 16).c_str()
   );
   for (const auto &i : beginValSent) {
+    // do not send to self
+    if (i == client_id) {
+      continue;
+    }
     transport->SendMessageToReplica(this, i, fwdReadResultMsg);
   }
 }
 
 void Client2Client::HandlePolicyUpdate(const Policy *policy) {
   UW_ASSERT(policy != nullptr);
-  std::vector<int> diff = endorseClient->UpdateRequirement(policy);
+  endorseClient->UpdateRequirement(policy);
+  std::vector<int> diff = endorseClient->DifferenceToSatisfied(beginValSent);
+  // if after updating the policy, and the current set of validations is not enough, initiate more
   if (diff.size() > 0) {
-    Debug("Initiating more beginValTxnMsg");
     // need to initiate more endorsements
     int numAdditional = diff.size();
+    Debug("Initiating %d more beginValTxnMsg", numAdditional);
     
     for (const auto &acl_client_id : diff) {
       // -1 represents a generic client id, so don't send to a specific client

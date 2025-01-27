@@ -49,10 +49,13 @@ class EndorsementClient {
   void DebugSetExpectedTxnOutput(const proto::Transaction &expectedTxn);
   void DebugCheck(const proto::Transaction &txn);
   // update current policy by merging with passed in policy
-  // returns a vector of client ids to get from current policy to passed in policy
-  std::vector<int> UpdateRequirement(const Policy *policy);
+  void UpdateRequirement(const Policy *policy);
+  // what additional client ids are needed so that this policy is satisfied by potentialEndorsements
+  // if potentialEndorsements is good enough, return empty vector
+  std::vector<int> DifferenceToSatisfied(const std::set<int> &potentialEndorsements);
   void AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest, 
     const proto::SignedMessage &signedValTxnDigest);
+  // check if the policy is satisfied by actual endorsements collected so far
   bool IsSatisfied();
   void Reset();
 
