@@ -190,6 +190,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     uint64_t policyId;
     const proto::CommittedProof *policyProof;
   };
+  struct PolicyStoreValue {
+    Policy *policy;
+    const proto::CommittedProof *proof;
+  };
 
 //Protocol
   void ReceiveMessageInternal(const TransportAddress &remote,
@@ -1088,7 +1092,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //SQLTransformer sql_interpreter;
 
   VersionedKVStoreGeneric<std::string, Timestamp, Value> store;
-  VersionedKVStoreGeneric<uint64_t, Timestamp, Policy *> policyStore;
+  VersionedKVStoreGeneric<uint64_t, Timestamp, PolicyStoreValue> policyStore;
   // not sure if VersionedKvStoreGeneric will actually free the policy pointers, so store separately and free on destruction
   std::vector<Policy *> policiesToFree;
   // policy_function policyFunction;
@@ -1155,6 +1159,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
+  // map from policy id to timestamped transactions
+  tbb::concurrent_unordered_map<uint64_t, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedPolicyWrites;
 
   /* MAPS FOR SEMANTIC CC */
   //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  

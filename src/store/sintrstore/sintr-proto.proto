@@ -79,10 +79,12 @@ message Write {
   optional bytes committed_value = 2;
   optional TimestampMessage committed_timestamp = 3;
   optional EndorsementPolicyMessage committed_policy = 4;
-  optional bytes prepared_value = 5;
-  optional TimestampMessage prepared_timestamp = 6;
-  optional EndorsementPolicyMessage prepared_policy = 7;
-  optional bytes prepared_txn_digest = 8;
+  optional TimestampMessage committed_policy_timestamp = 5;
+  optional bytes prepared_value = 6;
+  optional TimestampMessage prepared_timestamp = 7;
+  optional EndorsementPolicyMessage prepared_policy = 8;
+  optional TimestampMessage prepared_policy_timestamp = 9;
+  optional bytes prepared_txn_digest = 10;
 }
 
 message ReadReply {
