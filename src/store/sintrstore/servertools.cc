@@ -691,7 +691,7 @@ void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &t
 }
 
 const proto::Transaction* Server::FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal,
-    const bool findPolicyChange){
+    const proto::Transaction::TxnPolicyType txnPolicyType){
 
   const proto::Transaction *mostRecent = nullptr;
   auto itr = preparedWrites.find(key);
@@ -716,10 +716,7 @@ const proto::Transaction* Server::FindPreparedVersion(const std::string &key, co
         if(t.first > ts) break; //only consider it if it is smaller than TS (Map is ordered, so break should be fine here.)
         if(committed_exists && t.first <= tsVal.first) continue; //only consider it if bigger than committed value. 
         if (mostRecent == nullptr || t.first > Timestamp(mostRecent->timestamp())) { 
-          if (!findPolicyChange && t.second->policy_type() == proto::Transaction::NONE) {
-            mostRecent = t.second;
-          }
-          else if(findPolicyChange && t.second->policy_type() == proto::Transaction::KEY_POLICY_ID){
+          if (t.second->policy_type() == txnPolicyType) {
             mostRecent = t.second;
           }
         }

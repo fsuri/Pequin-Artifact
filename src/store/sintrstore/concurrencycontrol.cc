@@ -656,6 +656,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       }
     }
 
+    // also extract out the policy reads that are done
+    std::vector<std::pair<uint64_t, Timestamp>> implicitPolicyReads;
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
        if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (likewise, Prepare/Commit won't write them) (//TODO: Also skip column versions. Note: Currently just disabled col versions)
@@ -666,6 +668,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
          // TODO: Eventually modify TXs to only contain the read/write set relevant to the shard. In that case can remove this check
         continue;
       }
+
+      uint64_t policyId = policyIdFunction(read.key(), "");
+      implicitPolicyReads.push_back(std::make_pair(policyId, ts));
 
       // Check for conflicts against committed writes
 
@@ -772,9 +777,14 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(write.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
-      
-      if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
-        continue;
+
+      if (txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
+        if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
+          continue;
+        }
+
+        uint64_t policyId = policyIdFunction(read.key(), "");
+        implicitPolicyReads.push_back(std::make_pair(policyId, ts));
       }
     
       // Check for conflicts against committed reads.
@@ -1015,7 +1025,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
 
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
-    Prepare(txnDigest, txn, readSet); 
+    Prepare(txnDigest, txn, readSet, implicitPolicyReads); 
   }
   
 

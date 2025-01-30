@@ -494,7 +494,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                               bool materialize_from_snapshot, const snapshot *ss_txns);
     void FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal,
-      const bool findPolicyChange = false);
+      const proto::Transaction::TxnPolicyType txnPolicyType = proto::Transaction::NONE);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
@@ -820,7 +820,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void GetWrites(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &writes);
   void GetPreparedReadTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &reads);
   void GetPreparedReads(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
-  void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet);
+  void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
+    const std::vector<std::pair<uint64_t, Timestamp>> &implicitPolicyReads = std::vector<std::pair<uint64_t, Timestamp>>());
   void GetCommittedWrites(const std::string &key, const Timestamp &ts, std::vector<std::pair<Timestamp, Value>> &writes);
   bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts, std::pair<Timestamp, Server::Value> &write);
   void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
@@ -949,6 +950,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // if checkPrepared is true, also check preparedWrites for change policy
   // if key is not found in committed or prepared, call policyIdFunction
   uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts, const bool checkPrepared = false);
+  Policy *GetPolicy(const uint64_t policyId, const Timestamp &ts, const bool checkPrepared = false);
 
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
@@ -1098,6 +1100,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // policy_function policyFunction;
   policy_id_function policyIdFunction;
 
+  PolicyParseClient *policyParseClient;
+
   // Key -> V
   //std::unordered_map<std::string, std::set<std::tuple<Timestamp, Timestamp, const proto::CommittedProof *>>> committedReads;
   typedef std::tuple<Timestamp, Timestamp, const proto::CommittedProof *> committedRead; //1) timestamp of reading tx, 2) timestamp of read value, 3) proof that Tx that wrote the read value (2) committed
@@ -1159,8 +1163,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
-  // map from policy id to timestamped transactions
-  tbb::concurrent_unordered_map<uint64_t, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedPolicyWrites;
 
   /* MAPS FOR SEMANTIC CC */
   //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  

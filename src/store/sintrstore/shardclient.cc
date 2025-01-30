@@ -1029,30 +1029,17 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
   // value and timestamp are valid
   req->numReplies++;
   if (write->has_committed_value() && write->has_committed_timestamp()) {
-    // always a committed policy alongside a committed value
-    UW_ASSERT(write->has_committed_policy());
     if (!skip && params.validateProofs) {
       if (!reply.has_proof()) {
         Debug("[group %i] Missing proof for committed write.", group);
         return;
       }
 
-      if (!reply.has_policy_proof()) {
-        Debug("[group %i] Missing policy proof for committed write.", group);
-        return;
-      }
-
       std::string committedTxnDigest = TransactionDigest(reply.proof().txn(), params.hashDigest);
-      std::string committedPolicyTxnDigest = TransactionDigest(reply.policy_proof().txn(), params.hashDigest);
-      if (!ValidateTransactionWriteValue(reply.proof(), &committedTxnDigest, reply.policy_proof().txn().timestamp(), 
-          req->key, write->committed_value(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier)) {
+      if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest,
+          req->key, write->committed_value(), write->committed_timestamp(),
+          config, params.signedMessages, keyManager, verifier)) {
         Debug("[group %i] Failed to validate committed value for read %lu.",group, reply.req_id());
-        // invalid replies can be treated as if we never received a reply from a crashed replica
-        return;
-      }
-      if (!ValidateTransactionWritePolicy(reply.policy_proof(), &committedPolicyTxnDigest, reply.proof().txn().timestamp(), 
-          req->key, write->committed_policy().policy_id(), write->committed_timestamp(), config, params.signedMessages, keyManager, verifier)) {
-        Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
         // invalid replies can be treated as if we never received a reply from a crashed replica
         return;
       }
@@ -1076,7 +1063,22 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         reply.write().SerializeToString(&req->maxSerializedWrite);
         req->maxSerializedWriteTypeName = reply.write().GetTypeName();
       }
+
+      // if write has a committed policy, verify it
       if (write->has_committed_policy()) {
+
+        if (!reply.has_policy_proof()) {
+          Debug("[group %i] Missing policy proof for committed policy.", group);
+          return;
+        }
+
+        std::string committedPolicyTxnDigest = TransactionDigest(reply.policy_proof().txn(), params.hashDigest);
+        if (!ValidateTransactionWrite(reply.policy_proof(), &committedPolicyTxnDigest,
+            write->committed_policy().policy_id(), write->committed_policy(), write->committed_policy_timestamp(),
+            config, params.signedMessages, keyManager, verifier)) {
+          Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
+          return;
+        }
         req->maxPolicy = write->committed_policy();
       }
     }
