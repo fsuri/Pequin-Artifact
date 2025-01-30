@@ -62,7 +62,7 @@ class Policy {
   // is other strictly weaker than this policy?
   virtual bool IsOtherWeaker(const Policy *other) const = 0;
   // serialize to proto version
-  virtual void SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const = 0;
+  virtual void SerializeToProtoMessage(proto::PolicyObject *msg) const = 0;
   virtual void Reset() = 0;
 };
 

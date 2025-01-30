@@ -305,7 +305,7 @@ void Client::Get(const std::string &key, get_callback gcb,
         
         // new policy can only come from server, which must correspond to addReadSet
         if (policyMsg.IsInitialized()) {
-          Policy *policy = policyParseClient->Parse(policyMsg);
+          Policy *policy = policyParseClient->Parse(policyMsg.policy());
           endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
           endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
           delete policy;

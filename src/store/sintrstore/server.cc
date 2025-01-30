@@ -47,7 +47,6 @@
 #include "store/sintrstore/phase1validator.h"
 #include "store/sintrstore/sharedbatchsigner.h"
 #include "store/sintrstore/sharedbatchverifier.h"
-#include "store/sintrstore/policy/policy_parse_client.h"
 #include <fmt/core.h>
 #include <valgrind/memcheck.h>
 
@@ -1128,7 +1127,7 @@ void Server::HandleRead(const TransportAddress &remote,
     }
     tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
     readReply->mutable_write()->mutable_committed_policy()->set_policy_id(tsVal.second.policyId);
-    tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy());
+    tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy()->mutable_policy());
   }
 
   TransportAddress *remoteCopy = remote.clone();
@@ -1315,7 +1314,7 @@ void Server::CheckPreparedWrites(const std::string &key, const Timestamp &ts, co
           }
           tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
           readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
-          tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy());
+          tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
         }
       }
     }
@@ -2841,7 +2840,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     else if (txn->policy_type() == proto::Transaction::POLICY_ID_POLICY) {
       Debug("Committing for policy id %s new policy.", write.key().c_str());
       PolicyStoreValue policyVal;
-      proto::EndorsementPolicyMessage policyMsg;
+      proto::PolicyObject policyMsg;
       policyMsg.ParseFromString(write.value());
       policyVal.policy = policyParseClient->Parse(policyMsg);
       policyVal.proof = proof;
@@ -3174,7 +3173,7 @@ Policy *Server::GetPolicy(const uint64_t policyId, const Timestamp &ts, const bo
     for (const auto &w : mostRecentPrepared->write_set()) {
       if (w.key() == std::to_string(policyId)) {
         // policy change transaction writeset value is a new policy
-        proto::EndorsementPolicyMessage policyMsg;
+        proto::PolicyObject policyMsg;
         policyMsg.ParseFromString(w.value());
         // parse results in a new allocation, so need to free it later
         Policy *policy = policyParseClient->Parse(policyMsg);

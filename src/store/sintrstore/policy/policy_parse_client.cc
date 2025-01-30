@@ -95,21 +95,21 @@ Policy *PolicyParseClient::Create(const std::string &policyType, const std::vect
   }
 }
 
-Policy *PolicyParseClient::Parse(const proto::EndorsementPolicyMessage &endorsePolicyMsg) {
-  switch (endorsePolicyMsg.policy_type()) {
-    case proto::EndorsementPolicyMessage::WEIGHT_POLICY: {
+Policy *PolicyParseClient::Parse(const proto::PolicyObject &protoPolicy) {
+  switch (protoPolicy.policy_type()) {
+    case proto::PolicyObject::WEIGHT_POLICY: {
       proto::WeightPolicyMessage weightPolicyMsg;
-      weightPolicyMsg.ParseFromString(endorsePolicyMsg.policy_data());
+      weightPolicyMsg.ParseFromString(protoPolicy.policy_data());
       return new WeightPolicy(weightPolicyMsg.weight());
     }
-    case proto::EndorsementPolicyMessage::ACL_POLICY: {
+    case proto::PolicyObject::ACL_POLICY: {
       proto::ACLPolicyMessage aclPolicyMsg;
-      aclPolicyMsg.ParseFromString(endorsePolicyMsg.policy_data());
+      aclPolicyMsg.ParseFromString(protoPolicy.policy_data());
       std::set<uint64_t> access_control_list(aclPolicyMsg.access_control_list().begin(), aclPolicyMsg.access_control_list().end());
       return new ACLPolicy(access_control_list);
     }
     default:
-      Panic("Received unexpected policy type: %d", endorsePolicyMsg.policy_type());
+      Panic("Received unexpected policy type: %d", protoPolicy.policy_type());
   }
 }
 

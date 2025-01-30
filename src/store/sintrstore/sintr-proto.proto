@@ -506,12 +506,16 @@ message FinishValidateTxnMessage {
   optional Transaction val_txn = 5;
 }
 
-message EndorsementPolicyMessage {
+message PolicyObject {
   enum Type {
     WEIGHT_POLICY = 0;
     ACL_POLICY = 1;
   }
+  required Type policy_type = 1;
+  required bytes policy_data = 2;
+}
+
+message EndorsementPolicyMessage {
   required uint64 policy_id = 1;
-  required Type policy_type = 2;
-  required bytes policy_data = 3;
+  required PolicyObject policy = 2;
 }

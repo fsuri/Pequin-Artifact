@@ -43,8 +43,8 @@ class PolicyParseClient {
   std::map<uint64_t, Policy *> ParseConfigFile(const std::string &configFilePath);
   // given a policy type and arguments, create a new policy object
   Policy *Create(const std::string &policyType, const std::vector<std::string> &policyArgs);
-  // given a policy message, create a new policy object
-  Policy *Parse(const proto::EndorsementPolicyMessage &endorsePolicyMsg);
+  // given a proto policy object, create a new policy object
+  Policy *Parse(const proto::PolicyObject &protoPolicy);
 };
 
 } // namespace sintrstore

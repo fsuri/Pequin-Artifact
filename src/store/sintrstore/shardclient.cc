@@ -1073,8 +1073,10 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         }
 
         std::string committedPolicyTxnDigest = TransactionDigest(reply.policy_proof().txn(), params.hashDigest);
+        std::string policyObjectStr;
+        write->committed_policy().policy().SerializeToString(&policyObjectStr);
         if (!ValidateTransactionWrite(reply.policy_proof(), &committedPolicyTxnDigest,
-            write->committed_policy().policy_id(), write->committed_policy(), write->committed_policy_timestamp(),
+            std::to_string(write->committed_policy().policy_id()), policyObjectStr, write->committed_policy_timestamp(),
             config, params.signedMessages, keyManager, verifier)) {
           Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
           return;

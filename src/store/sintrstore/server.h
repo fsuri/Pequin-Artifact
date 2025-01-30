@@ -52,6 +52,7 @@
 #include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/policy/policy_client.h"
 #include "store/sintrstore/policy/policy_function.h"
+#include "store/sintrstore/policy/policy_parse_client.h"
 #include "store/common/backend/versionstore_generic_safe.h"
 #include <sys/time.h>
 

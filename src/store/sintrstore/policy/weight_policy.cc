@@ -117,10 +117,10 @@ bool WeightPolicy::IsOtherWeaker(const Policy *other) const {
   return *otherWeightPolicy < *this;
 }
 
-void WeightPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
+void WeightPolicy::SerializeToProtoMessage(proto::PolicyObject *msg) const {
   proto::WeightPolicyMessage weightPolicyMsg;
   weightPolicyMsg.set_weight(weight);
-  msg->set_policy_type(proto::EndorsementPolicyMessage::WEIGHT_POLICY);
+  msg->set_policy_type(proto::PolicyObject::WEIGHT_POLICY);
   weightPolicyMsg.SerializeToString(msg->mutable_policy_data());
 }
 

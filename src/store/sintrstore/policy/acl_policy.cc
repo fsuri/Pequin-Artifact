@@ -124,12 +124,12 @@ bool ACLPolicy::IsOtherWeaker(const Policy *other) const {
   return *otherACLPolicy < *this;
 }
 
-void ACLPolicy::SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const {
+void ACLPolicy::SerializeToProtoMessage(proto::PolicyObject *msg) const {
   proto::ACLPolicyMessage aclPolicyMsg;
   for (const auto &client_id : access_control_list) {
     aclPolicyMsg.add_access_control_list(client_id);
   }
-  msg->set_policy_type(proto::EndorsementPolicyMessage::ACL_POLICY);
+  msg->set_policy_type(proto::PolicyObject::ACL_POLICY);
   aclPolicyMsg.SerializeToString(msg->mutable_policy_data());
 }
 

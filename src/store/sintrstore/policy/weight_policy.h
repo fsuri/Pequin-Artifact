@@ -58,7 +58,7 @@ class WeightPolicy : public Policy {
   std::vector<int> DifferenceToPolicy(const Policy *other) const override;
   std::vector<int> GetMinSatisfyingSet() const override;
   bool IsOtherWeaker(const Policy *other) const override;
-  void SerializeToProtoMessage(proto::EndorsementPolicyMessage *msg) const override;
+  void SerializeToProtoMessage(proto::PolicyObject *msg) const override;
   void Reset() override;
 
  private:
