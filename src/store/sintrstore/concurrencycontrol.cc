@@ -657,7 +657,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     }
 
     // also extract out the policy reads that are done
-    std::vector<std::pair<uint64_t, Timestamp>> implicitPolicyReads;
+    std::set<std::pair<uint64_t, Timestamp>> implicitPolicyReads;
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
        if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (likewise, Prepare/Commit won't write them) (//TODO: Also skip column versions. Note: Currently just disabled col versions)
@@ -670,7 +670,9 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       }
 
       uint64_t policyId = policyIdFunction(read.key(), "");
-      implicitPolicyReads.push_back(std::make_pair(policyId, ts));
+      std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+      GetPolicy(policyId, ts, tsPolicy, true);
+      implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
 
       // Check for conflicts against committed writes
 
@@ -783,8 +785,10 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
           continue;
         }
 
-        uint64_t policyId = policyIdFunction(read.key(), "");
-        implicitPolicyReads.push_back(std::make_pair(policyId, ts));
+        uint64_t policyId = policyIdFunction(write.key(), write.value());
+        std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+        GetPolicy(policyId, ts, tsPolicy, true);
+        implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
       }
     
       // Check for conflicts against committed reads.

@@ -177,6 +177,7 @@ message Transaction {
     POLICY_ID_POLICY = 2;
   }
   optional TxnPolicyType policy_type = 14 [default = NONE];
+  repeated ReadMessage implicit_policy_reads = 15; // NOT PART OF TX. HACK HERE TO STORE read set for implicit policy reads
 }
 
 message Phase1 {

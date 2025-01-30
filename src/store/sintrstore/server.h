@@ -494,7 +494,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                               bool add_to_snapshot, SnapshotManager *snapshotMgr,
                               bool materialize_from_snapshot, const snapshot *ss_txns);
     void FindTableVersionOld(const std::string &key_name, const Timestamp &ts, bool add_to_read_set, QueryReadSetMgr *readSetMgr, bool add_to_snapshot, SnapshotManager *snapshotMgr);
-    const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal,
+    
+    template <typename V>
+    const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, V> const &tsVal,
       const proto::Transaction::TxnPolicyType txnPolicyType = proto::Transaction::NONE);
 
     void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
@@ -822,7 +824,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void GetPreparedReadTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &reads);
   void GetPreparedReads(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
-    const std::vector<std::pair<uint64_t, Timestamp>> &implicitPolicyReads = std::vector<std::pair<uint64_t, Timestamp>>());
+    const std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads = std::set<std::pair<uint64_t, Timestamp>>());
   void GetCommittedWrites(const std::string &key, const Timestamp &ts, std::vector<std::pair<Timestamp, Value>> &writes);
   bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts, std::pair<Timestamp, Server::Value> &write);
   void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
@@ -951,7 +953,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // if checkPrepared is true, also check preparedWrites for change policy
   // if key is not found in committed or prepared, call policyIdFunction
   uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts, const bool checkPrepared = false);
-  Policy *GetPolicy(const uint64_t policyId, const Timestamp &ts, const bool checkPrepared = false);
+  // given policy id and timestamp, get the policy by filling tsPolicy
+  // if checkPreapred is true, also check preparedWrites for change policy
+  void GetPolicy(const uint64_t policyId, const Timestamp &ts,
+    std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false);
 
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);

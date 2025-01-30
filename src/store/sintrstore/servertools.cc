@@ -690,7 +690,8 @@ void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &t
   return;
 }
 
-const proto::Transaction* Server::FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, Server::Value> const &tsVal,
+template <typename V>
+const proto::Transaction* Server::FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, V> const &tsVal,
     const proto::Transaction::TxnPolicyType txnPolicyType){
 
   const proto::Transaction *mostRecent = nullptr;
@@ -725,6 +726,15 @@ const proto::Transaction* Server::FindPreparedVersion(const std::string &key, co
   }
   return mostRecent;
 }
+
+// explicit template instantiation needed for FindPreparedVersion
+template const proto::Transaction* Server::FindPreparedVersion<Server::Value>(
+  const std::string &, const Timestamp &, bool, std::pair<Timestamp, Server::Value> const &,
+  const proto::Transaction::TxnPolicyType);
+
+template const proto::Transaction* Server::FindPreparedVersion<Server::PolicyStoreValue>(
+  const std::string &, const Timestamp &, bool, std::pair<Timestamp, Server::PolicyStoreValue> const &,
+  const proto::Transaction::TxnPolicyType);
 
 // void Server::SetTableVersion(proto::Transaction *txn){
 //   //for all table write keys in table_writes.
