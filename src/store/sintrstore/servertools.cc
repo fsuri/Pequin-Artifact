@@ -986,15 +986,12 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
 
     if(!params.parallel_CCC || !params.mainThreadDispatching){
 
+      if (!EndorsementCheck(endorsements, txnDigest, txn)) {
+        Panic("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+      }
+
       result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
             committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
-      
-      if (result == proto::ConcurrencyControl::COMMIT) {
-        if (!EndorsementCheck(endorsements, txnDigest, txn)) {
-          Panic("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
-          result = proto::ConcurrencyControl::ABORT;
-        }
-      }
 
       HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize);
 
@@ -1024,17 +1021,13 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           }
           o.release();
 
+        if (!EndorsementCheck(endorsements, txnDigest, txn)) {
+          Panic("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+        }
 
         Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
         proto::ConcurrencyControl::Result *result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(reqId,
         *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip));
-
-        if (*result == proto::ConcurrencyControl::COMMIT) {
-          if (!EndorsementCheck(endorsements, txnDigest, txn)) {
-            Panic("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
-            *result = proto::ConcurrencyControl::ABORT;
-          }
-        }
 
         HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize);
 

@@ -219,7 +219,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     if (IsPolicyChangeTxn(protoTxnState)) {
       Debug("Begin policy change transaction from client id %lu, seq num %lu", client_id, client_seq_num);
-      txn.set_policy_type(proto::Transaction::KEY_POLICY_ID);
+      txn.set_policy_type(proto::Transaction::POLICY_ID_POLICY);
     }
 
       //std::cerr<< "BEGIN TX with client_seq_num: " << client_seq_num << std::endl;

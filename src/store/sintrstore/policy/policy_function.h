@@ -28,6 +28,7 @@
 #define _SINTR_POLICY_FUNCTION_H_
 
 #include "store/sintrstore/policy/policy.h"
+#include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
 
 #include <string>
 
@@ -44,6 +45,16 @@ inline policy_id_function GetPolicyIdFunction(const std::string &policy_function
   if (policy_function_name == "basic_id") {
     return [](const std::string &key, const std::string &value) -> uint64_t {
       return 0;
+    };
+  }
+  else if (policy_function_name == "grouped") {
+    return [](const std::string &key, const std::string &value) -> uint64_t {
+      switch (key.c_str()[0]) {
+        case tpcc::Tables::DISTRICT:
+          return 1;
+        default:
+          return 0;
+      }
     };
   }
   else {

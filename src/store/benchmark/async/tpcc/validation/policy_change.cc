@@ -26,6 +26,8 @@
 
 #include "store/benchmark/async/tpcc/validation/policy_change.h"
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/sintrstore/sintr-proto.pb.h"
+#include "store/sintrstore/policy/policy-proto.pb.h"
 
 
 namespace tpcc {
@@ -49,10 +51,17 @@ transaction_status_t ValidationPolicyChange::Validate(::SyncClient &client) {
 
   client.Begin(timeout);
 
-  for (uint32_t d_id = 1; d_id <= 10; ++d_id) {
-    std::string d_key = DistrictRowKey(w_id, d_id);
-    client.Put(d_key, "1", timeout);
-  }
+  // distict table has policy id 1, change it to be policy of weight 3
+  ::sintrstore::proto::PolicyObject policy;
+  policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
+  ::sintrstore::proto::WeightPolicyMessage weight_policy;
+  weight_policy.set_weight(3);
+  weight_policy.SerializeToString(policy.mutable_policy_data());
+  
+  std::string policy_str;
+  policy.SerializeToString(&policy_str);
+  client.Put("1", policy_str, timeout);
+
   return client.Commit(timeout);
 }
 
