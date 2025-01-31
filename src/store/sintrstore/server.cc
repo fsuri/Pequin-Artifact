@@ -1116,7 +1116,7 @@ void Server::HandleRead(const TransportAddress &remote,
     tsVal.first.serialize(readReply->mutable_write()->mutable_committed_timestamp());
     if (params.validateProofs) {
       *readReply->mutable_proof() = *tsVal.second.proof;
-      *readReply->mutable_policy_proof() = *tsVal.second.policyProof;
+      // *readReply->mutable_policy_proof() = *tsVal.second.policyProof;
     }
 
     // get policy from policyStore
@@ -1125,6 +1125,9 @@ void Server::HandleRead(const TransportAddress &remote,
     tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
     readReply->mutable_write()->mutable_committed_policy()->set_policy_id(tsVal.second.policyId);
     tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+    if (params.validateProofs) {
+      *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
+    }
   }
 
   TransportAddress *remoteCopy = remote.clone();

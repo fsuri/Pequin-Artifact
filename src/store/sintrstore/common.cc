@@ -1787,6 +1787,7 @@ bool ValidateTransactionWrite(const proto::CommittedProof &proof,
   return true;
 }
 
+/*
 bool ValidateTransactionWriteValue(const proto::CommittedProof &proof, 
     const std::string *txnDigest, const Timestamp &policyProofTs,
     const std::string &key, const std::string &val, const Timestamp &timestamp,
@@ -1890,6 +1891,7 @@ bool ValidateTransactionWritePolicy(const proto::CommittedProof &policyProof,
 
   return true;
 }
+*/
 
 bool ValidateDependency(const proto::Dependency &dep,
     const transport::Configuration *config, uint64_t readDepSize,
