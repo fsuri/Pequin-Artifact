@@ -475,6 +475,7 @@ DEFINE_bool(sintr_debug_endorse_check, true, "sintr do a full debug validation t
 DEFINE_bool(sintr_client_check_evidence, true, "sintr client check prepared committed evidence on forward read results");
 DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to use");
 DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
+DEFINE_uint32(sintr_read_include_policy, 0, "number indicates period of including policy in read messages, 0 indicates never");
 
 ///////////////////////////////////////////////////////////
 
@@ -1594,7 +1595,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_debug_endorse_check,
         FLAGS_sintr_client_check_evidence,
         FLAGS_sintr_policy_function_name,
-        FLAGS_sintr_policy_config_path
+        FLAGS_sintr_policy_config_path,
+        FLAGS_sintr_read_include_policy
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

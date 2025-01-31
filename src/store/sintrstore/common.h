@@ -824,17 +824,19 @@ typedef struct SintrParameters {
   const bool clientCheckEvidence; // client checks prepared and committed evidence on forward read results
   const std::string policyFunctionName; // name of the policy function to use
   const std::string policyConfigPath; // path to the policy configuration file
+  const uint32_t readIncludePolicy; // period of include policy in read messages
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
-    std::string policyConfigPath) :
+    std::string policyConfigPath, uint32_t readIncludePolicy) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
     debugEndorseCheck(debugEndorseCheck),
     clientCheckEvidence(clientCheckEvidence),
     policyFunctionName(policyFunctionName),
-    policyConfigPath(policyConfigPath) {}
+    policyConfigPath(policyConfigPath),
+    readIncludePolicy(readIncludePolicy) {}
 } SintrParameters;
 
 typedef struct Parameters {

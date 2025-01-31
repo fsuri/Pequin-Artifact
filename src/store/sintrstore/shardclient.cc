@@ -181,6 +181,10 @@ void ShardClient::Get(uint64_t id, const std::string &key,
   read.set_key(key);
   *read.mutable_timestamp() = ts;
 
+  if (params.sintr_params.readIncludePolicy > 0 && reqId % params.sintr_params.readIncludePolicy == 0) {
+    read.set_include_policy(true);
+  }
+
   UW_ASSERT(readMessages <= closestReplicas.size());
   for (size_t i = 0; i < readMessages; ++i) {
     Debug("[group %i] Sending GET to replica %lu", group, GetNthClosestReplica(i));

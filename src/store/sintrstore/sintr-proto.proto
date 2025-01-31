@@ -37,6 +37,7 @@ message Read {
   required uint64 req_id = 1;
   required bytes key = 2;
   required TimestampMessage timestamp = 3;
+  optional bool include_policy = 4;
 }
 
 message GroupedSignatures {
