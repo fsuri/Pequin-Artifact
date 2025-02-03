@@ -82,7 +82,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // forward server read reply to other peers
   void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
-    const proto::Dependency &dep, bool hasDep, bool addReadset);
+    const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
 
   // given a new policy, update the endorsement policy for this client 
   // also contact additional peers as necessary

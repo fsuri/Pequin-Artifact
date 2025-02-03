@@ -147,7 +147,7 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
 
 void Client2Client::ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
-    const proto::Dependency &dep, bool hasDep, bool addReadset) {
+    const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
   proto::ForwardReadResultMessage fwdReadResultMsg = proto::ForwardReadResultMessage();
   fwdReadResultMsg.set_client_id(client_id);
@@ -204,6 +204,12 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
         UW_ASSERT(value.length() == 0);
         *fwdReadResultMsg.mutable_write() = write;
       }
+    }
+
+    // separately include policy change txn dependency if there is one
+    if (hasPolicyDep) {
+      *fwdReadResultMsg.mutable_policy_dep() = policyDep;
+      UW_ASSERT(policyDep.IsInitialized());
     }
   }
 
@@ -371,6 +377,12 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
     }
   }
 
+  bool hasPolicyDep = fwdReadResultMsg.has_policy_dep();
+  proto::Dependency policyDep;
+  if (hasPolicyDep) {
+    policyDep = fwdReadResultMsg.policy_dep();
+  }
+
   Debug(
     "HandleForwardReadResult: from client id %lu, seq num %lu, key %s, value %s", 
     curr_client_id, 
@@ -379,7 +391,8 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
     BytesToHex(curr_value, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
-  valClient->ProcessForwardReadResult(curr_client_id, curr_client_seq_num, fwdReadResult, dep, hasDep, addReadset);
+  valClient->ProcessForwardReadResult(curr_client_id, curr_client_seq_num, fwdReadResult, 
+      dep, hasDep, addReadset, policyDep, hasPolicyDep);
 }
 
 void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg) {

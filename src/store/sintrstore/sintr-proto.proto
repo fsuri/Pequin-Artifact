@@ -86,6 +86,7 @@ message Write {
   optional EndorsementPolicyMessage prepared_policy = 8;
   optional TimestampMessage prepared_policy_timestamp = 9;
   optional bytes prepared_txn_digest = 10;
+  optional bytes prepared_policy_txn_digest = 11;
 }
 
 message ReadReply {
@@ -491,6 +492,8 @@ message ForwardReadResultMessage {
   optional Dependency dep = 8;
   // tell validating client whether to add to readset
   optional bool add_readset = 9;
+  // policy dependencies must be included in txn in order for digest to match
+  optional Dependency policy_dep = 10;
 }
 
 message FinishValidateTxnMessage {

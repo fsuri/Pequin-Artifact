@@ -202,7 +202,8 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
 }
 
 void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
-    const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset) {
+    const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset,
+    const proto::Dependency &policyDep, bool hasPolicyDep) {
   std::string curr_key = fwdReadResult.key();
   std::string curr_value = fwdReadResult.value();
   Timestamp curr_ts = Timestamp(fwdReadResult.timestamp());
@@ -214,12 +215,17 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
   );
 
   // lambda for editing txn state
-  auto editTxnStateCB = [this, &curr_key, &curr_value, &curr_ts, &dep, hasDep, addReadset](AllValidationTxnState *allValTxnState) {
+  auto editTxnStateCB = [
+    this, &curr_key, &curr_value, &curr_ts, &dep, hasDep, addReadset, &policyDep, hasPolicyDep
+  ](AllValidationTxnState *allValTxnState) {
     if (addReadset) {
       AddReadset(allValTxnState, curr_key, curr_value, curr_ts);
     }
     if (hasDep) {
       AddDep(allValTxnState, dep);
+    }
+    if (hasPolicyDep) {
+      AddDep(allValTxnState, policyDep);
     }
   };
 

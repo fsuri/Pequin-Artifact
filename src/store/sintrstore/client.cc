@@ -283,7 +283,8 @@ void Client::Get(const std::string &key, get_callback gcb,
         const std::string &val, const Timestamp &ts, const proto::Dependency &dep,
         bool hasDep, bool addReadSet,
         const proto::CommittedProof &proof, const std::string &serializedWrite, 
-        const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg) {
+        const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg,
+        const proto::Dependency &policyDep, bool hasPolicyDep) {
 
       uint64_t ns = 0; //Latency_End(&getLatency);
       if (Message_DebugEnabled(__FILE__)) {
@@ -314,10 +315,14 @@ void Client::Get(const std::string &key, get_callback gcb,
       if (hasDep) {
         *txn.add_deps() = dep;
       }
+      if (hasPolicyDep) {
+        *txn.add_deps() = policyDep;
+      }
 
       c2client->ForwardReadResultMessage(
         key, val, ts, proof, serializedWrite, 
-        serializedWriteTypeName, dep, hasDep, addReadSet
+        serializedWriteTypeName, dep, hasDep, addReadSet,
+        policyDep, hasPolicyDep
       );
 
       gcb(status, key, val, ts);

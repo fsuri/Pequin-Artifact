@@ -1204,15 +1204,6 @@ void Server::HandleRead(const TransportAddress &remote,
               readReply->mutable_write()->set_prepared_value(preparedValue);
               *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
               *readReply->mutable_write()->mutable_prepared_txn_digest() = TransactionDigest(*mostRecent, params.hashDigest);
-
-              // // get policy from policyStore
-              // std::pair<Timestamp, Policy *> tsPolicy;
-              // bool policyExists = policyStore.get(preparedPolicyId, mostRecent->timestamp(), tsPolicy);
-              // if (!policyExists) {
-              //   Panic("Cannot find policy %lu in policyStore", preparedPolicyId);
-              // }
-              // readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
-              // tsPolicy.second->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy());
             }
           }
         }
@@ -1220,15 +1211,17 @@ void Server::HandleRead(const TransportAddress &remote,
 
       if (msg.include_policy()) {
         // now check preparedWrites for policy ids
+        const proto::Transaction *mostRecentPolicyTxn;
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-        GetPolicy(preparedPolicyId, ts, tsPolicy, true);
+        GetPolicy(preparedPolicyId, ts, tsPolicy, true, &mostRecentPolicyTxn);
         // if GetPolicy returns a prepared policy then it has no proof
         if (tsPolicy.second.proof == nullptr) {
           Debug("Prepared policy id write with most recent ts %lu.%lu.",
                   tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
-          tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_timestamp());
+          tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
           readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
           tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
+          *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
         }
       }
     }
@@ -3017,7 +3010,7 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
 }
 
 void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts, 
-    std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared) {
+    std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared, const proto::Transaction **preparedTxn) {
   bool exists = policyStore.get(policyId, ts, tsPolicy);
 
   const proto::Transaction *mostRecentPrepared = nullptr;
@@ -3037,6 +3030,11 @@ void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts,
         tsPolicy.first = mostRecentPrepared->timestamp();
         tsPolicy.second.policy = policy;
         tsPolicy.second.proof = nullptr;
+
+        if (preparedTxn != nullptr) {
+          *preparedTxn = mostRecentPrepared;
+        }
+
         return;
       }
     }

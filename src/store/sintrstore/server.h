@@ -945,8 +945,10 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   // given policy id and timestamp, get the policy by filling tsPolicy
   // if checkPreapred is true, also check preparedWrites for change policy
+  // if preparedTxn is not null, return the transaction that prepared the policy
   void GetPolicy(const uint64_t policyId, const Timestamp &ts,
-    std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false);
+    std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false,
+    const proto::Transaction **preparedTxn = nullptr);
 
   // perform check on endorsements in the Phase1 msg with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);

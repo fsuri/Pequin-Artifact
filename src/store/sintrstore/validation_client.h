@@ -88,7 +88,8 @@ class ValidationClient : public ::Client {
 
   // either fill one of the pending validation gets or put into readset for future validation get
   void ProcessForwardReadResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
-    const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset);
+    const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset,
+    const proto::Dependency &policyDep, bool hasPolicyDep);
 
   // return completed transaction for requested id
   proto::Transaction *GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num);
