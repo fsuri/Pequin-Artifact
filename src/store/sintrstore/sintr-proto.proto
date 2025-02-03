@@ -170,12 +170,10 @@ message Transaction {
 
   // is this transaction a change policy transaction? this affects what is in the readset/writeset
   // NONE means it is not
-  // KEY_POLICY_ID means it changing the policy id of keys
   // POLICY_ID_POLICY means it is changing the policy of policy ids
   enum TxnPolicyType {
     NONE = 0;
-    KEY_POLICY_ID = 1;
-    POLICY_ID_POLICY = 2;
+    POLICY_ID_POLICY = 1;
   }
   optional TxnPolicyType policy_type = 14 [default = NONE];
   repeated ReadMessage implicit_policy_reads = 15; // NOT PART OF TX. HACK HERE TO STORE read set for implicit policy reads

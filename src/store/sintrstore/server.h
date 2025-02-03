@@ -188,8 +188,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   struct Value {
     std::string val;
     const proto::CommittedProof *proof;
-    uint64_t policyId;
-    const proto::CommittedProof *policyProof;
   };
   struct PolicyStoreValue {
     Policy *policy;
@@ -204,10 +202,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //Read Handling
   void ManageDispatchRead(const TransportAddress &remote, const std::string &data);
   void HandleRead(const TransportAddress &remote, proto::Read &msg);
-  // helper for checking preparedWrites and modifying readReply accordingly
-  // tsVal is the committed value if it exists
-  void CheckPreparedWrites(const std::string &key, const Timestamp &ts, const bool committed_exists, 
-    const std::pair<Timestamp, Server::Value> &tsVal, proto::ReadReply* readReply);
 
   //Phase1 Handling
   void ManageDispatchPhase1(const TransportAddress &remote, const std::string &data);
@@ -949,10 +943,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     }
   }
 
-  // get the policy id for a given key, value, timestamp
-  // if checkPrepared is true, also check preparedWrites for change policy
-  // if key is not found in committed or prepared, call policyIdFunction
-  uint64_t GetPolicyId(const std::string &key, const std::string &value, const Timestamp &ts, const bool checkPrepared = false);
   // given policy id and timestamp, get the policy by filling tsPolicy
   // if checkPreapred is true, also check preparedWrites for change policy
   void GetPolicy(const uint64_t policyId, const Timestamp &ts,

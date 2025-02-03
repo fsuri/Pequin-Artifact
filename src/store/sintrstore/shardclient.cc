@@ -1085,6 +1085,8 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
           Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
           return;
         }
+
+        Debug("[group %i] ReadReply for %lu with committed policy id %lu.", group, reply.req_id(), write->committed_policy().policy_id());
         req->maxPolicy = write->committed_policy();
       }
     }
