@@ -477,6 +477,34 @@ DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to 
 DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
 DEFINE_uint32(sintr_read_include_policy, 0, "number indicates period of including policy in read messages, 0 indicates never");
 
+// given an estimated txn policy, how many other clients to contact?
+enum sintr_client_validation_t {
+  CLIENT_VALIDATION_UNKNOWN,
+  CLIENT_VALIDATION_EXACT, // contact exactly the number of clients as estimated
+  CLIENT_VALIDATION_ALL // contact all clients
+};
+const std::string sintr_client_validation_args[] = {
+	"client-validation-exact",
+  "client-validation-all"
+};
+const sintr_client_validation_t sintr_client_validations[] {
+  CLIENT_VALIDATION_EXACT,
+  CLIENT_VALIDATION_ALL
+};
+static bool ValidateSintrClientValidation(const char* flagname,
+    const std::string &value) {
+  int n = sizeof(sintr_client_validation_args);
+  for (int i = 0; i < n; ++i) {
+    if (value == sintr_client_validation_args[i]) return true;
+  }
+  std::cerr << "Invalid value for --" << flagname << ": " << value << std::endl;
+  return false;
+}
+// by default, contact exactly the estimated number
+DEFINE_string(sintr_client_validation, sintr_client_validation_args[0], "sintr number of clients to contact for validation");
+DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
+
+
 ///////////////////////////////////////////////////////////
 
 DEFINE_bool(debug_stats, false, "record stats related to debugging");
@@ -1032,6 +1060,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // parse sintr client validation setting
+  sintr_client_validation_t sintr_client_validation = CLIENT_VALIDATION_UNKNOWN;
+  int numSintrClientValidations = sizeof(sintr_client_validation_args);
+  for (int i = 0; i < numSintrClientValidations; ++i) {
+    if (FLAGS_sintr_client_validation == sintr_client_validation_args[i]) {
+      sintr_client_validation = sintr_client_validations[i];
+      break;
+    }
+  }
+  if (mode == PROTO_SINTR && sintr_client_validation == CLIENT_VALIDATION_UNKNOWN) {
+    std::cerr << "Unknown sintr client validation." << std::endl;
+    return 1;
+  }
+
 
 //////////////////////////
 
@@ -1327,6 +1369,7 @@ int main(int argc, char **argv) {
     uint64_t syncMessages = 0;    //number of sync messages sent to replicas to request result replies
     uint64_t resultQuorum = FLAGS_pequin_query_result_honest? config->f + 1 : 1;
 
+    uint32_t sintrClientValidationHeuristic = 0;
 
     switch (mode) {
       case PROTO_POSTGRES:
@@ -1334,6 +1377,16 @@ int main(int argc, char **argv) {
       case PROTO_TAPIR:
            break;
       case PROTO_SINTR:
+        switch (sintr_client_validation) {
+          case CLIENT_VALIDATION_EXACT:
+            sintrClientValidationHeuristic = 0;
+            break;
+          case CLIENT_VALIDATION_ALL:
+            sintrClientValidationHeuristic = 1;
+            break;
+          default:
+            NOT_REACHABLE();
+        }
       case PROTO_PEQUIN:
          switch (query_sync_quorum) {
           case QUERY_SYNC_QUROUM_ONE:
@@ -1596,7 +1649,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_client_check_evidence,
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path,
-        FLAGS_sintr_read_include_policy
+        FLAGS_sintr_read_include_policy,
+        sintrClientValidationHeuristic
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

@@ -170,7 +170,7 @@ void EndorsementClient::UpdateRequirement(const Policy *policy) {
   policyClient->AddPolicy(policy);
 }
 
-std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<int> &potentialEndorsements) {
+std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) {
   return policyClient->DifferenceToSatisfied(potentialEndorsements);
 }
 

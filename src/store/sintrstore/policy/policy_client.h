@@ -45,7 +45,7 @@ class PolicyClient {
   // add a policy to the current transaction policies
   void AddPolicy(const Policy *policy);
   // what client ids does potentialEndorsements need to get currPolicies satisfied?
-  std::vector<int> DifferenceToSatisfied(const std::set<int> &potentialEndorsements) const;
+  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const;
   // is other strictly weaker than currPolicies?
   bool IsOtherWeaker(const Policy *other) const;
   void Reset();

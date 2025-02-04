@@ -52,7 +52,7 @@ class EndorsementClient {
   void UpdateRequirement(const Policy *policy);
   // what additional client ids are needed so that this policy is satisfied by potentialEndorsements
   // if potentialEndorsements is good enough, return empty vector
-  std::vector<int> DifferenceToSatisfied(const std::set<int> &potentialEndorsements);
+  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements);
   void AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest, 
     const proto::SignedMessage &signedValTxnDigest);
   // check if the policy is satisfied by actual endorsements collected so far

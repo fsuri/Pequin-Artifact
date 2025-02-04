@@ -75,9 +75,10 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   virtual bool SendPing(size_t replica, const PingMessage &ping);
 
   // start up the sintr validation for current transaction
-  // txnState should be parsable as proto::TxnState
   // sends BeginValidateTxnMessage to peers
-  void SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime);
+  // policy is the estimated policy for the transaction
+  void SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
+    const Policy *policy);
 
   // forward server read reply to other peers
   void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
@@ -123,6 +124,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // also extract write and dep from fwdReadResultMsg
   bool CheckPreparedCommittedEvidence(const proto::ForwardReadResultMessage &fwdReadResultMsg, 
     proto::Write &write, proto::Dependency &dep);
+  // extract client ids not currently in beginValSent from policy satisfying set
+  void ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients);
   void ValidationThreadFunction();
   bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data);
   // create an hmac from msg and place into signature
@@ -149,7 +152,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // current transaction sequence number (to send to others)
   uint64_t client_seq_num;
   // current set of transport ids begin validation message has been sent to
-  std::set<int> beginValSent;
+  std::set<uint64_t> beginValSent;
   // track most recently sent begin validation message
   proto::BeginValidateTxnMessage sentBeginValTxnMsg;
   // track all sent forward read results for current transaction

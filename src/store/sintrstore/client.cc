@@ -206,9 +206,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // dummy endorsement policy
     Policy *policy;
     EstimateTxnPolicy(protoTxnState, &policy);
-    endorseClient->UpdateRequirement(policy);
+    c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policy);
     delete policy;
-    c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime);
   
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);

@@ -52,7 +52,7 @@ void PolicyClient::AddPolicy(const Policy *policy) {
   }
 }
 
-std::vector<int> PolicyClient::DifferenceToSatisfied(const std::set<int> &potentialEndorsements) const {
+std::vector<int> PolicyClient::DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const {
   std::vector<int> ret;
 
   // first determine from the current policies what clients are needed

@@ -121,7 +121,8 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
   return true;
 }
 
-void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime) {
+void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
+    const Policy *policy) {
   this->client_seq_num = client_seq_num;
 
   sentBeginValTxnMsg = proto::BeginValidateTxnMessage();
@@ -135,13 +136,44 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   sentFwdReadResults.clear();
 
   Debug("beginValTxnMsg client id %lu, seq num %lu", client_id, client_seq_num);
-  for (int i = 0; i < clients_config->n; i++) {
-    beginValSent.insert(i);
-    // do not send to self
-    if (i == client_id) {
-      continue;
+
+  // for tracking purposes, must have self in beginValSent
+  beginValSent.insert(client_id);
+  // send to all clients so no need to bother with policy
+  if(params.sintr_params.clientValidationHeuristic == 1) {
+    for (int i = 0; i < clients_config->n; i++) {
+      // do not send to self
+      if (i == client_id) {
+        continue;
+      }
+      beginValSent.insert(i);
+      transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
     }
-    transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
+  }
+  // other heuristics depend on actual policy that was estimated
+  else {
+    // extract out the clients that need to be contacted
+    PolicyClient policyClient;
+    policyClient.AddPolicy(policy);
+    std::set<uint64_t> clients;
+    // need to use DifferenceToSatisfied to account for self
+    ExtractFromPolicyClientsToContact(policyClient.DifferenceToSatisfied(beginValSent), clients);
+    
+    if (params.sintr_params.clientValidationHeuristic == 0) {
+      for (const auto &i : clients) {
+        // do not send to self
+        if (i == client_id) {
+          continue;
+        }
+        beginValSent.insert(i);
+        transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
+      }
+      // sanity check - policy should be satisfied by the clients we are sending to
+      UW_ASSERT(policy->IsSatisfied(beginValSent));
+    }
+    else {
+      Panic("Invalid clientValidationHeuristic value");
+    }
   }
 }
 
@@ -239,46 +271,21 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
   std::vector<int> diff = endorseClient->DifferenceToSatisfied(beginValSent);
   // if after updating the policy, and the current set of validations is not enough, initiate more
   if (diff.size() > 0) {
-    // need to initiate more endorsements
-    int numAdditional = diff.size();
-    Debug("Initiating %d more beginValTxnMsg", numAdditional);
-    
-    for (const auto &acl_client_id : diff) {
-      // -1 represents a generic client id, so don't send to a specific client
-      if (acl_client_id < 0) {
+    std::set<uint64_t> clients;
+    ExtractFromPolicyClientsToContact(diff, clients);
+    Debug("Initiating %d more beginValTxnMsg", clients.size());
+    for (const auto &i : clients) {
+      // do not send to self
+      if (i == client_id) {
         continue;
       }
-      auto ret = beginValSent.insert(acl_client_id);
-      if (ret.second == false) {
-        Panic("Client %lu already sent beginValTxnMsg to client %d", client_id, acl_client_id);
-      }
-      numAdditional--;
-      transport->SendMessageToReplica(this, acl_client_id, sentBeginValTxnMsg);
+      auto ret = beginValSent.insert(i);
+      // should be first time sending to this client
+      UW_ASSERT(ret.second);
+      transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
       for (const auto &fwdReadResultMsg : sentFwdReadResults) {
-        transport->SendMessageToReplica(this, acl_client_id, fwdReadResultMsg);
+        transport->SendMessageToReplica(this, i, fwdReadResultMsg);
       }
-    }
-
-    int last_offset = 1;
-    while (numAdditional > 0) {
-      bool sent = false;
-      for (; last_offset < clients_config->n; last_offset++) {
-        // try to send to the next client after this client id
-        uint64_t target = (this->client_id + last_offset) % clients_config->n;
-        if (beginValSent.find(target) == beginValSent.end()) {
-          beginValSent.insert(target);
-          transport->SendMessageToReplica(this, target, sentBeginValTxnMsg);
-          for (const auto &fwdReadResultMsg : sentFwdReadResults) {
-            transport->SendMessageToReplica(this, target, fwdReadResultMsg);
-          }
-          sent = true;
-          break;
-        }
-      }
-      if (!sent) {
-        Panic("Policy requires more endorsements than available clients");
-      }
-      numAdditional--;
     }
   }
   else {
@@ -525,6 +532,36 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
   }
 
   return true;
+}
+
+void Client2Client::ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients) {
+  int offset = 1;
+  for (const auto &i : policySatSet) {
+    if (i == client_id) {
+      continue;
+    }
+    else if (i < 0) {
+      for (; offset < clients_config->n; offset++) {
+        uint64_t target = (client_id + offset) % clients_config->n;
+        if (beginValSent.find(target) == beginValSent.end()) {
+          clients.insert(target);
+          break;
+        }
+      }
+      // if we reach the end of the loop, then we have exhausted all clients
+      if (offset == clients_config->n) {
+        Panic("Policy requires more endorsements than available clients");
+      }
+    }
+    else {
+      if (beginValSent.find(i) == beginValSent.end()) {
+        clients.insert(i);
+      }
+      else {
+        Panic("Client %lu already sent beginValTxnMsg to client %d", client_id, i);
+      }
+    }
+  }
 }
 
 void Client2Client::ValidationThreadFunction() {
