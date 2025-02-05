@@ -97,7 +97,11 @@ class ValidationClient : public ::Client {
  private:
   struct PendingValidationGet {
     PendingValidationGet(uint64_t txn_client_id, uint64_t txn_client_seq_num) : 
-      txn_client_id(txn_client_id), txn_client_seq_num(txn_client_seq_num) {}
+        txn_client_id(txn_client_id), txn_client_seq_num(txn_client_seq_num) {
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      start_time = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    }
     ~PendingValidationGet() {
       if (timeout != nullptr) {
         delete timeout;
@@ -111,6 +115,7 @@ class ValidationClient : public ::Client {
     validation_read_callback vrcb;
     validation_read_timeout_callback vrtcb;
     Timeout *timeout;
+    uint64_t start_time;
   };
 
   // for a (txn_client_id, txn_client_seq_num) pair, keep track of all relevant transaction state

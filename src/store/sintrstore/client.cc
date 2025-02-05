@@ -1202,6 +1202,14 @@ void Client::Phase1(PendingRequest *req) {
     return;
   }
 
+  if(PROFILING_LAT){
+    struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t endorsements_received_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    auto duration = endorsements_received_ms - commit_start_ms;
+    // Warning("  Transaction waiting for endorsements latency in us [%d]", duration);
+  }
+  
   proto::SignedMessages protoEndorsements;
   std::vector<proto::SignedMessage> endorsements = endorseClient->GetEndorsements();
   for (auto &endorsement : endorsements) {

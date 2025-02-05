@@ -269,6 +269,13 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
   }
   // callback
   PendingValidationGet *req = *reqs_itr;
+
+  struct timespec ts_end;
+  clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  auto duration = end - req->start_time;
+  // Warning("PendingValidationGet took %lu us", duration);
+
   req->ts = curr_ts;
   editTxnStateCB(a->second);
   req->vrcb(REPLY_OK, txn_client_id, txn_client_seq_num, req->key, curr_value, req->ts);

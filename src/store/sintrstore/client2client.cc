@@ -591,7 +591,17 @@ void Client2Client::ValidationThreadFunction() {
     valClient->SetThreadValTxnId(curr_client_id, curr_client_seq_num);
     valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts);
 
+    struct timespec ts_start;
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     transaction_status_t result = valTxn->Validate(syncClient);
+
+    struct timespec ts_end;
+    clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    auto duration = end - start;
+    // Warning("validation took %lu us", duration);
 
     if (result == COMMITTED) {
       Debug("Completed validation for client id %lu, seq num %lu", curr_client_id, curr_client_seq_num);
@@ -610,6 +620,10 @@ void Client2Client::ValidationThreadFunction() {
       // only send over digest, not actual contents
       std::string digest = TransactionDigest(*txn, params.hashDigest);
       if (params.sintr_params.signFinishValidation) {
+        struct timespec ts_start;
+        clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
         // sign the digest
         proto::SignedMessage signedMessage;
         SignBytes(
@@ -619,6 +633,12 @@ void Client2Client::ValidationThreadFunction() {
           &signedMessage
         );
         *finishValTxnMsg.mutable_signed_validation_txn_digest() = signedMessage;
+
+        struct timespec ts_end;
+        clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+        auto duration = end - start;
+        // Warning("signing took %lu us", duration);
       }
       else {
         finishValTxnMsg.set_validation_txn_digest(digest);
