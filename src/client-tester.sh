@@ -52,10 +52,13 @@ N=$((5*$F+1))
 
 DEBUG_FILES="store/$STORE/client2client.cc store/$STORE/client.cc store/$STORE/shardclient.cc"
 
+# array of process ids
+pids=()
+
 echo '[1] Starting new clients'
 for i in `seq 1 $((CLIENTS-1))`; do
   #valgrind
- DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clients_config_path $CLIENTS_CONFIG --num_groups $NUM_GROUPS \
+  DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clients_config_path $CLIENTS_CONFIG --num_groups $NUM_GROUPS \
     --num_shards $NUM_GROUPS \
     --protocol_mode $PROTOCOL --num_keys $NUM_KEYS_IN_DB --benchmark $BENCHMARK --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH --num_ops_txn $NUM_OPS_TX \
     --exp_duration $DURATION --client_id $i --num_client_hosts $CLIENTS --warmup_secs 0 --cooldown_secs 0 \
@@ -63,6 +66,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
     --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG  --sintr_policy_function_name $POLICY_FUNCTION \
     --sintr_read_include_policy=0 &> ./0_local_test_outputs/client-$i.out &
+  pids+=($!)
 done;
 
 #valgrind
@@ -74,6 +78,7 @@ DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clien
   --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
   --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG --sintr_policy_function_name $POLICY_FUNCTION \
   --sintr_read_include_policy=0 &> ./0_local_test_outputs/client-0.out &
+pids+=($!)
 
 
 sleep $((DURATION+4))
@@ -82,3 +87,7 @@ killall store/benchmark/async/benchmark
 #callgrind_control --dump
 killall store/server
 
+# sometimes killall doesn't work so make sure we stop all processes
+for pid in "${pids[@]}"; do
+  kill $pid
+done
