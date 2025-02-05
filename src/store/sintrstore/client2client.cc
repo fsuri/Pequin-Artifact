@@ -140,7 +140,7 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   // for tracking purposes, must have self in beginValSent
   beginValSent.insert(client_id);
   // send to all clients so no need to bother with policy
-  if(params.sintr_params.clientValidationHeuristic == 1) {
+  if(params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::ALL) {
     for (int i = 0; i < clients_config->n; i++) {
       // do not send to self
       if (i == client_id) {
@@ -159,21 +159,29 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
     // need to use DifferenceToSatisfied to account for self
     ExtractFromPolicyClientsToContact(policyClient.DifferenceToSatisfied(beginValSent), clients);
     
-    if (params.sintr_params.clientValidationHeuristic == 0) {
-      for (const auto &i : clients) {
-        // do not send to self
-        if (i == client_id) {
-          continue;
+    if (params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::EXACT) {
+    }
+    else if (params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::ONE_MORE) {
+      for (int i = 0; i < clients_config->n; i++) {
+        if (i != client_id && clients.find(i) == clients.end()) {
+          clients.insert(i);
         }
-        beginValSent.insert(i);
-        transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
       }
-      // sanity check - policy should be satisfied by the clients we are sending to
-      UW_ASSERT(policy->IsSatisfied(beginValSent));
     }
     else {
       Panic("Invalid clientValidationHeuristic value");
     }
+
+    for (const auto &i : clients) {
+      // do not send to self
+      if (i == client_id) {
+        continue;
+      }
+      beginValSent.insert(i);
+      transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
+    }
+    // sanity check - policy should be satisfied by the clients we are sending to
+    UW_ASSERT(policy->IsSatisfied(beginValSent));
   }
 }
 

@@ -814,6 +814,11 @@ typedef std::function<void(const std::string &, const Timestamp &, bool, QueryRe
 //typedef std::function<void(const std::string &, const Timestamp &, bool, QueryReadSetMgr *, bool, SnapshotManager *)> find_table_version;
 typedef std::function<bool(const std::string &)> read_prepared_pred; // This is a function that, given a txnDigest of a prepared tx, evals to true if it is readable, and false if not.
 
+enum CLIENT_VALIDATION_HEURISTIC {
+  EXACT, // contact exactly the number of clients as estimated
+  ONE_MORE, // contact one more client than estimated
+  ALL // contact all clients
+};
 
 // Sintr protocol specific parameters
 typedef struct SintrParameters {
@@ -826,13 +831,11 @@ typedef struct SintrParameters {
   const std::string policyConfigPath; // path to the policy configuration file
   const uint32_t readIncludePolicy; // period of include policy in read messages
   // heuristic from estimate to actual number of clients contacted for validation
-  // 0: exact; contact exact number of clients as estimated
-  // 1: all; contact all clients, disregard estimate
-  const uint32_t clientValidationHeuristic;
+  const CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic;
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
-    std::string policyConfigPath, uint32_t readIncludePolicy, uint32_t clientValidationHeuristic) :
+    std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
