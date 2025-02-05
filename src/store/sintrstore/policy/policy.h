@@ -51,11 +51,6 @@ class Policy {
   // assume that other is owned by caller, not this policy object
   // other must be of the same type as this policy
   virtual void MergePolicy(const Policy *other) = 0;
-  // how much more does this Policy need to become a superset of other?
-  // note that if this policy is already a superset, return is empty vector
-  // assume that other is owned by caller, not this policy object
-  // other must be of the same type as this policy
-  virtual std::vector<int> DifferenceToPolicy(const Policy *other) const = 0;
   // return the minimum size set of client ids that would satisfy this policy
   // represent generic client ids with -1
   virtual std::vector<int> GetMinSatisfyingSet() const = 0;

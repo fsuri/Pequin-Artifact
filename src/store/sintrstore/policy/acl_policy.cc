@@ -91,23 +91,6 @@ void ACLPolicy::MergePolicy(const Policy *other) {
   access_control_list.insert(other_access_control_list.begin(), other_access_control_list.end());
 }
 
-std::vector<int> ACLPolicy::DifferenceToPolicy(const Policy *other) const {
-  UW_ASSERT(other != nullptr);
-  UW_ASSERT(type == other->Type());
-
-  const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
-  std::set<uint64_t> other_access_control_list = otherACLPolicy->GetAccessControlList();
-  
-  std::vector<int> additional_access_control;
-  std::set_difference(
-    other_access_control_list.begin(), other_access_control_list.end(), 
-    access_control_list.begin(), access_control_list.end(),
-    std::inserter(additional_access_control, additional_access_control.begin())
-  );
-
-  return additional_access_control;
-}
-
 std::vector<int> ACLPolicy::GetMinSatisfyingSet() const {
   std::vector<int> min_satisfying_set;
   for (const auto &client_id : access_control_list) {

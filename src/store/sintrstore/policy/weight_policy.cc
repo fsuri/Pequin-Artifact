@@ -83,24 +83,6 @@ void WeightPolicy::MergePolicy(const Policy *other) {
   }
 }
 
-std::vector<int> WeightPolicy::DifferenceToPolicy(const Policy *other) const {
-  UW_ASSERT(other != nullptr);
-  UW_ASSERT(type == other->Type());
-
-  const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
-  uint64_t additional_weight = 0;
-  if (weight < otherWeightPolicy->GetWeight()) {
-    additional_weight = otherWeightPolicy->GetWeight() - weight;
-  }
-
-  std::vector<int> diff;
-  for (uint64_t i = 0; i < additional_weight; i++) {
-    diff.push_back(-1);
-  }
-
-  return diff;
-}
-
 std::vector<int> WeightPolicy::GetMinSatisfyingSet() const {
   std::vector<int> minSatisfyingSet;
   for (uint64_t i = 0; i < weight; i++) {
