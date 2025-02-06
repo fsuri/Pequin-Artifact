@@ -86,18 +86,19 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
         timeServer, phase1DecisionTimeout, consecutiveMax));
   }
 
-  endorseClient = new EndorsementClient(client_id, keyManager);
+  policyParseClient = new PolicyParseClient();
+  policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
+  std::map<uint64_t, Policy *> policies = policyParseClient->ParseConfigFile(params.sintr_params.policyConfigPath);
+
+  endorseClient = new EndorsementClient(client_id, keyManager, policyIdFunction);
+  endorseClient->InitializePolicyCache(policies);
+
   // create client for other clients
   // right now group is always 0, maybe configure later
   c2client = new Client2Client(
     config, clients_config, transport, client_id, nshards, ngroups, 0,
     pingReplicas, params, keyManager, verifier, part, endorseClient
   );
-  policyParseClient = new PolicyParseClient();
-  policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
-
-  std::map<uint64_t, Policy *> policies = policyParseClient->ParseConfigFile(params.sintr_params.policyConfigPath);
-  endorseClient->InitializePolicyCache(policies);
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
       bclient.size());
@@ -306,7 +307,6 @@ void Client::Get(const std::string &key, get_callback gcb,
         // new policy can only come from server, which must correspond to addReadSet
         if (policyMsg.IsInitialized()) {
           Policy *policy = policyParseClient->Parse(policyMsg.policy());
-          endorseClient->UpdateKeyPolicyIdCache(key, policyMsg.policy_id());
           endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
           delete policy;
         }

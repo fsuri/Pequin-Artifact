@@ -33,8 +33,8 @@
 
 namespace sintrstore {
 
-EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager) : 
-    client_id(client_id), keyManager(keyManager) {
+EndorsementClient::EndorsementClient(uint64_t client_id, KeyManager *keyManager, policy_id_function policyIdFunction) : 
+    client_id(client_id), keyManager(keyManager), policyIdFunction(policyIdFunction) {
   policyClient = new PolicyClient();
 }
 EndorsementClient::~EndorsementClient() {
@@ -219,19 +219,13 @@ void EndorsementClient::Reset() {
 }
 
 bool EndorsementClient::GetPolicyFromCache(const std::string &key, Policy **policy) {
-  // it is possible that the key is not in the cache
-  // but if the key is, then the policyId should be in the cache
-  auto it = keyPolicyIdCache.find(key);
-  if (it == keyPolicyIdCache.end()) {
-    return false;
-  }
-  uint64_t policyId = it->second;
-  auto it2 = policyCache.find(policyId);
-  if (it2 == policyCache.end()) {
+  uint64_t policyId = policyIdFunction(key, "");
+  auto it = policyCache.find(policyId);
+  if (it == policyCache.end()) {
     Panic("Policy cache is missing policy with id %lu", policyId);
   }
 
-  *policy = it2->second->Clone();
+  *policy = it->second->Clone();
   return true;
 }
 
@@ -243,10 +237,6 @@ bool EndorsementClient::GetPolicyFromCache(uint64_t policyId, Policy **policy) {
 
   *policy = it->second->Clone();
   return true;
-}
-
-void EndorsementClient::UpdateKeyPolicyIdCache(const std::string &key, uint64_t policyId) {
-  keyPolicyIdCache[key] = policyId;
 }
 
 void EndorsementClient::UpdatePolicyCache(uint64_t policyId, const Policy *policy) {

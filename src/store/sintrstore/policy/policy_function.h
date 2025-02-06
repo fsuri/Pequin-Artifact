@@ -29,6 +29,7 @@
 
 #include "store/sintrstore/policy/policy.h"
 #include "store/benchmark/async/tpcc/tpcc-proto.pb.h"
+#include "lib/message.h"
 
 #include <string>
 

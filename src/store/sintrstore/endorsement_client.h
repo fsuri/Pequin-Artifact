@@ -28,6 +28,7 @@
 #define _SINTR_ENDORSEMENT_CLIENT_H_
 
 #include "store/sintrstore/policy/policy_client.h"
+#include "store/sintrstore/policy/policy_function.h"
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "lib/keymanager.h"
 
@@ -40,7 +41,7 @@ namespace sintrstore {
 // this class keeps state for an ongoing transaction endorsement
 class EndorsementClient {
  public:
-  EndorsementClient(uint64_t client_id, KeyManager *keyManager);
+  EndorsementClient(uint64_t client_id, KeyManager *keyManager, policy_id_function policyIdFunction);
   ~EndorsementClient();
 
   std::vector<proto::SignedMessage> GetEndorsements();
@@ -62,7 +63,6 @@ class EndorsementClient {
   // return true if policy exists for key, false otherwise
   bool GetPolicyFromCache(const std::string &key, Policy **policy);
   bool GetPolicyFromCache(uint64_t policyId, Policy **policy);
-  void UpdateKeyPolicyIdCache(const std::string &key, uint64_t policyId);
   void UpdatePolicyCache(uint64_t policyId, const Policy *policy);
   void InitializePolicyCache(const std::map<uint64_t, Policy *> &policyCache);
 
@@ -71,8 +71,10 @@ class EndorsementClient {
   const uint64_t client_id;
   KeyManager *keyManager;
 
+  // policy function
+  policy_id_function policyIdFunction;
+
   // client side cache of policy store
-  std::map<std::string, uint64_t> keyPolicyIdCache;
   std::map<uint64_t, Policy *> policyCache;
   
   // transaction specific
