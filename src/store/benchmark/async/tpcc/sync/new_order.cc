@@ -27,6 +27,8 @@
 #include "store/benchmark/async/tpcc/sync/new_order.h"
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 
 namespace tpcc {
 
@@ -47,7 +49,7 @@ transaction_status_t SyncNewOrder::Execute(SyncClient &client) {
   //std::cerr << "warehouse: " << w_id << std::endl;
 
   std::string txnState;
-  NewOrder::SerializeTxnState(txnState);
+  SyncNewOrder::SerializeTxnState(txnState);
 
   client.Begin(timeout, txnState);
 
@@ -208,6 +210,39 @@ transaction_status_t SyncNewOrder::Execute(SyncClient &client) {
 
   Debug("COMMIT");
   return client.Commit(timeout);
+}
+
+void SyncNewOrder::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_NEW_ORDER));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::NewOrder curr_txn = validation::proto::NewOrder();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_c_id(c_id);
+  curr_txn.set_ol_cnt(ol_cnt);
+  curr_txn.set_rbk(rbk);
+  *curr_txn.mutable_o_ol_i_ids() = {o_ol_i_ids.begin(), o_ol_i_ids.end()};
+  *curr_txn.mutable_o_ol_supply_w_ids() = {o_ol_supply_w_ids.begin(), o_ol_supply_w_ids.end()};
+  *curr_txn.mutable_o_ol_quantities() = {o_ol_quantities.begin(), o_ol_quantities.end()};
+  curr_txn.set_o_entry_d(o_entry_d);
+  curr_txn.set_all_local(all_local);
+  std::vector<Tables> est_tables = SyncNewOrder::HeuristicFunction();
+  for(const auto& value : est_tables) {
+    curr_txn.add_est_tables((int)value);
+  }
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+  currTxnState.SerializeToString(&txnState);
+}
+
+std::vector<Tables> SyncNewOrder::HeuristicFunction() {
+  return {DISTRICT, NEW_ORDER, ORDER, ORDER_BY_CUSTOMER, STOCK, ORDER_LINE};
 }
 
 } // namespace tpcc

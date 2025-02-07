@@ -39,6 +39,8 @@ class SyncDelivery : public SyncTPCCTransaction, public Delivery {
   virtual ~SyncDelivery();
   virtual transaction_status_t Execute(SyncClient &client);
 
+  virtual void SerializeTxnState(std::string &txnState) override;
+  virtual std::vector<Tables> HeuristicFunction() override;
 };
 
 } // namespace tpcc

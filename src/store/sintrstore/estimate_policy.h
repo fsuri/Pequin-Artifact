@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Daniel Lee <dhl93@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -10,10 +9,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -24,25 +23,34 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SYNC_PAYMENT_H
-#define SYNC_PAYMENT_H
 
-#include "store/benchmark/async/tpcc/sync/tpcc_transaction.h"
-#include "store/benchmark/async/tpcc/payment.h"
+#ifndef _SINTR_POLICY_ESTIMATE_H
+#define _SINTR_POLICY_ESTIMATE_H
 
-namespace tpcc {
+#include "lib/assert.h"
+#include "store/common/common-proto.pb.h"
+#include "store/common/frontend/validation_transaction.h"
+#include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/endorsement_client.h"
 
-class SyncPayment : public SyncTPCCTransaction, public Payment {
+namespace sintrstore {
+
+// this class takes parses TxnState proto message and estimates the policy needed for the transaction
+class EstimatePolicy {
  public:
-  SyncPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-      uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
-  virtual ~SyncPayment();
-  virtual transaction_status_t Execute(SyncClient &client);
+  EstimatePolicy() {}
+  ~EstimatePolicy(){}
+  // takes in transaction state, policy, and endorsement client and returns an estimated policy
+  void EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy, EndorsementClient *endorseClient) const;
 
-  virtual void SerializeTxnState(std::string &txnState) override;
-  virtual std::vector<Tables> HeuristicFunction() override;
+ private:
+  /*
+    As this is a prototype, we'll implement the tables-to-policy ID mapping function in the Sintr client code. 
+    Application developers should implement it in their own client code (e.g., tpcc) and then use it within Sintr.
+  */
+  uint64_t TableToPolicyID(const int &t) const;
 };
 
-} // namespace tpcc
+} // namespace sintrstore
 
-#endif /* SYNC_PAYMENT_H */
+#endif

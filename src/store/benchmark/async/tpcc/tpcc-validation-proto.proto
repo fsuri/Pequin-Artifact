@@ -7,6 +7,7 @@ message Delivery {
   required uint32 d_id = 2;
   required uint32 o_carrier_id = 3;
   required uint32 ol_delivery_d = 4;
+  repeated uint32 est_tables = 5;
 }
 
 message NewOrder {
@@ -20,6 +21,7 @@ message NewOrder {
   repeated uint32 o_ol_quantities = 8;
   required uint32 o_entry_d = 9;
   required bool all_local = 10;
+  repeated uint32 est_tables = 11;
 }
 
 message OrderStatus {
@@ -44,6 +46,7 @@ message Payment {
   required uint32 h_date = 8;
   required bool c_by_last_name = 9;
   required string c_last = 10;
+  repeated uint32 est_tables = 11;
 }
 
 message StockLevel {

@@ -35,6 +35,7 @@
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
 #include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/estimate_policy.h"
 #include <sys/time.h>
 #include <algorithm>
 
@@ -254,8 +255,8 @@ void Client::EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy) {
     UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
   } 
   else {
-    // for now always return default policy
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+    EstimatePolicy est_policy_obj;
+    est_policy_obj.EstimateTxnPolicy(protoTxnState, policy, endorseClient);
   }
 }
 
@@ -576,6 +577,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
 
     //Invoke partitioner function to figure out which group/shard we need to request from. 
+    // invalid conversion from int to uint64_t?
     int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
     //if(target_group != 0) Panic("Trying to use a Shard other than 0");   //FIXME: Remove: Just for testing single-shard setup currently
 

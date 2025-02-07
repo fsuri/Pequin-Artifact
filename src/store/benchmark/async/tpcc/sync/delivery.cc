@@ -27,6 +27,8 @@
 #include "store/benchmark/async/tpcc/sync/delivery.h"
 
 #include "store/benchmark/async/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 
 namespace tpcc {
 
@@ -48,7 +50,7 @@ transaction_status_t SyncDelivery::Execute(SyncClient &client) {
   //std::cerr << "warehouse: " << w_id << std::endl;
 
   std::string txnState;
-  Delivery::SerializeTxnState(txnState);
+  SyncDelivery::SerializeTxnState(txnState);
 
   client.Begin(timeout, txnState);
 
@@ -123,6 +125,33 @@ transaction_status_t SyncDelivery::Execute(SyncClient &client) {
 
   Debug("COMMIT");
   return client.Commit(timeout);
+}
+
+void SyncDelivery::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(TXN_DELIVERY));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::Delivery curr_txn = validation::proto::Delivery();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_o_carrier_id(o_carrier_id);
+  curr_txn.set_ol_delivery_d(ol_delivery_d);
+  std::vector<Tables> est_tables = SyncDelivery::HeuristicFunction();
+  for(const auto& value : est_tables) {
+    curr_txn.add_est_tables((int)value);
+  }
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+  currTxnState.SerializeToString(&txnState);
+}
+
+std::vector<Tables> SyncDelivery::HeuristicFunction() {
+  return {NEW_ORDER, ORDER, ORDER_LINE, CUSTOMER};
 }
 
 } // namespace tpcc
