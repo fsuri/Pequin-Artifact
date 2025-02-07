@@ -38,6 +38,18 @@ class SyncTPCCTransaction : public SyncTransaction {
  public:
   SyncTPCCTransaction(uint32_t timeout);
   virtual ~SyncTPCCTransaction();
+  /*
+    Right now just return a vector of tables that the transaction writes to,
+    instead of the specific keys that the transaction writes to. 
+    This is because reads could determine which keys to write to, 
+    so it's impossible to know writeset keys ahead of executing the transaction
+  */
+  //TODO: generate heuristic function automatically (from application programmer input/from transaction)
+  // then allow further modification...
+  // right now return empty list...
+  virtual std::vector<Tables> HeuristicFunction() {
+    return {};
+  }
 
 };
 
