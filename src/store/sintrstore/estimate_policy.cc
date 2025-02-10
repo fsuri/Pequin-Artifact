@@ -60,29 +60,32 @@ namespace sintrstore
       ::tpcc::TPCCTransactionType tpcc_txn_type = ::tpcc::GetBenchmarkTxnTypeEnum(txn_type);
       switch (tpcc_txn_type)
       {
-      case ::tpcc::TXN_DELIVERY:
-      {
-        ::tpcc::validation::proto::Delivery valTxnData;
-        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
-        repeated_values = valTxnData.est_tables();
-        break;
-      }
-      case ::tpcc::TXN_NEW_ORDER:
-      {
-        ::tpcc::validation::proto::NewOrder valTxnData;
-        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
-        repeated_values = valTxnData.est_tables();
-        break;
-      }
-      case ::tpcc::TXN_PAYMENT:
-      {
-        ::tpcc::validation::proto::Payment valTxnData;
-        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
-        repeated_values = valTxnData.est_tables();
-        break;
-      }
-      default:
-        UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+        case ::tpcc::TXN_DELIVERY:
+        {
+          ::tpcc::validation::proto::Delivery valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc::TXN_NEW_ORDER:
+        {
+          ::tpcc::validation::proto::NewOrder valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc::TXN_PAYMENT:
+        {
+          ::tpcc::validation::proto::Payment valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        default:
+        {
+          // don't change the policy, keep it as the default initialized policy (policy of weight 0)
+          break;
+        }
       }
       if (repeated_values.size() > 0)
       {
@@ -97,9 +100,8 @@ namespace sintrstore
     }
     else
     {
-      // return policy of weight 0
-      // TODO: Handle different policy types (IE access control lists)
-      *policy = new WeightPolicy(0);
+      // return default policy ID (policy ID 0)
+      UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
     }
   }
 
