@@ -55,6 +55,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <atomic>
 
 #include "tbb/concurrent_queue.h"
 
@@ -162,6 +163,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
 
   // threads for validation
   std::vector<std::thread *> valThreads;
+  std::atomic<bool> doValidation;
   ValidationClient *valClient;
   ValidationParseClient *valParseClient;
   // concurrent queue of transactions to be validated, has blocking semantics for pop

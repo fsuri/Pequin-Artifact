@@ -68,6 +68,7 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
     }
   }
 
+  doValidation = true;
   for (size_t i = 0; i < params.sintr_params.maxValThreads; i++) {
     valThreads.push_back(new std::thread(&Client2Client::ValidationThreadFunction, this));
     // // set cpu affinity
@@ -80,8 +81,14 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
 }
 
 Client2Client::~Client2Client() {
+  doValidation = false;
+  // send a dummy message to unblock any waiting threads before joining
+  for (auto t : valThreads) {
+    validationQueue.push(nullptr);
+  }
   for (auto t : valThreads) {
     t->join();
+    delete t;
   }
   delete valClient;
   delete clients_verifier;
@@ -573,9 +580,12 @@ void Client2Client::ExtractFromPolicyClientsToContact(const std::vector<int> &po
 
 void Client2Client::ValidationThreadFunction() {
   ::SyncClient syncClient(valClient);
-  for(;;) {
+  while(doValidation) {
     ValidationInfo *valInfo;
     validationQueue.pop(valInfo);
+    if (valInfo == nullptr) {
+      continue;
+    }
     uint64_t curr_client_id = valInfo->txn_client_id;
     uint64_t curr_client_seq_num = valInfo->txn_client_seq_num;
     Timestamp curr_ts = valInfo->txn_ts;
@@ -648,13 +658,13 @@ void Client2Client::ValidationThreadFunction() {
       }
 
       transport->SendMessage(this, *valInfo->remote, finishValTxnMsg);
-      Debug("transport->SendMessage complete");
       delete txn;
     }
 
     delete valInfo;
     Debug("thread exiting for validation for client id %lu, seq num %lu", curr_client_id, curr_client_seq_num);
   }
+  Debug("doValidation false, exiting validation thread");
 }
 
 bool Client2Client::ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data) {
