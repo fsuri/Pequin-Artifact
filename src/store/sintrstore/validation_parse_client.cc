@@ -54,32 +54,32 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
     switch (tpcc_txn_type) {
       case ::tpcc::TXN_DELIVERY: {
         ::tpcc::validation::proto::Delivery valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationDelivery(timeout, valTxnData);
       }
       case ::tpcc::TXN_NEW_ORDER: {
         ::tpcc::validation::proto::NewOrder valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationNewOrder(timeout, valTxnData);
       }
       case ::tpcc::TXN_ORDER_STATUS: {
         ::tpcc::validation::proto::OrderStatus valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationOrderStatus(timeout, valTxnData);
       }
       case ::tpcc::TXN_PAYMENT: {
         ::tpcc::validation::proto::Payment valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationPayment(timeout, valTxnData);
       }
       case ::tpcc::TXN_STOCK_LEVEL: {
         ::tpcc::validation::proto::StockLevel valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationStockLevel(timeout, valTxnData);
       }
       case ::tpcc::TXN_POLICY_CHANGE: {
         ::tpcc::validation::proto::PolicyChange valTxnData;
-        valTxnData.ParseFromString(txnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
         return new ::tpcc::ValidationPolicyChange(timeout, valTxnData);
       }
       default:

@@ -34,6 +34,7 @@
 #include "store/sintrstore/localbatchverifier.h"
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
+#include "store/sintrstore/policy/weight_policy.h"
 #include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/estimate_policy.h"
 #include <sys/time.h>
@@ -206,7 +207,8 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->Reset();
     endorseClient->SetClientSeqNum(client_seq_num);
     // dummy endorsement policy
-    Policy *policy;
+    // TODO: Handle different policy types (IE ACL policy) as well
+    Policy *policy = new WeightPolicy();
     EstimateTxnPolicy(protoTxnState, &policy);
     c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policy);
     delete policy;

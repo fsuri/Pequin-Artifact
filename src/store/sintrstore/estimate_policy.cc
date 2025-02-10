@@ -31,6 +31,9 @@
 #include "store/benchmark/async/tpcc/validation/payment.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/sintrstore/policy/weight_policy.h"
+// TODO: handle acl policy
+#include "store/sintrstore/policy/acl_policy.h"
 
 namespace sintrstore
 {
@@ -60,20 +63,23 @@ namespace sintrstore
       case ::tpcc::TXN_DELIVERY:
       {
         ::tpcc::validation::proto::Delivery valTxnData;
-        valTxnData.ParseFromString(protoTxnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
         repeated_values = valTxnData.est_tables();
+        break;
       }
       case ::tpcc::TXN_NEW_ORDER:
       {
         ::tpcc::validation::proto::NewOrder valTxnData;
-        valTxnData.ParseFromString(protoTxnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
         repeated_values = valTxnData.est_tables();
+        break;
       }
       case ::tpcc::TXN_PAYMENT:
       {
         ::tpcc::validation::proto::Payment valTxnData;
-        valTxnData.ParseFromString(protoTxnState.txn_data());
+        UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
         repeated_values = valTxnData.est_tables();
+        break;
       }
       default:
         UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
@@ -91,8 +97,9 @@ namespace sintrstore
     }
     else
     {
-      // return default policy
-      UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+      // return policy of weight 0
+      // TODO: Handle different policy types (IE access control lists)
+      *policy = new WeightPolicy(0);
     }
   }
 
