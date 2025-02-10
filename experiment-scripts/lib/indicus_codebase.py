@@ -24,6 +24,7 @@
 
 '''
 import ipaddress
+import shutil
 
 from lib.experiment_codebase import *
 
@@ -42,6 +43,7 @@ class IndicusCodebase(ExperimentCodebase):
             config_path = os.path.join(local_exp_directory, config['network_config_file_name'])
             if 'sintr_protocol_settings' in config:
                 client_config_path = os.path.join(local_exp_directory, config['sintr_protocol_settings']['client_network_config_file_name'])
+                policy_config_path = os.path.join(local_exp_directory, "policy.config")
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'], 'client-%d-%d' % (i, j),
                     'client-%d-%d-%d-stats-%d.json' % (i, j, k, run))
@@ -53,6 +55,7 @@ class IndicusCodebase(ExperimentCodebase):
             config_path = os.path.join(remote_exp_directory, config['network_config_file_name'])
             if 'sintr_protocol_settings' in config:
                 client_config_path = os.path.join(remote_exp_directory, config['sintr_protocol_settings']['client_network_config_file_name'])
+                policy_config_path = os.path.join(remote_exp_directory, "policy.config")
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'],
                     'client-%d-%d-%d-stats-%d.json' % (i, j, k, run))
@@ -149,6 +152,7 @@ class IndicusCodebase(ExperimentCodebase):
 
         if config['replication_protocol'] == 'sintr':
             client_command += ' --clients_config_path %s' % client_config_path
+            client_command += ' --sintr_policy_config_path %s' % policy_config_path
             if 'sintr_max_val_threads' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_max_val_threads %d' % config['sintr_protocol_settings']['sintr_max_val_threads']
             if 'sintr_sign_fwd_read_results' in config['sintr_protocol_settings']:
@@ -157,6 +161,14 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
             if 'sintr_debug_endorse_check' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_debug_endorse_check=%s' % str(config['sintr_protocol_settings']['sintr_debug_endorse_check']).lower()
+            if 'sintr_client_check_evidence' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_client_check_evidence=%s' % str(config['sintr_protocol_settings']['sintr_client_check_evidence']).lower()
+            if 'sintr_policy_function_name' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
+            if 'sintr_read_include_policy' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_read_include_policy %d' % config['sintr_protocol_settings']['sintr_read_include_policy']
+            if 'sintr_client_validation' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_client_validation %s' % config['sintr_protocol_settings']['sintr_client_validation']
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings
@@ -403,6 +415,8 @@ class IndicusCodebase(ExperimentCodebase):
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'], 'server-%d' % i,
                     'server-%d-%d-stats-%d.json' % (i, k, run))
+            if 'sintr_protocol_settings' in config:
+                policy_config_path = os.path.join(local_exp_directory, "policy.config")
         else:
             path_to_server_bin = os.path.join(
                     config['base_remote_bin_directory_nfs'],
@@ -413,6 +427,8 @@ class IndicusCodebase(ExperimentCodebase):
             stats_file = os.path.join(exp_directory,
                     config['out_directory_name'],
                     'server-%d-%d-stats-%d.json' % (i, k, run))
+            if 'sintr_protocol_settings' in config:
+                policy_config_path = os.path.join(remote_exp_directory, "policy.config")
 
         if config['replication_protocol'] == 'indicus' or config['replication_protocol'] == 'pequin' or config['replication_protocol'] == 'sintr':
             n = 5 * config['fault_tolerance'] + 1
@@ -552,8 +568,11 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --indicus_replica_gossip=%s' % str(config['replication_protocol_settings']['replica_gossip']).lower()
 
         if config['replication_protocol'] == 'sintr':
+            replica_command += ' --sintr_policy_config_path %s' % policy_config_path
             if 'sintr_sign_finish_validation' in config['sintr_protocol_settings']:
                 replica_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
+            if 'sintr_policy_function_name' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
 
         #if 'rw_or_retwis' in config:
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
@@ -773,6 +792,9 @@ class IndicusCodebase(ExperimentCodebase):
                                 print('replica client-%d-%d:%d' % (i, j,
                                     config['sintr_protocol_settings']['client_port'] + k), file=f)
                             port_counter += 1
+            # cp policy config to experiment directory
+            policy_config_path = config['sintr_protocol_settings']['sintr_policy_config_path']
+            shutil.copy(policy_config_path, os.path.join(local_exp_directory, "policy.config"))
 
         return local_exp_directory
 

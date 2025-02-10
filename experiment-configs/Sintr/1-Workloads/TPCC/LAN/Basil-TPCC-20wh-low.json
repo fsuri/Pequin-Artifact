@@ -145,15 +145,6 @@
     }
   ],
 
-  "sintr_protocol_settings": {
-    "client_network_config_file_name": "client.config",
-    "client_port": 7587,
-    "sintr_max_val_threads": 1,
-    "sintr_sign_fwd_read_results": true,
-    "sintr_sign_finish_validation": true,
-    "sintr_debug_endorse_check": false
-  },
-
   "experiment_name": "sintr",
   "codebase_name": "indicus",
 
@@ -164,11 +155,11 @@
   "_client_processes_per_client_node": [[8, 8, 8, 8, 8]],
   "_client_threads_per_process": [[1, 1, 1, 1, 1]],
 
-  "client_total": [[3]],
+  "client_total": [[2]],
   "client_processes_per_client_node": [[1]],
   "client_threads_per_process": [[1]],
 
-  "client_nodes_per_server": 3,
+  "client_nodes_per_server": 2,
   "_NOTE: Pin again since now we don't use Peloton threads": 0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
