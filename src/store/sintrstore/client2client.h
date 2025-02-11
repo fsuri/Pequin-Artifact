@@ -156,6 +156,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   std::set<uint64_t> beginValSent;
   // track most recently sent begin validation message
   proto::BeginValidateTxnMessage sentBeginValTxnMsg;
+  // most recent forward read result to send
+  proto::ForwardReadResultMessage fwdReadResultMsgToSend;
   // track all sent forward read results for current transaction
   std::vector<proto::ForwardReadResultMessage> sentFwdReadResults;
   // endorsement client can inform client of received validations
@@ -172,6 +174,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // for hmacs
   std::unordered_map<uint64_t, std::string> sessionKeys;
 
+  // for received messages
   proto::BeginValidateTxnMessage beginValTxnMsg;
   proto::ForwardReadResultMessage fwdReadResultMsg;
   proto::FinishValidateTxnMessage finishValTxnMsg;
