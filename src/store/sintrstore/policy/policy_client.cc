@@ -34,77 +34,45 @@ PolicyClient::~PolicyClient() {
 }
 
 bool PolicyClient::IsSatisfied(const std::set<uint64_t> &endorsements) const {
-  for (const auto &typePolicy : currPolicies) {
-    if (!typePolicy.second->IsSatisfied(endorsements)) {
-      return false;
-    }
+  // empty policy is by default satisfied
+  if (policy == nullptr) {
+    return true;
   }
-  return true;
+  return policy->IsSatisfied(endorsements);
 }
 
-void PolicyClient::AddPolicy(const Policy *policy) {
-  UW_ASSERT(policy != nullptr);
-  if (currPolicies.find(policy->Type()) == currPolicies.end()) {
-    currPolicies[policy->Type()] = policy->Clone();
+void PolicyClient::AddPolicy(const Policy *other) {
+  UW_ASSERT(other != nullptr);
+  if (policy == nullptr) {
+    policy = other->Clone();
   }
   else {
-    currPolicies[policy->Type()]->MergePolicy(policy);
+    UW_ASSERT(policy->Type() == other->Type());
+    policy->MergePolicy(other);
   }
 }
 
 std::vector<int> PolicyClient::DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const {
-  std::vector<int> ret;
-
-  // first determine from the current policies what clients are needed
-  int genericClientCount = 0;
-  std::set<uint64_t> clientsNeeded;
-  for (const auto &typePolicy : currPolicies) {
-    int currGenericClientCount = 0;
-    std::vector<int> satSet = typePolicy.second->GetMinSatisfyingSet();
-    for (const auto &client : satSet) {
-      if (client < 0) {
-        currGenericClientCount++;
-      }
-      else {
-        clientsNeeded.insert(client);
-      }
-    }
-    genericClientCount = std::max(genericClientCount, currGenericClientCount);
+  // empty policy is automatically satisfied
+  if (policy == nullptr) {
+    return std::vector<int>();
   }
-
-  // what specific clients are needed but not in endorsements
-  std::set_difference(
-    clientsNeeded.begin(), clientsNeeded.end(), 
-    potentialEndorsements.begin(), potentialEndorsements.end(),
-    std::inserter(ret, ret.begin())
-  );
-
-  // add on generic clients
-  int specificClientCovered = ret.size() + potentialEndorsements.size();
-  genericClientCount -= specificClientCovered;
-  while (genericClientCount > 0) {
-    ret.push_back(-1);
-    genericClientCount--;
-  }
-
-  return ret;
+  return policy->DifferenceToSatisfied(potentialEndorsements);
 }
 
-bool PolicyClient::IsOtherWeaker(const Policy *other) const {
+bool PolicyClient::IsImpliedBy(const Policy *other) const {
   UW_ASSERT(other != nullptr);
-  if (currPolicies.find(other->Type()) == currPolicies.end()) {
-    return false;
+  // empty policy is always implied by other
+  if (policy == nullptr) {
+    return true;
   }
-  else {
-    return currPolicies.at(other->Type())->IsOtherWeaker(other);
-  }
+  UW_ASSERT(other->Type() == policy->Type());
+  return policy->IsImpliedBy(other);
 }
 
 void PolicyClient::Reset() {
-  for (auto &typePolicy : currPolicies) {
-    delete typePolicy.second;
-  }
-  currPolicies.clear();
+  delete policy;
+  policy = nullptr;
 }
 
 } // namespace sintrstore

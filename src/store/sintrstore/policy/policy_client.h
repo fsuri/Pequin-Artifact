@@ -34,26 +34,26 @@
 
 namespace sintrstore {
 
-// a policy client tracks policies involved for a specific transaction
+// a policy client serves as a wrapper around the abstract policy class
+// it is used to track the current policy for a transaction
+// assume that all policies are of the same type
 class PolicyClient {
  public:
-  PolicyClient() {};
+  PolicyClient() : policy(nullptr) {};
   ~PolicyClient();
 
   // does endorsements satisfy this PolicyClient object?
   bool IsSatisfied(const std::set<uint64_t> &endorsements) const;
   // add a policy to the current transaction policies
-  void AddPolicy(const Policy *policy);
-  // what client ids does potentialEndorsements need to get currPolicies satisfied?
+  void AddPolicy(const Policy *other);
+  // what client ids does potentialEndorsements need to get this policy satisfied?
   std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const;
-  // is other strictly weaker than currPolicies?
-  bool IsOtherWeaker(const Policy *other) const;
+  // is this policy implied by other?
+  bool IsImpliedBy(const Policy *other) const;
   void Reset();
 
  private:
-  // currPolicies keeps track of all Policy objects involved in the current transaction
-  // map from policy name to policy object
-  std::map<std::string, Policy *> currPolicies;
+  Policy *policy;
 };
 
 } // namespace sintrstore

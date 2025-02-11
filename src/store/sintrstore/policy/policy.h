@@ -51,11 +51,11 @@ class Policy {
   // assume that other is owned by caller, not this policy object
   // other must be of the same type as this policy
   virtual void MergePolicy(const Policy *other) = 0;
-  // return the minimum size set of client ids that would satisfy this policy
+  // what client ids does potentialEndorsements need to get this policy satisfied?
   // represent generic client ids with -1
-  virtual std::vector<int> GetMinSatisfyingSet() const = 0;
-  // is other strictly weaker than this policy?
-  virtual bool IsOtherWeaker(const Policy *other) const = 0;
+  virtual std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const = 0;
+  // is this policy implied by other?
+  virtual bool IsImpliedBy(const Policy *other) const = 0;
   // serialize to proto version
   virtual void SerializeToProtoMessage(proto::PolicyObject *msg) const = 0;
   virtual void Reset() = 0;

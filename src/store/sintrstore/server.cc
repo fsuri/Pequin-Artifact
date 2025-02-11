@@ -3075,7 +3075,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     policyClient.AddPolicy(tsPolicy.second.policy);
   }
 
-  // disallow readset to contain a policy weaker than the write set
+  // disallow readset to contain a policy that does not imply the write set policy
   for (const auto &read : txn->read_set()) {
     if (!IsKeyOwned(read.key())) {
       continue;
@@ -3086,8 +3086,8 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
 
     std::pair<Timestamp, PolicyStoreValue> tsPolicy;
     GetPolicy(policyId, ts, tsPolicy, true);
-    if (policyClient.IsOtherWeaker(tsPolicy.second.policy)) {
-      Panic("Read policy is weaker than write policy");
+    if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
+      Panic("Read policy does not imply write policy");
     }
   }
 }

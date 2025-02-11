@@ -55,8 +55,8 @@ class WeightPolicy : public Policy {
   uint64_t GetWeight() const;
   bool IsSatisfied(const std::set<uint64_t> &endorsements) const override;
   void MergePolicy(const Policy *other) override;
-  std::vector<int> GetMinSatisfyingSet() const override;
-  bool IsOtherWeaker(const Policy *other) const override;
+  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const override;
+  bool IsImpliedBy(const Policy *other) const override;
   void SerializeToProtoMessage(proto::PolicyObject *msg) const override;
   void Reset() override;
 

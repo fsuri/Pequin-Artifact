@@ -303,9 +303,6 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
       }
     }
   }
-  else {
-    Debug("Received policy with weight %lu", policy->GetMinSatisfyingSet().size());
-  }
 }
 
 void Client2Client::HandleBeginValidateTxnMessage(const TransportAddress &remote, 
