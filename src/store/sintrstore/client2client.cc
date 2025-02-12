@@ -196,9 +196,9 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
-  fwdReadResultMsgToSend.Clear();
-  fwdReadResultMsgToSend.set_client_id(client_id);
-  fwdReadResultMsgToSend.set_client_seq_num(client_seq_num);
+  proto::ForwardReadResultMessage *fwdReadResultMsgToSend = new proto::ForwardReadResultMessage();
+  fwdReadResultMsgToSend->set_client_id(client_id);
+  fwdReadResultMsgToSend->set_client_seq_num(client_seq_num);
   proto::ForwardReadResult fwdReadResult;
   fwdReadResult.set_key(key);
   fwdReadResult.set_value(value);
@@ -206,10 +206,10 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
   fwdReadResult.mutable_timestamp()->set_id(ts.getID());
 
   if (params.sintr_params.signFwdReadResults) {
-    CreateHMACedMessage(fwdReadResult, *fwdReadResultMsgToSend.mutable_signed_fwd_read_result());
+    CreateHMACedMessage(fwdReadResult, *fwdReadResultMsgToSend->mutable_signed_fwd_read_result());
   }
   else {
-    *fwdReadResultMsgToSend.mutable_fwd_read_result() = std::move(fwdReadResult);
+    *fwdReadResultMsgToSend->mutable_fwd_read_result() = std::move(fwdReadResult);
   }
 
   // only if addReadset is true did this result come from server
@@ -218,14 +218,14 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
     // this will contain the prepared txn dependency
     if (hasDep) {
       UW_ASSERT(dep.IsInitialized());
-      *fwdReadResultMsgToSend.mutable_dep() = std::move(dep);
+      *fwdReadResultMsgToSend->mutable_dep() = std::move(dep);
       // must be oneof write or signed write
-      *fwdReadResultMsgToSend.mutable_write() = proto::Write();
+      *fwdReadResultMsgToSend->mutable_write() = proto::Write();
     }
     else {
       if (params.validateProofs) {
         if (proof.IsInitialized()) {
-          *fwdReadResultMsgToSend.mutable_proof() = std::move(proof);
+          *fwdReadResultMsgToSend->mutable_proof() = std::move(proof);
         }
         // if no proof then it is possible the value is empty
         else {
@@ -234,29 +234,29 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
       }
 
       // depending on if signatures are enabled and if the value is non empty
-      if (serializedWriteTypeName == fwdReadResultMsgToSend.signed_write().GetTypeName()) {
-        UW_ASSERT(fwdReadResultMsgToSend.mutable_signed_write()->ParseFromString(serializedWrite));
+      if (serializedWriteTypeName == fwdReadResultMsgToSend->signed_write().GetTypeName()) {
+        UW_ASSERT(fwdReadResultMsgToSend->mutable_signed_write()->ParseFromString(serializedWrite));
       }
-      else if (serializedWriteTypeName == fwdReadResultMsgToSend.write().GetTypeName()) {
-        UW_ASSERT(fwdReadResultMsgToSend.mutable_write()->ParseFromString(serializedWrite));
+      else if (serializedWriteTypeName == fwdReadResultMsgToSend->write().GetTypeName()) {
+        UW_ASSERT(fwdReadResultMsgToSend->mutable_write()->ParseFromString(serializedWrite));
       }
       else {
         // this should only happen if value is empty
         UW_ASSERT(value.length() == 0);
-        *fwdReadResultMsgToSend.mutable_write() = proto::Write();
+        *fwdReadResultMsgToSend->mutable_write() = proto::Write();
       }
     }
 
     // separately include policy change txn dependency if there is one
     if (hasPolicyDep) {
       UW_ASSERT(policyDep.IsInitialized());
-      *fwdReadResultMsgToSend.mutable_policy_dep() = std::move(policyDep);
+      *fwdReadResultMsgToSend->mutable_policy_dep() = std::move(policyDep);
     }
   }
 
-  fwdReadResultMsgToSend.set_add_readset(addReadset);
+  fwdReadResultMsgToSend->set_add_readset(addReadset);
 
-  sentFwdReadResults.push_back(fwdReadResultMsgToSend);
+  sentFwdReadResults.insert(fwdReadResultMsgToSend);
 
   Debug(
     "ForwardReadResult: client id %lu, seq num %lu, key %s, value %s",
@@ -270,7 +270,7 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
     if (i == client_id) {
       continue;
     }
-    transport->SendMessageToReplica(this, i, fwdReadResultMsgToSend);
+    transport->SendMessageToReplica(this, i, *fwdReadResultMsgToSend);
   }
 }
 
@@ -293,7 +293,7 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
       UW_ASSERT(ret.second);
       transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
       for (const auto &fwdReadResultMsg : sentFwdReadResults) {
-        transport->SendMessageToReplica(this, i, fwdReadResultMsg);
+        transport->SendMessageToReplica(this, i, *fwdReadResultMsg);
       }
     }
   }

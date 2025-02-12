@@ -117,6 +117,51 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     // address of initiating client
     TransportAddress *remote;
   };
+
+  // this represents a resizing buffer but does not eagerly delete everything on clear
+  // instead it will delete buffer elements as they are replaced
+  template <typename T>
+  struct LazyBuffer {
+    LazyBuffer() : size(0) {}
+    ~LazyBuffer() {
+      for (auto &b : buffer) {
+        delete b;
+      }
+      buffer.clear();
+    }
+    void insert(T *t) {
+      if (size < buffer.size()) {
+        delete buffer[size];
+        buffer[size] = t;
+      }
+      else {
+        buffer.push_back(t);
+      }
+      size++;
+    }
+    T *operator[](size_t i) {
+      if (i >= size) {
+        Panic("LazyBuffer index out of bounds");
+      }
+      return buffer[i];
+    }
+    size_t getSize() {
+      return size;
+    }
+    void clear() {
+      size = 0;
+    }
+    // iterators
+    typename std::vector<T *>::iterator begin() {
+      return buffer.begin();
+    }
+    typename std::vector<T *>::iterator end() {
+      return buffer.begin() + size;
+    }
+
+    std::vector<T *> buffer;
+    size_t size;
+  };
   
   void HandleBeginValidateTxnMessage(const TransportAddress &remote, const proto::BeginValidateTxnMessage &beginValTxnMsg);
   void HandleForwardReadResultMessage(const proto::ForwardReadResultMessage &fwdReadResultMsg);
@@ -156,10 +201,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   std::set<uint64_t> beginValSent;
   // track most recently sent begin validation message
   proto::BeginValidateTxnMessage sentBeginValTxnMsg;
-  // most recent forward read result to send
-  proto::ForwardReadResultMessage fwdReadResultMsgToSend;
   // track all sent forward read results for current transaction
-  std::vector<proto::ForwardReadResultMessage> sentFwdReadResults;
+  LazyBuffer<proto::ForwardReadResultMessage> sentFwdReadResults;
   // endorsement client can inform client of received validations
   EndorsementClient *endorseClient;
 
