@@ -1622,6 +1622,7 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_SINTR: {
+      // non flag parameters are server only
       sintrstore::SintrParameters sintr_params(
         FLAGS_sintr_max_val_threads,
         FLAGS_sintr_sign_fwd_read_results,
@@ -1631,7 +1632,7 @@ int main(int argc, char **argv) {
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path,
         FLAGS_sintr_read_include_policy,
-        sintr_client_validation
+        sintr_client_validation, true
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

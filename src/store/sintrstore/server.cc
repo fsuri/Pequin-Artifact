@@ -3075,19 +3075,21 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     policyClient.AddPolicy(tsPolicy.second.policy);
   }
 
-  // disallow readset to contain a policy that does not imply the write set policy
-  for (const auto &read : txn->read_set()) {
-    if (!IsKeyOwned(read.key())) {
-      continue;
-    }
-
-    uint64_t policyId = policyIdFunction(read.key(), "");
-    Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
-
-    std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-    GetPolicy(policyId, ts, tsPolicy, true);
-    if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
-      Panic("Read policy does not imply write policy");
+  if (params.sintr_params.checkPolicyLeak) {
+    // disallow readset to contain a policy that does not imply the write set policy
+    for (const auto &read : txn->read_set()) {
+      if (!IsKeyOwned(read.key())) {
+        continue;
+      }
+  
+      uint64_t policyId = policyIdFunction(read.key(), "");
+      Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
+  
+      std::pair<Timestamp, PolicyStoreValue> tsPolicy;
+      GetPolicy(policyId, ts, tsPolicy, true);
+      if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
+        Panic("Read policy does not imply write policy");
+      }
     }
   }
 }
