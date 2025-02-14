@@ -34,6 +34,9 @@
 #include "store/benchmark/async/tpcc/validation/policy_change.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/rw-sync/rw-base_transaction.h"
+#include "store/benchmark/async/rw-sync/rw-validation-proto.pb.h"
+#include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
 
 
 namespace sintrstore {
@@ -85,6 +88,11 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
       default:
         Panic("Received unexpected txn type: %s", txn_type.c_str());
     }
+  }
+  else if (txn_bench == ::rwsync::BENCHMARK_NAME) {
+    ::rwsync::validation::proto::RWSync valTxnData;
+    UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+    return new ::rwsync::RWValTransaction(timeout, valTxnData);
   }
   else {
     Panic("Received unexpected txn benchmark: %s", txn_bench.c_str());

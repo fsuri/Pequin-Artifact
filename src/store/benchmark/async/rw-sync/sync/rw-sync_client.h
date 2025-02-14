@@ -23,46 +23,46 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef RW_SYNC_TRANSACTION_H
-#define RW_SYNC_TRANSACTION_H
+#ifndef RW_SYNC_CLIENT_H
+#define RW_SYNC_CLIENT_H
 
-#include "store/common/frontend/sync_transaction.h"
-#include "store/common/frontend/client.h"
-#include "store/common/frontend/sync_client.h"
+#include "store/benchmark/async/sync_transaction_bench_client.h"
+#include "store/benchmark/async/rw-sync/sync/rw-sync_transaction.h"
 #include "store/benchmark/async/common/key_selector.h"
-
-#include <vector>
-
+#include <unordered_map>
 
 namespace rwsync {
 
-class RWSyncTransaction : public SyncTransaction {
+enum KeySelection {
+  UNIFORM,
+  ZIPF
+};
+
+class RWSyncClient : public SyncTransactionBenchClient {
  public:
-  RWSyncTransaction(KeySelector *keySelector, int numOps, bool readOnly, std::mt19937 &rand);
-  virtual ~RWSyncTransaction();
+  RWSyncClient(KeySelector *keySelector, uint64_t numKeys, bool readOnly, SyncClient &client,
+      Transport &transport, uint64_t id, int numRequests, int expDuration,
+      uint64_t delay, int warmupSec, int cooldownSec, int tputInterval,
+      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
+      const uint32_t timeout,
+      const std::string &latencyFilename = "");
 
-  transaction_status_t Execute(SyncClient &client);
+  virtual ~RWSyncClient();
 
-  inline const std::vector<int> getKeyIdxs() const {
-    return keyIdxs;
-  }
+  std::unordered_map<int, int> key_counts;
+
  protected:
-  inline const std::string &GetKey(int i) const {
-    return keySelector->GetKey(keyIdxs[i]);
-  }
-
-  inline const size_t GetNumOps() const { return numOps; }
-
-  KeySelector *keySelector;
+  virtual SyncTransaction *GetNextTransaction();
+  virtual std::string GetLastOp() const;
 
  private:
-  const size_t numOps;
-  const bool readOnly;
-  std::vector<int> keyIdxs;
-  std::map<std::string, std::string> readValues;
+  KeySelector *keySelector;
+  uint64_t numKeys;
+  uint64_t tid = 0;
+  bool readOnly;
 
 };
 
-}
+} //namespace rwsync
 
-#endif /* RW_SYNC_TRANSACTION_H */
+#endif /* RW_SYNC_CLIENT_H */

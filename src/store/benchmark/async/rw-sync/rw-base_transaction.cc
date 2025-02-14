@@ -23,12 +23,12 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/rw-sync/rw-sync_transaction.h"
+#include "store/benchmark/async/rw-sync/rw-base_transaction.h"
 
 namespace rwsync {
 
-RWSyncTransaction::RWSyncTransaction(KeySelector *keySelector, int numOps, bool readOnly,
-    std::mt19937 &rand) : SyncTransaction(10000), keySelector(keySelector), numOps(numOps), readOnly(readOnly) {
+RWBaseTransaction::RWBaseTransaction(KeySelector *keySelector, int numOps, bool readOnly,
+    std::mt19937 &rand) : keySelector(keySelector), numOps(numOps), readOnly(readOnly) {
   for (int i = 0; i < numOps; ++i) {
     uint64_t key;
     if (i % 2 == 0) {
@@ -40,41 +40,7 @@ RWSyncTransaction::RWSyncTransaction(KeySelector *keySelector, int numOps, bool 
   }
 }
 
-RWSyncTransaction::~RWSyncTransaction() {
-}
-
-transaction_status_t RWSyncTransaction::Execute(SyncClient &client) {
-  client.Begin(timeout);
-
-  for (size_t op = 0; op < GetNumOps(); op++) {
-    if (readOnly || op % 2 == 0) {
-      std::string str;
-      client.Get(GetKey(op), str, timeout);
-      readValues.insert(std::make_pair(GetKey(op), str));
-    }
-    else {
-      auto strValueItr = readValues.find(GetKey(op));
-      UW_ASSERT(strValueItr != readValues.end());
-      std::string strValue = strValueItr->second;
-      std::string writeValue;
-      if (strValue.length() == 0) {
-        writeValue = std::string(100, '\0'); //make a longer string
-      }
-      else {
-        uint64_t intValue = 0;
-        for (int i = 0; i < 100; ++i) {
-          intValue = intValue | (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8));
-        }
-        intValue++;
-        for (int i = 0; i < 100; ++i) {
-          writeValue += static_cast<char>((intValue >> (99 - i) * 8) & 0xFF);
-        }
-      }
-      client.Put(GetKey(op), writeValue, timeout);
-    }
-  }
-
-  return client.Commit(timeout);
+RWBaseTransaction::~RWBaseTransaction() {
 }
 
 } // namespace rwsync

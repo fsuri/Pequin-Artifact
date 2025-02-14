@@ -23,46 +23,41 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef RW_SYNC_CLIENT_H
-#define RW_SYNC_CLIENT_H
+#ifndef RW_BASE_TRANSACTION_H
+#define RW_BASE_TRANSACTION_H
 
-#include "store/benchmark/async/sync_transaction_bench_client.h"
-#include "store/benchmark/async/rw-sync/rw-sync_transaction.h"
 #include "store/benchmark/async/common/key_selector.h"
-#include <unordered_map>
+
+#include <vector>
+#include <string>
+
 
 namespace rwsync {
 
-enum KeySelection {
-  UNIFORM,
-  ZIPF
-};
+const std::string BENCHMARK_NAME = "rwsync";
 
-class RWSyncClient : public SyncTransactionBenchClient {
+class RWBaseTransaction {
  public:
-  RWSyncClient(KeySelector *keySelector, uint64_t numKeys, bool readOnly, SyncClient &client,
-      Transport &transport, uint64_t id, int numRequests, int expDuration,
-      uint64_t delay, int warmupSec, int cooldownSec, int tputInterval,
-      uint32_t abortBackoff, bool retryAborted, uint32_t maxBackoff, uint32_t maxAttempts,
-      const uint32_t timeout,
-      const std::string &latencyFilename = "");
+  RWBaseTransaction(KeySelector *keySelector, int numOps, bool readOnly, std::mt19937 &rand);
+  RWBaseTransaction() {};
+  virtual ~RWBaseTransaction();
 
-  virtual ~RWSyncClient();
-
-  std::unordered_map<int, int> key_counts;
-
+  inline const std::vector<int> getKeyIdxs() const {
+    return keyIdxs;
+  }
  protected:
-  virtual SyncTransaction *GetNextTransaction();
-  virtual std::string GetLastOp() const;
+  inline const std::string &GetKey(int i) const {
+    return keySelector->GetKey(keyIdxs[i]);
+  }
 
- private:
+  inline const size_t GetNumOps() const { return numOps; }
+
   KeySelector *keySelector;
-  uint64_t numKeys;
-  uint64_t tid = 0;
+  size_t numOps;
   bool readOnly;
-
+  std::vector<int> keyIdxs;
 };
 
-} //namespace rwsync
+}
 
-#endif /* RW_SYNC_CLIENT_H */
+#endif /* RW_BASE_TRANSACTION_H */

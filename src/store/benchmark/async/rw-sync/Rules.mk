@@ -1,9 +1,13 @@
 d := $(dir $(lastword $(MAKEFILE_LIST)))
 
-SRCS += $(addprefix $(d), rw-sync_client.cc rw-sync_transaction.cc)
+SRCS += $(addprefix $(d), rw-base_transaction.cc)
 
-OBJ-rw-sync-transaction := $(LIB-store-frontend) $(o)rw-sync_transaction.o
+PROTOS += $(addprefix $(d), rw-validation-proto.proto)
 
-OBJ-rw-sync-client := $(o)rw-sync_client.o
+OBJ-rw-base-transaction := $(LIB-store-frontend) $(o)rw-base_transaction.o
 
-LIB-rw-sync := $(OBJ-rw-sync-client) $(OBJ-rw-sync-transaction) 
+LIB-rw-base := $(OBJ-rw-base-transaction) $(o)rw-validation-proto.o
+
+cd := $(d)
+include $(cd)sync/Rules.mk
+include $(cd)validation/Rules.mk

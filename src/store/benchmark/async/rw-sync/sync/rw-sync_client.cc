@@ -23,7 +23,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/rw-sync/rw-sync_client.h"
+#include "store/benchmark/async/rw-sync/sync/rw-sync_client.h"
 
 #include <iostream>
 
