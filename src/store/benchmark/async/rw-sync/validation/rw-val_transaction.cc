@@ -27,8 +27,8 @@
 
 namespace rwsync {
 
-RWValTransaction::RWValTransaction(uint32_t timeout, const validation::proto::RWSync &msg)
-    : ::ValidationTransaction(timeout) {
+RWValTransaction::RWValTransaction(uint32_t timeout, const std::vector<std::string> &keys, const validation::proto::RWSync &msg)
+    : ::ValidationTransaction(timeout), keys(keys) {
   numOps = msg.num_ops();
   readOnly = msg.read_only();
   for (size_t i = 0; i < numOps; ++i) {

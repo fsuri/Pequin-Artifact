@@ -44,18 +44,18 @@ namespace sintrstore {
 Client2Client::Client2Client(transport::Configuration *config, transport::Configuration *clients_config, Transport *transport,
       uint64_t client_id, uint64_t nshards, uint64_t ngroups, int group, bool pingClients,
       Parameters params, KeyManager *keyManager, Verifier *verifier,
-      Partitioner *part, EndorsementClient *endorseClient) :
+      Partitioner *part, EndorsementClient *endorseClient, const std::vector<std::string> &keys) :
       PingInitiator(this, transport, clients_config->n),
       client_id(client_id), transport(transport), config(config), clients_config(clients_config), 
       nshards(nshards), ngroups(ngroups),
       group(group), part(part), pingClients(pingClients), params(params),
-      keyManager(keyManager), verifier(verifier), endorseClient(endorseClient) {
+      keyManager(keyManager), verifier(verifier), endorseClient(endorseClient), keys(keys) {
   
   // separate verifier from main client instance
   clients_verifier = new BasicVerifier(transport);
 
   valClient = new ValidationClient(transport, client_id, nshards, ngroups, part); 
-  valParseClient = new ValidationParseClient(10000); // TODO: pass arg for timeout length
+  valParseClient = new ValidationParseClient(10000, keys); // TODO: pass arg for timeout length
   transport->Register(this, *clients_config, group, client_id); 
 
   // assume these are somehow secretly shared before hand
@@ -613,7 +613,7 @@ void Client2Client::ValidationThreadFunction() {
       }
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());
 
-      proto::FinishValidateTxnMessage finishValTxnMsg = proto::FinishValidateTxnMessage();
+      proto::FinishValidateTxnMessage finishValTxnMsg;
       finishValTxnMsg.set_client_id(client_id);
       finishValTxnMsg.set_validation_txn_seq_num(curr_client_seq_num);
 
@@ -625,14 +625,12 @@ void Client2Client::ValidationThreadFunction() {
         uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
         // sign the digest
-        proto::SignedMessage signedMessage;
         SignBytes(
           digest, 
           keyManager->GetPrivateKey(keyManager->GetClientKeyId(client_id)), 
           client_id, 
-          &signedMessage
+          finishValTxnMsg.mutable_signed_validation_txn_digest()
         );
-        *finishValTxnMsg.mutable_signed_validation_txn_digest() = signedMessage;
 
         struct timespec ts_end;
         clock_gettime(CLOCK_MONOTONIC, &ts_end);

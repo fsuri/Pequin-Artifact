@@ -66,7 +66,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   Client2Client(transport::Configuration *config, transport::Configuration *clients_config, Transport *transport,
       uint64_t client_id, uint64_t nshards, uint64_t ngroups, int group, bool pingClients,
       Parameters params, KeyManager *keyManager, Verifier *verifier,
-      Partitioner *part,  EndorsementClient *endorseClient);
+      Partitioner *part, EndorsementClient *endorseClient,
+      const std::vector<std::string> &keys = std::vector<std::string>());
   virtual ~Client2Client();
 
   virtual void ReceiveMessage(const TransportAddress &remote,
@@ -195,6 +196,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   Verifier *clients_verifier;
   Partitioner *part;
   bool failureActive;
+  // for keySelector based benchmark validation, need copy of keys for validator as well
+  std::vector<std::string> keys;
   // current transaction sequence number (to send to others)
   uint64_t client_seq_num;
   // current set of transport ids begin validation message has been sent to

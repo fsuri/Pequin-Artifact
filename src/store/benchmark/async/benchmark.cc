@@ -1626,6 +1626,12 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_SINTR: {
+      // for benchmarks that need keys, need to give the validating client access
+      std::vector<std::string> keysCopy;
+      if (benchMode == BENCH_RW_SYNC) {
+        keysCopy = keys;
+      }
+
       // non flag parameters are server only
       sintrstore::SintrParameters sintr_params(
         FLAGS_sintr_max_val_threads,
@@ -1701,7 +1707,8 @@ int main(int argc, char **argv) {
 																					FLAGS_indicus_max_consecutive_abstains,
                                           FLAGS_sql_bench,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
-                                          clients_config);
+                                          clients_config,
+                                          keysCopy);
         break;
     }
     case PROTO_PEQUIN: {
@@ -2100,6 +2107,7 @@ int main(int argc, char **argv) {
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
       case BENCH_RW_SQL:
+      case BENCH_RW_SYNC:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_SEATS_SQL:
       case BENCH_AUCTIONMARK_SQL:

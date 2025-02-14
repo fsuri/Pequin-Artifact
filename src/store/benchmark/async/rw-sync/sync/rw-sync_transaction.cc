@@ -76,8 +76,8 @@ void RWSyncTransaction::SerializeTxnState(std::string &txnState) {
   TxnState currTxnState;
   std::string txn_name;
   txn_name.append(BENCHMARK_NAME);
-  currTxnState.set_txn_name(txn_name);
   txn_name.push_back('_');
+  currTxnState.set_txn_name(txn_name);
 
   validation::proto::RWSync curr_txn;
   curr_txn.set_num_ops(GetNumOps());

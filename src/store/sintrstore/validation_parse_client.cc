@@ -92,7 +92,7 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
   else if (txn_bench == ::rwsync::BENCHMARK_NAME) {
     ::rwsync::validation::proto::RWSync valTxnData;
     UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
-    return new ::rwsync::RWValTransaction(timeout, valTxnData);
+    return new ::rwsync::RWValTransaction(timeout, keys, valTxnData);
   }
   else {
     Panic("Received unexpected txn benchmark: %s", txn_bench.c_str());

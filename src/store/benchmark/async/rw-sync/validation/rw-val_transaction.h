@@ -41,13 +41,19 @@ namespace rwsync {
 class RWValTransaction : public ::ValidationTransaction, RWBaseTransaction {
  public:
   // constructor with no randomness
-  RWValTransaction(uint32_t timeout, const validation::proto::RWSync &msg);
+  RWValTransaction(uint32_t timeout,
+    const std::vector<std::string> &keys, const validation::proto::RWSync &msg);
   virtual ~RWValTransaction();
 
   transaction_status_t Validate(::SyncClient &client);
 
  private:
+  inline const std::string &GetKey(int i) const {
+    return keys[keyIdxs[i]];
+  }
+  
   std::map<std::string, std::string> readValues;
+  std::vector<std::string> keys;
 
 };
 

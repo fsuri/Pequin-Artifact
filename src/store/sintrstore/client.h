@@ -91,7 +91,8 @@ class Client : public ::Client {
       uint64_t consecutiveMax = 1UL,
       bool sql_bench = false,
       TrueTime timeserver = TrueTime(0,0),
-      transport::Configuration *clients_config = NULL);
+      transport::Configuration *clients_config = nullptr,
+      const std::vector<std::string> &keys = std::vector<std::string>());
   virtual ~Client();
 
   // Begin a transaction.
@@ -393,6 +394,8 @@ class Client : public ::Client {
   Stats dummyStats;
   // TrueTime server.
   TrueTime timeServer;
+  // for keySelector based benchmark validation, need copy of keys for validator as well
+  std::vector<std::string> keys;
 
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;
