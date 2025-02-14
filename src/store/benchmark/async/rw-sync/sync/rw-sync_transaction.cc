@@ -36,6 +36,8 @@ RWSyncTransaction::~RWSyncTransaction() {
 }
 
 transaction_status_t RWSyncTransaction::Execute(SyncClient &client) {
+  readValues.clear();
+
   std::string txnState;
   SerializeTxnState(txnState);
 

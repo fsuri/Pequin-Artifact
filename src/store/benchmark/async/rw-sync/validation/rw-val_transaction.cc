@@ -40,6 +40,8 @@ RWValTransaction::~RWValTransaction() {
 }
 
 transaction_status_t RWValTransaction::Validate(::SyncClient &client) {
+  readValues.clear();
+
   client.Begin(timeout);
 
   for (size_t op = 0; op < GetNumOps(); op++) {
