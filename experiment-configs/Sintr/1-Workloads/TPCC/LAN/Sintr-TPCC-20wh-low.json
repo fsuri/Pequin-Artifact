@@ -156,7 +156,8 @@
     "sintr_policy_function_name": "basic_id",
     "sintr_policy_config_path": "/home/atl63/Pequin-Artifact/src/0_local_test_outputs/configs/policy-grouped.config",
     "sintr_read_include_policy": 0,
-    "sintr_client_validation": "client-validation-exact"
+    "sintr_client_validation": "client-validation-exact",
+    "sintr_min_enable_pull_policies": 0
   },
 
   "experiment_name": "sintr",

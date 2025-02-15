@@ -309,6 +309,9 @@ void Client::Get(const std::string &key, get_callback gcb,
         
         // new policy can only come from server, which must correspond to addReadSet
         if (policyMsg.IsInitialized()) {
+          if (Message_DebugEnabled(__FILE__)) {
+            Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+          }
           Policy *policy = policyParseClient->Parse(policyMsg.policy());
           endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
           delete policy;
@@ -372,6 +375,19 @@ void Client::Put(const std::string &key, const std::string &value,
 
     // Buffering, so no need to wait.
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
+    
+    if(bclient[i]->GetPolicyShardClient()) {
+      // empty callback functions
+      // This is a hack, but the downside is that it will add the key to the readset, 
+      // which shouldn't happen during a blind write. It may also introduce unnecessary dependencies. 
+      // Fortunately, this should occur very rarely.
+      if (Message_DebugEnabled(__FILE__)) {
+        Debug("PULL[%lu:%lu] POLICY FOR key %s in PUT",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+      }
+      get_callback gcb = [](int, const std::string &, const std::string &, Timestamp){};
+      get_timeout_callback tgcb = [](int, const std::string &){};
+      Get(key, gcb, tgcb, timeout);
+    }
   });
 }
 

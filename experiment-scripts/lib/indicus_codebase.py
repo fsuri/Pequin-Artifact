@@ -167,6 +167,8 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
             if 'sintr_read_include_policy' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_read_include_policy %d' % config['sintr_protocol_settings']['sintr_read_include_policy']
+            if 'sintr_min_enable_pull_policies' in config['sintr_min_enable_pull_policies']:
+                client_command += ' --sintr_min_enable_pull_policies %d' % config['sintr_protocol_settings']['sintr_min_enable_pull_policies']
             if 'sintr_client_validation' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_client_validation %s' % config['sintr_protocol_settings']['sintr_client_validation']
 

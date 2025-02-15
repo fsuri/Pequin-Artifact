@@ -837,7 +837,7 @@ int main(int argc, char **argv) {
         FLAGS_sintr_sign_finish_validation,
         false, false,
         FLAGS_sintr_policy_function_name,
-        FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT
+        FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT, 0
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

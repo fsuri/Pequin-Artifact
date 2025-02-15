@@ -19,7 +19,7 @@ FILE_PATH="/usr/local/etc/tpcc-1-warehouse"
 #FILE_PATH="store/benchmark/async/sql/tpcc/sql-tpcc-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/seats/sql-seats-tables-schema.json"
 #FILE_PATH="store/benchmark/async/sql/auctionmark/sql-auctionmark-tables-schema.json"
-
+DEBUG_FILES="store/$STORE/server.cc store/$STORE/servertools.cc"
 
 while getopts f:g:p:s:z:o:k: option; do
 case "${option}" in
@@ -50,7 +50,7 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 	for i in `seq 0 $((N-1))`; do
 		#echo Starting Replica $(($i+$j*$N))
 		#valgrind --tool=callgrind --instr-atstart=no
-		DEBUG=store/$STORE/server.cc store/server --config_path $CONFIG --group_idx $j \
+		DEBUG=$DEBUG_FILES store/server --config_path $CONFIG --group_idx $j \
 			--num_groups $NUM_GROUPS --num_shards $NUM_GROUPS --replica_idx $i --protocol $PROTOCOL \
 			--num_keys $NUM_KEYS_IN_DB --sql_bench=$SQL_BENCH --data_file_path $FILE_PATH \
 			--debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine \

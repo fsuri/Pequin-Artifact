@@ -9,11 +9,15 @@ for ((i=1; i<=N; i++)); do
     sleep 1
     ./client-tester.sh
     # check client output
-    if grep -Eq LATENCY $OUTPUT_DIR/client-*.out; then
-        echo "client-*.out: OK"
-    else
-        exit 1
-    fi
+    for file in $OUTPUT_DIR/client-*.out; do
+        if [ -f "$file" ]; then
+            if grep -q LATENCY $file; then
+                echo "$file: OK"
+            else
+                exit 1
+            fi
+        fi
+    done
 done
 
 echo "Done"

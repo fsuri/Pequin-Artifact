@@ -181,7 +181,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
   read.set_key(key);
   *read.mutable_timestamp() = ts;
 
-  if (params.sintr_params.readIncludePolicy > 0 && reqId % params.sintr_params.readIncludePolicy == 0) {
+  if ((params.sintr_params.readIncludePolicy > 0 && reqId % params.sintr_params.readIncludePolicy == 0) || get_policy_shard_client) {
     read.set_include_policy(true);
   }
 
@@ -1075,7 +1075,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     // if write has a committed policy, verify it
     if (write->has_committed_policy()) {
       // we should only get committed policy back if we requested it
-      UW_ASSERT(params.sintr_params.readIncludePolicy > 0 && reply.req_id() % params.sintr_params.readIncludePolicy == 0);
+      UW_ASSERT((params.sintr_params.readIncludePolicy > 0 && reply.req_id() % params.sintr_params.readIncludePolicy == 0) || get_policy_shard_client);
 
       if (params.validateProofs) {
         if (!reply.has_policy_proof()) {
@@ -1322,6 +1322,10 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
     *sig->mutable_signature() = reply.signed_cc().signature();
 
     UW_ASSERT(!pendingPhase1->p1ReplySigs.empty());
+    if(reply.has_insufficient_endorsements() && reply.insufficient_endorsements()) {
+      Debug("Replica aborted due to insufficient endorsements");
+      pendingPhase1->endorsementFailedReplicas.insert(reply.signed_cc().process_id());
+    }
   }
 
   // //FIXME: REMOVE TEST
@@ -1745,6 +1749,13 @@ void ShardClient::Phase1Decision(
   //   pendingPhase1->decisionTimeout = nullptr;
   // }
   //std::cerr << "Failing on normal path" << std::endl;
+  if(pendingPhase1->endorsementFailedReplicas.size() >= params.sintr_params.minEnablePullPolicies 
+      && params.sintr_params.minEnablePullPolicies != 0) {
+    Debug("SET GET POLICY SHARD CLIENT TO TRUE");
+    get_policy_shard_client = true;
+  } else if(get_policy_shard_client) {
+    get_policy_shard_client = false;
+  }
   pendingPhase1->pcb(pendingPhase1->decision, pendingPhase1->fast, pendingPhase1->conflict_flag,
       pendingPhase1->conflict, pendingPhase1->p1ReplySigs, eqv_ready);
 
@@ -1911,7 +1922,9 @@ void ShardClient::FreePhase2Reply(proto::Phase2Reply *reply) {
   p2Replies.push_back(reply);
 }
 
-
+bool ShardClient::GetPolicyShardClient() {
+  return get_policy_shard_client;
+}
 
 
 

@@ -29,7 +29,7 @@
 
 #include "store/benchmark/async/tpcc/sync/tpcc_transaction.h"
 #include "store/benchmark/async/tpcc/policy_change.h"
-
+#include <random>
 
 namespace tpcc {
 
@@ -38,7 +38,9 @@ class SyncPolicyChange : public SyncTPCCTransaction, public PolicyChange {
   SyncPolicyChange(uint32_t timeout, uint32_t w_id);
   virtual ~SyncPolicyChange();
   virtual transaction_status_t Execute(SyncClient &client);
-
+ private:
+   std::mt19937 rand;
+   inline std::mt19937 &GetRand() { return rand; }
 };
 
 } // namespace tpcc

@@ -1520,7 +1520,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
 //TODO: move p1Decision into this function (not sendp1: Then, can unlock here.)
 void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result result,
   const proto::CommittedProof* &committedProof, std::string &txnDigest, proto::Transaction *txn, const TransportAddress &remote, 
-  const proto::Transaction *abstain_conflict, bool isGossip, bool forceMaterialize){
+  const proto::Transaction *abstain_conflict, bool isGossip, bool forceMaterialize, bool failEndorsementCheck){
 
 
 
@@ -1536,7 +1536,7 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
   bool send_reply = (result != proto::ConcurrencyControl::WAIT && !isGossip) || sub_original; //Note: sub_original = true only if originall subbed AND result != wait.
   if(send_reply){ //Send reply to subscribed original client instead.
      Debug("Sending P1Reply for txn [%s] to original client. sub_original=%d, isGossip=%d", BytesToHex(txnDigest, 16).c_str(), sub_original, isGossip);
-     SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict);
+     SendPhase1Reply(reqId, result, committedProof, txnDigest, remote_original, abstain_conflict, failEndorsementCheck);
   }
   c.release();
   //Note: wake_fallbacks only true if result != wait
@@ -1562,7 +1562,8 @@ void Server::HandlePhase1CB(uint64_t reqId, proto::ConcurrencyControl::Result re
 
 void Server::SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result result,
                              const proto::CommittedProof *conflict, const std::string &txnDigest,
-                             const TransportAddress *remote, const proto::Transaction *abstain_conflict) {
+                             const TransportAddress *remote, const proto::Transaction *abstain_conflict,
+                            bool failEndorsementCheck) {
 
   Debug("Normal sending P1 result:[%d] for txn: %s", result, BytesToHex(txnDigest, 16).c_str());
   // BufferP1Result(result, conflict, txnDigest);
@@ -1599,7 +1600,10 @@ void Server::SendPhase1Reply(uint64_t reqId, proto::ConcurrencyControl::Result r
     FreePhase1Reply(phase1Reply);
     delete remoteCopy;
   };
-
+  // if failed because of endorsement check
+  if(failEndorsementCheck) {
+    phase1Reply->set_insufficient_endorsements(failEndorsementCheck);
+  }
   phase1Reply->mutable_cc()->set_ccr(result);
   if (params.validateProofs) {
     *phase1Reply->mutable_cc()->mutable_txn_digest() = txnDigest;

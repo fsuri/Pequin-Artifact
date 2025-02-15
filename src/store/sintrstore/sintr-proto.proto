@@ -216,6 +216,7 @@ message Phase1Reply {
     SignedMessage signed_cc = 3;
   }
   optional Phase1 abstain_conflict = 4;
+  optional bool insufficient_endorsements = 5;
   //optional Transaction abstain_conflict = 4;
 }
 

@@ -47,11 +47,12 @@ transaction_status_t SyncPolicyChange::Execute(SyncClient &client) {
 
   client.Begin(timeout, txnState);
 
-  // distict table has policy id 1, change it to be policy of weight 3
+  // distict table has policy id 1, change it to be policy of weight 1 or 3
   ::sintrstore::proto::PolicyObject policy;
   policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
   ::sintrstore::proto::WeightPolicyMessage weight_policy;
-  weight_policy.set_weight(3);
+  uint32_t randWeight = std::uniform_int_distribution<uint32_t>(1, 3)(GetRand());
+  weight_policy.set_weight(randWeight);
   weight_policy.SerializeToString(policy.mutable_policy_data());
   
   std::string policy_str;

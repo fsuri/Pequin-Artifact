@@ -830,12 +830,14 @@ typedef struct SintrParameters {
   const std::string policyFunctionName; // name of the policy function to use
   const std::string policyConfigPath; // path to the policy configuration file
   const uint32_t readIncludePolicy; // period of include policy in read messages
+  const uint64_t minEnablePullPolicies;
   // heuristic from estimate to actual number of clients contacted for validation
   const CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic;
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
-    std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic) :
+    std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic,
+    uint64_t minEnablePullPolicies) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
@@ -844,7 +846,8 @@ typedef struct SintrParameters {
     policyFunctionName(policyFunctionName),
     policyConfigPath(policyConfigPath),
     readIncludePolicy(readIncludePolicy),
-    clientValidationHeuristic(clientValidationHeuristic) {}
+    clientValidationHeuristic(clientValidationHeuristic),
+    minEnablePullPolicies(minEnablePullPolicies) {}
 } SintrParameters;
 
 typedef struct Parameters {
