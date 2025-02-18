@@ -395,7 +395,7 @@ class Client : public ::Client {
   // TrueTime server.
   TrueTime timeServer;
   // for keySelector based benchmark validation, need copy of keys for validator as well
-  std::vector<std::string> keys;
+  const std::vector<std::string> &keys;
 
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;

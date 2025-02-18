@@ -101,6 +101,7 @@
 #include "store/benchmark/async/common/zipf_key_selector.h"
 
 #include <gflags/gflags.h>
+#include <valgrind/callgrind.h>
 
 #include <algorithm>
 #include <atomic>
@@ -1626,12 +1627,6 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_SINTR: {
-      // for benchmarks that need keys, need to give the validating client access
-      std::vector<std::string> keysCopy;
-      if (benchMode == BENCH_RW_SYNC) {
-        keysCopy = keys;
-      }
-
       // non flag parameters are server only
       sintrstore::SintrParameters sintr_params(
         FLAGS_sintr_max_val_threads,
@@ -1708,7 +1703,7 @@ int main(int argc, char **argv) {
                                           FLAGS_sql_bench,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
                                           clients_config,
-                                          keysCopy);
+                                          keys); // for benchmarks that need keys, need to give the validating client access
         break;
     }
     case PROTO_PEQUIN: {
@@ -2168,7 +2163,12 @@ int main(int argc, char **argv) {
   std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
+  CALLGRIND_START_INSTRUMENTATION;
+
   tport->Run();
+
+  CALLGRIND_STOP_INSTRUMENTATION;
+  CALLGRIND_DUMP_STATS;
 
   Cleanup(0);
 

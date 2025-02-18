@@ -53,7 +53,7 @@ class RWValTransaction : public ::ValidationTransaction, RWBaseTransaction {
   }
   
   std::map<std::string, std::string> readValues;
-  std::vector<std::string> keys;
+  const std::vector<std::string> &keys;
 
 };
 

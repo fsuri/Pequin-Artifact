@@ -46,7 +46,7 @@ class ValidationParseClient {
 
  private:
   uint32_t timeout;
-  std::vector<std::string> keys;
+  const std::vector<std::string> &keys;
 };
 
 } // namespace sintrstore

@@ -197,7 +197,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   Partitioner *part;
   bool failureActive;
   // for keySelector based benchmark validation, need copy of keys for validator as well
-  std::vector<std::string> keys;
+  const std::vector<std::string> &keys;
   // current transaction sequence number (to send to others)
   uint64_t client_seq_num;
   // current set of transport ids begin validation message has been sent to
