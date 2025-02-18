@@ -135,6 +135,9 @@ class Client : public ::Client {
 
    bool warmup_done = false;
 
+   // change to atomic if client becomes multithreaded
+   bool get_policy_done = true;
+
   //Query protocol structures and functions
 
   struct PendingQuery {
