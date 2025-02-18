@@ -36,7 +36,7 @@
 
   "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
   "client_num_keys": 10000000,
-  "rw_num_ops_txn": 2,
+  "rw_num_ops_txn": 4,
 
   "rw_read_only": false,
 

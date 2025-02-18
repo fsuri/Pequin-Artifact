@@ -71,15 +71,17 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
   doValidation = true;
   for (size_t i = 0; i < params.sintr_params.maxValThreads; i++) {
     valThreads.push_back(new std::thread(&Client2Client::ValidationThreadFunction, this));
-    // // set cpu affinity
-    // cpu_set_t cpuset;
-    // CPU_ZERO(&cpuset);
-    // int num_cpus = std::thread::hardware_concurrency();
-    // // for each client process, try to pin each validation thread to a different core
-    // // so each client process takes up a total of maxValThreads + 1 cores
-    // int main_client_cpu = client_id * (params.sintr_params.maxValThreads + 1) % num_cpus;
-    // CPU_SET(main_client_cpu + i + 1 % num_cpus, &cpuset);
-    // pthread_setaffinity_np(valThreads[i]->native_handle(), sizeof(cpu_set_t), &cpuset);
+    if (params.sintr_params.clientPinCores) {
+      // set cpu affinity
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      int num_cpus = std::thread::hardware_concurrency();
+      // for each client process, try to pin each validation thread to a different core
+      // so each client process takes up a total of maxValThreads + 1 cores
+      int main_client_cpu = client_id * (params.sintr_params.maxValThreads + 1) % num_cpus;
+      CPU_SET(main_client_cpu + i + 1 % num_cpus, &cpuset);
+      pthread_setaffinity_np(valThreads[i]->native_handle(), sizeof(cpu_set_t), &cpuset);
+    }
   }
 }
 

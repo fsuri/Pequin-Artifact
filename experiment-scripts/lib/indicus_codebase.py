@@ -169,6 +169,8 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_read_include_policy %d' % config['sintr_protocol_settings']['sintr_read_include_policy']
             if 'sintr_client_validation' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_client_validation %s' % config['sintr_protocol_settings']['sintr_client_validation']
+            if 'sintr_client_pin_cores' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_client_pin_cores=%s' % str(config['sintr_protocol_settings']['sintr_client_check_evidence']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings
@@ -573,6 +575,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
             if 'sintr_policy_function_name' in config['sintr_protocol_settings']:
                 replica_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
+            if 'sintr_check_policy_leak' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_check_policy_leak=%s' % str(config['sintr_protocol_settings']['sintr_check_policy_leak']).lower()
 
         #if 'rw_or_retwis' in config:
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()

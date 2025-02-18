@@ -504,6 +504,8 @@ static bool ValidateSintrClientValidation(const char* flagname,
 DEFINE_string(sintr_client_validation, sintr_client_validation_args[0], "sintr number of clients to contact for validation");
 DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
 
+DEFINE_bool(sintr_client_pin_cores, false, "sintr pin client cores for validation");
+
 
 ///////////////////////////////////////////////////////////
 
@@ -1637,7 +1639,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path,
         FLAGS_sintr_read_include_policy,
-        sintr_client_validation, true
+        sintr_client_validation, true,
+        FLAGS_sintr_client_pin_cores
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

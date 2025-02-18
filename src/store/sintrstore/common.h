@@ -833,11 +833,12 @@ typedef struct SintrParameters {
   // heuristic from estimate to actual number of clients contacted for validation
   const CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic;
   const bool checkPolicyLeak;
+  const bool clientPinCores; // pin client cores for validation
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
     std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic,
-    bool checkPolicyLeak) :
+    bool checkPolicyLeak, bool clientPinCores) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
@@ -847,7 +848,8 @@ typedef struct SintrParameters {
     policyConfigPath(policyConfigPath),
     readIncludePolicy(readIncludePolicy),
     clientValidationHeuristic(clientValidationHeuristic),
-    checkPolicyLeak(checkPolicyLeak) {}
+    checkPolicyLeak(checkPolicyLeak),
+    clientPinCores(clientPinCores) {}
 } SintrParameters;
 
 typedef struct Parameters {
