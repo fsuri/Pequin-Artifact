@@ -309,6 +309,9 @@ void Client::Get(const std::string &key, get_callback gcb,
         
         // new policy can only come from server, which must correspond to addReadSet
         if (policyMsg.IsInitialized()) {
+          if (Message_DebugEnabled(__FILE__)) {
+            Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+          }
           Policy *policy = policyParseClient->Parse(policyMsg.policy());
           endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
           delete policy;
@@ -369,8 +372,26 @@ void Client::Put(const std::string &key, const std::string &value,
     }
     c2client->HandlePolicyUpdate(policy);
     delete policy;
-
-    // Buffering, so no need to wait.
+    
+    if(bclient[i]->GetPolicyShardClient()) {
+      // empty callback functions
+      // This is a hack, but the downside is that it will add the key to the readset, 
+      // which shouldn't happen during a blind write. It may also introduce unnecessary dependencies. 
+      // Fortunately, this should occur very rarely.
+      if (Message_DebugEnabled(__FILE__)) {
+        Debug("PULL[%lu:%lu] POLICY FOR key %s in PUT",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+      }
+      get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
+          Debug("get policy callback done");
+          get_policy_done = true;
+      };
+      get_timeout_callback tgcb = [](int, const std::string &){
+        Panic("TIMEOUT FOR GETTING POLICY VALUE");
+      };
+      Get(key, gcb, tgcb, timeout);
+      get_policy_done = false;
+      Debug("get sent for policy");
+    }
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
   });
 }
@@ -1067,6 +1088,13 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
+  if (!get_policy_done) {
+    transport->Timer(0, [this, ccb, ctcb, timeout]() {
+      Debug("Retrying commit because policy get on put not finished");
+      Commit(ccb, ctcb, timeout);
+    });
+    return;
+  }
   transport->Timer(0, [this, ccb, ctcb, timeout]() {
 
     if(PROFILING_LAT){

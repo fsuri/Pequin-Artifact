@@ -203,6 +203,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
    virtual void ClearQuery(uint64_t query_seq_num);
    virtual void RetryQuery(uint64_t query_seq_num, proto::Query &queryMsg, bool is_point = false, point_result_callback prcb = nullptr);
    bool isValidQueryDep(const uint64_t &query_seq_num, const std::string &txnDigest, const proto::Transaction* txn = nullptr);
+  bool GetPolicyShardClient();
 
   inline void WarmupDone(){warmup_done = true;}
 
@@ -381,6 +382,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     Timeout *decisionTimeout;
     bool decisionTimeoutStarted;
     std::unordered_set<uint64_t> replicasVerified;
+    std::unordered_set<uint64_t> endorsementFailedReplicas;
     std::map<proto::ConcurrencyControl::Result, proto::Signatures> p1ReplySigs;
     phase1_callback pcb;
     phase1_timeout_callback ptcb;
@@ -621,6 +623,7 @@ SQLTransformer *sql_interpreter;
   const uint64_t phase1DecisionTimeout;
   std::vector<int> closestReplicas;
   bool failureActive;
+  bool get_policy_shard_client;
 
   uint64_t lastReqId;
   proto::Transaction txn;

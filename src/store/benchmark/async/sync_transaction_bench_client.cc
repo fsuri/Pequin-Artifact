@@ -80,6 +80,7 @@ void SyncTransactionBenchClient::SendNext(transaction_status_t *result) {
         || !retryAborted) {
       if (*result == COMMITTED) {
         stats.Increment(GetLastOp() + "_committed", 1);
+        Debug("SYNC BENCH COMMITTED TXN");
       } else {
         stats.Increment(GetLastOp() +  "_" + std::to_string(*result), 1);
       }

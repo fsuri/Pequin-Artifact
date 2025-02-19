@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CLIENTS=2
+CLIENTS=3
 F=0
 NUM_GROUPS=1
 CONFIG="0_local_test_outputs/configs/shard-r1.config"
@@ -50,7 +50,8 @@ done
 
 N=$((5*$F+1))
 
-DEBUG_FILES="store/$STORE/client2client.cc store/$STORE/client.cc store/$STORE/shardclient.cc"
+DEBUG_FILES="store/$STORE/client2client.cc store/$STORE/client.cc store/$STORE/shardclient.cc store/benchmark/async/sync_transaction_bench_client.cc store/benchmark/async/benchmark.cc
+ store/benchmark/async/bench_client.cc"
 # gdb -ex r -ex bt --args 
 # array of process ids
 pids=()
@@ -65,7 +66,7 @@ for i in `seq 1 $((CLIENTS-1))`; do
     --key_selector zipf --zipf_coefficient $ZIPF --indicus_key_path $KEY_PATH \
     --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
     --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG  --sintr_policy_function_name $POLICY_FUNCTION \
-    --sintr_read_include_policy=0 --indicus_no_fallback=false &> ./0_local_test_outputs/client-$i.out &
+    --sintr_read_include_policy=0 --indicus_no_fallback=false --sintr_min_enable_pull_policies=0 &> ./0_local_test_outputs/client-$i.out &
   pids+=($!)
 done;
 
@@ -77,7 +78,7 @@ DEBUG=$DEBUG_FILES store/benchmark/async/benchmark --config_path $CONFIG --clien
   --stats_file "stats-0.json" --indicus_key_path $KEY_PATH \
   --store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false --sintr_debug_endorse_check=false \
   --sintr_max_val_threads=2 --sintr_policy_config_path $POLICY_CONFIG --sintr_policy_function_name $POLICY_FUNCTION \
-  --sintr_read_include_policy=0 --indicus_no_fallback=false &> ./0_local_test_outputs/client-0.out &
+  --sintr_read_include_policy=0 --indicus_no_fallback=false --sintr_min_enable_pull_policies=0 &> ./0_local_test_outputs/client-0.out &
 pids+=($!)
 
 
