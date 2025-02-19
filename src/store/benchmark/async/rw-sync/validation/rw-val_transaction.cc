@@ -1,0 +1,78 @@
+/***********************************************************************
+ *
+ * Copyright 2025 Austin Li <atl63@cornell.edu>
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use, copy,
+ * modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ **********************************************************************/
+#include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
+
+namespace rwsync {
+
+RWValTransaction::RWValTransaction(uint32_t timeout, const std::vector<std::string> &keys, const validation::proto::RWSync &msg)
+    : ::ValidationTransaction(timeout), keys(keys) {
+  numOps = msg.num_ops();
+  readOnly = msg.read_only();
+  for (size_t i = 0; i < numOps; ++i) {
+    keyIdxs.push_back(msg.key_idxs(i));
+  }
+}
+
+RWValTransaction::~RWValTransaction() {
+}
+
+transaction_status_t RWValTransaction::Validate(::SyncClient &client) {
+  readValues.clear();
+
+  client.Begin(timeout);
+
+  for (size_t op = 0; op < GetNumOps(); op++) {
+    if (readOnly || op % 2 == 0) {
+      std::string str;
+      client.Get(GetKey(op), str, timeout);
+      readValues.insert(std::make_pair(GetKey(op), str));
+    }
+    else {
+      auto strValueItr = readValues.find(GetKey(op));
+      UW_ASSERT(strValueItr != readValues.end());
+      std::string strValue = strValueItr->second;
+      std::string writeValue;
+      if (strValue.length() == 0) {
+        writeValue = std::string(100, '\0'); //make a longer string
+      }
+      else {
+        uint64_t intValue = 0;
+        for (int i = 0; i < 100; ++i) {
+          intValue = intValue | (static_cast<uint64_t>(strValue[i]) << ((99 - i) * 8));
+        }
+        intValue++;
+        for (int i = 0; i < 100; ++i) {
+          writeValue += static_cast<char>((intValue >> (99 - i) * 8) & 0xFF);
+        }
+      }
+      client.Put(GetKey(op), writeValue, timeout);
+    }
+  }
+
+  return client.Commit(timeout);
+}
+
+} // namespace rwsync

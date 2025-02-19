@@ -231,6 +231,7 @@ include store/benchmark/async/smallbank/Rules.mk
 include store/benchmark/async/tpcc/Rules.mk
 include store/benchmark/async/toy/Rules.mk
 include store/benchmark/async/rw-sql/Rules.mk
+include store/benchmark/async/rw-sync/Rules.mk
 include store/benchmark/async/sql/tpcc/Rules.mk
 include store/benchmark/async/sql/seats/Rules.mk
 include store/benchmark/async/sql/tpcch/Rules.mk

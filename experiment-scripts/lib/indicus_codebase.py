@@ -171,6 +171,8 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_min_enable_pull_policies %d' % config['sintr_protocol_settings']['sintr_min_enable_pull_policies']
             if 'sintr_client_validation' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_client_validation %s' % config['sintr_protocol_settings']['sintr_client_validation']
+            if 'sintr_client_pin_cores' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_client_pin_cores=%s' % str(config['sintr_protocol_settings']['sintr_client_check_evidence']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings
@@ -300,7 +302,7 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --key_selector %s' % config['client_key_selector']
                 if config['client_key_selector'] == 'zipf':
                     client_command += ' --zipf_coefficient %f' % config['client_zipf_coefficient']
-        elif config['benchmark_name'] == 'rw' or config['benchmark_name'] == 'rw-sql':
+        elif config['benchmark_name'] == 'rw' or config['benchmark_name'] == 'rw-sql' or config['benchmark_name'] == 'rw-sync':
             client_command += ' --num_keys %d' % config['client_num_keys']
             client_command += ' --num_ops_txn %d' % config['rw_num_ops_txn']
             if 'rw_read_only' in config:
@@ -575,6 +577,8 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --sintr_sign_finish_validation=%s' % str(config['sintr_protocol_settings']['sintr_sign_finish_validation']).lower()
             if 'sintr_policy_function_name' in config['sintr_protocol_settings']:
                 replica_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
+            if 'sintr_check_policy_leak' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_check_policy_leak=%s' % str(config['sintr_protocol_settings']['sintr_check_policy_leak']).lower()
 
         #if 'rw_or_retwis' in config:
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
@@ -675,7 +679,7 @@ class IndicusCodebase(ExperimentCodebase):
             replica_command += ' --rw_or_retwis=false'
             if 'server_preload_keys' in config:
                 replica_command += ' --preload_keys=%s' % str(config['server_preload_keys']).lower()
-        elif config['benchmark_name'] == 'rw':
+        elif config['benchmark_name'] == 'rw' or config['benchmark_name'] == 'rw-sync':
             replica_command += ' --num_keys %d' % config['client_num_keys']
             replica_command += ' --rw_or_retwis=true'
             if 'server_preload_keys' in config:

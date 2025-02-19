@@ -476,6 +476,7 @@ DEFINE_validator(indicus_read_dep, &ValidateReadDep);
 DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation message");
 DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to use");
 DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
+DEFINE_bool(sintr_check_policy_leak, true, "check for policy information leak (readset policy must imply writeset policy)");
 
 /**
  * Experiment settings.
@@ -832,12 +833,13 @@ int main(int argc, char **argv) {
           NOT_REACHABLE();
       }
 
+      // non flag parameters are client only
       sintrstore::SintrParameters sintr_params(
         0, false,
         FLAGS_sintr_sign_finish_validation,
         false, false,
         FLAGS_sintr_policy_function_name,
-        FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT, 0
+        FLAGS_sintr_check_policy_leak, false, 0
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

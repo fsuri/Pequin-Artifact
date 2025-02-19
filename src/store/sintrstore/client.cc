@@ -55,7 +55,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     Partitioner *part, bool syncCommit, uint64_t readMessages,
     uint64_t readQuorumSize, Parameters params, std::string &table_registry,
     KeyManager *keyManager, uint64_t phase1DecisionTimeout, uint64_t warmup_secs, uint64_t consecutiveMax, bool sql_bench,
-    TrueTime timeServer, transport::Configuration *clients_config)
+    TrueTime timeServer, transport::Configuration *clients_config, const std::vector<std::string> &keys)
     : config(config), client_id(id), nshards(nShards), ngroups(nGroups),
     transport(transport), part(part), syncCommit(syncCommit), pingReplicas(pingReplicas),
     readMessages(readMessages), readQuorumSize(readQuorumSize),
@@ -65,7 +65,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax),
-    sql_interpreter(&params.query_params), clients_config(clients_config) {
+    sql_interpreter(&params.query_params), clients_config(clients_config), keys(keys) {
 
   Notice("Sintrstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
@@ -99,7 +99,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // right now group is always 0, maybe configure later
   c2client = new Client2Client(
     config, clients_config, transport, client_id, nshards, ngroups, 0,
-    pingReplicas, params, keyManager, verifier, part, endorseClient
+    pingReplicas, params, keyManager, verifier, part, endorseClient, keys
   );
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,

@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2024 Austin Li <atl63@cornell.edu>
+ * Copyright 2025 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -9,10 +9,10 @@
  * modify, merge, publish, distribute, sublicense, and/or sell copies
  * of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be
  * included in all copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
  * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -23,39 +23,24 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#include "store/benchmark/async/rw-sync/rw-base_transaction.h"
 
-#ifndef _SINTR_POLICY_CLIENT_H_
-#define _SINTR_POLICY_CLIENT_H_
+namespace rwsync {
 
-#include "store/sintrstore/policy/policy.h"
+RWBaseTransaction::RWBaseTransaction(KeySelector *keySelector, int numOps, bool readOnly,
+    std::mt19937 &rand) : keySelector(keySelector), numOps(numOps), readOnly(readOnly) {
+  for (int i = 0; i < numOps; ++i) {
+    uint64_t key;
+    if (i % 2 == 0) {
+      key = keySelector->GetKey(rand);
+    } else {
+      key = keyIdxs[i - 1];
+    }
+    keyIdxs.push_back(key);
+  }
+}
 
-#include <set>
-#include <vector>
+RWBaseTransaction::~RWBaseTransaction() {
+}
 
-namespace sintrstore {
-
-// a policy client serves as a wrapper around the abstract policy class
-// it is used to track the current policy for a transaction
-// assume that all policies are of the same type
-class PolicyClient {
- public:
-  PolicyClient() : policy(nullptr) {};
-  ~PolicyClient();
-
-  // does endorsements satisfy this PolicyClient object?
-  bool IsSatisfied(const std::set<uint64_t> &endorsements) const;
-  // add a policy to the current transaction policies
-  void AddPolicy(const Policy *other);
-  // what client ids does potentialEndorsements need to get this policy satisfied?
-  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const;
-  // is this policy implied by other?
-  bool IsImpliedBy(const Policy *other) const;
-  void Reset();
-
- private:
-  Policy *policy;
-};
-
-} // namespace sintrstore
-
-#endif /* _SINTR_POLICY_CLIENT_H_ */
+} // namespace rwsync

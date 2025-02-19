@@ -30,18 +30,23 @@
 #include "store/common/common-proto.pb.h"
 #include "store/common/frontend/validation_transaction.h"
 
+#include <vector>
+#include <string>
+
 namespace sintrstore {
 
 // this class takes parses TxnState proto message into the underlying validation transaction
 class ValidationParseClient {
  public:
-  ValidationParseClient(uint32_t timeout): timeout(timeout) {}
+  ValidationParseClient(uint32_t timeout,
+    const std::vector<std::string> &keys = std::vector<std::string>()): timeout(timeout), keys(keys) {}
   ~ValidationParseClient(){}
 
   ValidationTransaction *Parse(const TxnState& txnState);
 
  private:
   uint32_t timeout;
+  const std::vector<std::string> &keys;
 };
 
 } // namespace sintrstore

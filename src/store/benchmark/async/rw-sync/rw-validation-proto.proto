@@ -1,0 +1,9 @@
+syntax = "proto2";
+
+package rwsync.validation.proto;
+
+message RWSync {
+  required uint32 num_ops = 1;
+  required bool read_only = 2;
+  repeated int32 key_idxs = 3;
+}

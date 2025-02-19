@@ -83,20 +83,25 @@ void WeightPolicy::MergePolicy(const Policy *other) {
   }
 }
 
-std::vector<int> WeightPolicy::GetMinSatisfyingSet() const {
-  std::vector<int> minSatisfyingSet;
-  for (uint64_t i = 0; i < weight; i++) {
-    minSatisfyingSet.push_back(-1);
+std::vector<int> WeightPolicy::DifferenceToSatisfied(
+    const std::set<uint64_t> &potentialEndorsements) const {
+  std::vector<int> ret;
+  int diff = weight - potentialEndorsements.size();
+  if (diff <= 0) {
+    return ret;
   }
-  return minSatisfyingSet;
+  for (int i = 0; i < diff; i++) {
+    ret.push_back(-1);
+  }
+  return ret;
 }
 
-bool WeightPolicy::IsOtherWeaker(const Policy *other) const {
+bool WeightPolicy::IsImpliedBy(const Policy *other) const {
   UW_ASSERT(other != nullptr);
   UW_ASSERT(type == other->Type());
 
   const WeightPolicy *otherWeightPolicy = static_cast<const WeightPolicy *>(other);
-  return *otherWeightPolicy < *this;
+  return *otherWeightPolicy >= *this;
 }
 
 void WeightPolicy::SerializeToProtoMessage(proto::PolicyObject *msg) const {

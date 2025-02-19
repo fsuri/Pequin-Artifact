@@ -91,20 +91,25 @@ void ACLPolicy::MergePolicy(const Policy *other) {
   access_control_list.insert(other_access_control_list.begin(), other_access_control_list.end());
 }
 
-std::vector<int> ACLPolicy::GetMinSatisfyingSet() const {
-  std::vector<int> min_satisfying_set;
+std::vector<int> ACLPolicy::DifferenceToSatisfied(
+    const std::set<uint64_t> &potentialEndorsements) const {
+  std::vector<int> ret;
+
   for (const auto &client_id : access_control_list) {
-    min_satisfying_set.push_back(client_id);
+    if (potentialEndorsements.find(client_id) == potentialEndorsements.end()) {
+      ret.push_back(client_id);
+    }
   }
-  return min_satisfying_set;
+
+  return ret;
 }
 
-bool ACLPolicy::IsOtherWeaker(const Policy *other) const {
+bool ACLPolicy::IsImpliedBy(const Policy *other) const {
   UW_ASSERT(other != nullptr);
   UW_ASSERT(type == other->Type());
 
   const ACLPolicy *otherACLPolicy = static_cast<const ACLPolicy *>(other);
-  return *otherACLPolicy < *this;
+  return *otherACLPolicy >= *this;
 }
 
 void ACLPolicy::SerializeToProtoMessage(proto::PolicyObject *msg) const {

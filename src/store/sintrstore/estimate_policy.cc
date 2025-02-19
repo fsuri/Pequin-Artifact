@@ -31,6 +31,9 @@
 #include "store/benchmark/async/tpcc/validation/payment.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/benchmark/async/tpcc/tpcc_common.h"
+#include "store/benchmark/async/rw-sync/rw-base_transaction.h"
+#include "store/benchmark/async/rw-sync/rw-validation-proto.pb.h"
+#include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
 #include "store/sintrstore/policy/weight_policy.h"
 // TODO: handle acl policy
 #include "store/sintrstore/policy/acl_policy.h"
@@ -96,6 +99,18 @@ namespace sintrstore
           (*policy)->MergePolicy(temp_policy);
         }
         delete temp_policy;
+      }
+    }
+    else if (txn_bench == ::rwsync::BENCHMARK_NAME) {
+      ::rwsync::validation::proto::RWSync valTxnData;
+      UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+      if (valTxnData.read_only() || valTxnData.num_ops() <= 1) {
+        // txn will only have reads, so keep it as the default initialized policy (policy of weight 0)
+      }
+      else {
+        // txn will have writes
+        Policy *temp_policy;
+        UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
       }
     }
     else

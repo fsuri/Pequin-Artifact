@@ -62,6 +62,7 @@
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
 #include "store/benchmark/async/rw-sql/rw-sql_client.h"
+#include "store/benchmark/async/rw-sync/sync/rw-sync_client.h"
 
 // probs for tpcch 
 #include "store/benchmark/async/sql/tpcch/tpcch_constants.h"
@@ -100,6 +101,7 @@
 #include "store/benchmark/async/common/zipf_key_selector.h"
 
 #include <gflags/gflags.h>
+#include <valgrind/callgrind.h>
 
 #include <algorithm>
 #include <atomic>
@@ -147,7 +149,8 @@ enum benchmode_t {
   BENCH_RW_SQL, 
   BENCH_SEATS_SQL,
   BENCH_AUCTIONMARK_SQL,
-  BENCH_TPCCH_SQL
+  BENCH_TPCCH_SQL,
+  BENCH_RW_SYNC
 };
 
 enum keysmode_t {
@@ -502,6 +505,8 @@ static bool ValidateSintrClientValidation(const char* flagname,
 DEFINE_string(sintr_client_validation, sintr_client_validation_args[0], "sintr number of clients to contact for validation");
 DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
 
+DEFINE_bool(sintr_client_pin_cores, false, "sintr pin client cores for validation");
+
 
 ///////////////////////////////////////////////////////////
 
@@ -637,7 +642,8 @@ const std::string benchmark_args[] = {
   "rw-sql",
   "seats-sql",
   "auctionmark-sql",
-  "tpcch-sql"
+  "tpcch-sql",
+  "rw-sync"
 };
 const benchmode_t benchmodes[] {
   BENCH_RETWIS,
@@ -650,7 +656,8 @@ const benchmode_t benchmodes[] {
   BENCH_RW_SQL,
   BENCH_SEATS_SQL,
   BENCH_AUCTIONMARK_SQL,
-  BENCH_TPCCH_SQL
+  BENCH_TPCCH_SQL,
+  BENCH_RW_SYNC
 };
 static bool ValidateBenchmark(const char* flagname, const std::string &value) {
   int n = sizeof(benchmark_args);
@@ -1085,7 +1092,7 @@ int main(int argc, char **argv) {
 
   // parse retwis settings
   std::vector<std::string> keys;
-  if (benchMode == BENCH_RETWIS || benchMode == BENCH_RW) {
+  if (benchMode == BENCH_RETWIS || benchMode == BENCH_RW || benchMode == BENCH_RW_SYNC) {
     if (FLAGS_keys_path.empty()) {
       if (FLAGS_num_keys > 0) {
         for (size_t i = 0; i < FLAGS_num_keys; ++i) {
@@ -1623,6 +1630,7 @@ int main(int argc, char **argv) {
         break;
     }
     case PROTO_SINTR: {
+      // non flag parameters are server only
       sintrstore::SintrParameters sintr_params(
         FLAGS_sintr_max_val_threads,
         FLAGS_sintr_sign_fwd_read_results,
@@ -1632,8 +1640,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path,
         FLAGS_sintr_read_include_policy,
-        sintr_client_validation,
-        FLAGS_sintr_min_enable_pull_policies
+        sintr_client_validation, true,
+        FLAGS_sintr_client_pin_cores, FLAGS_sintr_min_enable_pull_policies
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,
@@ -1698,7 +1706,8 @@ int main(int argc, char **argv) {
 																					FLAGS_indicus_max_consecutive_abstains,
                                           FLAGS_sql_bench,
 																					TrueTime(FLAGS_clock_skew, FLAGS_clock_error),
-                                          clients_config);
+                                          clients_config,
+                                          keys); // for benchmarks that need keys, need to give the validating client access
         break;
     }
     case PROTO_PEQUIN: {
@@ -1926,6 +1935,7 @@ int main(int argc, char **argv) {
         break;
       case BENCH_TOY: 
       case BENCH_RW_SQL:
+      case BENCH_RW_SYNC:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_TPCC_SYNC:
       case BENCH_TPCC_SQL:
@@ -2013,6 +2023,15 @@ int main(int argc, char **argv) {
             FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
             FLAGS_max_attempts);
         break;
+      case BENCH_RW_SYNC:
+        UW_ASSERT(syncClient != nullptr);
+        bench = new rwsync::RWSyncClient(keySelector, FLAGS_num_ops_txn, FLAGS_rw_read_only,
+            *syncClient, *tport, seed,
+            FLAGS_num_requests, FLAGS_exp_duration, FLAGS_delay,
+            FLAGS_warmup_secs, FLAGS_cooldown_secs, FLAGS_tput_interval,
+            FLAGS_abort_backoff, FLAGS_retry_aborted, FLAGS_max_backoff,
+            FLAGS_max_attempts, FLAGS_timeout);
+        break;
       case BENCH_TOY:
         UW_ASSERT(syncClient != nullptr);
         bench = new toy::ToyClient(*syncClient, *tport,
@@ -2087,6 +2106,7 @@ int main(int argc, char **argv) {
 	      tport->Timer(0, [bench, bdcb]() { bench->Start(bdcb); });
         break;
       case BENCH_RW_SQL:
+      case BENCH_RW_SYNC:
       case BENCH_SMALLBANK_SYNC:
       case BENCH_SEATS_SQL:
       case BENCH_AUCTIONMARK_SQL:
@@ -2147,7 +2167,12 @@ int main(int argc, char **argv) {
   std::signal(SIGTERM, Cleanup); //signal 15
   std::signal(SIGINT, Cleanup);
 
+  CALLGRIND_START_INSTRUMENTATION;
+
   tport->Run();
+
+  CALLGRIND_STOP_INSTRUMENTATION;
+  CALLGRIND_DUMP_STATS;
 
   Cleanup(0);
 
