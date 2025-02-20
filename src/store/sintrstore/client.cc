@@ -383,13 +383,13 @@ void Client::Put(const std::string &key, const std::string &value,
       }
       get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
           Debug("get policy callback done");
-          get_policy_done = true;
+          get_policy_done -= 1;
       };
       get_timeout_callback tgcb = [](int, const std::string &){
         Panic("TIMEOUT FOR GETTING POLICY VALUE");
       };
       Get(key, gcb, tgcb, timeout);
-      get_policy_done = false;
+      get_policy_done += 1;
       Debug("get sent for policy");
     }
     bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
@@ -1088,7 +1088,7 @@ void Client::AddWriteSetIdx(proto::Transaction &txn){
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
-  if (!get_policy_done) {
+  if (get_policy_done != 0) {
     transport->Timer(0, [this, ccb, ctcb, timeout]() {
       Debug("Retrying commit because policy get on put not finished");
       Commit(ccb, ctcb, timeout);

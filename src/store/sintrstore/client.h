@@ -137,7 +137,7 @@ class Client : public ::Client {
    bool warmup_done = false;
 
    // change to atomic if client becomes multithreaded
-   bool get_policy_done = true;
+   int get_policy_done = 0;
 
   //Query protocol structures and functions
 
