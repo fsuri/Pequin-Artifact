@@ -1233,6 +1233,9 @@ void Client::Phase1(PendingRequest *req) {
     });
     return;
   }
+  // update txn digest with endorsements
+  Debug("OLD TXN DIGEST CLIENT: %s", BytesToHex(req->txnDigest, 16).c_str());
+  req->txnDigest = EndorsementTxnDigest(req->txnDigest,endorseClient->GetEndorsements(), params.hashDigest);
 
   if(PROFILING_LAT){
     struct timespec ts_start;
@@ -1695,6 +1698,7 @@ void Client::Writeback(PendingRequest *req) {
   req->startedWriteback = true;
 
   if (failureActive && params.injectFailure.type == InjectFailureType::CLIENT_STALL_AFTER_P1) {
+    // TODO: modify debug statements to use transaction digest with endorsements
     Debug("INJECT CRASH FAILURE[%lu:%lu] with decision %d. txnDigest: %s", client_id, req->id, req->decision,
           BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str());
     stats.Increment("inject_stall_after_p1", 1);
@@ -2254,7 +2258,9 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
     } 
   }
   else if(msg.has_txn()){
-    if(*txnDigest != TransactionDigest(msg.txn(), params.hashDigest)){
+    std::string temp_digest = TransactionDigest(msg.txn(), params.hashDigest);
+    temp_digest = EndorsementTxnDigest(temp_digest, endorseClient->GetEndorsements(), params.hashDigest);
+    if(*txnDigest != temp_digest){
       Panic("txnDig doesnt match Transaction");
       return false;
     } 

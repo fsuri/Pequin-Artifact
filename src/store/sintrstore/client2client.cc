@@ -527,6 +527,11 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
         }
 
         std::string committedTxnDigest = TransactionDigest(fwdReadResultMsg.proof().txn(), params.hashDigest);
+        if(fwdReadResultMsg.proof().txn().has_txndigest() && params.hashDigest) {
+          committedTxnDigest = fwdReadResultMsg.proof().txn().txndigest();
+        } else {
+          Debug("NO TXN DIGEST IN PROOF FOR CLIENT2CLIENT forward read result");
+        }
         if (!ValidateTransactionWrite(fwdReadResultMsg.proof(), &committedTxnDigest,
             write.key(), write.committed_value(), write.committed_timestamp(),
             config, params.signedMessages, keyManager, verifier)) {

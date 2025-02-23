@@ -944,7 +944,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   }
 
   // given policy id and timestamp, get the policy by filling tsPolicy
-  // if checkPreapred is true, also check preparedWrites for change policy
+  // if checkPrepared is true, also check preparedWrites for change policy
   // if preparedTxn is not null, return the transaction that prepared the policy
   void GetPolicy(const uint64_t policyId, const Timestamp &ts,
     std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false,
@@ -1161,6 +1161,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>> preparedReads;
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
+  // TODO: Add garbage collection for txnDigest map
+  tbb::concurrent_unordered_map<std::string, std::string> txnDigestMap;
 
   /* MAPS FOR SEMANTIC CC */
   //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  
