@@ -212,6 +212,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     EstimateTxnPolicy(protoTxnState, policyClient);
     c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policyClient);
     delete policyClient;
+    policyClient = nullptr;
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
