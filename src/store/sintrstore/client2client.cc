@@ -134,7 +134,7 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
 }
 
 void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
-    const Policy *policy) {
+    PolicyClient *policyClient) {
   this->client_seq_num = client_seq_num;
 
   sentBeginValTxnMsg.Clear();
@@ -165,11 +165,9 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   // other heuristics depend on actual policy that was estimated
   else {
     // extract out the clients that need to be contacted
-    PolicyClient policyClient;
-    policyClient.AddPolicy(policy);
     std::set<uint64_t> clients;
     // need to use DifferenceToSatisfied to account for self
-    ExtractFromPolicyClientsToContact(policyClient.DifferenceToSatisfied(beginValSent), clients);
+    ExtractFromPolicyClientsToContact(policyClient->DifferenceToSatisfied(beginValSent), clients);
     
     if (params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::EXACT) {
     }
@@ -193,7 +191,7 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
       transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
     }
     // sanity check - policy should be satisfied by the clients we are sending to
-    UW_ASSERT(policy->IsSatisfied(beginValSent));
+    UW_ASSERT(policyClient->IsSatisfied(beginValSent));
   }
 }
 
