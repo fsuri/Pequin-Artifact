@@ -983,10 +983,15 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     proto::ConcurrencyControl::Result result;
     const proto::CommittedProof *committedProof = nullptr;
     const proto::Transaction *abstain_conflict = nullptr;
-
+    proto::Transaction tempTxn = *txn;
+    // remove the hack added in server.cc to compare txn digests
+    tempTxn.clear_txndigest();
+    if(!txn->has_txndigest()) {
+      Panic("TXN DIGEST IS GONE");
+    }
+    std::string oldTxnDigest = TransactionDigest(tempTxn, params.hashDigest);
     if(!params.parallel_CCC || !params.mainThreadDispatching){
-
-      if (!EndorsementCheck(endorsements, txnDigest, txn)) {
+      if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
         Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
         result = proto::ConcurrencyControl::ABSTAIN;
         HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
@@ -1001,7 +1006,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       return (void*) true;
     }
     else{ // if mainThreadDispatching && parallel OCC.
-      auto f = [this, reqId, remote_ptr = remote.clone(), txnDigest, txn, committedProof, abstain_conflict, isGossip, forceMaterialize, endorsements]() mutable {
+      auto f = [this, reqId, remote_ptr = remote.clone(), txnDigest, txn, committedProof, abstain_conflict, isGossip, forceMaterialize, endorsements, oldTxnDigest]() mutable {
         Timestamp retryTs;
           //check if concurrently committed/aborted already, and if so return
           ongoingMap::const_accessor o;
@@ -1025,7 +1030,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           o.release();
         proto::ConcurrencyControl::Result *result;
         bool endorsementCheckFail = false;
-        if (!EndorsementCheck(endorsements, txnDigest, txn)) {
+        if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
           result = new proto::ConcurrencyControl::Result(proto::ConcurrencyControl::ABSTAIN);
           endorsementCheckFail = true;
@@ -1438,8 +1443,10 @@ void Server::ClearRTS(const google::protobuf::RepeatedPtrField<ReadMessage> &rea
 void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed_write, const std::function<void()> &sendCB){
       
     //If readReplyBatch is false then respond immediately, otherwise respect batching policy
+    Debug("SIGNING AND SENDING READ REPLY");
     if (params.readReplyBatch) {
         // move: sendCB = std::move(sendCB) or {std::move(sendCB)}
+        Debug("READ REPLY BATCH");
         MessageToSign(write, signed_write, [sendCB, write]() {
             sendCB();
             delete write;
@@ -1450,6 +1457,7 @@ void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed
         if(params.multiThreading){
             auto f = [this, signed_write, sendCB = std::move(sendCB), write]()
             {
+              Debug("MULTI THREADING F");
               SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
               sendCB();
               delete write;
@@ -1458,6 +1466,7 @@ void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed
             transport->DispatchTP_noCB(std::move(f));
         }
         else{
+          Debug("NO MULTITHREADING HERE");
             SignMessage(write, keyManager->GetPrivateKey(id), id, signed_write);
             sendCB();
             delete write;
@@ -1471,7 +1480,7 @@ void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed
             msgs.push_back(write);
             std::vector<proto::SignedMessage *> smsgs;
             smsgs.push_back(signed_write);
-
+            Debug("WORKER THREAD SIGNED WRITE");
             auto f = [this, msgs, smsgs, sendCB = std::move(sendCB), write]()
             {
             SignMessages(msgs, keyManager->GetPrivateKey(id), id, smsgs, params.merkleBranchFactor);
@@ -1482,7 +1491,7 @@ void Server::SignSendReadReply(proto::Write *write, proto::SignedMessage *signed
             transport->DispatchTP_noCB(std::move(f));
         }
         else{
-           
+            Debug("NOT MULTITHREADED AND NOT BATCHED");
             std::vector<::google::protobuf::Message *> msgs;
             msgs.push_back(write);
             std::vector<proto::SignedMessage *> smsgs;
@@ -1608,8 +1617,11 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
              stats.Increment("total_transactions_fast_Abort_conflict", 1);
 
             Debug("2: Taking Aborted conflict branch for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
-              std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(),
-                  params.hashDigest);
+            auto itTxn = txnDigestMap.find(TransactionDigest(msg.conflict().txn(), params.hashDigest));
+            if(itTxn == txnDigestMap.end()) {
+              Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+            }
+              std::string committedTxnDigest = itTxn->second;
               asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
                     txnDigest, params.signedMessages, keyManager, &config, verifier,
                     std::move(mcb), transport, true, params.batchVerification);
@@ -1679,8 +1691,11 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
             }
 
           } else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
-            std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(),
-                params.hashDigest);
+              auto itTxn = txnDigestMap.find(TransactionDigest(msg.conflict().txn(), params.hashDigest));
+              if(itTxn == txnDigestMap.end()) {
+                Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+              }
+              std::string committedTxnDigest = itTxn->second;
 
                 if(params.batchVerification){
                   mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));

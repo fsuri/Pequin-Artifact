@@ -73,6 +73,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   prepared = preparedMap(100000);
   preparedReads = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>>(100000);
   preparedWrites = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>(100000);
+  txnDigestMap = tbb::concurrent_unordered_map<std::string,std::string>();
   rts = tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t>(100000);
   committed = tbb::concurrent_unordered_map<std::string, proto::CommittedProof *>(100000);
   writebackMessages = tbb::concurrent_unordered_map<std::string, proto::Writeback>(100000);
@@ -147,6 +148,7 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
   Notice("Create Genesis Txn with digest: %s", BytesToHex(genesis_txn_dig, 16).c_str());
+  txnDigestMap[genesis_txn_dig] = genesis_txn_dig;
   *proof->mutable_txn()->mutable_txndigest() = genesis_txn_dig;
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
@@ -1203,7 +1205,13 @@ void Server::HandleRead(const TransportAddress &remote,
             if (params.maxDepDepth == -1 || DependencyDepth(mostRecent) <= params.maxDepDepth) {
               readReply->mutable_write()->set_prepared_value(preparedValue);
               *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
-              *readReply->mutable_write()->mutable_prepared_txn_digest() = TransactionDigest(*mostRecent, params.hashDigest);
+              std::string tempDigest = TransactionDigest(*mostRecent, params.hashDigest);
+              auto itTxn = txnDigestMap.find(tempDigest);
+              if(itTxn == txnDigestMap.end()) {
+                Panic("TXN NOT FOUND IN DIGEST MAP");
+              }
+              Debug("setting prepared value and digest for txn %s", BytesToHex(itTxn->second,16).c_str());
+              *readReply->mutable_write()->mutable_prepared_txn_digest() = itTxn->second;
             }
           }
         }
@@ -1221,7 +1229,12 @@ void Server::HandleRead(const TransportAddress &remote,
           tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
           readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
           tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
-          *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+          std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+          auto itTxn = txnDigestMap.find(tempDigest);
+          if(itTxn == txnDigestMap.end()) {
+            Panic("POLICY TXN NOT FOUND IN DIGEST MAP");
+          }
+          *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = itTxn->second;
         }
       }
     }
@@ -1399,8 +1412,22 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest); //could parallelize it too hypothetically
   //Notice("Txn:[%d:%d] has digest: %s", txn->client_id(), txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str());
 
-  Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
+  ///*
+  if(msg.has_endorsements()) {
+    std::vector<proto::SignedMessage> endorse_set;
+    for(const auto& msg : msg.endorsements().sig_msgs()) {
+      endorse_set.push_back(msg);
+    }
+    std::string newTxnDigest = EndorsementTxnDigest(txnDigest, endorse_set, params.hashDigest);
+    txnDigestMap[txnDigest] = newTxnDigest;
+      // HACK to create another map between newTxnDigest and old txn digest
+      // so we can compare old txn digest with endorsement
+      //oldTxnDigestMap[newTxnDigest] = txnDigest;
+    Debug("OLD TXN DIGEST: %s", BytesToHex(txnDigest, 16).c_str());
+    txnDigest = newTxnDigest;
+  }
+  Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
   //If have ooMSG. Ignore P1, and just process ooMsg. Note: Typically shouldn't happen with TPCC, but it is possible that moodycamel queue is not Fifo
@@ -1681,8 +1708,12 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
     } else {
       txn = &msg.txn();
       computedTxnDigest = TransactionDigest(msg.txn(), params.hashDigest);
-      txnDigest = &computedTxnDigest;
-      RegisterTxTS(computedTxnDigest, txn);
+      auto itTxn = txnDigestMap.find(computedTxnDigest);
+      if(itTxn == txnDigestMap.end()) {
+        Panic("PHASE2 TXN NOT FOUND IN DIGEST MAP");
+      }
+      txnDigest = &itTxn->second;
+      RegisterTxTS(itTxn->second, txn);
     }
 
   }
@@ -1809,7 +1840,12 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
             if(msg.has_txn()){
               txn = &msg.txn();
               // check that digest and txn match..
-               if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
+              std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
+              auto itTxn = txnDigestMap.find(tempDigest);
+              if(itTxn == txnDigestMap.end()) {
+                Panic("HANDLE PHASE 2 TXN NOT FOUND IN DIGEST MAP");
+              }
+               if(*txnDigest !=itTxn->second) return;
                RegisterTxTS(*txnDigest, txn);
             }
             else{
@@ -2014,7 +2050,13 @@ void Server::HandleWriteback(const TransportAddress &remote,
       if(msg.has_txn()){
         txn = msg.release_txn();
         // check that digest and txn match..
-         if(*txnDigest !=TransactionDigest(*txn, params.hashDigest)) return;
+        std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
+        auto itTxn = txnDigestMap.find(tempDigest);
+        if(itTxn == txnDigestMap.end()) {
+          Panic("WRITEBACK TXN NOT FOUND IN DIGEST MAP HERE");
+        }
+        Debug("TESTING OVER HERE2");
+         if(*txnDigest != itTxn->second) return;
         
         RegisterTxTS(*txnDigest, txn);
       }
@@ -2064,7 +2106,12 @@ void Server::HandleWriteback(const TransportAddress &remote,
     UW_ASSERT(msg.has_txn());
     txn = msg.release_txn();
     computedTxnDigest = TransactionDigest(*txn, params.hashDigest);
-    txnDigest = &computedTxnDigest;
+    auto itTxn = txnDigestMap.find(computedTxnDigest);
+      if(itTxn == txnDigestMap.end()) {
+        Panic("WRITEBACK TXN NOT FOUND IN DIGEST MAP here");
+      }
+    Debug("TESTING OVER HERE");
+    txnDigest = &itTxn->second;
     RegisterTxTS(*txnDigest, txn);
 
     if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){
@@ -2078,6 +2125,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
   }
 
   if(simulate_inconsistency){
+    Debug("SIMULATING INCONSISTENCY");
     //Occasionally drop some of the prepare/commit and rely on sync.. 
     uint64_t target_replica = txn->client_id() % config.n; //find "lead replica"
     bool drop_at_this_replica = false;
@@ -2333,6 +2381,10 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   UW_ASSERT(ongoingTxn->has_txndigest());
+  auto itTxn = txnDigestMap.find(txnDigest);
+  if(itTxn != txnDigestMap.end()) {
+    Panic("txn was found in digest map");
+  }
   if(!ongoingTxn->has_txndigest()) *ongoingTxn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
   preparedMap::accessor a;
@@ -2726,6 +2778,11 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     }
     
     UW_ASSERT(txn->has_txndigest());
+    auto itTxn = txnDigestMap.find(txnDigest);
+    if(itTxn != txnDigestMap.end()) {
+      Panic("TXN digest found in txn digest map when it shouldn't have been there");
+    }
+    if(txn->has_txndigest() && txn->txndigest() != txnDigest) Panic("TXN digests not equal");
     if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;
 
     store.put(write.key(), val, ts);

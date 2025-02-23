@@ -845,6 +845,12 @@ void ShardClient::HandleReadReplyCB1(proto::ReadReply*reply){
       std::string committedTxnDigest = TransactionDigest(
           reply->proof().txn(), params.hashDigest);
 
+      if(reply->proof().txn().has_txndigest() && params.hashDigest) {
+        Debug("USING TXN DIGEST IN READ REPLY CB1");
+        committedTxnDigest = reply->proof().txn().txndigest();
+      } else {
+        Debug("NO TXN DIGEST IN READ REPLY CB1");
+      }
 
      auto mcb = [this, reply, req, write](void* result) mutable {
        if(!result){
@@ -1043,6 +1049,14 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       }
 
       std::string committedTxnDigest = TransactionDigest(reply.proof().txn(), params.hashDigest);
+      // we want to use the txn digest hack in the txn to verify the read reply proof...
+      // TODO: maybe find a better way to pass the txn digest
+      if(reply.proof().txn().has_txndigest() && params.hashDigest) {
+        Debug("USING TXN DIGEST IN PROOF FOR READ REPLY %s", BytesToHex(reply.proof().txn().txndigest(), 16).c_str());
+        committedTxnDigest = reply.proof().txn().txndigest();
+      } else {
+        Debug("NO TXN DIGEST IN READ REPLY TXN");
+      }
       if (!ValidateTransactionWrite(reply.proof(), &committedTxnDigest,
           req->key, write->committed_value(), write->committed_timestamp(),
           config, params.signedMessages, keyManager, verifier)) {
@@ -1084,6 +1098,12 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
         }
 
         std::string committedPolicyTxnDigest = TransactionDigest(reply.policy_proof().txn(), params.hashDigest);
+        if(reply.policy_proof().txn().has_txndigest() && params.hashDigest) {
+          Debug("USING TXN DIGEST IN POLICY PROOF READ REPLY");
+          committedPolicyTxnDigest = reply.policy_proof().txn().txndigest();
+        } else {
+          Debug("NO TXN DIGEST IN POLICY PROOF READ REPLY TXN");
+        }
         std::string policyObjectStr;
         write->committed_policy().policy().SerializeToString(&policyObjectStr);
         if (!ValidateTransactionWrite(reply.policy_proof(), &committedPolicyTxnDigest,
@@ -1306,7 +1326,7 @@ void ShardClient::ProcessP1R(proto::Phase1Reply &reply, bool FB_path, PendingFB 
 
     cc = &reply.cc();
   }
-
+  // TODO: fix Debug statements to use updated txn digest with endorsement
   Debug("[group %i][replica %lu] PHASE1R[%s] process valid ccr=%d", group, reply.signed_cc().process_id(), BytesToHex(TransactionDigest(pendingPhase1->txn_ , params.hashDigest), 16).c_str() , cc->ccr());
 
   if (!pendingPhase1->p1Validator.ProcessMessage(*cc, (failureActive && !FB_path) )) {
@@ -1781,6 +1801,12 @@ void ShardClient::Phase1Decision(
       //TODO: dont process redundant digests
       if(!TransactionsConflict(pendingPhase1->txn_, *txn)) continue;
       std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
+      if(txn->has_txndigest() && params.hashDigest) {
+        Debug("USING TXN DIGEST IN TXN FOR FB");
+        txnDigest = txn->txndigest();
+      } else {
+        Debug("NO TXN DIGEST IN TXN FOR FB");
+      }
 
       if(params.signClientProposals) p1->set_allocated_txn(txn); 
       pendingPhase1->ConflictCB(txnDigest, p1);
@@ -1962,6 +1988,12 @@ void ShardClient::HandlePhase1Relay(proto::RelayP1 &relayP1){
  
   //std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
   std::string txnDigest(TransactionDigest(relayP1.p1().txn(), params.hashDigest));
+  if(relayP1.p1().txn().has_txndigest() && params.hashDigest) {
+    Debug("USING TXN DIGEST IN HANDLE PHASE1 RELAY");
+    txnDigest = relayP1.p1().txn().txndigest();
+  } else {
+    Debug("NO TXN DIGEST IN PHASE1RELAY");
+  }
   //if(params.signClientProposals) delete txn;
   //if(params.signClientProposals) relayP1.mutable_p1()->set_allocated_txn(txn);
 
