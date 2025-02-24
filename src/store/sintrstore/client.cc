@@ -337,17 +337,22 @@ void Client::Get(const std::string &key, get_callback gcb,
         *txn.add_deps() = policyDep;
       }
 
-      // all captured variables can go out of scope before f executes
-      // so right now doing copy capture for lambda
-      auto f = [=, this]() {
-        c2client->ForwardReadResultMessage(
-          key, val, ts, proof, serializedWrite, 
-          serializedWriteTypeName, dep, hasDep, addReadSet,
-          policyDep, hasPolicyDep
-        );
-        return (void*) true;
-      };
-      transport->DispatchTP_noCB(f);
+      // // all captured variables can go out of scope before f executes
+      // // so right now doing copy capture for lambda
+      // auto f = [=, this]() {
+      //   c2client->ForwardReadResultMessage(
+      //     key, val, ts, proof, serializedWrite, 
+      //     serializedWriteTypeName, dep, hasDep, addReadSet,
+      //     policyDep, hasPolicyDep
+      //   );
+      //   return (void*) true;
+      // };
+      // transport->DispatchTP_noCB(f);
+      c2client->ForwardReadResultMessage(
+        key, val, ts, proof, serializedWrite, 
+        serializedWriteTypeName, dep, hasDep, addReadSet,
+        policyDep, hasPolicyDep
+      );
 
       gcb(status, key, val, ts);
     };
