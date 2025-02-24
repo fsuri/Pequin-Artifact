@@ -2115,13 +2115,20 @@ int main(int argc, char **argv) {
       case BENCH_TPCC_SYNC: {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
-        threads.push_back(new std::thread([syncBench, bdcb](){
+        // for profiling sintr isolate one client as executing and other as validating only
+        bool skip = false; // (mode == PROTO_SINTR) && (clientId > 0);
+        threads.push_back(new std::thread([syncBench, bdcb, skip](){
             syncBench->Start([](){});
             while (!syncBench->IsFullyDone()) {
               syncBench->StartLatency();
-              transaction_status_t result;
-              syncBench->SendNext(&result);
-              syncBench->IncrementSent(result);
+              if (!skip) {
+                transaction_status_t result;
+                syncBench->SendNext(&result);
+                syncBench->IncrementSent(result);
+              }
+              else {
+                syncBench->IncrementSent(1);
+              }
             }
             bdcb();
         }));

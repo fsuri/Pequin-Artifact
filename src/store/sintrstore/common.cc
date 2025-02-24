@@ -801,7 +801,7 @@ bool ValidateP1Replies(proto::CommitDecision decision,
         }
       }
 
-      Debug("Verifying %lu byte signature from replica %lu in group %lu.", sig.signature().size(), sig.process_id(), sigs.first);
+      Debug("Verifying %lu byte signature from replica %lu in group %lu for txn %s", sig.signature().size(), sig.process_id(), sigs.first, BytesToHex(*txnDigest, 16).c_str());
       //Latency_Start(&lat);
       if (!skip && !verifier->Verify(keyManager->GetPublicKey(sig.process_id()), ccMsg, sig.signature())) {
         //Latency_End(&lat);
@@ -1925,7 +1925,22 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2) {
   return !(pw1 == pw2);
 }
 
+std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> endorsements, bool hashDigest) {
+  if (hashDigest) {
+    blake3_hasher hasher;
+    blake3_hasher_init(&hasher);
 
+    std::string digest(BLAKE3_OUT_LEN, 0);
+    blake3_hasher_update(&hasher, (unsigned char *) &txnDigest[0], txnDigest.length());
+    for(const auto &endorse : endorsements) {
+      std::string endorseStr;
+      endorse.SerializeToString(&endorseStr);
+      blake3_hasher_update(&hasher, (unsigned char *) &endorseStr[0], endorseStr.length());
+    }
+    blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+    return digest;
+  }
+}
 //should hashing be parallelized?
 //ignores txnDigest field --> this is not part of protocol contents, just a hack for storage.
 std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
