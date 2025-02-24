@@ -3107,12 +3107,23 @@ void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts,
 }
 
 bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn) {
+  // if (extract_policy_ms.size() > 0 && extract_policy_ms.size() % 2000 == 0) {
+  //   double mean_extract_policy_latency = std::accumulate(extract_policy_ms.begin(), extract_policy_ms.end(), 0.0) / extract_policy_ms.size();
+  //   std::cerr << "Mean extract policy latency: " << mean_extract_policy_latency << std::endl;
+  //   double mean_validate_endorsements_latency = std::accumulate(validate_endorsements_ms.begin(), validate_endorsements_ms.end(), 0.0) / validate_endorsements_ms.size();
+  //   std::cerr << "Mean validate endorsements latency: " << mean_validate_endorsements_latency << std::endl;
+  // }
+
   PolicyClient policyClient;
   ExtractPolicy(txn, policyClient);
   return ValidateEndorsements(policyClient, endorsements, txn->client_id(), txnDigest);
 }
 
 void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   Timestamp ts(txn->timestamp());
 
   for (const auto &write : txn->write_set()) {
@@ -3153,6 +3164,11 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
       }
     }
   }
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = end - start;
+  // extract_policy_ms.push_back(duration);
 }
 
 bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
@@ -3174,6 +3190,9 @@ bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto:
 
       // check signature
       if (params.sintr_params.signFinishValidation) {
+        // struct timespec ts_start;
+        // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
         if (!client_verifier->Verify(
           keyManager->GetPublicKey(keyManager->GetClientKeyId(endorsement.process_id())), 
           endorsement.data(), 
@@ -3181,6 +3200,11 @@ bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto:
         ) {
           return false;
         }
+        // struct timespec ts_end;
+        // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+        // auto duration = end - start;
+        // validate_endorsements_ms.push_back(duration);
       }
 
       endorsers.insert(endorsement.process_id());

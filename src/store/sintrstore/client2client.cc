@@ -135,6 +135,16 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
 
 void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
     const Policy *policy) {
+  // if (create_hmac_ms.size() > 0 && create_hmac_ms.size() % 2000 == 0) {
+  //   if (create_hmac_ms.size() > 0) {
+  //     double mean_create_hmac_latency = std::accumulate(create_hmac_ms.begin(), create_hmac_ms.end(), 0.0) / create_hmac_ms.size();
+  //     std::cerr << "Mean create HMAC latency: " << mean_create_hmac_latency << std::endl;
+  //   }
+  //   if (verify_endorse_ms.size() > 0) {
+  //     double mean_verify_endorse_latency = std::accumulate(verify_endorse_ms.begin(), verify_endorse_ms.end(), 0.0) / verify_endorse_ms.size();
+  //     std::cerr << "Mean verify endorsement latency: " << mean_verify_endorse_latency << std::endl;
+  //   }
+  // }
   this->client_seq_num = client_seq_num;
 
   sentBeginValTxnMsg.Clear();
@@ -211,7 +221,15 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
   fwdReadResult.mutable_timestamp()->set_id(ts.getID());
 
   if (params.sintr_params.signFwdReadResults) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     CreateHMACedMessage(fwdReadResult, *fwdReadResultMsgToSend->mutable_signed_fwd_read_result());
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // create_hmac_ms.push_back(duration);
   }
   else {
     *fwdReadResultMsgToSend->mutable_fwd_read_result() = std::move(fwdReadResult);
@@ -306,6 +324,21 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
 
 void Client2Client::HandleBeginValidateTxnMessage(const TransportAddress &remote, 
     const proto::BeginValidateTxnMessage &beginValTxnMsg) {
+  // if (verify_hmac_ms.size() > 0 && verify_hmac_ms.size() % 2000 == 0) {
+  //   std::cerr << "Number of prepared vs committed: " << check_prepared << ", " << check_committed << std::endl;
+  //   if (verify_hmac_ms.size() > 0) {
+  //     double mean_verify_hmac_latency = std::accumulate(verify_hmac_ms.begin(), verify_hmac_ms.end(), 0.0) / verify_hmac_ms.size();
+  //     std::cerr << "Mean verify HMAC latency: " << mean_verify_hmac_latency << std::endl;
+  //   }
+  //   if (check_committed_prepared_ms.size() > 0) {
+  //     double mean_check_committed_prepared_latency = std::accumulate(check_committed_prepared_ms.begin(), check_committed_prepared_ms.end(), 0.0) / check_committed_prepared_ms.size();
+  //     std::cerr << "Mean check committed prepared latency: " << mean_check_committed_prepared_latency << std::endl;
+  //   }
+  //   if (send_finish_val_ms.size() > 0) {
+  //     double mean_send_finish_val_latency = std::accumulate(send_finish_val_ms.begin(), send_finish_val_ms.end(), 0.0) / send_finish_val_ms.size();
+  //     std::cerr << "Mean send finish validation latency: " << mean_send_finish_val_latency << std::endl;
+  //   }
+  // }
   uint64_t curr_client_id = beginValTxnMsg.client_id();
   uint64_t curr_client_seq_num = beginValTxnMsg.client_seq_num();
   TxnState txnState = beginValTxnMsg.txn_state();
@@ -326,6 +359,10 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
   uint64_t curr_client_seq_num = fwdReadResultMsg.client_seq_num();
   proto::ForwardReadResult fwdReadResult;
   if (params.sintr_params.signFwdReadResults) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     // first check client signature
     if (!fwdReadResultMsg.has_signed_fwd_read_result()) {
       Debug(
@@ -344,6 +381,13 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
       );
       return;
     }
+
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // verify_hmac_ms.push_back(duration);
+
     fwdReadResult.ParseFromString(data);
   }
   else {
@@ -437,11 +481,22 @@ void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTx
       return;
     }
     signedMsg = finishValTxnMsg.signed_validation_txn_digest();
+
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     if(!clients_verifier->Verify(keyManager->GetPublicKey(keyManager->GetClientKeyId(signedMsg.process_id())),
         signedMsg.data(), signedMsg.signature())) {
       Debug("Invalid signature on validation txn digest sent from client id %lu", peer_client_id);
       return;
     }
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // verify_endorse_ms.push_back(duration);
+
     valTxnDigest = signedMsg.data();
   }
   else {
@@ -484,9 +539,12 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
     if (params.validateProofs && params.signedMessages) {
       // check server signature
       if (fwdReadResultMsg.has_signed_write()) {
-        proto::SignedMessage signedWrite = fwdReadResultMsg.signed_write();
-        if (!verifier->Verify(keyManager->GetPublicKey(signedWrite.process_id()),
-            signedWrite.data(), signedWrite.signature())) {
+        // struct timespec ts_start;
+        // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+        if (!verifier->Verify(keyManager->GetPublicKey(fwdReadResultMsg.signed_write().process_id()),
+            fwdReadResultMsg.signed_write().data(), fwdReadResultMsg.signed_write().signature())) {
           Debug(
             "Invalid server signature on forwarded read result from client id %lu, seq num %lu", 
             curr_client_id, 
@@ -494,8 +552,13 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
           );
           return false;
         }
+        // struct timespec ts_end;
+        // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+        // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+        // auto duration = end - start;
+        // check_committed_prepared_ms.push_back(duration);
 
-        write.ParseFromString(signedWrite.data());
+        write.ParseFromString(fwdReadResultMsg.signed_write().data());
       }
       else {
         if (fwdReadResultMsg.has_write() && fwdReadResultMsg.write().has_committed_value()) {
@@ -623,6 +686,10 @@ void Client2Client::ValidationThreadFunction() {
       }
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());
 
+      // struct timespec ts_start;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
       proto::FinishValidateTxnMessage finishValTxnMsg;
       finishValTxnMsg.set_client_id(client_id);
       finishValTxnMsg.set_validation_txn_seq_num(curr_client_seq_num);
@@ -630,10 +697,6 @@ void Client2Client::ValidationThreadFunction() {
       // only send over digest, not actual contents
       std::string digest = TransactionDigest(*txn, params.hashDigest);
       if (params.sintr_params.signFinishValidation) {
-        struct timespec ts_start;
-        clock_gettime(CLOCK_MONOTONIC, &ts_start);
-        uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-
         // sign the digest
         SignBytes(
           digest, 
@@ -641,12 +704,6 @@ void Client2Client::ValidationThreadFunction() {
           client_id, 
           finishValTxnMsg.mutable_signed_validation_txn_digest()
         );
-
-        struct timespec ts_end;
-        clock_gettime(CLOCK_MONOTONIC, &ts_end);
-        uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-        auto duration = end - start;
-        // Warning("signing took %lu us", duration);
       }
       else {
         finishValTxnMsg.set_validation_txn_digest(digest);
@@ -655,6 +712,12 @@ void Client2Client::ValidationThreadFunction() {
       if (params.sintr_params.debugEndorseCheck) {
         *finishValTxnMsg.mutable_val_txn() = *txn;
       }
+
+      // struct timespec ts_end;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+      // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+      // auto duration = end - start;
+      // send_finish_val_ms.push_back(duration);
 
       transport->SendMessage(this, *valInfo->remote, finishValTxnMsg);
       delete txn;

@@ -167,6 +167,15 @@ Client::~Client()
  */
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry, const std::string &txnState) {
+  
+  // if (exec_time_ms.size() > 0 && exec_time_ms.size() % 2000 == 0) {
+  //   double mean_latency = std::accumulate(exec_time_ms.begin(), exec_time_ms.end(), 0.0) / exec_time_ms.size();
+  //   std::cerr << "Mean execution latency: " << mean_latency << std::endl;
+  //   double mean_endorsement_wait_latency = std::accumulate(endorsement_wait_ms.begin(), endorsement_wait_ms.end(), 0.0) / endorsement_wait_ms.size();
+  //   std::cerr << "Mean endorsement wait latency: " << mean_endorsement_wait_latency << std::endl;
+  //   double mean_phase1_latency = std::accumulate(phase1_time_ms.begin(), phase1_time_ms.end(), 0.0) / phase1_time_ms.size();
+  //   std::cerr << "Mean phase1 latency: " << mean_phase1_latency << std::endl;
+  // }
 
   // fail the current txn iff failuer timer is up and
   // the number of txn is a multiple of frequency
@@ -324,11 +333,17 @@ void Client::Get(const std::string &key, get_callback gcb,
         *txn.add_deps() = policyDep;
       }
 
-      c2client->ForwardReadResultMessage(
-        key, val, ts, proof, serializedWrite, 
-        serializedWriteTypeName, dep, hasDep, addReadSet,
-        policyDep, hasPolicyDep
-      );
+      // all captured variables can go out of scope before f executes
+      // so right now doing copy capture for lambda
+      auto f = [=, this]() {
+        c2client->ForwardReadResultMessage(
+          key, val, ts, proof, serializedWrite, 
+          serializedWriteTypeName, dep, hasDep, addReadSet,
+          policyDep, hasPolicyDep
+        );
+        return (void*) true;
+      };
+      transport->DispatchTP_noCB(f);
 
       gcb(status, key, val, ts);
     };
@@ -1105,6 +1120,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
         //Should not take more than 1 ms (already generous) to parse and prepare.
         auto duration = exec_end_ms - exec_start_ms;
+        // exec_time_ms.push_back(duration);
         //Warning("  Transaction total execution latency in us [%d]", duration);
 
         //Notice("Tx has %d deps", txn.deps().size());
@@ -1240,8 +1256,9 @@ void Client::Phase1(PendingRequest *req) {
   if(PROFILING_LAT){
     struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    uint64_t endorsements_received_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    endorsements_received_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     auto duration = endorsements_received_ms - commit_start_ms;
+    // endorsement_wait_ms.push_back(duration);
     // Warning("  Transaction waiting for endorsements latency in us [%d]", duration);
   }
   
@@ -1688,8 +1705,11 @@ void Client::Writeback(PendingRequest *req) {
     commit_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     
     //Should not take more than 1 ms (already generous) to parse and prepare.
-    auto duration = commit_end_ms - commit_start_ms;
+    // auto duration = commit_end_ms - commit_start_ms;
     //Warning("     Transaction commit latency in us [%d]", duration);
+
+    auto duration = commit_end_ms - endorsements_received_ms;
+    // phase1_time_ms.push_back(duration);
   }
 
   //total_writebacks++;
