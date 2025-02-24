@@ -215,13 +215,13 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     // begin sintr validation
     endorseClient->Reset();
     endorseClient->SetClientSeqNum(client_seq_num);
-    // dummy endorsement policy
-    // TODO: Handle different policy types (IE ACL policy) as well
-    Policy *policy = new WeightPolicy();
-    EstimateTxnPolicy(protoTxnState, &policy);
-    c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policy);
-    delete policy;
-  
+    // using policy client with default policy set to weight 0 policy
+    // TODO: Default should be either ACL or Weight Policy depending on parameter
+    PolicyClient *policyClient = new PolicyClient();
+    EstimateTxnPolicy(protoTxnState, policyClient);
+    c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policyClient);
+    delete policyClient;
+    policyClient = nullptr;
     txn.Clear(); //txn = proto::Transaction();
     txn.set_client_id(client_id);
     txn.set_client_seq_num(client_seq_num);
@@ -261,14 +261,18 @@ bool Client::IsPolicyChangeTxn(const TxnState &protoTxnState) const {
   return protoTxnState.txn_name().find("policy") != std::string::npos;
 }
 
-void Client::EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy) {
+void Client::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient) {
   if (IsPolicyChangeTxn(protoTxnState)) {
     // policy change transaction could require separate handling
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+    Policy *policy;
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, &policy));
+    policyClient->AddPolicy(policy);
+    // can safely delete policy because AddPolicy clones the policy object
+    delete policy;
   } 
   else {
     EstimatePolicy est_policy_obj;
-    est_policy_obj.EstimateTxnPolicy(protoTxnState, policy, endorseClient);
+    est_policy_obj.EstimateTxnPolicy(protoTxnState, policyClient, endorseClient);
   }
 }
 

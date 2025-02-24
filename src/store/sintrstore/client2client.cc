@@ -134,7 +134,8 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
 }
 
 void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
-    const Policy *policy) {
+    PolicyClient *policyClient) {
+
   // if (create_hmac_ms.size() > 0 && create_hmac_ms.size() % 2000 == 0) {
   //   if (create_hmac_ms.size() > 0) {
   //     double mean_create_hmac_latency = std::accumulate(create_hmac_ms.begin(), create_hmac_ms.end(), 0.0) / create_hmac_ms.size();
@@ -161,7 +162,8 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
 
   // for tracking purposes, must have self in beginValSent
   beginValSent.insert(client_id);
-  // send to all clients so no need to bother with policy
+  // send to all clients so no need to bother with 
+  
   if(params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::ALL) {
     for (int i = 0; i < clients_config->n; i++) {
       // do not send to self
@@ -175,11 +177,9 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   // other heuristics depend on actual policy that was estimated
   else {
     // extract out the clients that need to be contacted
-    PolicyClient policyClient;
-    policyClient.AddPolicy(policy);
     std::set<uint64_t> clients;
     // need to use DifferenceToSatisfied to account for self
-    ExtractFromPolicyClientsToContact(policyClient.DifferenceToSatisfied(beginValSent), clients);
+    ExtractFromPolicyClientsToContact(policyClient->DifferenceToSatisfied(beginValSent), clients);
     
     if (params.sintr_params.clientValidationHeuristic == CLIENT_VALIDATION_HEURISTIC::EXACT) {
     }
@@ -203,7 +203,7 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
       transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
     }
     // sanity check - policy should be satisfied by the clients we are sending to
-    UW_ASSERT(policy->IsSatisfied(beginValSent));
+    UW_ASSERT(policyClient->IsSatisfied(beginValSent));
   }
 }
 

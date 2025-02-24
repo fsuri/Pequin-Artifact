@@ -364,7 +364,7 @@ class Client : public ::Client {
 
   bool IsPolicyChangeTxn(const TxnState &protoTxnState) const;
   // estimate the transaction policy from the transaction state
-  void EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy);
+  void EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient);
 
   /* Configuration State */
   transport::Configuration *config;

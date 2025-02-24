@@ -80,7 +80,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // sends BeginValidateTxnMessage to peers
   // policy is the estimated policy for the transaction
   void SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
-    const Policy *policy);
+    PolicyClient *policyClient);
 
   // forward server read reply to other peers
   void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,

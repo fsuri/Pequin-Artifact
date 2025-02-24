@@ -31,6 +31,7 @@
 #include "store/common/common-proto.pb.h"
 #include "store/common/frontend/validation_transaction.h"
 #include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/policy/policy_client.h"
 #include "store/sintrstore/endorsement_client.h"
 
 namespace sintrstore {
@@ -41,7 +42,7 @@ class EstimatePolicy {
   EstimatePolicy() {}
   ~EstimatePolicy(){}
   // takes in transaction state, policy, and endorsement client and returns an estimated policy
-  void EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy, EndorsementClient *endorseClient) const;
+  void EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, EndorsementClient *endorseClient) const;
 
  private:
   /*

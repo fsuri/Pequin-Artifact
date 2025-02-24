@@ -38,11 +38,9 @@
 // TODO: handle acl policy
 #include "store/sintrstore/policy/acl_policy.h"
 
-namespace sintrstore
-{
+namespace sintrstore {
 
-  void EstimatePolicy::EstimateTxnPolicy(const TxnState &protoTxnState, Policy **policy, EndorsementClient *endorseClient) const
-  {
+  void EstimatePolicy::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, EndorsementClient *endorseClient) const {
     std::string txn_name(protoTxnState.txn_name());
 
     size_t pos = txn_name.find("_");
@@ -54,15 +52,13 @@ namespace sintrstore
     std::string txn_bench = txn_name.substr(0, pos);
     std::string txn_type = txn_name.substr(pos + 1);
 
-    if (txn_bench == ::tpcc::BENCHMARK_NAME)
-    {
+    if (txn_bench == ::tpcc::BENCHMARK_NAME) {
       // TODO: see if there's a better way to associate Table to policy...
       // right now hardcoded table to policy ID
       ::google::protobuf::RepeatedField<::google::protobuf::uint32> repeated_values;
 
       ::tpcc::TPCCTransactionType tpcc_txn_type = ::tpcc::GetBenchmarkTxnTypeEnum(txn_type);
-      switch (tpcc_txn_type)
-      {
+      switch (tpcc_txn_type) {
         case ::tpcc::TXN_DELIVERY:
         {
           ::tpcc::validation::proto::Delivery valTxnData;
@@ -86,17 +82,16 @@ namespace sintrstore
         }
         default:
         {
-          // don't change the policy, keep it as the default initialized policy (policy of weight 0)
+          // don't change policyClient, keep policy stored as null
           break;
         }
       }
-      if (repeated_values.size() > 0)
-      {
+      if (repeated_values.size() > 0) {
         Policy *temp_policy;
         for (int const &value : repeated_values)
         {
           UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), &temp_policy));
-          (*policy)->MergePolicy(temp_policy);
+          policyClient->AddPolicy(temp_policy);
         }
         delete temp_policy;
       }
@@ -105,26 +100,28 @@ namespace sintrstore
       ::rwsync::validation::proto::RWSync valTxnData;
       UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
       if (valTxnData.read_only() || valTxnData.num_ops() <= 1) {
-        // txn will only have reads, so keep it as the default initialized policy (policy of weight 0)
+        // txn will only have reads, so keep it as the default initialized policy
       }
       else {
         // txn will have writes
         Policy *temp_policy;
-        UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+        UW_ASSERT(endorseClient->GetPolicyFromCache(0, &temp_policy));
+        policyClient->AddPolicy(temp_policy);
+        delete temp_policy;
       }
     }
-    else
-    {
+    else {
       // return default policy ID (policy ID 0)
-      UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+      Policy *temp_policy;
+      UW_ASSERT(endorseClient->GetPolicyFromCache(0, &temp_policy));
+      policyClient->AddPolicy(temp_policy);
+      delete temp_policy;
     }
   }
 
-  uint64_t EstimatePolicy::TableToPolicyID(const int &t) const
-  {
+  uint64_t EstimatePolicy::TableToPolicyID(const int &t) const {
     ::tpcc::Tables table = static_cast<::tpcc::Tables>(t);
-    switch (table)
-    {
+    switch (table) {
     case ::tpcc::Tables::WAREHOUSE:
       return 0;
     case ::tpcc::Tables::DISTRICT:
