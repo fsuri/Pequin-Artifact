@@ -506,6 +506,7 @@ DEFINE_string(sintr_client_validation, sintr_client_validation_args[0], "sintr n
 DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
 
 DEFINE_bool(sintr_client_pin_cores, false, "sintr pin client cores for validation");
+DEFINE_bool(sintr_client2client_multi_threading, false, "sintr enable multi-threading for client-to-client communication");
 
 
 ///////////////////////////////////////////////////////////
@@ -1641,7 +1642,9 @@ int main(int argc, char **argv) {
         FLAGS_sintr_policy_config_path,
         FLAGS_sintr_read_include_policy,
         sintr_client_validation, true,
-        FLAGS_sintr_client_pin_cores, FLAGS_sintr_min_enable_pull_policies
+        FLAGS_sintr_client_pin_cores,
+        FLAGS_sintr_min_enable_pull_policies,
+        FLAGS_sintr_client2client_multi_threading
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

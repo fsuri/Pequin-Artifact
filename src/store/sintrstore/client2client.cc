@@ -68,25 +68,45 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
     }
   }
 
-  doValidation = true;
+  done = false;
+
+  // for each client process, have 1 core for main client thread and maxValThreads for validation threads
+  // if multi-threading message processing, need to reserve 1 more core per client
+  // so each client process takes up a total of maxValThreads + (1 or 2) cores
+  int num_cpus = std::thread::hardware_concurrency();
+  int main_client_cpu;
+  if (params.sintr_params.client2clientMultiThreading) {
+    main_client_cpu = client_id * (params.sintr_params.maxValThreads + 2) % num_cpus;
+  }
+  else {
+    main_client_cpu = client_id * (params.sintr_params.maxValThreads + 1) % num_cpus;
+  }
   for (size_t i = 0; i < params.sintr_params.maxValThreads; i++) {
     valThreads.push_back(new std::thread(&Client2Client::ValidationThreadFunction, this));
     if (params.sintr_params.clientPinCores) {
       // set cpu affinity
       cpu_set_t cpuset;
-      CPU_ZERO(&cpuset);
-      int num_cpus = std::thread::hardware_concurrency();
-      // for each client process, try to pin each validation thread to a different core
-      // so each client process takes up a total of maxValThreads + 1 cores
-      int main_client_cpu = client_id * (params.sintr_params.maxValThreads + 1) % num_cpus;
+      CPU_ZERO(&cpuset);      
       CPU_SET(main_client_cpu + i + 1 % num_cpus, &cpuset);
       pthread_setaffinity_np(valThreads[i]->native_handle(), sizeof(cpu_set_t), &cpuset);
+    }
+  }
+
+  if (params.sintr_params.client2clientMultiThreading) {
+    c2cThread = new std::thread(&Client2Client::Client2ClientMessageThreadFunction, this);
+    if (params.sintr_params.clientPinCores) {
+      // set cpu affinity
+      cpu_set_t cpuset;
+      CPU_ZERO(&cpuset);
+      // try to pin to core following validation threads
+      CPU_SET(main_client_cpu + params.sintr_params.maxValThreads + 1 % num_cpus, &cpuset);
+      pthread_setaffinity_np(c2cThread->native_handle(), sizeof(cpu_set_t), &cpuset);
     }
   }
 }
 
 Client2Client::~Client2Client() {
-  doValidation = false;
+  done = true;
   // send a dummy message to unblock any waiting threads before joining
   for (auto t : valThreads) {
     validationQueue.push(nullptr);
@@ -94,6 +114,11 @@ Client2Client::~Client2Client() {
   for (auto t : valThreads) {
     t->join();
     delete t;
+  }
+  if (params.sintr_params.client2clientMultiThreading) {
+    c2cQueue.push(nullptr);
+    c2cThread->join();
+    delete c2cThread;
   }
   delete valClient;
   delete clients_verifier;
@@ -156,6 +181,7 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   sentBeginValTxnMsg.mutable_timestamp()->set_id(client_id);
 
   beginValSent.clear();
+  std::unique_lock lock(sentFwdReadResultsMutex);
   sentFwdReadResults.clear();
 
   Debug("beginValTxnMsg client id %lu, seq num %lu", client_id, client_seq_num);
@@ -208,6 +234,27 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
 }
 
 void Client2Client::ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+    const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
+    const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
+
+  if (!params.sintr_params.client2clientMultiThreading) {
+    ForwardReadResultMessageHelper(key, value, ts, proof, serializedWrite, serializedWriteTypeName,
+      dep, hasDep, addReadset, policyDep, hasPolicyDep);
+  }
+  else {
+    auto f = [=, this]() {
+      this->ForwardReadResultMessageHelper(
+        key, value, ts, proof, serializedWrite, 
+        serializedWriteTypeName, dep, hasDep, addReadset,
+        policyDep, hasPolicyDep
+      );
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ForwardReadResultMessageHelper(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
@@ -279,6 +326,7 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
 
   fwdReadResultMsgToSend->set_add_readset(addReadset);
 
+  std::unique_lock lock(sentFwdReadResultsMutex);
   sentFwdReadResults.insert(fwdReadResultMsgToSend);
 
   Debug(
@@ -306,6 +354,7 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
     std::set<uint64_t> clients;
     ExtractFromPolicyClientsToContact(diff, clients);
     Debug("Initiating %d more beginValTxnMsg", clients.size());
+    std::shared_lock lock(sentFwdReadResultsMutex);
     for (const auto &i : clients) {
       // do not send to self
       if (i == client_id) {
@@ -319,6 +368,54 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
         transport->SendMessageToReplica(this, i, *fwdReadResultMsg);
       }
     }
+  }
+}
+
+void Client2Client::ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    beginValTxnMsg.ParseFromString(data);
+    HandleBeginValidateTxnMessage(remote, beginValTxnMsg);
+  }
+  else {
+    proto::BeginValidateTxnMessage *beginValTxnMsg = new proto::BeginValidateTxnMessage();
+    beginValTxnMsg->ParseFromString(data);
+    auto f = [this, &remote, beginValTxnMsg](){
+      this->HandleBeginValidateTxnMessage(remote, *beginValTxnMsg);
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ManageDispatchForwardReadResultMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    fwdReadResultMsg.ParseFromString(data);
+    HandleForwardReadResultMessage(fwdReadResultMsg);
+  }
+  else {
+    proto::ForwardReadResultMessage *fwdReadResultMsg = new proto::ForwardReadResultMessage();
+    fwdReadResultMsg->ParseFromString(data);
+    auto f = [this, fwdReadResultMsg](){
+      this->HandleForwardReadResultMessage(*fwdReadResultMsg);
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ManageDispatchFinishValidateTxnMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    finishValTxnMsg.ParseFromString(data);
+    HandleFinishValidateTxnMessage(finishValTxnMsg);
+  }
+  else {
+    proto::FinishValidateTxnMessage *finishValTxnMsg = new proto::FinishValidateTxnMessage();
+    finishValTxnMsg->ParseFromString(data);
+    auto f = [this, finishValTxnMsg](){
+      this->HandleFinishValidateTxnMessage(*finishValTxnMsg);
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
   }
 }
 
@@ -644,7 +741,7 @@ void Client2Client::ExtractFromPolicyClientsToContact(const std::vector<int> &po
 
 void Client2Client::ValidationThreadFunction() {
   ::SyncClient syncClient(valClient);
-  while(doValidation) {
+  while(!done) {
     ValidationInfo *valInfo;
     validationQueue.pop(valInfo);
     if (valInfo == nullptr) {
@@ -726,7 +823,19 @@ void Client2Client::ValidationThreadFunction() {
     delete valInfo;
     Debug("thread exiting for validation for client id %lu, seq num %lu", curr_client_id, curr_client_seq_num);
   }
-  Debug("doValidation false, exiting validation thread");
+  Debug("done true, exiting validation thread");
+}
+
+void Client2Client::Client2ClientMessageThreadFunction() {
+  while (!done) {
+    Client2ClientMessageExecutor *executor;
+    c2cQueue.pop(executor);
+    if (executor == nullptr) {
+      continue;
+    }
+    executor->f();
+    delete executor;
+  }
 }
 
 bool Client2Client::ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data) {

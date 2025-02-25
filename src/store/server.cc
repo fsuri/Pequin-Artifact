@@ -840,7 +840,7 @@ int main(int argc, char **argv) {
         false, false,
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT,
-        FLAGS_sintr_check_policy_leak, false, 0
+        FLAGS_sintr_check_policy_leak, false, 0, false
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

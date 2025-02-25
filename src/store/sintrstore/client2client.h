@@ -56,6 +56,7 @@
 #include <vector>
 #include <set>
 #include <atomic>
+#include <shared_mutex>
 
 #include "tbb/concurrent_queue.h"
 
@@ -119,6 +120,12 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     TransportAddress *remote;
   };
 
+  // for sending/receiving messages from other clients
+  struct Client2ClientMessageExecutor {
+    Client2ClientMessageExecutor(std::function<void()> f) : f(std::move(f)) {}
+    std::function<void()> f;
+  };
+
   // this represents a resizing buffer but does not eagerly delete everything on clear
   // instead it will delete buffer elements as they are replaced
   template <typename T>
@@ -164,6 +171,13 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     size_t size;
   };
   
+  void ForwardReadResultMessageHelper(const std::string &key, const std::string &value, const Timestamp &ts,
+    const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
+    const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
+
+  void ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data);
+  void ManageDispatchForwardReadResultMessage(const TransportAddress &remote, const std::string &data);
+  void ManageDispatchFinishValidateTxnMessage(const TransportAddress &remote, const std::string &data);
   void HandleBeginValidateTxnMessage(const TransportAddress &remote, const proto::BeginValidateTxnMessage &beginValTxnMsg);
   void HandleForwardReadResultMessage(const proto::ForwardReadResultMessage &fwdReadResultMsg);
   void HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg);
@@ -174,6 +188,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // extract client ids not currently in beginValSent from policy satisfying set
   void ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients);
   void ValidationThreadFunction();
+  void Client2ClientMessageThreadFunction();
   bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data);
   // create an hmac from msg and place into signature
   void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
@@ -206,16 +221,22 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   proto::BeginValidateTxnMessage sentBeginValTxnMsg;
   // track all sent forward read results for current transaction
   LazyBuffer<proto::ForwardReadResultMessage> sentFwdReadResults;
+  mutable std::shared_mutex sentFwdReadResultsMutex;
   // endorsement client can inform client of received validations
   EndorsementClient *endorseClient;
 
   // threads for validation
   std::vector<std::thread *> valThreads;
-  std::atomic<bool> doValidation;
+  std::atomic<bool> done;
   ValidationClient *valClient;
   ValidationParseClient *valParseClient;
   // concurrent queue of transactions to be validated, has blocking semantics for pop
   tbb::concurrent_bounded_queue<ValidationInfo *> validationQueue;
+
+  // multithreaded message processing (send/receive)
+  std::thread *c2cThread;
+  // concurrent queue of messages to be processed
+  tbb::concurrent_bounded_queue<Client2ClientMessageExecutor *> c2cQueue;
 
   // for hmacs
   std::unordered_map<uint64_t, std::string> sessionKeys;
