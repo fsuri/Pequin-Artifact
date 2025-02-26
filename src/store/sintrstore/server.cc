@@ -1415,6 +1415,10 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   ///*
   if(msg.has_endorsements()) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
     std::vector<proto::SignedMessage> endorse_set;
     for(const auto& msg : msg.endorsements().sig_msgs()) {
       endorse_set.push_back(msg);
@@ -1426,6 +1430,12 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
       //oldTxnDigestMap[newTxnDigest] = txnDigest;
     Debug("OLD TXN DIGEST: %s", BytesToHex(txnDigest, 16).c_str());
     txnDigest = newTxnDigest;
+
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // new_digest_ms.push_back(duration);
   }
   Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
@@ -3112,6 +3122,8 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
   //   std::cerr << "Mean extract policy latency: " << mean_extract_policy_latency << std::endl;
   //   double mean_validate_endorsements_latency = std::accumulate(validate_endorsements_ms.begin(), validate_endorsements_ms.end(), 0.0) / validate_endorsements_ms.size();
   //   std::cerr << "Mean validate endorsements latency: " << mean_validate_endorsements_latency << std::endl;
+  //   double mean_new_digest_latency = std::accumulate(new_digest_ms.begin(), new_digest_ms.end(), 0.0) / new_digest_ms.size();
+  //   std::cerr << "Mean new digest latency: " << mean_new_digest_latency << std::endl;
   // }
 
   PolicyClient policyClient;

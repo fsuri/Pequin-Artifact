@@ -1279,6 +1279,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   std::vector<uint64_t> extract_policy_ms;
   std::vector<uint64_t> validate_endorsements_ms;
+  std::vector<uint64_t> new_digest_ms;
 };
 
 } // namespace sintrstore

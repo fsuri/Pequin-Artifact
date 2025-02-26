@@ -18,8 +18,8 @@
       "client_threads_per_process"
     ]
   ],
-  "replication_protocol": ["pequin"],
-  "client_protocol_mode": ["pequin"],
+  "replication_protocol": ["indicus"],
+  "client_protocol_mode": ["indicus"],
   "num_shards": [1],
   "num_groups": [1],
 
@@ -36,9 +36,9 @@
 
   "_note: for rw_sql client_num_keys is just placeholder, it is not used!": 0,
   "client_num_keys": 10000000,
-  "rw_num_ops_txn": 4,
+  "rw_num_ops_txn": 1,
 
-  "rw_read_only": false,
+  "rw_read_only": true,
 
   "client_abort_backoff": 2,
   "client_retry_aborted": true,
@@ -144,11 +144,11 @@
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
 
-  "client_total": [[8]],
-  "client_processes_per_client_node": [[4]],
+  "client_total": [[1]],
+  "client_processes_per_client_node": [[1]],
   "client_threads_per_process": [[1]],
 
-  "client_nodes_per_server": 2,
+  "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads": 0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
@@ -165,10 +165,12 @@
 
   "default_remote_shell": "bash",
 
+  "_server_host_format_str": "%s.%s.%s.emulab.net",
+  "_client_host_format_str": "client-%d-%d.%s.%s.emulab.net",
   "server_host_format_str": "%s.%s.%s.utah.cloudlab.us",
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
-  "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
-  "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
+  "__server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
+  "__client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
 
   "project_name": "pequin-pg0",
 
