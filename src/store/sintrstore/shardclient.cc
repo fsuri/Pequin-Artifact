@@ -987,6 +987,11 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
 /* Callback from a group replica on get operation completion. */
 void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
 
+  // if (verify_server_sig_ms.size() > 0 && verify_server_sig_ms.size() % 2000 == 0) {
+  //   double mean_verify_latency = std::accumulate(verify_server_sig_ms.begin(), verify_server_sig_ms.end(), 0.0) / verify_server_sig_ms.size();
+  //   std::cerr << "Mean verify server signature latency: " << mean_verify_latency << std::endl;
+  // }
+
   auto itr = this->pendingGets.find(reply.req_id());
   if (itr == this->pendingGets.end()) {
     return; // this is a stale request
@@ -1001,11 +1006,19 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
     // consecutive_reads++;
     // skip = (consecutive_reads % 3 == 0) ? true : false;
     if (reply.has_signed_write()) {
+      // struct timespec ts_start;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
       if (!skip && !verifier->Verify(keyManager->GetPublicKey(reply.signed_write().process_id()),
               reply.signed_write().data(), reply.signed_write().signature())) {
         Debug("[group %i] Failed to validate signature for write.", group);
         return;
       }
+      // struct timespec ts_end;
+      // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+      // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+      // auto duration = end - start;
+      // verify_server_sig_ms.push_back(duration);
 
       if(!validatedPrepared.ParseFromString(reply.signed_write().data())) {
         Debug("[group %i] Invalid serialization of write.", group);

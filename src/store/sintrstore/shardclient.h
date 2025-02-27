@@ -689,6 +689,8 @@ SQLTransformer *sql_interpreter;
   proto::PointQueryResultReply pointResult;
 
   proto::SyncClientProposal syncMsg;
+
+  std::vector<uint64_t> verify_server_sig_ms;
 };
 
 } // namespace sintrstore
