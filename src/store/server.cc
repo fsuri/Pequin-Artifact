@@ -477,6 +477,7 @@ DEFINE_bool(sintr_sign_finish_validation, true, "sintr sign finish validation me
 DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to use");
 DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
 DEFINE_bool(sintr_check_policy_leak, true, "check for policy information leak (readset policy must imply writeset policy)");
+DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement check");
 
 /**
  * Experiment settings.
@@ -840,7 +841,8 @@ int main(int argc, char **argv) {
         false, false,
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT,
-        FLAGS_sintr_check_policy_leak, false, 0, false
+        FLAGS_sintr_check_policy_leak, false, 0, false,
+        FLAGS_sintr_parallel_endorsement_check
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

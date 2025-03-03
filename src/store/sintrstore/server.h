@@ -958,6 +958,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // client id is for the client that initiated the transaction
   bool ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest);
+  // parallel endorsement check helper
+  bool ValidateEndorsementHelper(const proto::SignedMessage &endorsement, const std::string &txnDigest);
 
   // Global objects.
 

@@ -3189,42 +3189,90 @@ bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto:
   std::set<uint64_t> endorsers;
   endorsers.insert(client_id);
 
+  std::mutex endorsers_mutex;
+  std::atomic<uint32_t> num_validation_finished(0);
+
   if (endorsements != nullptr) {
     for (const auto &endorsement : endorsements->sig_msgs()) {
-      // cannot have empty data
-      if (endorsement.data().length() == 0) {
-        return false;
-      }
-      // then check that data is all same as well
-      if (txnDigest != endorsement.data()) {
-        return false;
-      }
-
-      // check signature
-      if (params.sintr_params.signFinishValidation) {
-        // struct timespec ts_start;
-        // clock_gettime(CLOCK_MONOTONIC, &ts_start);
-        // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-        if (!client_verifier->Verify(
-          keyManager->GetPublicKey(keyManager->GetClientKeyId(endorsement.process_id())), 
-          endorsement.data(), 
-          endorsement.signature())
-        ) {
-          return false;
+      if (!params.sintr_params.parallelEndorsementCheck) {
+        if (!ValidateEndorsementHelper(endorsement, txnDigest)) {
+          Debug(
+            "Txn %s failed to validate endorsement from client %lu",
+            BytesToHex(txnDigest, 16).c_str(),
+            endorsement.process_id()
+          );
+          continue;
         }
-        // struct timespec ts_end;
-        // clock_gettime(CLOCK_MONOTONIC, &ts_end);
-        // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
-        // auto duration = end - start;
-        // validate_endorsements_ms.push_back(duration);
+        endorsers.insert(endorsement.process_id());
       }
+      else {
+        // send validation to worker threads
+        auto f = [this, &endorsement, &txnDigest, &endorsers, &endorsers_mutex, &num_validation_finished](){
+          if (!ValidateEndorsementHelper(endorsement, txnDigest)) {
+            Debug(
+              "Txn %s failed to validate endorsement from client %lu",
+              BytesToHex(txnDigest, 16).c_str(),
+              endorsement.process_id()
+            );
+            num_validation_finished++;
+            return (void*) false;
+          }
+          std::lock_guard<std::mutex> lock(endorsers_mutex);
+          endorsers.insert(endorsement.process_id());
+          num_validation_finished++;
+          return (void*) true;
+        };
+        transport->DispatchTP_noCB(std::move(f));
+      }
+    }
+  }
 
-      endorsers.insert(endorsement.process_id());
+  // if parallel wait for all endorsements to finish
+  if (params.sintr_params.parallelEndorsementCheck) {
+    while (num_validation_finished < endorsements->sig_msgs_size()) {
+      std::this_thread::yield();
     }
   }
 
   // check if endorsers satisfy policy
   return policyClient.IsSatisfied(endorsers);
+}
+
+bool Server::ValidateEndorsementHelper(const proto::SignedMessage &endorsement, const std::string &txnDigest) {
+  // cannot have empty data
+  if (endorsement.data().length() == 0) {
+    return false;
+  }
+  // then check that data is all same as well
+  if (txnDigest != endorsement.data()) {
+    return false;
+  }
+
+  // check signature
+  if (params.sintr_params.signFinishValidation) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    if (!client_verifier->Verify(
+      keyManager->GetPublicKey(keyManager->GetClientKeyId(endorsement.process_id())), 
+      endorsement.data(), 
+      endorsement.signature())
+    ) {
+      Debug(
+        "Txn %s failed to validate endorsement from client %lu",
+        BytesToHex(txnDigest, 16).c_str(),
+        endorsement.process_id()
+      );
+      return false;
+    }
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // validate_endorsements_ms.push_back(duration);
+  }
+
+  return true;
 }
 
 } // namespace sintrstore
