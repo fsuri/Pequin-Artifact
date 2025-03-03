@@ -991,15 +991,32 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     }
     std::string oldTxnDigest = TransactionDigest(tempTxn, params.hashDigest);
     if(!params.parallel_CCC || !params.mainThreadDispatching){
-      if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
-        Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
-        result = proto::ConcurrencyControl::ABSTAIN;
-        HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
-        return (void*) true;
+      AsyncValidateEndorsements asyncValidateEndorsements(endorsements->sig_msgs_size());
+      if (!params.sintr_params.parallelEndorsementCheck) {
+        if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
+          Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+          result = proto::ConcurrencyControl::ABSTAIN;
+          HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
+          return (void*) true;
+        }
+      }
+      else {
+        // launch async validate endorsements
+        EndorsementCheck(endorsements, oldTxnDigest, txn, asyncValidateEndorsements);
       }
 
       result = DoOCCCheck(reqId, remote, txnDigest, *txn, retryTs,
             committedProof, abstain_conflict, false, isGossip); //forwarded messages dont need to be treated as original client.
+      
+      if (params.sintr_params.parallelEndorsementCheck) {
+        // wait async validate endorsements
+        if (!asyncValidateEndorsements.GetValidationResult()) {
+          Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+          result = proto::ConcurrencyControl::ABSTAIN;
+          HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
+          return (void*) true;
+        }
+      }
 
       HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, false);
 
@@ -1030,14 +1047,33 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           o.release();
         proto::ConcurrencyControl::Result *result;
         bool endorsementCheckFail = false;
-        if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
-          Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
-          result = new proto::ConcurrencyControl::Result(proto::ConcurrencyControl::ABSTAIN);
-          endorsementCheckFail = true;
-        } else {
+        AsyncValidateEndorsements asyncValidateEndorsements(endorsements->sig_msgs_size());
+        if (!params.sintr_params.parallelEndorsementCheck) {
+          if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
+            Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+            result = new proto::ConcurrencyControl::Result(proto::ConcurrencyControl::ABSTAIN);
+            endorsementCheckFail = true;
+          }
+        }
+        else {
+          // launch async validate endorsements
+          EndorsementCheck(endorsements, oldTxnDigest, txn, asyncValidateEndorsements);
+        }
+
+        // in non parallel path can skip concurrency control check if endorsement check fails
+        if (!endorsementCheckFail) {
           Debug("starting occ check for txn: %s", BytesToHex(txnDigest, 16).c_str());
           result = new proto::ConcurrencyControl::Result(this->DoOCCCheck(reqId,
           *remote_ptr, txnDigest, *txn, retryTs, committedProof, abstain_conflict, false, isGossip));
+        }
+
+        if (params.sintr_params.parallelEndorsementCheck) {
+          // wait async validate endorsements
+          if (!asyncValidateEndorsements.GetValidationResult()) {
+            Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
+            result = new proto::ConcurrencyControl::Result(proto::ConcurrencyControl::ABSTAIN);
+            endorsementCheckFail = true;
+          }
         }
 
         HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize, endorsementCheckFail);

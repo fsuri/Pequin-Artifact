@@ -950,14 +950,45 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false,
     const proto::Transaction **preparedTxn = nullptr);
 
-  // perform check on endorsements in the Phase1 msg with respect to txn
+  struct AsyncValidateEndorsements {
+    AsyncValidateEndorsements(int num_validations) : num_validations(num_validations) {}
+    ~AsyncValidateEndorsements() {
+      // all validations should be done when destructor is called
+      UW_ASSERT(num_validations == 0);
+      delete policyClient;
+    }
+
+    // await for num validations to finish
+    bool GetValidationResult() {
+      while (num_validations > 0) {
+        std::this_thread::yield();
+      }
+
+      std::lock_guard<std::mutex> lock(endorsers_mutex);
+      return policyClient->IsSatisfied(endorsers);
+    }
+    
+    std::set<uint64_t> endorsers;
+    std::mutex endorsers_mutex;
+    PolicyClient *policyClient;
+    std::atomic<int> num_validations;
+  };
+  
+
+  // perform check on endorsements with respect to txn
   bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
+  // parallelizable version
+  void EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn,
+    AsyncValidateEndorsements &asyncValidateEndorsements);
   // policyClient tracks policy from transaction writeset
   void ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient);
   // validate endorsements have valid signatures and matching data, and satisfy the policyClient policy
   // client id is for the client that initiated the transaction
   bool ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest);
+  // parallelizable version
+  void ValidateEndorsements(const proto::SignedMessages *endorsements, uint64_t client_id,
+    const std::string &txnDigest, AsyncValidateEndorsements &asyncValidateEndorsements);
   // parallel endorsement check helper
   bool ValidateEndorsementHelper(const proto::SignedMessage &endorsement, const std::string &txnDigest);
 

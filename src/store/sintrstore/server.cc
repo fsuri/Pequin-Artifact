@@ -3131,6 +3131,14 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
   return ValidateEndorsements(policyClient, endorsements, txn->client_id(), txnDigest);
 }
 
+void Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn,
+    AsyncValidateEndorsements &asyncValidateEndorsements) {
+  PolicyClient *policyClient = new PolicyClient();
+  asyncValidateEndorsements.policyClient = policyClient;
+  ExtractPolicy(txn, *policyClient);
+  ValidateEndorsements(endorsements, txn->client_id(), txnDigest, asyncValidateEndorsements);
+}
+
 void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
   // struct timespec ts_start;
   // clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -3186,56 +3194,56 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
 bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
     uint64_t client_id, const std::string &txnDigest) {
 
+  // client initiating txn is always an endorser
   std::set<uint64_t> endorsers;
   endorsers.insert(client_id);
 
-  std::mutex endorsers_mutex;
-  std::atomic<uint32_t> num_validation_finished(0);
+  if (endorsements != nullptr) {
+    for (const auto &endorsement : endorsements->sig_msgs()) {
+      if (!ValidateEndorsementHelper(endorsement, txnDigest)) {
+        Debug(
+          "Txn %s failed to validate endorsement from client %lu",
+          BytesToHex(txnDigest, 16).c_str(),
+          endorsement.process_id()
+        );
+        continue;
+      }
+      endorsers.insert(endorsement.process_id());
+    }
+  }
+
+  // check if endorsers satisfy policy
+  return policyClient.IsSatisfied(endorsers);
+}
+
+void Server::ValidateEndorsements(const proto::SignedMessages *endorsements, uint64_t client_id,
+    const std::string &txnDigest, AsyncValidateEndorsements &asyncValidateEndorsements) {
+
+  // client initiating txn is always an endorser
+  // no need for mutex since no parallel validations initiated yet
+  asyncValidateEndorsements.endorsers.insert(client_id);
 
   if (endorsements != nullptr) {
     for (const auto &endorsement : endorsements->sig_msgs()) {
-      if (!params.sintr_params.parallelEndorsementCheck) {
+      // send validation to worker threads
+      auto f = [this, &endorsement, &txnDigest, &asyncValidateEndorsements](){
         if (!ValidateEndorsementHelper(endorsement, txnDigest)) {
           Debug(
             "Txn %s failed to validate endorsement from client %lu",
             BytesToHex(txnDigest, 16).c_str(),
             endorsement.process_id()
           );
-          continue;
+          asyncValidateEndorsements.num_validations--;
+          return (void*) false;
         }
-        endorsers.insert(endorsement.process_id());
-      }
-      else {
-        // send validation to worker threads
-        auto f = [this, &endorsement, &txnDigest, &endorsers, &endorsers_mutex, &num_validation_finished](){
-          if (!ValidateEndorsementHelper(endorsement, txnDigest)) {
-            Debug(
-              "Txn %s failed to validate endorsement from client %lu",
-              BytesToHex(txnDigest, 16).c_str(),
-              endorsement.process_id()
-            );
-            num_validation_finished++;
-            return (void*) false;
-          }
-          std::lock_guard<std::mutex> lock(endorsers_mutex);
-          endorsers.insert(endorsement.process_id());
-          num_validation_finished++;
-          return (void*) true;
-        };
-        transport->DispatchTP_noCB(std::move(f));
-      }
+        std::lock_guard<std::mutex> lock(asyncValidateEndorsements.endorsers_mutex);
+        asyncValidateEndorsements.endorsers.insert(endorsement.process_id());
+        asyncValidateEndorsements.num_validations--;
+        return (void*) true;
+      };
+      transport->DispatchTP_noCB(std::move(f));
     }
   }
-
-  // if parallel wait for all endorsements to finish
-  if (params.sintr_params.parallelEndorsementCheck) {
-    while (num_validation_finished < endorsements->sig_msgs_size()) {
-      std::this_thread::yield();
-    }
-  }
-
-  // check if endorsers satisfy policy
-  return policyClient.IsSatisfied(endorsers);
 }
 
 bool Server::ValidateEndorsementHelper(const proto::SignedMessage &endorsement, const std::string &txnDigest) {
