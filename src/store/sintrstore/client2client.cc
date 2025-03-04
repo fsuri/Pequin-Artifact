@@ -718,7 +718,7 @@ void Client2Client::ExtractFromPolicyClientsToContact(const std::vector<int> &po
     else if (i < 0) {
       for (; offset < clients_config->n; offset++) {
         uint64_t target = (client_id + offset) % clients_config->n;
-        if (beginValSent.find(target) == beginValSent.end()) {
+        if (beginValSent.find(target) == beginValSent.end() && clients.find(target) == clients.end()) {
           clients.insert(target);
           break;
         }

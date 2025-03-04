@@ -991,7 +991,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     }
     std::string oldTxnDigest = TransactionDigest(tempTxn, params.hashDigest);
     if(!params.parallel_CCC || !params.mainThreadDispatching){
-      AsyncValidateEndorsements asyncValidateEndorsements(endorsements->sig_msgs_size());
+      AsyncValidateEndorsements asyncValidateEndorsements;
       if (!params.sintr_params.parallelEndorsementCheck) {
         if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
@@ -1002,6 +1002,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
       }
       else {
         // launch async validate endorsements
+        asyncValidateEndorsements.num_validations = endorsements->sig_msgs_size();
         EndorsementCheck(endorsements, oldTxnDigest, txn, asyncValidateEndorsements);
       }
 
@@ -1047,7 +1048,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           o.release();
         proto::ConcurrencyControl::Result *result;
         bool endorsementCheckFail = false;
-        AsyncValidateEndorsements asyncValidateEndorsements(endorsements->sig_msgs_size());
+        AsyncValidateEndorsements asyncValidateEndorsements;
         if (!params.sintr_params.parallelEndorsementCheck) {
           if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
             Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
@@ -1057,6 +1058,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         }
         else {
           // launch async validate endorsements
+          asyncValidateEndorsements.num_validations = endorsements->sig_msgs_size();
           EndorsementCheck(endorsements, oldTxnDigest, txn, asyncValidateEndorsements);
         }
 

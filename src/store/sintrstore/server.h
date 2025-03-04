@@ -951,11 +951,13 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::Transaction **preparedTxn = nullptr);
 
   struct AsyncValidateEndorsements {
-    AsyncValidateEndorsements(int num_validations) : num_validations(num_validations) {}
+    AsyncValidateEndorsements() : num_validations(0), policyClient(nullptr) {}
     ~AsyncValidateEndorsements() {
       // all validations should be done when destructor is called
       UW_ASSERT(num_validations == 0);
-      delete policyClient;
+      if (policyClient != nullptr) {
+        delete policyClient;
+      }
     }
 
     // await for num validations to finish
