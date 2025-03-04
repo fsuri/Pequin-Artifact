@@ -3176,9 +3176,9 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
   
       uint64_t policyId = policyIdFunction(read.key(), "");
       Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
-  
+      // changing to use read key timestamp for reading policy
       std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-      GetPolicy(policyId, ts, tsPolicy, true);
+      GetPolicy(policyId, read.readtime(), tsPolicy, true);
       if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
         Panic("Read policy does not imply write policy");
       }
