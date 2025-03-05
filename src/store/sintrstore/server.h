@@ -962,9 +962,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
     // await for num validations to finish
     bool GetValidationResult() {
-      if(preparedExists) {
-        return false;
-      }
       while (num_validations > 0) {
         std::this_thread::yield();
       }
@@ -974,8 +971,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     }
     
     std::set<uint64_t> endorsers;
-    // doesn't need to be atomic bc we set this before we validate endorsements in parallel
-    bool preparedExists = false;
     std::mutex endorsers_mutex;
     PolicyClient *policyClient;
     std::atomic<int> num_validations;
@@ -988,7 +983,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn,
     AsyncValidateEndorsements &asyncValidateEndorsements);
   // policyClient tracks policy from transaction writeset
-  bool ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient);
+  void ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient);
   // validate endorsements have valid signatures and matching data, and satisfy the policyClient policy
   // client id is for the client that initiated the transaction
   bool ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 

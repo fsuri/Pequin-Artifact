@@ -671,7 +671,30 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
       uint64_t policyId = policyIdFunction(read.key(), "");
       std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-      GetPolicy(policyId, ts, tsPolicy, true);
+      if(params.sintr_params.useOCCForPolicies) {
+        std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
+        GetPolicy(policyId, read.readtime(), tsPolicy, false);
+        GetPolicy(policyId, read.readtime(), tsPolicy2, true);
+        // compare the two by comparing timestamps
+        if(tsPolicy.first != tsPolicy2.first) {
+          // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
+          Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for key %s [plain:%s]:"
+            " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
+            txn.client_id(),
+            txn.client_seq_num(),
+            BytesToHex(txnDigest, 16).c_str(),
+            BytesToHex(read.key(), 16).c_str(),
+            read.key().c_str(),
+            tsPolicy.first.getTimestamp(),
+            tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
+            tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
+          stats.Increment("cc_abstains", 1);
+          stats.Increment("cc_abstains_wr_conflict", 1);
+          return proto::ConcurrencyControl::ABSTAIN;
+        }
+      } else {
+        GetPolicy(policyId, read.readtime(), tsPolicy, true);
+      }
       implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
 
       // Check for conflicts against committed writes
@@ -787,7 +810,60 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
 
         uint64_t policyId = policyIdFunction(write.key(), write.value());
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-        GetPolicy(policyId, ts, tsPolicy, true);
+        if(params.sintr_params.useOCCForPolicies) {
+          std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
+          GetPolicy(policyId, ts, tsPolicy, false);
+          GetPolicy(policyId, ts, tsPolicy2, true);
+          // compare the two by comparing timestamps
+          if(tsPolicy.first != tsPolicy2.first) {
+            // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for key %s [plain:%s]:"
+              " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
+              txn.client_id(),
+              txn.client_seq_num(),
+              BytesToHex(txnDigest, 16).c_str(),
+              BytesToHex(read.key(), 16).c_str(),
+              read.key().c_str(),
+              tsPolicy.first.getTimestamp(),
+              tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
+              tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
+            stats.Increment("cc_abstains", 1);
+            stats.Increment("cc_abstains_wr_conflict", 1);
+            return proto::ConcurrencyControl::ABSTAIN;
+          }
+        } else {
+          GetPolicy(policyId, ts, tsPolicy, true);
+        }
+        implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
+      } else {
+        // add implicit policy read for gov txn writeset
+        // writeset key is policy ID for gov txn
+        uint64_t policyId = std::stoull(write.key());
+        std::pair<Timestamp, PolicyStoreValue> tsPolicy;
+        if(params.sintr_params.useOCCForPolicies) {
+          std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
+          GetPolicy(policyId, ts, tsPolicy, false);
+          GetPolicy(policyId, ts, tsPolicy2, true);
+          // compare the two by comparing timestamps
+          if(tsPolicy.first != tsPolicy2.first) {
+            // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for policy ID in gov txn %s [plain:%s]:"
+              " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
+              txn.client_id(),
+              txn.client_seq_num(),
+              BytesToHex(txnDigest, 16).c_str(),
+              BytesToHex(read.key(), 16).c_str(),
+              read.key().c_str(),
+              tsPolicy.first.getTimestamp(),
+              tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
+              tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
+            stats.Increment("cc_abstains", 1);
+            stats.Increment("cc_abstains_wr_conflict", 1);
+            return proto::ConcurrencyControl::ABSTAIN;
+          }
+        } else {
+          GetPolicy(policyId, ts, tsPolicy, true);
+        }
         implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
       }
     
