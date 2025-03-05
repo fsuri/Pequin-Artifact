@@ -1925,7 +1925,7 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2) {
   return !(pw1 == pw2);
 }
 
-std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> endorsements, bool hashDigest) {
+std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest) {
   if (hashDigest) {
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);

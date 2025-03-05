@@ -134,16 +134,13 @@ void Client2Client::ReceiveMessage(const TransportAddress &remote,
     HandlePingResponse(ping);
   }
   else if (type == beginValTxnMsg.GetTypeName()) {
-    beginValTxnMsg.ParseFromString(data);
-    HandleBeginValidateTxnMessage(remote, beginValTxnMsg);
+    ManageDispatchBeginValidateTxnMessage(remote, data);
   }
   else if (type == fwdReadResultMsg.GetTypeName()) {
-    fwdReadResultMsg.ParseFromString(data);
-    HandleForwardReadResultMessage(fwdReadResultMsg);
+    ManageDispatchForwardReadResultMessage(remote, data);
   }
   else if (type == finishValTxnMsg.GetTypeName()) {
-    finishValTxnMsg.ParseFromString(data);
-    HandleFinishValidateTxnMessage(finishValTxnMsg);
+    ManageDispatchFinishValidateTxnMessage(remote, data);
   }
   else {
     Panic("Received unexpected message type: %s", type.c_str());
@@ -237,14 +234,16 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
+  // get the current client seq num so it doesn't change during the forwarding process
+  uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
-    ForwardReadResultMessageHelper(key, value, ts, proof, serializedWrite, serializedWriteTypeName,
+    ForwardReadResultMessageHelper(client_seq_num, key, value, ts, proof, serializedWrite, serializedWriteTypeName,
       dep, hasDep, addReadset, policyDep, hasPolicyDep);
   }
   else {
     auto f = [=, this]() {
       this->ForwardReadResultMessageHelper(
-        key, value, ts, proof, serializedWrite, 
+        client_seq_num, key, value, ts, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadset,
         policyDep, hasPolicyDep
       );
@@ -254,7 +253,8 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
   }
 }
 
-void Client2Client::ForwardReadResultMessageHelper(const std::string &key, const std::string &value, const Timestamp &ts,
+void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num,
+    const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
@@ -381,6 +381,7 @@ void Client2Client::ManageDispatchBeginValidateTxnMessage(const TransportAddress
     beginValTxnMsg->ParseFromString(data);
     auto f = [this, &remote, beginValTxnMsg](){
       this->HandleBeginValidateTxnMessage(remote, *beginValTxnMsg);
+      delete beginValTxnMsg;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);
@@ -397,6 +398,7 @@ void Client2Client::ManageDispatchForwardReadResultMessage(const TransportAddres
     fwdReadResultMsg->ParseFromString(data);
     auto f = [this, fwdReadResultMsg](){
       this->HandleForwardReadResultMessage(*fwdReadResultMsg);
+      delete fwdReadResultMsg;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);
@@ -413,6 +415,7 @@ void Client2Client::ManageDispatchFinishValidateTxnMessage(const TransportAddres
     finishValTxnMsg->ParseFromString(data);
     auto f = [this, finishValTxnMsg](){
       this->HandleFinishValidateTxnMessage(*finishValTxnMsg);
+      delete finishValTxnMsg;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);

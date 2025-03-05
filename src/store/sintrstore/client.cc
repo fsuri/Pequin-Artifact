@@ -1249,7 +1249,8 @@ void Client::Phase1(PendingRequest *req) {
   }
   // update txn digest with endorsements
   Debug("OLD TXN DIGEST CLIENT: %s", BytesToHex(req->txnDigest, 16).c_str());
-  req->txnDigest = EndorsementTxnDigest(req->txnDigest,endorseClient->GetEndorsements(), params.hashDigest);
+  const std::vector<proto::SignedMessage> &endorsements = endorseClient->GetEndorsements();
+  req->txnDigest = EndorsementTxnDigest(req->txnDigest, endorsements, params.hashDigest);
 
   if(PROFILING_LAT){
     struct timespec ts_start;
@@ -1261,7 +1262,6 @@ void Client::Phase1(PendingRequest *req) {
   }
   
   proto::SignedMessages protoEndorsements;
-  std::vector<proto::SignedMessage> endorsements = endorseClient->GetEndorsements();
   for (auto &endorsement : endorsements) {
     *protoEndorsements.add_sig_msgs() = endorsement;
   }

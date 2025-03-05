@@ -35,6 +35,7 @@
 #include <vector>
 #include <set>
 #include <map>
+#include <shared_mutex>
 
 namespace sintrstore {
 
@@ -44,7 +45,7 @@ class EndorsementClient {
   EndorsementClient(uint64_t client_id, KeyManager *keyManager, policy_id_function policyIdFunction);
   ~EndorsementClient();
 
-  std::vector<proto::SignedMessage> GetEndorsements();
+  const std::vector<proto::SignedMessage> &GetEndorsements();
   void SetClientSeqNum(uint64_t client_seq_num);
   void SetExpectedTxnOutput(const std::string &expectedTxnDigest);
   void DebugSetExpectedTxnOutput(const proto::Transaction &expectedTxn);
@@ -54,6 +55,8 @@ class EndorsementClient {
   // what additional client ids are needed so that this policy is satisfied by potentialEndorsements
   // if potentialEndorsements is good enough, return empty vector
   std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements);
+  // add validation from peer client
+  // this can be called from a different thread than the rest of the functions
   void AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest, 
     const proto::SignedMessage &signedValTxnDigest);
   // check if the policy is satisfied by actual endorsements collected so far
@@ -94,6 +97,8 @@ class EndorsementClient {
   std::map<uint64_t, std::pair<std::string, proto::SignedMessage>> pendingEndorsements;
   // debug pending transactions
   std::vector<proto::Transaction> pendingTxns;
+  // for concurrent access to client_ids_received and endorsements
+  mutable std::shared_mutex mutex;
 };
 
 } // namespace sintrstore

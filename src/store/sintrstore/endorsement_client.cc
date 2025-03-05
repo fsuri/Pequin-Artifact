@@ -48,11 +48,13 @@ void EndorsementClient::SetClientSeqNum(uint64_t client_seq_num) {
   this->client_seq_num = client_seq_num;
 }
 
-std::vector<proto::SignedMessage> EndorsementClient::GetEndorsements() {
+const std::vector<proto::SignedMessage> &EndorsementClient::GetEndorsements() {
+  std::shared_lock lock(mutex);
   return endorsements;
 }
 
 void EndorsementClient::SetExpectedTxnOutput(const std::string &expectedTxnDigest) {
+  std::unique_lock lock(mutex);
   this->expectedTxnDigest = expectedTxnDigest;
   // add self as an endorsement
   client_ids_received.insert(client_id);
@@ -176,6 +178,7 @@ std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<uint64_
 
 void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest,
     const proto::SignedMessage &signedValTxnDigest) {
+  std::unique_lock lock(mutex);
   // if new peer
   if (client_ids_received.find(peer_client_id) == client_ids_received.end()) {
     if (expectedTxnDigest.length() > 0) {
@@ -202,6 +205,7 @@ void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::
 }
 
 bool EndorsementClient::IsSatisfied() {
+  std::shared_lock lock(mutex);
   bool satisfied = policyClient->IsSatisfied(client_ids_received);
   if (!satisfied) {
     // Debug("policy not satisfied, received %lu endorsements", client_ids_received.size());

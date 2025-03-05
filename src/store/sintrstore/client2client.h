@@ -171,7 +171,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     size_t size;
   };
   
-  void ForwardReadResultMessageHelper(const std::string &key, const std::string &value, const Timestamp &ts,
+  void ForwardReadResultMessageHelper(const uint64_t client_seq_num, 
+    const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
 
