@@ -247,6 +247,7 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
         serializedWriteTypeName, dep, hasDep, addReadset,
         policyDep, hasPolicyDep
       );
+      return (void*) true;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);
@@ -382,6 +383,7 @@ void Client2Client::ManageDispatchBeginValidateTxnMessage(const TransportAddress
     auto f = [this, &remote, beginValTxnMsg](){
       this->HandleBeginValidateTxnMessage(remote, *beginValTxnMsg);
       delete beginValTxnMsg;
+      return (void*) true;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);
@@ -399,6 +401,7 @@ void Client2Client::ManageDispatchForwardReadResultMessage(const TransportAddres
     auto f = [this, fwdReadResultMsg](){
       this->HandleForwardReadResultMessage(*fwdReadResultMsg);
       delete fwdReadResultMsg;
+      return (void*) true;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
     c2cQueue.push(executor);
@@ -416,9 +419,18 @@ void Client2Client::ManageDispatchFinishValidateTxnMessage(const TransportAddres
     auto f = [this, finishValTxnMsg](){
       this->HandleFinishValidateTxnMessage(*finishValTxnMsg);
       delete finishValTxnMsg;
+      return (void*) true;
     };
-    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
-    c2cQueue.push(executor);
+
+    if (params.sintr_params.parallelEndorsementCheck) {
+      // fully parallelize the endorsement check so that each one can be handled by a worker thread
+      transport->DispatchTP_noCB(std::move(f));
+    }
+    else {
+      // only moves the function to be off the main client thread, but still sequential on client2client message thread
+      Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+      c2cQueue.push(executor);
+    }
   }
 }
 

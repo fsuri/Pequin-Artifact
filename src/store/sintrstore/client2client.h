@@ -122,8 +122,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
 
   // for sending/receiving messages from other clients
   struct Client2ClientMessageExecutor {
-    Client2ClientMessageExecutor(std::function<void()> f) : f(std::move(f)) {}
-    std::function<void()> f;
+    Client2ClientMessageExecutor(std::function<void*(void)> f) : f(std::move(f)) {}
+    std::function<void*(void)> f;
   };
 
   // this represents a resizing buffer but does not eagerly delete everything on clear
@@ -234,7 +234,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // concurrent queue of transactions to be validated, has blocking semantics for pop
   tbb::concurrent_bounded_queue<ValidationInfo *> validationQueue;
 
-  // multithreaded message processing (send/receive)
+  // separate thread for message processing (send/receive), stays sequential
   std::thread *c2cThread;
   // concurrent queue of messages to be processed
   tbb::concurrent_bounded_queue<Client2ClientMessageExecutor *> c2cQueue;
