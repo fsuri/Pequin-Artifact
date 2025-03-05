@@ -986,9 +986,6 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     proto::Transaction tempTxn = *txn;
     // remove the hack added in server.cc to compare txn digests
     tempTxn.clear_txndigest();
-    if(!txn->has_txndigest()) {
-      Panic("TXN DIGEST IS GONE");
-    }
     std::string oldTxnDigest = TransactionDigest(tempTxn, params.hashDigest);
     if(!params.parallel_CCC || !params.mainThreadDispatching){
       AsyncValidateEndorsements asyncValidateEndorsements;

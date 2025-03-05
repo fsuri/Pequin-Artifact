@@ -508,7 +508,7 @@ DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
 DEFINE_bool(sintr_client_pin_cores, false, "sintr pin client cores for validation");
 DEFINE_bool(sintr_client2client_multi_threading, false, "sintr enable multi-threading for client-to-client communication");
 DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement check");
-
+DEFINE_bool(sintr_occ_for_policies, false, "use OCC for policies instead of MVTSO check");
 
 ///////////////////////////////////////////////////////////
 
@@ -1646,7 +1646,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_client_pin_cores,
         FLAGS_sintr_min_enable_pull_policies,
         FLAGS_sintr_client2client_multi_threading,
-        FLAGS_sintr_parallel_endorsement_check
+        FLAGS_sintr_parallel_endorsement_check,
+        FLAGS_sintr_occ_for_policies
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

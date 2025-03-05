@@ -839,12 +839,13 @@ typedef struct SintrParameters {
   const bool clientPinCores; // pin client cores for validation
   const bool client2clientMultiThreading; // enable multi-threading for client-to-client communication
   const bool parallelEndorsementCheck; // parallel endorsement check
+  const bool useOCCForPolicies;
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
     std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic,
     bool checkPolicyLeak, bool clientPinCores, uint64_t minEnablePullPolicies, bool client2clientMultiThreading,
-    bool parallelEndorsementCheck) :
+    bool parallelEndorsementCheck, bool useOCCForPolicies) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
@@ -858,7 +859,8 @@ typedef struct SintrParameters {
     clientPinCores(clientPinCores),
     minEnablePullPolicies(minEnablePullPolicies),
     client2clientMultiThreading(client2clientMultiThreading),
-    parallelEndorsementCheck(parallelEndorsementCheck) {}
+    parallelEndorsementCheck(parallelEndorsementCheck),
+    useOCCForPolicies(useOCCForPolicies) {}
 
 } SintrParameters;
 

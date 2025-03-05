@@ -3127,7 +3127,9 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
   // }
 
   PolicyClient policyClient;
-  ExtractPolicy(txn, policyClient);
+  if(!ExtractPolicy(txn, policyClient)) {
+    return false;
+  }
   return ValidateEndorsements(policyClient, endorsements, txn->client_id(), txnDigest);
 }
 
@@ -3135,11 +3137,14 @@ void Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
     AsyncValidateEndorsements &asyncValidateEndorsements) {
   PolicyClient *policyClient = new PolicyClient();
   asyncValidateEndorsements.policyClient = policyClient;
-  ExtractPolicy(txn, *policyClient);
+  if(!ExtractPolicy(txn, *policyClient) && params.sintr_params.useOCCForPolicies) {
+    asyncValidateEndorsements.preparedExists = true;
+    return;
+  }
   ValidateEndorsements(endorsements, txn->client_id(), txnDigest, asyncValidateEndorsements);
 }
 
-void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
+bool Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient) {
   // struct timespec ts_start;
   // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -3163,7 +3168,18 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
 
     std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-    GetPolicy(policyId, ts, tsPolicy, true);
+    if(params.sintr_params.useOCCForPolicies) {
+      std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
+      GetPolicy(policyId, ts, tsPolicy, false);
+      GetPolicy(policyId, ts, tsPolicy2, true);
+      // compare the two by comparing timestamps
+      if(tsPolicy.first != tsPolicy2.first) {
+        // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
+        return false;
+      }
+    } else {
+      GetPolicy(policyId, ts, tsPolicy, true);
+    }
     policyClient.AddPolicy(tsPolicy.second.policy);
   }
 
@@ -3178,7 +3194,17 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
       Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
       // changing to use read key timestamp for reading policy
       std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-      GetPolicy(policyId, read.readtime(), tsPolicy, true);
+      if(params.sintr_params.useOCCForPolicies) {
+        std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
+        GetPolicy(policyId, read.readtime(), tsPolicy, false);
+        GetPolicy(policyId, read.readtime(), tsPolicy2, true);
+        // compare the two by comparing timestamps
+        if(tsPolicy.first != tsPolicy2.first) {
+          return false;
+        }
+      } else {
+        GetPolicy(policyId, read.readtime(), tsPolicy, true);
+      }
       if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
         Panic("Read policy does not imply write policy");
       }
@@ -3189,6 +3215,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
   // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   // auto duration = end - start;
   // extract_policy_ms.push_back(duration);
+  return true;
 }
 
 bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
