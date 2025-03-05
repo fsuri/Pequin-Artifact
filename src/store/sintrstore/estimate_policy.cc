@@ -87,13 +87,12 @@ namespace sintrstore {
         }
       }
       if (repeated_values.size() > 0) {
-        Policy *temp_policy;
+        const Policy *temp_policy;
         for (int const &value : repeated_values)
         {
-          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), &temp_policy));
+          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), temp_policy));
           policyClient->AddPolicy(temp_policy);
         }
-        delete temp_policy;
       }
     }
     else if (txn_bench == ::rwsync::BENCHMARK_NAME) {
@@ -104,18 +103,16 @@ namespace sintrstore {
       }
       else {
         // txn will have writes
-        Policy *temp_policy;
-        UW_ASSERT(endorseClient->GetPolicyFromCache(0, &temp_policy));
+        const Policy *temp_policy;
+        UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
         policyClient->AddPolicy(temp_policy);
-        delete temp_policy;
       }
     }
     else {
       // return default policy ID (policy ID 0)
-      Policy *temp_policy;
-      UW_ASSERT(endorseClient->GetPolicyFromCache(0, &temp_policy));
+      const Policy *temp_policy;
+      UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
       policyClient->AddPolicy(temp_policy);
-      delete temp_policy;
     }
   }
 

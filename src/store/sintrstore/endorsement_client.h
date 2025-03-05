@@ -64,9 +64,13 @@ class EndorsementClient {
   void Reset();
 
   // return true if policy exists for key, false otherwise
-  bool GetPolicyFromCache(const std::string &key, Policy **policy);
-  bool GetPolicyFromCache(uint64_t policyId, Policy **policy);
-  void UpdatePolicyCache(uint64_t policyId, const Policy *policy);
+  // given a reference to a policy pointer, update it with the policy in the cache
+  // does not allocate a new policy object
+  bool GetPolicyFromCache(const std::string &key, const Policy *&policy);
+  bool GetPolicyFromCache(uint64_t policyId, const Policy *&policy);
+  // update the mapping from policy id to policy; takes ownership of policy (policy should be allocated on heap)
+  void UpdatePolicyCache(uint64_t policyId, Policy *policy);
+  // initialize the policy cache with the given map; takes ownership of policies (policies should be allocated on heap)
   void InitializePolicyCache(const std::map<uint64_t, Policy *> &policyCache);
 
  private:

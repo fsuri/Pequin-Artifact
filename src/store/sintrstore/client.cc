@@ -264,11 +264,9 @@ bool Client::IsPolicyChangeTxn(const TxnState &protoTxnState) const {
 void Client::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient) {
   if (IsPolicyChangeTxn(protoTxnState)) {
     // policy change transaction could require separate handling
-    Policy *policy;
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, &policy));
+    const Policy *policy;
+    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
     policyClient->AddPolicy(policy);
-    // can safely delete policy because AddPolicy clones the policy object
-    delete policy;
   } 
   else {
     EstimatePolicy est_policy_obj;
@@ -327,7 +325,6 @@ void Client::Get(const std::string &key, get_callback gcb,
           }
           Policy *policy = policyParseClient->Parse(policyMsg.policy());
           endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
-          delete policy;
         }
       }
       if (hasDep) {
@@ -376,15 +373,14 @@ void Client::Put(const std::string &key, const std::string &value,
     write->set_value(value);
 
     // look in cache for policy
-    Policy *policy;
-    bool exists = endorseClient->GetPolicyFromCache(key, &policy);
+    const Policy *policy;
+    bool exists = endorseClient->GetPolicyFromCache(key, policy);
     if (!exists) {
       // if not found, use default policy for now
       uint64_t policyId = policyIdFunction(key, value);
-      endorseClient->GetPolicyFromCache(policyId, &policy);
+      endorseClient->GetPolicyFromCache(policyId, policy);
     }
     c2client->HandlePolicyUpdate(policy);
-    delete policy;
     
     if(bclient[i]->GetPolicyShardClient()) {
       // empty callback functions
