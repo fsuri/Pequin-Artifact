@@ -1228,6 +1228,7 @@ void Server::HandleRead(const TransportAddress &remote,
         }
         // if GetPolicy returns a prepared policy then it has no proof
         if (tsPolicy.second.proof == nullptr) {
+          // this shouldn't trigger if useOCCForPolicies is true
           Debug("Prepared policy id write with most recent ts %lu.%lu.",
                   tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
           tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
