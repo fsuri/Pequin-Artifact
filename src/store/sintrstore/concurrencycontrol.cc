@@ -815,8 +815,8 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         if(params.sintr_params.useOCCForPolicies) {
           const proto::Transaction *preparedTxn = nullptr;
           GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
-          // check if prepared txn exists (we are relying on a prepared policy) and thta prepared txn is not the current txn
-          if(preparedTxn != nullptr && preparedTxn->txndigest() != txnDigest) {
+          // check if prepared txn exists (we are relying on a prepared policy)
+          if(preparedTxn != nullptr) {
             // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
             Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID equal to gov txn write key %s [plain:%s]:"
               " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
