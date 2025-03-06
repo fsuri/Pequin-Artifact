@@ -994,6 +994,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // parallel endorsement check helper
   bool ValidateEndorsementHelper(const proto::SignedMessage &endorsement, const std::string &txnDigest);
 
+  proto::ConcurrencyControl::Result policyCheckHelper(proto::Transaction &txn, const WriteMessage &write, const Timestamp &ts,
+    const DepSet &depSet, const std::string &txnDigest, const proto::Transaction* &abstain_conflict,
+    std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads);
   // Global objects.
 
   Stats stats;

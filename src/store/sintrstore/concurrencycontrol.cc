@@ -774,76 +774,25 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       if(write.is_table_col_version()){   //Don't do the OCC check for table_versions (//TODO: Also skip column versions. Note: Currently just disabled col versions)
         continue;
       }
+      //HACKY: briefly const cast TX to non-const so we can edit it.(alternatively, we can pass it in as non-const.)
+      proto::Transaction &txn_mut = const_cast<proto::Transaction&>(txn);
 
       if (txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
         if (!IsKeyOwned(write.key())) { //Only do OCC check for keys in this group.
           continue;
         }
-
-        uint64_t policyId = policyIdFunction(write.key(), write.value());
-        std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-        if(params.sintr_params.useOCCForPolicies) {
-          const proto::Transaction *preparedTxn = nullptr;
-          GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
-          // if prepared txn exists (so prepared policy exists)
-          if(preparedTxn != nullptr) {
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID associated with regular txn write key %s [plain:%s]:"
-              " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
-              txn.client_id(),
-              txn.client_seq_num(),
-              BytesToHex(txnDigest, 16).c_str(),
-              BytesToHex(read.key(), 16).c_str(),
-              read.key().c_str(),
-              tsPolicy.first.getTimestamp(), tsPolicy.first.getID(),
-              ts.getTimestamp(), ts.getID());
-            // are stats causing this to fail?
-            stats.Increment("cc_abstains", 1);
-            stats.Increment("cc_abstains_wr_conflict", 1);
-            Debug("Prepared txn digest: %s", BytesToHex(preparedTxn->txndigest(), 16).c_str());
-            abstain_conflict = preparedTxn;
-            return proto::ConcurrencyControl::ABSTAIN;
-          }
-        } else {
-          GetPolicy(policyId, ts, tsPolicy, true);
+        // hack to change txn to mutable
+        proto::ConcurrencyControl::Result tempResult = Server::policyCheckHelper(txn_mut, write, ts, depSet, txnDigest, abstain_conflict, implicitPolicyReads);
+        if(tempResult != proto::ConcurrencyControl::COMMIT) {
+          return tempResult;
         }
-        implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
       } else {
         // add implicit policy read for gov txn writeset
         // writeset key is policy ID for gov txn
-        uint64_t policyId = std::stoull(write.key());
-        std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-        if(params.sintr_params.useOCCForPolicies) {
-          const proto::Transaction *preparedTxn = nullptr;
-          GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
-          // check if prepared txn exists (we are relying on a prepared policy)
-          if(preparedTxn != nullptr) {
-            // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID equal to gov txn write key %s [plain:%s]:"
-              " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
-              txn.client_id(),
-              txn.client_seq_num(),
-              BytesToHex(txnDigest, 16).c_str(),
-              BytesToHex(write.key(), 16).c_str(),
-              read.key().c_str(),
-              tsPolicy.first.getTimestamp(),
-              tsPolicy.first.getID(), ts.getTimestamp(), ts.getID());
-            stats.Increment("cc_abstains", 1);
-            stats.Increment("cc_abstains_wr_conflict", 1);
-            Debug("Prepared txn digest: %s", BytesToHex(preparedTxn->txndigest(), 16).c_str());
-            // TODO: figure out if abstain_conflict needs to be freed.
-            abstain_conflict = preparedTxn;
-            return proto::ConcurrencyControl::ABSTAIN;
-          } else if(preparedTxn != nullptr) {
-            // just get the committed policy
-            Debug("Getting committed policy bc prepared policy is this policy");
-            GetPolicy(policyId, ts, tsPolicy, false);
-            // not sure if preparedTxn deletion is necessary
-            delete preparedTxn;
-          }
-        } else {
-          GetPolicy(policyId, ts, tsPolicy, true);
+        proto::ConcurrencyControl::Result tempResult = Server::policyCheckHelper(txn_mut, write, ts, depSet, txnDigest, abstain_conflict, implicitPolicyReads);
+        if(tempResult != proto::ConcurrencyControl::COMMIT) {
+          return tempResult;
         }
-        implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
       }
     
       // Check for conflicts against committed reads.
@@ -1173,6 +1122,64 @@ void Server::CheckDepLocalPresence(const proto::Transaction &txn, const DepSet &
   //     if(res != proto::ConcurrencyControl::COMMIT) return;
   // }
   return;
+}
+
+// helper function for CC check for policies in writeset
+proto::ConcurrencyControl::Result Server::policyCheckHelper(proto::Transaction &txn, const WriteMessage &write, const Timestamp &ts,
+    const DepSet &depSet, const std::string &txnDigest, const proto::Transaction* &abstain_conflict,
+    std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads) {
+  uint64_t policyId = 0;
+  if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+    policyId = std::stoull(write.key());
+  } else {
+    policyId = policyIdFunction(write.key(), write.value());
+  }
+  std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+  const proto::Transaction *preparedTxn = nullptr;
+  // I don't free prepared txn bc I assume that preparedWrites is properly garbage collected
+  GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
+  if(params.sintr_params.useOCCForPolicies) {
+    // if prepared txn exists (so prepared policy exists)
+    if(preparedTxn != nullptr) {
+      Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID associated with txn write key %s [plain:%s]:"
+        " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
+        txn.client_id(),
+        txn.client_seq_num(),
+        BytesToHex(txnDigest, 16).c_str(),
+        BytesToHex(write.key(), 16).c_str(),
+        write.key().c_str(),
+        tsPolicy.first.getTimestamp(), tsPolicy.first.getID(),
+        ts.getTimestamp(), ts.getID());
+      stats.Increment("cc_abstains", 1);
+      stats.Increment("cc_abstains_wr_conflict", 1);
+      Debug("Prepared txn digest: %s", BytesToHex(preparedTxn->txndigest(), 16).c_str());
+      abstain_conflict = preparedTxn;
+      return proto::ConcurrencyControl::ABSTAIN;
+    }
+  } else {
+    // if prepared policy exists, add dependency to prepared policy if it already doesn't exist, then return wait
+    if(preparedTxn != nullptr) {
+      bool depExists = false;
+      for(const auto &dep: depSet){
+        if(dep.write().prepared_txn_digest() == preparedTxn->txndigest()) {
+          depExists = true;
+          break;
+        }
+      }
+      if(!depExists) {
+        Debug("Adding new dependency on policy");
+        auto new_dep = txn.mutable_merged_read_set()->add_deps();
+        new_dep->mutable_write()->set_prepared_txn_digest(std::move(preparedTxn->txndigest()));
+        new_dep->set_involved_group(groupIdx);  
+      }
+      Debug("Waiting for prepared policy to commit");
+      stats.Increment("cc_waits", 1);
+      return proto::ConcurrencyControl::WAIT;        
+    }
+  }
+  // hack to return commit if neither check fails
+  implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
+  return proto::ConcurrencyControl::COMMIT;
 }
 
 //TODO: relay Deeper depth when result is already wait. (If I always re-did the P1 it would be handled)
