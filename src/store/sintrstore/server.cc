@@ -1221,9 +1221,14 @@ void Server::HandleRead(const TransportAddress &remote,
         // now check preparedWrites for policy ids
         const proto::Transaction *mostRecentPolicyTxn;
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-        GetPolicy(preparedPolicyId, ts, tsPolicy, true, &mostRecentPolicyTxn);
+        if(params.sintr_params.useOCCForPolicies) {
+          GetPolicy(preparedPolicyId, ts, tsPolicy, false);
+        } else {
+          GetPolicy(preparedPolicyId, ts, tsPolicy, true, &mostRecentPolicyTxn);
+        }
         // if GetPolicy returns a prepared policy then it has no proof
         if (tsPolicy.second.proof == nullptr) {
+          // this shouldn't trigger if useOCCForPolicies is true
           Debug("Prepared policy id write with most recent ts %lu.%lu.",
                   tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
           tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
@@ -3163,7 +3168,11 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
 
     std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-    GetPolicy(policyId, ts, tsPolicy, true);
+    if(params.sintr_params.useOCCForPolicies) {
+      GetPolicy(policyId, ts, tsPolicy, false);
+    } else {
+      GetPolicy(policyId, ts, tsPolicy, true);
+    }
     policyClient.AddPolicy(tsPolicy.second.policy);
   }
 
@@ -3178,7 +3187,11 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
       Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
       // changing to use read key timestamp for reading policy
       std::pair<Timestamp, PolicyStoreValue> tsPolicy;
-      GetPolicy(policyId, read.readtime(), tsPolicy, true);
+      if(params.sintr_params.useOCCForPolicies) {
+        GetPolicy(policyId, read.readtime(), tsPolicy, false);
+      } else {
+        GetPolicy(policyId, read.readtime(), tsPolicy, true);
+      }
       if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
         Panic("Read policy does not imply write policy");
       }

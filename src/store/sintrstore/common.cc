@@ -36,6 +36,7 @@
 #include "store/common/transaction.h"
 //#include "../../query-engine/type/value.h"
 #include <utility>
+#include "store/sintrstore/policy/policy_function.h"
 
 
 #include "lib/batched_sigs.h"
@@ -172,9 +173,9 @@ void asyncValidateCommittedConflict(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, const proto::Transaction *txn,
     const std::string *txnDigest, bool signedMessages, KeyManager *keyManager,
     const transport::Configuration *config, Verifier *verifier,
-    mainThreadCallback mcb, Transport *transport, bool multithread, bool batchVerification){
+    mainThreadCallback mcb, Transport *transport, std::string policyFunctionName, bool multithread, bool batchVerification){
 
-    if (!TransactionsConflict(proof.txn(), *txn)) {
+    if (!TransactionsConflict(proof.txn(), *txn, policyFunctionName)) {
       Debug("Committed txn [%lu:%lu][%s] does not conflict with this txn [%lu:%lu][%s].",
           proof.txn().client_id(), proof.txn().client_seq_num(),
           BytesToHex(*committedTxnDigest, 16).c_str(),
@@ -246,11 +247,11 @@ void asyncValidateCommittedProof(const proto::CommittedProof &proof,
 bool ValidateCommittedConflict(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, const proto::Transaction *txn,
     const std::string *txnDigest, bool signedMessages, KeyManager *keyManager,
-    const transport::Configuration *config, Verifier *verifier) {
+    const transport::Configuration *config, Verifier *verifier, std::string policyFunctionName) {
 
   
 
-  if (!TransactionsConflict(proof.txn(), *txn)) {
+  if (!TransactionsConflict(proof.txn(), *txn, policyFunctionName)) {
     Panic("invalid conflict");
     Debug("Committed txn [%lu:%lu][%s] does not conflict with this txn [%lu:%lu][%s].",
         proof.txn().client_id(), proof.txn().client_seq_num(),
@@ -2265,7 +2266,7 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength) {
 
 //FIXME: This Function is not taking into account the Timestamps. Should add timestamp based checks and semanticCC (like in concurrencycontrol.cc)
 //TODO: This function should be re-factored to pretty much to a full CC check between the two transactions. a is committed, b is checking for conflicts.
-bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b) { //a is the conflict proof, b the current txn
+bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction &b, std::string policyFunctionName) { //a is the conflict proof, b the current txn
   for (const auto &ra : a.read_set()) {
    //Notice("a key: %s ", ra.key().c_str());
     for (const auto &wb : b.write_set()) {
@@ -2298,6 +2299,44 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
   //TODO: Add support for conflict detection when using predicates.. (check all read preds vs writes, and vice versa)
   //FIXME: For now just allow to pass.
   if(a.query_set().size() > 0) return true;
+
+  // now check if one is gov txn
+  if(a.policy_type() == proto::Transaction::POLICY_ID_POLICY && b.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+    // both transactions are gov txns ... should be very rare to trigger
+    // TODO: should we check for timestamp as well?
+    for (const auto &wb : b.write_set()) {
+      //Notice("ab key: %s ", rb.key().c_str());
+      for (const auto &wa : a.write_set()) {
+        if (wb.key() == wa.key()) {
+          return true;
+        }
+      }
+    }
+  } else if(b.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+    // policy txn conflicts with prepared/committed regular txn
+    policy_id_function policyIdFunction = GetPolicyIdFunction(policyFunctionName);
+    for (const auto &wb : b.write_set()) {
+      //Notice("ab key: %s ", rb.key().c_str());
+      for (const auto &wa : a.write_set()) {
+        uint64_t policyId = policyIdFunction(wa.key(), wa.value());
+        if (policyId == std::stoull(wb.key())) {
+          return true;
+        }
+      }
+    }
+  } else if(a.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+    // regular txn conflicts with prepared governance txn
+    policy_id_function policyIdFunction = GetPolicyIdFunction(policyFunctionName);
+    for (const auto &wb : b.write_set()) {
+      uint64_t policyId = policyIdFunction(wb.key(), wb.value());
+      //Notice("ab key: %s ", rb.key().c_str());
+      for (const auto &wa : a.write_set()) {
+        if (policyId == std::stoull(wa.key())) {
+          return true;
+        }
+      }
+    }
+  }
 
   //Note: There should be no write/write conflicts
   // for (const auto &wa : a.write_set()) {
