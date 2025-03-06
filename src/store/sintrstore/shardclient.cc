@@ -1812,7 +1812,7 @@ void ShardClient::Phase1Decision(
       }
 
       //TODO: dont process redundant digests
-      if(!TransactionsConflict(pendingPhase1->txn_, *txn)) continue;
+      if(!TransactionsConflict(pendingPhase1->txn_, *txn, params.sintr_params.policyFunctionName)) continue;
       std::string txnDigest(TransactionDigest(*txn, params.hashDigest));
       if(txn->has_txndigest() && params.hashDigest) {
         Debug("USING TXN DIGEST IN TXN FOR FB");

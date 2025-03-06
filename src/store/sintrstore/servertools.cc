@@ -1659,7 +1659,7 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
               std::string committedTxnDigest = itTxn->second;
               asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
                     txnDigest, params.signedMessages, keyManager, &config, verifier,
-                    std::move(mcb), transport, true, params.batchVerification);
+                    std::move(mcb), transport, params.sintr_params.policyFunctionName, true, params.batchVerification);
               return;
           }
           else if (params.signedMessages) {
@@ -1736,12 +1736,12 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
                   mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
                   asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
                         txnDigest, params.signedMessages, keyManager, &config, verifier,
-                        std::move(mcb), transport, false, params.batchVerification);
+                        std::move(mcb), transport, params.sintr_params.policyFunctionName, false, params.batchVerification);
                   return;
                 }
                 else{
                   if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
-                        txnDigest, params.signedMessages, keyManager, &config, verifier)) {
+                        txnDigest, params.signedMessages, keyManager, &config, verifier, params.sintr_params.policyFunctionName)) {
                     Debug("WRITEBACK[%s] Failed to validate committed conflict for fast abort.",
                         BytesToHex(*txnDigest, 16).c_str());
                     return WritebackCallback(&msg, txnDigest, txn, (void*) false);

@@ -74,7 +74,8 @@ bool Phase1Validator::ProcessMessage(const proto::ConcurrencyControl &cc, bool f
       Debug("[group %d] ABORT (with conflict).", group);
       
       std::string committedTxnDigest = TransactionDigest(cc.committed_conflict().txn(), params.hashDigest);
-      if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
+      if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(), &committedTxnDigest, txn, txnDigest,
+        params.signedMessages, keyManager, config, verifier, params.sintr_params.policyFunctionName)) {
         Debug("[group %d] Invalid committed_conflict for Phase1Reply.",group);
         Panic("Invalid committed conflict for P1Reply");
         return false;
@@ -143,7 +144,7 @@ bool Phase1Validator::EquivocateVotes(const proto::ConcurrencyControl &cc) {
       //TODO: RECOMMENT, just testing
       if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(),
             &committedTxnDigest, txn, txnDigest, params.signedMessages,
-            keyManager, config, verifier)) {
+            keyManager, config, verifier, params.sintr_params.policyFunctionName)) {
         Debug("[group %d] Invalid committed_conflict for Phase1Reply.",
             group);
         return false;

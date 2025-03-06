@@ -207,7 +207,7 @@ void asyncValidateCommittedConflict(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, const proto::Transaction *txn,
     const std::string *txnDigest, bool signedMessages, KeyManager *keyManager,
     const transport::Configuration *config, Verifier *verifier,
-    mainThreadCallback mcb, Transport *transport, bool multithread = false, bool batchVerification = false);
+    mainThreadCallback mcb, Transport *transport, std::string policyFunctionName, bool multithread = false, bool batchVerification = false);
 
 void asyncValidateCommittedProof(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, KeyManager *keyManager,
@@ -217,7 +217,7 @@ void asyncValidateCommittedProof(const proto::CommittedProof &proof,
 bool ValidateCommittedConflict(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, const proto::Transaction *txn,
     const std::string *txnDigest, bool signedMessages, KeyManager *keyManager,
-    const transport::Configuration *config, Verifier *verifier);
+    const transport::Configuration *config, Verifier *verifier, std::string policyFunctionName);
 
 bool ValidateCommittedProof(const proto::CommittedProof &proof,
     const std::string *committedTxnDigest, KeyManager *keyManager,
@@ -414,7 +414,7 @@ std::vector<uint64_t> DecompressTxnIds();
 std::string BytesToHex(const std::string &bytes, size_t maxLength);
 
 bool TransactionsConflict(const proto::Transaction &a,
-    const proto::Transaction &b);
+    const proto::Transaction &b, std::string policyFunctionName);
 
 uint64_t QuorumSize(const transport::Configuration *config);
 uint64_t FastQuorumSize(const transport::Configuration *config);

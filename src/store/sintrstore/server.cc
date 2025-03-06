@@ -1222,7 +1222,7 @@ void Server::HandleRead(const TransportAddress &remote,
         const proto::Transaction *mostRecentPolicyTxn;
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
         if(params.sintr_params.useOCCForPolicies) {
-          GetPolicy(preparedPolicyId, ts, tsPolicy, false, &mostRecentPolicyTxn);
+          GetPolicy(preparedPolicyId, ts, tsPolicy, false);
         } else {
           GetPolicy(preparedPolicyId, ts, tsPolicy, true, &mostRecentPolicyTxn);
         }
@@ -3193,7 +3193,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
         GetPolicy(policyId, read.readtime(), tsPolicy, true);
       }
       if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
-        Panic("Read policy does not imply write policy");
+        //Panic("Read policy does not imply write policy");
       }
     }
   }

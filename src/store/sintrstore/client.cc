@@ -2310,7 +2310,8 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
     else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
       std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
 
-      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier)) {
+      if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier, 
+          params.sintr_params.policyFunctionName)) {
             Panic("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());
             return false;
       }

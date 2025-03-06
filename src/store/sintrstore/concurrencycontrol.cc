@@ -669,34 +669,6 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         continue;
       }
 
-      uint64_t policyId = policyIdFunction(read.key(), "");
-      std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-      if(params.sintr_params.useOCCForPolicies) {
-        std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
-        GetPolicy(policyId, read.readtime(), tsPolicy, false);
-        GetPolicy(policyId, read.readtime(), tsPolicy2, true);
-        // compare the two by comparing timestamps
-        if(tsPolicy.first != tsPolicy2.first) {
-          // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
-          Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for key %s [plain:%s]:"
-            " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
-            txn.client_id(),
-            txn.client_seq_num(),
-            BytesToHex(txnDigest, 16).c_str(),
-            BytesToHex(read.key(), 16).c_str(),
-            read.key().c_str(),
-            tsPolicy.first.getTimestamp(),
-            tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
-            tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
-          stats.Increment("cc_abstains", 1);
-          stats.Increment("cc_abstains_wr_conflict", 1);
-          return proto::ConcurrencyControl::ABSTAIN;
-        }
-      } else {
-        GetPolicy(policyId, read.readtime(), tsPolicy, true);
-      }
-      implicitPolicyReads.insert(std::make_pair(policyId, tsPolicy.first));
-
       // Check for conflicts against committed writes
 
        //FIXME: TEST Re-factor GetCommittedWrites to GetPreceeding. 
@@ -811,24 +783,24 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         uint64_t policyId = policyIdFunction(write.key(), write.value());
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
         if(params.sintr_params.useOCCForPolicies) {
-          std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
-          GetPolicy(policyId, ts, tsPolicy, false);
-          GetPolicy(policyId, ts, tsPolicy2, true);
-          // compare the two by comparing timestamps
-          if(tsPolicy.first != tsPolicy2.first) {
-            // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for key %s [plain:%s]:"
-              " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
+          const proto::Transaction *preparedTxn = nullptr;
+          GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
+          // if prepared txn exists (so prepared policy exists)
+          if(preparedTxn != nullptr) {
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID associated with regular txn write key %s [plain:%s]:"
+              " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
               txn.client_seq_num(),
               BytesToHex(txnDigest, 16).c_str(),
               BytesToHex(read.key(), 16).c_str(),
               read.key().c_str(),
-              tsPolicy.first.getTimestamp(),
-              tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
-              tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
+              tsPolicy.first.getTimestamp(), tsPolicy.first.getID(),
+              ts.getTimestamp(), ts.getID());
+            // are stats causing this to fail?
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_wr_conflict", 1);
+            Debug("Prepared txn digest: %s", BytesToHex(preparedTxn->txndigest(), 16).c_str());
+            abstain_conflict = preparedTxn;
             return proto::ConcurrencyControl::ABSTAIN;
           }
         } else {
@@ -841,25 +813,32 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
         uint64_t policyId = std::stoull(write.key());
         std::pair<Timestamp, PolicyStoreValue> tsPolicy;
         if(params.sintr_params.useOCCForPolicies) {
-          std::pair<Timestamp, PolicyStoreValue> tsPolicy2;
-          GetPolicy(policyId, ts, tsPolicy, false);
-          GetPolicy(policyId, ts, tsPolicy2, true);
-          // compare the two by comparing timestamps
-          if(tsPolicy.first != tsPolicy2.first) {
+          const proto::Transaction *preparedTxn = nullptr;
+          GetPolicy(policyId, ts, tsPolicy, true, &preparedTxn);
+          // check if prepared txn exists (we are relying on a prepared policy) and thta prepared txn is not the current txn
+          if(preparedTxn != nullptr && preparedTxn->txndigest() != txnDigest) {
             // TODO: maybe implement a way to send back the gov txn (as a conflict) so the client can finish it thru fallback case
-            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared/commited policy for policy ID in gov txn %s [plain:%s]:"
-              " committed policy ts %lu.%lu < committed ts %lu.%lu < this txn's ts %lu.%lu.",
+            Debug("[%lu:%lu][%s] ABSTAIN wr conflict prepared policy for policy ID equal to gov txn write key %s [plain:%s]:"
+              " prepared policy ts %lu.%lu < this txn's ts %lu.%lu.",
               txn.client_id(),
               txn.client_seq_num(),
               BytesToHex(txnDigest, 16).c_str(),
-              BytesToHex(read.key(), 16).c_str(),
+              BytesToHex(write.key(), 16).c_str(),
               read.key().c_str(),
               tsPolicy.first.getTimestamp(),
-              tsPolicy.first.getID(), tsPolicy2.first.getTimestamp(),
-              tsPolicy2.first.getID(), ts.getTimestamp(), ts.getID());
+              tsPolicy.first.getID(), ts.getTimestamp(), ts.getID());
             stats.Increment("cc_abstains", 1);
             stats.Increment("cc_abstains_wr_conflict", 1);
+            Debug("Prepared txn digest: %s", BytesToHex(preparedTxn->txndigest(), 16).c_str());
+            // TODO: figure out if abstain_conflict needs to be freed.
+            abstain_conflict = preparedTxn;
             return proto::ConcurrencyControl::ABSTAIN;
+          } else if(preparedTxn != nullptr) {
+            // just get the committed policy
+            Debug("Getting committed policy bc prepared policy is this policy");
+            GetPolicy(policyId, ts, tsPolicy, false);
+            // not sure if preparedTxn deletion is necessary
+            delete preparedTxn;
           }
         } else {
           GetPolicy(policyId, ts, tsPolicy, true);
