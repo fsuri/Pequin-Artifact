@@ -1214,8 +1214,15 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         }
         else{
             //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
-                if(txn_id != TransactionDigest(proof->txn(), params.hashDigest)){
-                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, TransactionDigest(proof->txn(), params.hashDigest));
+                // TODO: for the hack of storing digest in txn, think if it's safe to do server side...
+                std::string tempDigest = TransactionDigest(proof->txn(), params.hashDigest);
+                if(params.sintr_params.hashEndorsements && proof->txn().has_txndigest()) {
+                    tempDigest = proof->txn().txndigest();
+                } else if(params.sintr_params.hashEndorsements) {
+                    Debug("NO TXN DIGEST IN PROOF FOR querysync-server Process Supplied Txn has commit proof");
+                }
+                if(txn_id != tempDigest){
+                    Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, tempDigest);
                     Panic("Supplied Wrong Txn for given tx-id");
                     delete proof;
                     stop = true;
@@ -1414,8 +1421,14 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
         }
 
         //Check whether txn matches requested tx-id
-        if(txn_id != TransactionDigest(*txn, params.hashDigest)){
-            Debug("Tx-id: [%s], TxDigest: [%s]", BytesToHex(txn_id, 16).c_str(), BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
+        std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
+        if(params.sintr_params.hashEndorsements && txn->has_txndigest()) {
+            tempDigest = txn->txndigest();
+        } else if(params.sintr_params.hashEndorsements) {
+            Debug("NO TXN DIGEST IN PROOF FOR querysync-server ProcessSuppliedTxn has p1");
+        }
+        if(txn_id != tempDigest){
+            Debug("Tx-id: [%s], TxDigest: [%s]", BytesToHex(txn_id, 16).c_str(), BytesToHex(tempDigest, 16).c_str());
             Panic("Supplied Wrong Txn for given tx-id");
             if(params.signClientProposals) delete txn;
             delete p1;
@@ -1544,6 +1557,7 @@ void Server::CleanQueries(const proto::Transaction *txn, bool is_commit){
   //Move read sets into txn + Remove QueryMd completely. Store a map: <client-id, timestamp> disallowing clients to issue requests to the past (this way old/late queries won't be accepted anymore.)
     
   if(!txn->has_last_query_seq()) return;
+  // TODO: use endorsement with txn hash if params.sintr_params.hashEndorsements is enabled
   Debug("Clean all Query Md associated with txn: %s", BytesToHex(TransactionDigest(*txn, params.hashDigest), 16).c_str());
 
   clientQueryWatermarkMap::accessor qw;
