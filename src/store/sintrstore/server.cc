@@ -1206,12 +1206,15 @@ void Server::HandleRead(const TransportAddress &remote,
               readReply->mutable_write()->set_prepared_value(preparedValue);
               *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
               std::string tempDigest = TransactionDigest(*mostRecent, params.hashDigest);
-              auto itTxn = txnDigestMap.find(tempDigest);
-              if(itTxn == txnDigestMap.end()) {
-                Panic("TXN NOT FOUND IN DIGEST MAP");
+              if(params.sintr_params.hashEndorsements) {
+                auto itTxn = txnDigestMap.find(tempDigest);
+                if(itTxn == txnDigestMap.end()) {
+                  Panic("TXN NOT FOUND IN DIGEST MAP");
+                }
+                tempDigest = itTxn->second;
               }
-              Debug("setting prepared value and digest for txn %s", BytesToHex(itTxn->second,16).c_str());
-              *readReply->mutable_write()->mutable_prepared_txn_digest() = itTxn->second;
+              Debug("setting prepared value and digest for txn %s", BytesToHex(tempDigest,16).c_str());
+              *readReply->mutable_write()->mutable_prepared_txn_digest() = tempDigest;
             }
           }
         }
@@ -1235,11 +1238,14 @@ void Server::HandleRead(const TransportAddress &remote,
           readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
           tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
           std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
-          auto itTxn = txnDigestMap.find(tempDigest);
-          if(itTxn == txnDigestMap.end()) {
-            Panic("POLICY TXN NOT FOUND IN DIGEST MAP");
+          if(params.sintr_params.hashEndorsements) {
+            auto itTxn = txnDigestMap.find(tempDigest);
+            if(itTxn == txnDigestMap.end()) {
+              Panic("TXN NOT FOUND IN DIGEST MAP");
+            }
+            tempDigest = itTxn->second;
           }
-          *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = itTxn->second;
+          *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
         }
       }
     }
@@ -1419,7 +1425,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
 
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   ///*
-  if(msg.has_endorsements()) {
+  if(params.sintr_params.hashEndorsements && msg.has_endorsements()) {
     // struct timespec ts_start;
     // clock_gettime(CLOCK_MONOTONIC, &ts_start);
     // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
@@ -1723,12 +1729,15 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
     } else {
       txn = &msg.txn();
       computedTxnDigest = TransactionDigest(msg.txn(), params.hashDigest);
-      auto itTxn = txnDigestMap.find(computedTxnDigest);
-      if(itTxn == txnDigestMap.end()) {
-        Panic("PHASE2 TXN NOT FOUND IN DIGEST MAP");
+      if(params.sintr_params.hashEndorsements) {
+        auto itTxn = txnDigestMap.find(computedTxnDigest);
+        if(itTxn == txnDigestMap.end()) {
+          Panic("PHASE2 TXN NOT FOUND IN DIGEST MAP");
+        }
+        computedTxnDigest = itTxn->second;
       }
-      txnDigest = &itTxn->second;
-      RegisterTxTS(itTxn->second, txn);
+      txnDigest = &computedTxnDigest;
+      RegisterTxTS(computedTxnDigest, txn);
     }
 
   }
@@ -1856,11 +1865,14 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
               txn = &msg.txn();
               // check that digest and txn match..
               std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
-              auto itTxn = txnDigestMap.find(tempDigest);
-              if(itTxn == txnDigestMap.end()) {
-                Panic("HANDLE PHASE 2 TXN NOT FOUND IN DIGEST MAP");
+              if(params.sintr_params.hashEndorsements) {
+                auto itTxn = txnDigestMap.find(tempDigest);
+                if(itTxn == txnDigestMap.end()) {
+                  Panic("HANDLE PHASE 2 TXN NOT FOUND IN DIGEST MAP");
+                }
+                tempDigest = itTxn->second;
               }
-               if(*txnDigest !=itTxn->second) return;
+               if(*txnDigest != tempDigest) return;
                RegisterTxTS(*txnDigest, txn);
             }
             else{
@@ -2066,12 +2078,14 @@ void Server::HandleWriteback(const TransportAddress &remote,
         txn = msg.release_txn();
         // check that digest and txn match..
         std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
-        auto itTxn = txnDigestMap.find(tempDigest);
-        if(itTxn == txnDigestMap.end()) {
-          Panic("WRITEBACK TXN NOT FOUND IN DIGEST MAP HERE");
+        if(params.sintr_params.hashEndorsements) {
+          auto itTxn = txnDigestMap.find(tempDigest);
+          if(itTxn == txnDigestMap.end()) {
+            Panic("WRITEBACK TXN NOT FOUND IN TXN DIGEST MAP HERE");
+          }
+          tempDigest = itTxn->second;
         }
-        Debug("TESTING OVER HERE2");
-         if(*txnDigest != itTxn->second) return;
+         if(*txnDigest != tempDigest) return;
         
         RegisterTxTS(*txnDigest, txn);
       }
@@ -2121,12 +2135,15 @@ void Server::HandleWriteback(const TransportAddress &remote,
     UW_ASSERT(msg.has_txn());
     txn = msg.release_txn();
     computedTxnDigest = TransactionDigest(*txn, params.hashDigest);
-    auto itTxn = txnDigestMap.find(computedTxnDigest);
+    if(params.sintr_params.hashEndorsements) {
+      auto itTxn = txnDigestMap.find(computedTxnDigest);
       if(itTxn == txnDigestMap.end()) {
         Panic("WRITEBACK TXN NOT FOUND IN DIGEST MAP here");
       }
-    Debug("TESTING OVER HERE");
-    txnDigest = &itTxn->second;
+      computedTxnDigest = itTxn->second;
+    }
+    // txnDigest shouldn't end up as a dangling pointer bc I think it has the same scope as computedTxnDigest
+    txnDigest = &computedTxnDigest;
     RegisterTxTS(*txnDigest, txn);
 
     if(committed.find(*txnDigest) != committed.end() || aborted.find(*txnDigest) != aborted.end()){

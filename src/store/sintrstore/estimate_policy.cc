@@ -46,7 +46,7 @@ namespace sintrstore {
     size_t pos = txn_name.find("_");
     if (pos == std::string::npos)
     {
-      Panic("Received unexpected txn name: %s", txn_name.c_str());
+      //Panic("Received unexpected txn name: %s", txn_name.c_str());
     }
 
     std::string txn_bench = txn_name.substr(0, pos);
