@@ -664,7 +664,11 @@ void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &t
 
     if(mostRecentPrepared != nullptr){ //Read prepared
       readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp());
-      readSetMgr->AddToDepSet(TransactionDigest(*mostRecentPrepared, params.hashDigest), mostRecentPrepared->timestamp());
+      std::string tempDigest = TransactionDigest(*mostRecentPrepared, params.hashDigest);
+      if(params.sintr_params.hashEndorsements && mostRecentPrepared->has_txndigest()) {
+        tempDigest = mostRecentPrepared->txndigest();
+      }
+      readSetMgr->AddToDepSet(tempDigest, mostRecentPrepared->timestamp());
     }
     else{ //Read committed
       TimestampMessage tsm;
