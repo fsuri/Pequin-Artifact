@@ -87,6 +87,11 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
+  
+  // forward query results to other clients
+  void ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result, 
+    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset);
 
   // given a new policy, update the endorsement policy for this client 
   // also contact additional peers as necessary
@@ -175,6 +180,11 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
+  
+  void ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
+    const std::string &query_id, const std::string &query_result,
+    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset);
 
   void ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchForwardReadResultMessage(const TransportAddress &remote, const std::string &data);
@@ -220,9 +230,9 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   std::set<uint64_t> beginValSent;
   // track most recently sent begin validation message
   proto::BeginValidateTxnMessage sentBeginValTxnMsg;
-  // track all sent forward read results for current transaction
-  LazyBuffer<proto::ForwardReadResultMessage> sentFwdReadResults;
-  mutable std::shared_mutex sentFwdReadResultsMutex;
+  // track all sent forward read/query results for current transaction
+  LazyBuffer<::google::protobuf::Message> sentFwdResults;
+  mutable std::shared_mutex sentFwdResultsMutex;
   // endorsement client can inform client of received validations
   EndorsementClient *endorseClient;
 

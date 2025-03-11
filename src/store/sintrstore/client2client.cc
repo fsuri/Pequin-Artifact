@@ -178,8 +178,8 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   sentBeginValTxnMsg.mutable_timestamp()->set_id(client_id);
 
   beginValSent.clear();
-  std::unique_lock lock(sentFwdReadResultsMutex);
-  sentFwdReadResults.clear();
+  std::unique_lock lock(sentFwdResultsMutex);
+  sentFwdResults.clear();
 
   Debug("beginValTxnMsg client id %lu, seq num %lu", client_id, client_seq_num);
 
@@ -327,8 +327,8 @@ void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num
 
   fwdReadResultMsgToSend->set_add_readset(addReadset);
 
-  std::unique_lock lock(sentFwdReadResultsMutex);
-  sentFwdReadResults.insert(fwdReadResultMsgToSend);
+  std::unique_lock lock(sentFwdResultsMutex);
+  sentFwdResults.insert(fwdReadResultMsgToSend);
 
   Debug(
     "ForwardReadResult: client id %lu, seq num %lu, key %s, value %s",
@@ -346,6 +346,93 @@ void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num
   }
 }
 
+void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result,
+    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset) {
+
+  uint64_t client_seq_num = this->client_seq_num;
+  if (!params.sintr_params.client2clientMultiThreading) {
+    ForwardQueryResultMessageHelper(
+      client_seq_num, query_id, query_result,
+      group_read_sets, group_result_hashes, group_sigs, addReadset
+    );
+  }
+  else {
+    auto f = [=, this]() {
+      this->ForwardQueryResultMessageHelper(
+        client_seq_num, query_id, query_result,
+        group_read_sets, group_result_hashes, group_sigs, addReadset
+      );
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
+    const std::string &query_id, const std::string &query_result,
+    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset) {
+  
+  proto::ForwardQueryResultMessage *fwdQueryResultMsgToSend = new proto::ForwardQueryResultMessage();
+  fwdQueryResultMsgToSend->set_client_id(client_id);
+  fwdQueryResultMsgToSend->set_client_seq_num(client_seq_num);
+  proto::ForwardQueryResult fwdQueryResult;
+  fwdQueryResult.set_query_id(query_id);
+  fwdQueryResult.set_query_result(query_result);
+  
+  if (params.sintr_params.signFwdReadResults) {
+    CreateHMACedMessage(fwdQueryResult, *fwdQueryResultMsgToSend->mutable_signed_fwd_query_result());
+  }
+  else {
+    *fwdQueryResultMsgToSend->mutable_fwd_query_result() = std::move(fwdQueryResult);
+  }
+
+  if (addReadset) {
+    if(params.query_params.cacheReadSet){ 
+      for(auto &[group, read_set_hash] : group_result_hashes){
+        proto::QueryGroupMeta &queryMD = (*fwdQueryResultMsgToSend->mutable_group_meta())[group]; 
+        queryMD.set_read_set_hash(read_set_hash);
+      }
+    }
+    else {
+      for(auto &[group, read_set] : group_read_sets){
+        proto::QueryGroupMeta &queryMD = (*fwdQueryResultMsgToSend->mutable_group_meta())[group]; 
+        *queryMD.mutable_query_read_set() = *read_set;
+      }
+    }
+
+    if (params.validateProofs) {
+      for (const auto &[group, query_sigs] : group_sigs) {
+        proto::SignedMessages &curr_group_sigs = (*fwdQueryResultMsgToSend->mutable_query_sigs())[group];
+        for (const auto &query_sig : query_sigs) {
+          *curr_group_sigs.add_sig_msgs() = *query_sig;
+        }
+      }
+    }
+  }
+
+  fwdQueryResultMsgToSend->set_add_readset(addReadset);
+
+  std::unique_lock lock(sentFwdResultsMutex);
+  sentFwdResults.insert(fwdQueryResultMsgToSend);
+
+  Debug(
+    "ForwardQueryResult: client id %lu, seq num %lu, query_id %s",
+    client_id,
+    client_seq_num,
+    BytesToHex(query_id, 16).c_str()
+  );
+  for (const auto &i : beginValSent) {
+    // do not send to self
+    if (i == client_id) {
+      continue;
+    }
+    transport->SendMessageToReplica(this, i, *fwdQueryResultMsgToSend);
+  }
+}
+
 void Client2Client::HandlePolicyUpdate(const Policy *policy) {
   UW_ASSERT(policy != nullptr);
   endorseClient->UpdateRequirement(policy);
@@ -354,8 +441,8 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
   if (diff.size() > 0) {
     std::set<uint64_t> clients;
     ExtractFromPolicyClientsToContact(diff, clients);
-    Debug("Initiating %d more beginValTxnMsg", clients.size());
-    std::shared_lock lock(sentFwdReadResultsMutex);
+    Debug("Initiating %ld more beginValTxnMsg", clients.size());
+    std::shared_lock lock(sentFwdResultsMutex);
     for (const auto &i : clients) {
       // do not send to self
       if (i == client_id) {
@@ -365,7 +452,7 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
       // should be first time sending to this client
       UW_ASSERT(ret.second);
       transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
-      for (const auto &fwdReadResultMsg : sentFwdReadResults) {
+      for (const auto &fwdReadResultMsg : sentFwdResults) {
         transport->SendMessageToReplica(this, i, *fwdReadResultMsg);
       }
     }

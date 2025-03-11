@@ -497,6 +497,26 @@ message ForwardReadResultMessage {
   optional Dependency policy_dep = 10;
 }
 
+message ForwardQueryResult {
+  required bytes query_id = 1;
+  required bytes query_result = 2;
+}
+
+message ForwardQueryResultMessage {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+  oneof forward_one_of {
+    ForwardQueryResult fwd_query_result = 3;
+    SignedMessage signed_fwd_query_result = 4;
+  }
+  // contains query readset per group
+  map<uint64, QueryGroupMeta> group_meta = 5;
+  // server signatures on query result and readset per group, should be f+1 exact matches
+  map<uint64, SignedMessages> query_sigs = 6;
+  // tell validating client whether to add to readset
+  optional bool add_readset = 7;
+}
+
 message FinishValidateTxnMessage {
   // client_id is the client that is sending this message
   required uint64 client_id = 1;

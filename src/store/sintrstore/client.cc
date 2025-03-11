@@ -794,6 +794,13 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   //just for testing
   if(TEST_READ_SET) TestReadSet(pendingQuery);
 
+  // forward to validating clients
+  // TODO: actually create query id, query sigs
+  c2client->ForwardQueryResultMessage(
+    "", pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
+    pendingQuery->group_sigs, true
+  );
+
   //Make query meta data part of current transaction. 
   //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
   proto::QueryResultMetaData *queryRep = txn.add_query_set();
