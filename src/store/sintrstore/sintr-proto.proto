@@ -497,6 +497,24 @@ message ForwardReadResultMessage {
   optional Dependency policy_dep = 10;
 }
 
+message ForwardPointQueryResultMessage {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+  // the value in ForwardReadResult is the query result
+  oneof forward_one_of {
+    ForwardReadResult fwd_read_result = 3;
+    SignedMessage signed_fwd_read_result = 4;
+  }
+  optional string table_name = 5;
+  optional CommittedProof proof = 6;
+  oneof prepared_oneof {
+    Write write = 7;
+    SignedMessage signed_write = 8;
+  }
+  optional Dependency dep = 9;
+  optional bool add_readset = 10;
+}
+
 message ForwardQueryResult {
   required bytes query_id = 1;
   required bytes query_result = 2;

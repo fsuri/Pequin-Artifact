@@ -210,7 +210,9 @@ class Client : public ::Client {
 
   void TestReadSet(PendingQuery *pendingQuery);
   void PointQueryResultCallback(PendingQuery *pendingQuery,  
-                            int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet); 
+                            int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet,
+                            const proto::CommittedProof &proof, const std::string &serializedWrite, 
+                            const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
   void ClearTxnQueries();

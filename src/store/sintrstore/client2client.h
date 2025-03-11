@@ -88,6 +88,12 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
   
+  // forward server point query result to other peers
+  void ForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+    const std::string &table_name, const proto::CommittedProof &proof,
+    const std::string &serializedWrite, const std::string &serializedWriteTypeName,
+    const proto::Dependency &dep, bool hasDep, bool addReadset);
+  
   // forward query results to other clients
   void ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result, 
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
@@ -180,6 +186,12 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
+  
+  void ForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
+    const std::string &key, const std::string &value, const Timestamp &ts,
+    const std::string &table_name, const proto::CommittedProof &proof,
+    const std::string &serializedWrite, const std::string &serializedWriteTypeName,
+    const proto::Dependency &dep, bool hasDep, bool addReadset);
   
   void ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_id, const std::string &query_result,

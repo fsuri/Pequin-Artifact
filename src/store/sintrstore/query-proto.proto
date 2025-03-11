@@ -53,6 +53,7 @@ message PointQueryResultReply {
     SignedMessage signed_write = 5;
   }
   optional CommittedProof proof = 6;
+  optional CommittedProof policy_proof = 7;
  
   //Proof: (Only for committed write) Client checks key in proof WriteSet --> finds idx --> finds RowUpdate --> compares it with write.committed_value)
   // For prepared writes: waiting for f+1 so no proof needed.

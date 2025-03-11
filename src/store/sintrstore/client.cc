@@ -640,7 +640,8 @@ void Client::Query(const std::string &query, query_callback qcb,
       pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values); //TODO: Pass it down!!! Ptr to table_name and key.
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7,
+                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11);
       stats.Increment("PointQueryAttempts", 1);
     }
     else{
@@ -673,7 +674,9 @@ void Client::Query(const std::string &query, query_callback qcb,
 
 
 void Client::PointQueryResultCallback(PendingQuery *pendingQuery,  
-                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet) 
+                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet,
+                                  const proto::CommittedProof &proof, const std::string &serializedWrite, 
+                                  const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg) 
 { 
   
    if(PROFILING_LAT){
@@ -693,10 +696,24 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     ReadMessage *read = txn.add_read_set();
     read->set_key(key);
     read_time.serialize(read->mutable_readtime());
+
+    // new policy can only come from server, which must correspond to addReadSet
+    if (policyMsg.IsInitialized()) {
+      if (Message_DebugEnabled(__FILE__)) {
+        Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+      }
+      Policy *policy = policyParseClient->Parse(policyMsg.policy());
+      endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+    }
   }
   if (hasDep) {
     *txn.add_deps() = dep;
   }
+
+  c2client->ForwardPointQueryResultMessage(
+    key, result, read_time, pendingQuery->table_name, proof,
+    serializedWrite, serializedWriteTypeName, dep, hasDep, addReadSet
+  );
       
   Debug("Upcall with Point Query result");
 
@@ -1046,7 +1063,8 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
       pendingQuery->key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
       bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true, std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7));
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7,
+                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11));
     } 
     else{
       bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.

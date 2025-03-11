@@ -346,6 +346,113 @@ void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num
   }
 }
 
+void Client2Client::ForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+    const std::string &table_name, const proto::CommittedProof &proof,
+    const std::string &serializedWrite, const std::string &serializedWriteTypeName,
+    const proto::Dependency &dep, bool hasDep, bool addReadset) {
+  
+  uint64_t client_seq_num = this->client_seq_num;
+  if (!params.sintr_params.client2clientMultiThreading) {
+    ForwardPointQueryResultMessageHelper(
+      client_seq_num, key, value, ts, table_name, proof, serializedWrite, 
+      serializedWriteTypeName, dep, hasDep, addReadset
+    );
+  }
+  else {
+    auto f = [=, this]() {
+      this->ForwardPointQueryResultMessageHelper(
+        client_seq_num, key, value, ts, table_name, proof, serializedWrite, 
+        serializedWriteTypeName, dep, hasDep, addReadset
+      );
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+// basically same logic as ForwardReadResultMessageHelper
+// no policy dep but additional table_name field
+void Client2Client::ForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
+    const std::string &key, const std::string &value, const Timestamp &ts,
+    const std::string &table_name, const proto::CommittedProof &proof,
+    const std::string &serializedWrite, const std::string &serializedWriteTypeName,
+    const proto::Dependency &dep, bool hasDep, bool addReadset) {
+  
+  proto::ForwardPointQueryResultMessage *fwdPointQueryResultMsgToSend = new proto::ForwardPointQueryResultMessage();
+  fwdPointQueryResultMsgToSend->set_client_id(client_id);
+  fwdPointQueryResultMsgToSend->set_client_seq_num(client_seq_num);
+  fwdPointQueryResultMsgToSend->set_table_name(table_name);
+  proto::ForwardReadResult fwdReadResult;
+  fwdReadResult.set_key(key);
+  fwdReadResult.set_value(value);
+  fwdReadResult.mutable_timestamp()->set_timestamp(ts.getTimestamp());
+  fwdReadResult.mutable_timestamp()->set_id(ts.getID());
+
+  if (params.sintr_params.signFwdReadResults) {
+    CreateHMACedMessage(fwdReadResult, *fwdPointQueryResultMsgToSend->mutable_signed_fwd_read_result());
+  }
+  else {
+    *fwdPointQueryResultMsgToSend->mutable_fwd_read_result() = std::move(fwdReadResult);
+  }
+
+  // only if addReadset is true did this result come from server
+  // otherwise it came from the buffer and there is no dependency or committed proof
+  if (addReadset) {
+    // this will contain the prepared txn dependency
+    if (hasDep) {
+      UW_ASSERT(dep.IsInitialized());
+      *fwdPointQueryResultMsgToSend->mutable_dep() = std::move(dep);
+      // must be oneof write or signed write
+      *fwdPointQueryResultMsgToSend->mutable_write() = proto::Write();
+    }
+    else {
+      if (params.validateProofs) {
+        if (proof.IsInitialized()) {
+          *fwdPointQueryResultMsgToSend->mutable_proof() = std::move(proof);
+        }
+        // if no proof then it is possible the value is empty
+        else {
+          UW_ASSERT(value.length() == 0);
+        }
+      }
+
+      // depending on if signatures are enabled and if the value is non empty
+      if (serializedWriteTypeName == fwdPointQueryResultMsgToSend->signed_write().GetTypeName()) {
+        UW_ASSERT(fwdPointQueryResultMsgToSend->mutable_signed_write()->ParseFromString(serializedWrite));
+      }
+      else if (serializedWriteTypeName == fwdPointQueryResultMsgToSend->write().GetTypeName()) {
+        UW_ASSERT(fwdPointQueryResultMsgToSend->mutable_write()->ParseFromString(serializedWrite));
+      }
+      else {
+        // this should only happen if value is empty
+        UW_ASSERT(value.length() == 0);
+        *fwdPointQueryResultMsgToSend->mutable_write() = proto::Write();
+      }
+    }
+  }
+
+  fwdPointQueryResultMsgToSend->set_add_readset(addReadset);
+
+  std::unique_lock lock(sentFwdResultsMutex);
+  sentFwdResults.insert(fwdPointQueryResultMsgToSend);
+
+  Debug(
+    "ForwardPointQueryResult: client id %lu, seq num %lu, key %s, result %s",
+    client_id,
+    client_seq_num,
+    BytesToHex(key, 16).c_str(),
+    BytesToHex(value, 16).c_str()
+  );
+  for (const auto &i : beginValSent) {
+    // do not send to self
+    if (i == client_id) {
+      continue;
+    }
+    transport->SendMessageToReplica(this, i, *fwdPointQueryResultMsgToSend);
+  }
+}
+
 void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset) {
