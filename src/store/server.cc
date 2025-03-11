@@ -479,6 +479,7 @@ DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration 
 DEFINE_bool(sintr_check_policy_leak, true, "check for policy information leak (readset policy must imply writeset policy)");
 DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement check");
 DEFINE_bool(sintr_use_occ_for_policies, false, "Use OCC instead of MVTSO for policies");
+DEFINE_bool(sintr_hash_endorsements, true, "hash endorsements with transaction digest");
 /**
  * Experiment settings.
  */
@@ -842,7 +843,7 @@ int main(int argc, char **argv) {
         FLAGS_sintr_policy_function_name,
         FLAGS_sintr_policy_config_path, 0, sintrstore::CLIENT_VALIDATION_HEURISTIC::EXACT,
         FLAGS_sintr_check_policy_leak, false, 0, false,
-        FLAGS_sintr_parallel_endorsement_check, FLAGS_sintr_use_occ_for_policies
+        FLAGS_sintr_parallel_endorsement_check, FLAGS_sintr_use_occ_for_policies, FLAGS_sintr_hash_endorsements
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

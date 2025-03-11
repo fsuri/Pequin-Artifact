@@ -1246,8 +1246,9 @@ void Client::Phase1(PendingRequest *req) {
   // update txn digest with endorsements
   Debug("OLD TXN DIGEST CLIENT: %s", BytesToHex(req->txnDigest, 16).c_str());
   const std::vector<proto::SignedMessage> &endorsements = endorseClient->GetEndorsements();
-  req->txnDigest = EndorsementTxnDigest(req->txnDigest, endorsements, params.hashDigest);
-
+  if(params.sintr_params.hashEndorsements) {
+    req->txnDigest = EndorsementTxnDigest(req->txnDigest, endorsements, params.hashDigest);
+  }
   if(PROFILING_LAT){
     struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -2273,7 +2274,9 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
   }
   else if(msg.has_txn()){
     std::string temp_digest = TransactionDigest(msg.txn(), params.hashDigest);
-    temp_digest = EndorsementTxnDigest(temp_digest, endorseClient->GetEndorsements(), params.hashDigest);
+    if(params.sintr_params.hashEndorsements) {
+      temp_digest = EndorsementTxnDigest(temp_digest, endorseClient->GetEndorsements(), params.hashDigest);
+    }
     if(*txnDigest != temp_digest){
       Panic("txnDig doesnt match Transaction");
       return false;
@@ -2305,7 +2308,9 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
     } 
     else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
       std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
-
+      if(params.sintr_params.hashEndorsements && msg.conflict().txn().has_txndigest()) {
+        committedTxnDigest = msg.conflict().txn().txndigest();
+      }
       if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier, 
           params.sintr_params.policyFunctionName)) {
             Panic("WRITEBACK[%s] Failed to validate committed conflict for fast abort.", BytesToHex(*txnDigest, 16).c_str());

@@ -1652,11 +1652,14 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
              stats.Increment("total_transactions_fast_Abort_conflict", 1);
 
             Debug("2: Taking Aborted conflict branch for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
-            auto itTxn = txnDigestMap.find(TransactionDigest(msg.conflict().txn(), params.hashDigest));
-            if(itTxn == txnDigestMap.end()) {
-              Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+            std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
+            if(params.sintr_params.hashEndorsements) {
+              auto itTxn = txnDigestMap.find(committedTxnDigest);
+              if(itTxn == txnDigestMap.end()) {
+                Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+              }
+              committedTxnDigest = itTxn->second;
             }
-              std::string committedTxnDigest = itTxn->second;
               asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
                     txnDigest, params.signedMessages, keyManager, &config, verifier,
                     std::move(mcb), transport, params.sintr_params.policyFunctionName, true, params.batchVerification);
@@ -1726,12 +1729,14 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
             }
 
           } else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
-              auto itTxn = txnDigestMap.find(TransactionDigest(msg.conflict().txn(), params.hashDigest));
-              if(itTxn == txnDigestMap.end()) {
-                Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+              std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
+              if(params.sintr_params.hashEndorsements) {
+                auto itTxn = txnDigestMap.find(committedTxnDigest);
+                if(itTxn == txnDigestMap.end()) {
+                  Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
+                }
+                committedTxnDigest = itTxn->second;
               }
-              std::string committedTxnDigest = itTxn->second;
-
                 if(params.batchVerification){
                   mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));
                   asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,

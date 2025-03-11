@@ -480,6 +480,7 @@ DEFINE_string(sintr_policy_function_name, "basic_id", "sintr policy function to 
 DEFINE_string(sintr_policy_config_path, "", "path to sintr policy configuration file");
 DEFINE_uint32(sintr_read_include_policy, 0, "number indicates period of including policy in read messages, 0 indicates never");
 DEFINE_uint64(sintr_min_enable_pull_policies, 0, "minimum number of replicas needed to enable policy retrieval on retry, 0 indicates never");
+DEFINE_bool(sintr_hash_endorsements, true, "hash endorsements with transaction digest");
 
 // given an estimated txn policy, how many other clients to contact?
 const std::string sintr_client_validation_args[] = {
@@ -1646,7 +1647,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_min_enable_pull_policies,
         FLAGS_sintr_client2client_multi_threading,
         FLAGS_sintr_parallel_endorsement_check,
-        false
+        false,
+        FLAGS_sintr_hash_endorsements
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

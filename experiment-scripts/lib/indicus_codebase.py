@@ -175,6 +175,8 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_client_pin_cores=%s' % str(config['sintr_protocol_settings']['sintr_client_check_evidence']).lower()
             if 'sintr_client2client_multi_threading' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_client2client_multi_threading=%s' % str(config['sintr_protocol_settings']['sintr_client2client_multi_threading']).lower()
+            if 'sintr_hash_endorsements' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_hash_endorsements=%s' % str(config['sintr_protocol_settings']['sintr_hash_endorsements']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings

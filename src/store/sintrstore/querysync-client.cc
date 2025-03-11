@@ -1179,6 +1179,11 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         }
 
         std::string committedTxnDigest = TransactionDigest(proof->txn(), params.hashDigest);
+        if(params.sintr_params.hashEndorsements && proof->txn().has_txndigest()) {
+            committedTxnDigest = proof->txn().txndigest();
+        } else if(params.sintr_params.hashEndorsements) {
+            Debug("NO TXN DIGEST IN PROOF FOR querysync-client ProcessRead");
+        }
 
         bool valid = false; 
         if(read_type == read_t::GET){
