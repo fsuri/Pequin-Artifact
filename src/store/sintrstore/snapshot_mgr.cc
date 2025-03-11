@@ -116,8 +116,12 @@ void SnapshotManager::AddToLocalSnapshot(const proto::Transaction &txn, bool has
   if(!useOptimisticTxId){ //Add txnDigest to snapshot
     //Just add txnDig to RepeatedPtr directly  //TODO: Make one general structure for prepared/committed.
 
-    Debug("Add txnDig(%s) to snapshot", BytesToHex(TransactionDigest(txn, hash_param), 16).c_str());
     std::string &&txnDigest(TransactionDigest(txn, hash_param));
+    if(txn.has_txndigest()) {
+      txnDigest = std::move(txn.txndigest());
+    }
+    Debug("Add txnDig(%s) to snapshot", BytesToHex(txnDigest, 16).c_str());
+
     committed_or_prepared? local_ss->add_local_txns_committed(std::move(txnDigest)) : local_ss->add_local_txns_prepared(std::move(txnDigest));
   }
   else{ //Add (merged) Timestamp to snapshot
