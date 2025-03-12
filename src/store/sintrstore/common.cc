@@ -1926,8 +1926,21 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2) {
   return !(pw1 == pw2);
 }
 
-std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest) {
+std::string EndorsedTxnDigest(const std::string &txnDigest, const proto::Transaction &txn, bool hashDigest) {
   if (hashDigest) {
+    std::vector<proto::SignedMessage> endorse_set;
+    if(txn.has_endorsements()) {
+      for(const auto& msg : txn.endorsements().sig_msgs()) {
+        endorse_set.push_back(msg);
+      }
+    }
+    return EndorsementTxnDigest(txnDigest, endorse_set, hashDigest);
+  }
+}
+
+std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest) {
+  if (hashDigest && endorsements.size() > 0) {
+    // If there's no endorsements we just return the txn digest without hashing it
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
 
@@ -1941,6 +1954,7 @@ std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
     return digest;
   }
+  return txnDigest;
 }
 //should hashing be parallelized?
 //ignores txnDigest field --> this is not part of protocol contents, just a hack for storage.

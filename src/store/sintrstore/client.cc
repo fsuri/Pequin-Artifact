@@ -1288,6 +1288,13 @@ void Client::Phase1(PendingRequest *req) {
     *protoEndorsements.add_sig_msgs() = endorsement;
   }
 
+  // add endorsement to txn
+  if(params.sintr_params.hashEndorsements) {
+    *(req->txn.mutable_endorsements()) = protoEndorsements;
+    // this does not modify transaction itself, so need to modify below
+    *txn.mutable_endorsements() = protoEndorsements;
+  }
+
   Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
       BytesToHex(TransactionDigest(req->txn, params.hashDigest), 16).c_str(), txn.timestamp().timestamp());
 
@@ -2333,8 +2340,8 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
     } 
     else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
       std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
-      if(params.sintr_params.hashEndorsements && msg.conflict().txn().has_txndigest()) {
-        committedTxnDigest = msg.conflict().txn().txndigest();
+      if(params.sintr_params.hashEndorsements) {
+        committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, msg.conflict().txn(), params.hashDigest);
       }
       if (!ValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn, txnDigest, params.signedMessages, keyManager, config, verifier, 
           params.sintr_params.policyFunctionName)) {

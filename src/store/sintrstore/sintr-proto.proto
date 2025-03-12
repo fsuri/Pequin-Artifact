@@ -178,6 +178,7 @@ message Transaction {
   }
   optional TxnPolicyType policy_type = 14 [default = NONE];
   repeated ReadMessage implicit_policy_reads = 15; // NOT PART OF TX. HACK HERE TO STORE read set for implicit policy reads
+  optional SignedMessages endorsements = 16;
 }
 
 message Phase1 {
@@ -189,6 +190,7 @@ message Phase1 {
   //required Transaction txn = 2;
   optional bool crash_failure = 4;
   optional bool replica_gossip = 5;
+  // TODO: can get rid of phase1 message endorsements bc endorsements come with txn now
   optional SignedMessages endorsements = 6;
 }
 

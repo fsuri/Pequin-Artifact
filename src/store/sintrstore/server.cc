@@ -73,7 +73,6 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   prepared = preparedMap(100000);
   preparedReads = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex, std::set<const proto::Transaction *>>>(100000);
   preparedWrites = tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>>(100000);
-  txnDigestMap = tbb::concurrent_unordered_map<std::string,std::string>();
   rts = tbb::concurrent_unordered_map<std::string, std::atomic_uint64_t>(100000);
   committed = tbb::concurrent_unordered_map<std::string, proto::CommittedProof *>(100000);
   writebackMessages = tbb::concurrent_unordered_map<std::string, proto::Writeback>(100000);
@@ -148,7 +147,6 @@ Server::Server(const transport::Configuration &config, int groupIdx, int idx,
   //Add real genesis digest   --  Might be needed when we add TableVersions to snapshot and need to sync on them
   std::string genesis_txn_dig = TransactionDigest(proof->txn(), params.hashDigest);
   Notice("Create Genesis Txn with digest: %s", BytesToHex(genesis_txn_dig, 16).c_str());
-  txnDigestMap[genesis_txn_dig] = genesis_txn_dig;
   *proof->mutable_txn()->mutable_txndigest() = genesis_txn_dig;
   committed.insert(std::make_pair(genesis_txn_dig, proof));
   ts_to_tx.insert(std::make_pair(MergeTimestampId(0, 0), genesis_txn_dig));
@@ -1207,11 +1205,7 @@ void Server::HandleRead(const TransportAddress &remote,
               *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecent->timestamp();
               std::string tempDigest = TransactionDigest(*mostRecent, params.hashDigest);
               if(params.sintr_params.hashEndorsements) {
-                auto itTxn = txnDigestMap.find(tempDigest);
-                if(itTxn == txnDigestMap.end()) {
-                  Panic("TXN NOT FOUND IN DIGEST MAP");
-                }
-                tempDigest = itTxn->second;
+                tempDigest = EndorsedTxnDigest(tempDigest, *mostRecent, params.hashDigest);
               }
               Debug("setting prepared value and digest for txn %s", BytesToHex(tempDigest,16).c_str());
               *readReply->mutable_write()->mutable_prepared_txn_digest() = tempDigest;
@@ -1239,11 +1233,7 @@ void Server::HandleRead(const TransportAddress &remote,
           tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
           std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
           if(params.sintr_params.hashEndorsements) {
-            auto itTxn = txnDigestMap.find(tempDigest);
-            if(itTxn == txnDigestMap.end()) {
-              Panic("TXN NOT FOUND IN DIGEST MAP");
-            }
-            tempDigest = itTxn->second;
+            tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
           }
           *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
         }
@@ -1425,21 +1415,25 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
 
   //if(params.signClientProposals) *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict)
   ///*
-  if(params.sintr_params.hashEndorsements && msg.has_endorsements()) {
+  if(params.sintr_params.hashEndorsements && txn->has_endorsements()) {
     // struct timespec ts_start;
     // clock_gettime(CLOCK_MONOTONIC, &ts_start);
     // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
 
+    // TODO: can get rid of phase1 message endorsements bc endorsements come with txn now
+    // Right now we just check if the txn digest computed from both is the same
     std::vector<proto::SignedMessage> endorse_set;
     for(const auto& msg : msg.endorsements().sig_msgs()) {
       endorse_set.push_back(msg);
     }
-    std::string newTxnDigest = EndorsementTxnDigest(txnDigest, endorse_set, params.hashDigest);
-    txnDigestMap[txnDigest] = newTxnDigest;
-      // HACK to create another map between newTxnDigest and old txn digest
-      // so we can compare old txn digest with endorsement
-      //oldTxnDigestMap[newTxnDigest] = txnDigest;
+    std::string msgTxnDigest = EndorsementTxnDigest(txnDigest, endorse_set, params.hashDigest);
+    std::string newTxnDigest = EndorsedTxnDigest(txnDigest, *txn, params.hashDigest);
+    if(msgTxnDigest != newTxnDigest) {
+      Panic("endorsements in phase1 msg not the same as txn endorsements (msgdigest:txndigest) %s:%s",
+        BytesToHex(msgTxnDigest, 16).c_str(), BytesToHex(newTxnDigest, 16).c_str());
+    }
     Debug("OLD TXN DIGEST: %s", BytesToHex(txnDigest, 16).c_str());
+    Debug("NEW TXN DIGEST:  %s", BytesToHex(newTxnDigest, 16).c_str());
     txnDigest = newTxnDigest;
 
     // struct timespec ts_end;
@@ -1730,11 +1724,7 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
       txn = &msg.txn();
       computedTxnDigest = TransactionDigest(msg.txn(), params.hashDigest);
       if(params.sintr_params.hashEndorsements) {
-        auto itTxn = txnDigestMap.find(computedTxnDigest);
-        if(itTxn == txnDigestMap.end()) {
-          Panic("PHASE2 TXN NOT FOUND IN DIGEST MAP");
-        }
-        computedTxnDigest = itTxn->second;
+        computedTxnDigest = EndorsedTxnDigest(computedTxnDigest, msg.txn(), params.hashDigest);
       }
       txnDigest = &computedTxnDigest;
       RegisterTxTS(computedTxnDigest, txn);
@@ -1866,11 +1856,7 @@ void Server::HandlePhase2(const TransportAddress &remote, proto::Phase2 &msg) {
               // check that digest and txn match..
               std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
               if(params.sintr_params.hashEndorsements) {
-                auto itTxn = txnDigestMap.find(tempDigest);
-                if(itTxn == txnDigestMap.end()) {
-                  Panic("HANDLE PHASE 2 TXN NOT FOUND IN DIGEST MAP");
-                }
-                tempDigest = itTxn->second;
+                tempDigest = EndorsedTxnDigest(tempDigest, *txn, params.hashDigest);
               }
                if(*txnDigest != tempDigest) return;
                RegisterTxTS(*txnDigest, txn);
@@ -2079,11 +2065,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
         // check that digest and txn match..
         std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
         if(params.sintr_params.hashEndorsements) {
-          auto itTxn = txnDigestMap.find(tempDigest);
-          if(itTxn == txnDigestMap.end()) {
-            Panic("WRITEBACK TXN NOT FOUND IN TXN DIGEST MAP HERE");
-          }
-          tempDigest = itTxn->second;
+          tempDigest = EndorsedTxnDigest(tempDigest, *txn, params.hashDigest);
         }
          if(*txnDigest != tempDigest) return;
         
@@ -2136,11 +2118,7 @@ void Server::HandleWriteback(const TransportAddress &remote,
     txn = msg.release_txn();
     computedTxnDigest = TransactionDigest(*txn, params.hashDigest);
     if(params.sintr_params.hashEndorsements) {
-      auto itTxn = txnDigestMap.find(computedTxnDigest);
-      if(itTxn == txnDigestMap.end()) {
-        Panic("WRITEBACK TXN NOT FOUND IN DIGEST MAP here");
-      }
-      computedTxnDigest = itTxn->second;
+      computedTxnDigest = EndorsedTxnDigest(computedTxnDigest, *txn, params.hashDigest);
     }
     // txnDigest shouldn't end up as a dangling pointer bc I think it has the same scope as computedTxnDigest
     txnDigest = &computedTxnDigest;
@@ -2413,10 +2391,6 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
   //const proto::Transaction *ongoingTxn = ongoing.at(txnDigest);
 
   UW_ASSERT(ongoingTxn->has_txndigest());
-  auto itTxn = txnDigestMap.find(txnDigest);
-  if(itTxn != txnDigestMap.end()) {
-    Panic("txn was found in digest map");
-  }
   if(!ongoingTxn->has_txndigest()) *ongoingTxn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
 
   preparedMap::accessor a;
@@ -2810,10 +2784,6 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
     }
     
     UW_ASSERT(txn->has_txndigest());
-    auto itTxn = txnDigestMap.find(txnDigest);
-    if(itTxn != txnDigestMap.end()) {
-      Panic("TXN digest found in txn digest map when it shouldn't have been there");
-    }
     if(txn->has_txndigest() && txn->txndigest() != txnDigest) Panic("TXN digests not equal");
     if(!txn->has_txndigest()) *txn->mutable_txndigest() = txnDigest;
 
