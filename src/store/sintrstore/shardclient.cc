@@ -255,8 +255,6 @@ void ShardClient::Phase1(uint64_t id, const proto::Transaction &transaction, con
     *phase1.mutable_txn() = transaction;
   }
 
-  *phase1.mutable_endorsements() = endorsements;
-
   if(failureActive && params.injectFailure.type == InjectFailureType::CLIENT_SEND_PARTIAL_P1){
        phase1.set_crash_failure(true);
        for (size_t i = 0; i < config->n; ++i) {

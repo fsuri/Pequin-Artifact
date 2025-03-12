@@ -1271,9 +1271,6 @@ void Client::Phase1(PendingRequest *req) {
   // update txn digest with endorsements
   Debug("OLD TXN DIGEST CLIENT: %s", BytesToHex(req->txnDigest, 16).c_str());
   const std::vector<proto::SignedMessage> &endorsements = endorseClient->GetEndorsements();
-  if(params.sintr_params.hashEndorsements) {
-    req->txnDigest = EndorsementTxnDigest(req->txnDigest, endorsements, params.hashDigest);
-  }
   if(PROFILING_LAT){
     struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -1293,6 +1290,7 @@ void Client::Phase1(PendingRequest *req) {
     *(req->txn.mutable_endorsements()) = protoEndorsements;
     // this does not modify transaction itself, so need to modify below
     *txn.mutable_endorsements() = protoEndorsements;
+    req->txnDigest = EndorsedTxnDigest(req->txnDigest, txn, params.hashDigest);
   }
 
   Debug("PHASE1 [%lu:%lu] for txn_id %s at TS %lu", client_id, client_seq_num,
@@ -2307,7 +2305,7 @@ bool Client::ValidateWB(proto::Writeback &msg, std::string *txnDigest, proto::Tr
   else if(msg.has_txn()){
     std::string temp_digest = TransactionDigest(msg.txn(), params.hashDigest);
     if(params.sintr_params.hashEndorsements) {
-      temp_digest = EndorsementTxnDigest(temp_digest, endorseClient->GetEndorsements(), params.hashDigest);
+      temp_digest = EndorsedTxnDigest(temp_digest, msg.txn(), params.hashDigest);
     }
     if(*txnDigest != temp_digest){
       Panic("txnDig doesnt match Transaction");

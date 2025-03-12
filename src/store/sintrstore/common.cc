@@ -1934,25 +1934,20 @@ std::string EndorsedTxnDigest(const std::string &txnDigest, const proto::Transac
         endorse_set.push_back(msg);
       }
     }
-    return EndorsementTxnDigest(txnDigest, endorse_set, hashDigest);
-  }
-}
-
-std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest) {
-  if (hashDigest && endorsements.size() > 0) {
-    // If there's no endorsements we just return the txn digest without hashing it
-    blake3_hasher hasher;
-    blake3_hasher_init(&hasher);
-
-    std::string digest(BLAKE3_OUT_LEN, 0);
-    blake3_hasher_update(&hasher, (unsigned char *) &txnDigest[0], txnDigest.length());
-    for(const auto &endorse : endorsements) {
-      std::string endorseStr;
-      endorse.SerializeToString(&endorseStr);
-      blake3_hasher_update(&hasher, (unsigned char *) &endorseStr[0], endorseStr.length());
-    }
-    blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
-    return digest;
+    if(endorse_set.size() > 0) {
+      blake3_hasher hasher;
+      blake3_hasher_init(&hasher);
+  
+      std::string digest(BLAKE3_OUT_LEN, 0);
+      blake3_hasher_update(&hasher, (unsigned char *) &txnDigest[0], txnDigest.length());
+      for(const auto &endorse : endorse_set) {
+        std::string endorseStr;
+        endorse.SerializeToString(&endorseStr);
+        blake3_hasher_update(&hasher, (unsigned char *) &endorseStr[0], endorseStr.length());
+      }
+      blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+      return digest;  
+    } 
   }
   return txnDigest;
 }

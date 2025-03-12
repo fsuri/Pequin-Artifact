@@ -1422,16 +1422,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
 
     // TODO: can get rid of phase1 message endorsements bc endorsements come with txn now
     // Right now we just check if the txn digest computed from both is the same
-    std::vector<proto::SignedMessage> endorse_set;
-    for(const auto& msg : msg.endorsements().sig_msgs()) {
-      endorse_set.push_back(msg);
-    }
-    std::string msgTxnDigest = EndorsementTxnDigest(txnDigest, endorse_set, params.hashDigest);
     std::string newTxnDigest = EndorsedTxnDigest(txnDigest, *txn, params.hashDigest);
-    if(msgTxnDigest != newTxnDigest) {
-      Panic("endorsements in phase1 msg not the same as txn endorsements (msgdigest:txndigest) %s:%s",
-        BytesToHex(msgTxnDigest, 16).c_str(), BytesToHex(newTxnDigest, 16).c_str());
-    }
     Debug("OLD TXN DIGEST: %s", BytesToHex(txnDigest, 16).c_str());
     Debug("NEW TXN DIGEST:  %s", BytesToHex(newTxnDigest, 16).c_str());
     txnDigest = newTxnDigest;

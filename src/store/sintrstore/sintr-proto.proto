@@ -190,8 +190,6 @@ message Phase1 {
   //required Transaction txn = 2;
   optional bool crash_failure = 4;
   optional bool replica_gossip = 5;
-  // TODO: can get rid of phase1 message endorsements bc endorsements come with txn now
-  optional SignedMessages endorsements = 6;
 }
 
 
