@@ -1158,7 +1158,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
     AddOngoing(txnDigest, txn);
 
-    // assuming that endorsements are not freed
+    // TODO: Free endorsements after they have been checked
     proto::SignedMessages *endorsements = new proto::SignedMessages(txn->endorsements());
 
     if(!params.multiThreading || !params.signClientProposals){
