@@ -997,6 +997,9 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
           result = proto::ConcurrencyControl::ABSTAIN;
+          // free endorsements
+          delete endorsements;
+          endorsements = nullptr;
           HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
           return (void*) true;
         }
@@ -1015,10 +1018,15 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if (!asyncValidateEndorsements.GetValidationResult()) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
           result = proto::ConcurrencyControl::ABSTAIN;
+          // free endorsements
+          delete endorsements;
+          endorsements = nullptr;
           HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
           return (void*) true;
         }
       }
+      delete endorsements;
+      endorsements = nullptr;
 
       HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, false);
 
@@ -1078,6 +1086,9 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
             endorsementCheckFail = true;
           }
         }
+
+        delete endorsements;
+        endorsements = nullptr;
 
         HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize, endorsementCheckFail);
 
@@ -1158,7 +1169,6 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
     AddOngoing(txnDigest, txn);
 
-    // TODO: Free endorsements after they have been checked
     proto::SignedMessages *endorsements = new proto::SignedMessages(txn->endorsements());
 
     if(!params.multiThreading || !params.signClientProposals){
