@@ -1285,6 +1285,13 @@ void Client::Phase1(PendingRequest *req) {
     *protoEndorsements.add_sig_msgs() = endorsement;
   }
 
+  // TODO: implement compartor for endorsements to use for sorting
+  /*
+  if(params.parallel_CCC) {
+    std::sort(protoEndorsements.mutable_sig_msgs()->begin(), protoEndorsements.mutable_sig_msgs()->end());
+  }
+  */
+
   // add endorsement to txn
   if(params.sintr_params.hashEndorsements) {
     *(req->txn.mutable_endorsements()) = protoEndorsements;
