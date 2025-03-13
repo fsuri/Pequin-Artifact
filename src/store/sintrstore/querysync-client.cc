@@ -1183,10 +1183,8 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
         }
 
         std::string committedTxnDigest = TransactionDigest(proof->txn(), params.hashDigest);
-        if(params.sintr_params.hashEndorsements && proof->txn().has_txndigest()) {
-            committedTxnDigest = proof->txn().txndigest();
-        } else if(params.sintr_params.hashEndorsements) {
-            Debug("NO TXN DIGEST IN PROOF FOR querysync-client ProcessRead");
+        if(params.sintr_params.hashEndorsements) {
+            committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, proof->txn(), params.hashDigest);
         }
 
         bool valid = false; 
@@ -1236,11 +1234,9 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                 }
         
                 std::string committedPolicyTxnDigest = TransactionDigest(reply.policy_proof().txn(), params.hashDigest);
-                if(params.sintr_params.hashEndorsements && reply.policy_proof().txn().has_txndigest()) {
+                if(params.sintr_params.hashEndorsements) {
                     Debug("USING TXN DIGEST IN POLICY PROOF READ REPLY");
-                    committedPolicyTxnDigest = reply.policy_proof().txn().txndigest();
-                } else if(params.sintr_params.hashEndorsements) {
-                    Debug("NO TXN DIGEST IN POLICY PROOF READ REPLY TXN");
+                    committedPolicyTxnDigest = EndorsedTxnDigest(committedPolicyTxnDigest, reply.policy_proof().txn(), params.hashDigest);
                 }
                 std::string policyObjectStr;
                 write->committed_policy().policy().SerializeToString(&policyObjectStr);

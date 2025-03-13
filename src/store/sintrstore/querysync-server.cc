@@ -1217,10 +1217,8 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             //Confirm that replica supplied correct transaction.     //TODO: Note: Since one should do this anyways, there is no point in storing txn_id as part of supply message.
                 // TODO: for the hack of storing digest in txn, think if it's safe to do server side...
                 std::string tempDigest = TransactionDigest(proof->txn(), params.hashDigest);
-                if(params.sintr_params.hashEndorsements && proof->txn().has_txndigest()) {
-                    tempDigest = proof->txn().txndigest();
-                } else if(params.sintr_params.hashEndorsements) {
-                    Debug("NO TXN DIGEST IN PROOF FOR querysync-server Process Supplied Txn has commit proof");
+                if(params.sintr_params.hashEndorsements) {
+                    tempDigest = EndorsedTxnDigest(tempDigest, proof->txn(), params.hashDigest);
                 }
                 if(txn_id != tempDigest){
                     Debug("Tx-id: [%s], TxDigest: [%s]", txn_id, tempDigest);
@@ -1423,10 +1421,8 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
 
         //Check whether txn matches requested tx-id
         std::string tempDigest = TransactionDigest(*txn, params.hashDigest);
-        if(params.sintr_params.hashEndorsements && txn->has_txndigest()) {
-            tempDigest = txn->txndigest();
-        } else if(params.sintr_params.hashEndorsements) {
-            Debug("NO TXN DIGEST IN PROOF FOR querysync-server ProcessSuppliedTxn has p1");
+        if(params.sintr_params.hashEndorsements) {
+            tempDigest = EndorsedTxnDigest(tempDigest, *txn, params.hashDigest);
         }
         if(txn_id != tempDigest){
             Debug("Tx-id: [%s], TxDigest: [%s]", BytesToHex(txn_id, 16).c_str(), BytesToHex(tempDigest, 16).c_str());

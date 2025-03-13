@@ -398,7 +398,7 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2);
 
 std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
-std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest);
+std::string EndorsedTxnDigest(const std::string &txnDigest, const proto::Transaction &txn, bool hashDigest);
 
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
 std::string QueryRetryId(const std::string &queryId, const uint64_t &retry_version, bool queryHashDigest);

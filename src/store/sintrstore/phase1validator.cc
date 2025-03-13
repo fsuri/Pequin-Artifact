@@ -74,10 +74,8 @@ bool Phase1Validator::ProcessMessage(const proto::ConcurrencyControl &cc, bool f
       Debug("[group %d] ABORT (with conflict).", group);
       
       std::string committedTxnDigest = TransactionDigest(cc.committed_conflict().txn(), params.hashDigest);
-      if(params.sintr_params.hashEndorsements && cc.committed_conflict().txn().has_txndigest()) {
-        committedTxnDigest = cc.committed_conflict().txn().txndigest();
-      } else if(params.sintr_params.hashEndorsements) {
-        Debug("NO TXN DIGEST IN PROOF FOR PHASE1Validator process message");
+      if(params.sintr_params.hashEndorsements) {
+        committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, cc.committed_conflict().txn(), params.hashDigest);
       }
       if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(), &committedTxnDigest, txn, txnDigest,
         params.signedMessages, keyManager, config, verifier, params.sintr_params.policyFunctionName)) {
@@ -147,10 +145,8 @@ bool Phase1Validator::EquivocateVotes(const proto::ConcurrencyControl &cc) {
       std::string committedTxnDigest = TransactionDigest(
           cc.committed_conflict().txn(), params.hashDigest);
           
-      if(params.sintr_params.hashEndorsements && cc.committed_conflict().txn().has_txndigest()) {
-        committedTxnDigest = cc.committed_conflict().txn().txndigest();
-      } else if(params.sintr_params.hashEndorsements) {
-        Debug("NO TXN DIGEST IN PROOF FOR PHASE1Validator equivocate votes");
+      if(params.sintr_params.hashEndorsements) {
+        committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, cc.committed_conflict().txn(), params.hashDigest);
       }
       //TODO: RECOMMENT, just testing
       if (params.validateProofs && !ValidateCommittedConflict(cc.committed_conflict(),
