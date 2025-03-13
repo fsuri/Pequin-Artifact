@@ -665,8 +665,8 @@ void Server::FindTableVersionOld(const std::string &key_name, const Timestamp &t
     if(mostRecentPrepared != nullptr){ //Read prepared
       readSetMgr->AddToReadSet(key_name, mostRecentPrepared->timestamp());
       std::string tempDigest = TransactionDigest(*mostRecentPrepared, params.hashDigest);
-      if(params.sintr_params.hashEndorsements && mostRecentPrepared->has_txndigest()) {
-        tempDigest = mostRecentPrepared->txndigest();
+      if(params.sintr_params.hashEndorsements) {
+        tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPrepared, params.hashDigest);
       }
       readSetMgr->AddToDepSet(tempDigest, mostRecentPrepared->timestamp());
     }
@@ -997,6 +997,9 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if (!EndorsementCheck(endorsements, oldTxnDigest, txn)) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
           result = proto::ConcurrencyControl::ABSTAIN;
+          // free endorsements
+          delete endorsements;
+          endorsements = nullptr;
           HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
           return (void*) true;
         }
@@ -1015,10 +1018,15 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
         if (!asyncValidateEndorsements.GetValidationResult()) {
           Debug("Endorsement check failed for txn %s", BytesToHex(txnDigest, 16).c_str());
           result = proto::ConcurrencyControl::ABSTAIN;
+          // free endorsements
+          delete endorsements;
+          endorsements = nullptr;
           HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, true);
           return (void*) true;
         }
       }
+      delete endorsements;
+      endorsements = nullptr;
 
       HandlePhase1CB(reqId, result, committedProof, txnDigest, txn, remote, abstain_conflict, isGossip, forceMaterialize, false);
 
@@ -1079,6 +1087,9 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
           }
         }
 
+        delete endorsements;
+        endorsements = nullptr;
+
         HandlePhase1CB(reqId, *result, committedProof, txnDigest, txn, *remote_ptr, abstain_conflict, isGossip, forceMaterialize, endorsementCheckFail);
 
         delete result;
@@ -1104,6 +1115,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     
     bool first = ts_to_tx.insert(t, MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()));
     if(!first && !TEST_PREPARE_SYNC && t->second != txnDigest){
+      Debug("HERE IS TXN DIGEST IN TXN: %s and whether or not endorsements in txn: %d", BytesToHex(txn->txndigest(), 16).c_str(), txn->has_endorsements());
       Panic("Two different Transactions [%s:%s](old:new) have the same merged Timestamp[%lu] Original TS:[%lu:%lu]. Equivocation", 
               BytesToHex(t->second, 16).c_str(), BytesToHex(txnDigest, 16).c_str(), 
               MergeTimestampId(txn->timestamp().timestamp(), txn->timestamp().id()), 
@@ -1157,7 +1169,7 @@ void* Server::TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::
     //If verification fails, remove it again. Keep track of num_concurrent_clients to make sure we don't delete if it is still necessary.
     AddOngoing(txnDigest, txn);
 
-    proto::SignedMessages *endorsements = msg.release_endorsements();
+    proto::SignedMessages *endorsements = new proto::SignedMessages(txn->endorsements());
 
     if(!params.multiThreading || !params.signClientProposals){
     //if(!params.multiThreading){
@@ -1658,11 +1670,7 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
             Debug("2: Taking Aborted conflict branch for txn %s WB validation", BytesToHex(*txnDigest, 16).c_str());
             std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
             if(params.sintr_params.hashEndorsements) {
-              auto itTxn = txnDigestMap.find(committedTxnDigest);
-              if(itTxn == txnDigestMap.end()) {
-                Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
-              }
-              committedTxnDigest = itTxn->second;
+              committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, msg.conflict().txn(), params.hashDigest);
             }
               asyncValidateCommittedConflict(msg.conflict(), &committedTxnDigest, txn,
                     txnDigest, params.signedMessages, keyManager, &config, verifier,
@@ -1735,11 +1743,7 @@ void Server::ManageWritebackValidation(proto::Writeback &msg, const std::string 
           } else if (msg.decision() == proto::ABORT && msg.has_conflict()) {
               std::string committedTxnDigest = TransactionDigest(msg.conflict().txn(), params.hashDigest);
               if(params.sintr_params.hashEndorsements) {
-                auto itTxn = txnDigestMap.find(committedTxnDigest);
-                if(itTxn == txnDigestMap.end()) {
-                  Panic("Manage WB Validation Conflict TXN NOT FOUND IN DIGEST MAP");
-                }
-                committedTxnDigest = itTxn->second;
+                committedTxnDigest = EndorsedTxnDigest(committedTxnDigest, msg.conflict().txn(), params.hashDigest);
               }
                 if(params.batchVerification){
                   mainThreadCallback mcb(std::bind(&Server::WritebackCallback, this, &msg, txnDigest, txn, std::placeholders::_1));

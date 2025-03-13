@@ -1926,21 +1926,22 @@ bool operator!=(const proto::Write &pw1, const proto::Write &pw2) {
   return !(pw1 == pw2);
 }
 
-std::string EndorsementTxnDigest(const std::string &txnDigest, const std::vector<proto::SignedMessage> &endorsements, bool hashDigest) {
-  if (hashDigest) {
+std::string EndorsedTxnDigest(const std::string &txnDigest, const proto::Transaction &txn, bool hashDigest) {
+  if(hashDigest && txn.endorsements().sig_msgs().size() > 0) {
     blake3_hasher hasher;
     blake3_hasher_init(&hasher);
 
     std::string digest(BLAKE3_OUT_LEN, 0);
     blake3_hasher_update(&hasher, (unsigned char *) &txnDigest[0], txnDigest.length());
-    for(const auto &endorse : endorsements) {
+    for(const auto &endorse : txn.endorsements().sig_msgs()) {
       std::string endorseStr;
       endorse.SerializeToString(&endorseStr);
       blake3_hasher_update(&hasher, (unsigned char *) &endorseStr[0], endorseStr.length());
     }
     blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
-    return digest;
+    return digest;  
   }
+  return txnDigest;
 }
 //should hashing be parallelized?
 //ignores txnDigest field --> this is not part of protocol contents, just a hack for storage.

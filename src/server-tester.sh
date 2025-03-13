@@ -56,6 +56,6 @@ for j in `seq 0 $((NUM_GROUPS-1))`; do
 			--debug_stats --indicus_key_path $KEY_PATH --optimize_tpool_for_dev_machine \
 			--store_mode=$STORE_MODE --indicus_hash_digest=true --indicus_verify_deps=false \
 			--sintr_policy_config_path $POLICY_CONFIG --sintr_policy_function_name $POLICY_FUNCTION \
-			--indicus_no_fallback=false --sintr_hash_endorsements=false &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
+			--indicus_no_fallback=false --sintr_hash_endorsements=true &> ./0_local_test_outputs/server$(($i+$j*$N)).out &
 	done;
 done;

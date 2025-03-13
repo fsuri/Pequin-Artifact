@@ -1200,7 +1200,6 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //std::unordered_map<std::string, std::map<Timestamp, const proto::Transaction *>> preparedWrites;
   tbb::concurrent_unordered_map<std::string, std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>>> preparedWrites; //map from: key ->
   // TODO: Add garbage collection for txnDigest map
-  tbb::concurrent_unordered_map<std::string, std::string> txnDigestMap;
 
   /* MAPS FOR SEMANTIC CC */
   //typedef tbb::concurrent_hash_map<std::string, std::map<Timestamp, ReadPredicate>> TablePredicateMap; //table_name => map(TS, Read Pred)  

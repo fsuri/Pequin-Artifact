@@ -339,11 +339,7 @@ void Server::HandlePhase1FB(const TransportAddress &remote, proto::Phase1FB &msg
   stats.Increment("total_p1FB_received", 1);
   std::string txnDigest = TransactionDigest(*txn, params.hashDigest);
   if(params.sintr_params.hashEndorsements) {
-    auto itTxn = txnDigestMap.find(txnDigest);
-    if(itTxn == txnDigestMap.end()) {
-      Panic("HandlePhase1FB TXN Digest not found in map");
-    }
-    txnDigest = itTxn->second;
+    txnDigest = EndorsedTxnDigest(txnDigest, *txn, params.hashDigest);
   }
 
   Debug("Received PHASE1FB[%lu][%s] from client %lu. This is server: %lu", msg.req_id(), BytesToHex(txnDigest, 16).c_str(), msg.client_id(), id);
