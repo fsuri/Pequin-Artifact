@@ -11,13 +11,13 @@ SRCS += $(addprefix $(d), client.cc shardclient.cc server.cc server_fallback.cc 
 		basicverifier.cc localbatchverifier.cc sharedbatchverifier.cc \
 		querysync-server.cc querysync-servertools.cc querysync-tests.cc querysync-client.cc queryexec.cc checkpointing.cc snapshot_mgr.cc sql_interpreter.cc \
 		concurrencycontrol_semantic.cc validation_parse_client.cc client2client.cc endorsement_client.cc estimate_policy.cc \
-		validation_client.cc)
+		validation_client.cc common2.cc)
 
 PROTOS += $(addprefix $(d), sintr-proto.proto)
 PROTOS += $(addprefix $(d), query-proto.proto)
 
 #LIB-sql_interpreter := $(o)sql_interpreter.o
-LIB-sintr-common := $(LIB-store-backend-sql-encoding) $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o
+LIB-sintr-common := $(LIB-store-backend-sql-encoding) $(o)common.o $(o)snapshot_mgr.o $(o)sql_interpreter.o $(o)common2.o
 
 
 SRCS += $(addprefix $(d), table_store_interface_peloton.cc table_store_interface_toy.cc) # table_store_interface_old.cc)

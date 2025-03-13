@@ -77,7 +77,8 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool,
   const std::vector<proto::SignedMessage> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
-typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const proto::Dependency &, bool, bool,
+typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const std::string &,
+  const proto::Dependency &, bool, bool,
   const proto::CommittedProof &, const std::string &, const std::string &,
   const proto::EndorsementPolicyMessage &)> point_result_callback;  //TODO: This == Get callback.
 

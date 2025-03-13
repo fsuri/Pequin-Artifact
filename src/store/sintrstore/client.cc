@@ -99,7 +99,8 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // right now group is always 0, maybe configure later
   c2client = new Client2Client(
     config, clients_config, transport, client_id, nshards, ngroups, 0,
-    pingReplicas, params, keyManager, verifier, part, endorseClient, keys
+    pingReplicas, params, keyManager, verifier, part, endorseClient, &sql_interpreter,
+    keys
   );
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
@@ -641,7 +642,8 @@ void Client::Query(const std::string &query, query_callback qcb,
       prcb = std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7,
-                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11);
+                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11,
+                     std::placeholders::_12);
       stats.Increment("PointQueryAttempts", 1);
     }
     else{
@@ -674,7 +676,8 @@ void Client::Query(const std::string &query, query_callback qcb,
 
 
 void Client::PointQueryResultCallback(PendingQuery *pendingQuery,  
-                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const proto::Dependency &dep, bool hasDep, bool addReadSet,
+                                  int status, const std::string &key, const std::string &result, const Timestamp &read_time, const std::string &table_name,
+                                  const proto::Dependency &dep, bool hasDep, bool addReadSet,
                                   const proto::CommittedProof &proof, const std::string &serializedWrite, 
                                   const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg) 
 { 
@@ -708,8 +711,10 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     *txn.add_deps() = dep;
   }
 
+  // note that the pendingQuery->table_name has been moved out, so is no longer valid
+  // instead we use the table_name passed in as an argument
   c2client->ForwardPointQueryResultMessage(
-    key, result, read_time, pendingQuery->table_name, proof,
+    key, result, read_time, table_name, proof,
     serializedWrite, serializedWriteTypeName, dep, hasDep, addReadSet
   );
       
@@ -1068,7 +1073,8 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
       bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg, true, std::bind(&Client::PointQueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
                      std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7,
-                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11));
+                     std::placeholders::_8, std::placeholders::_9, std::placeholders::_10, std::placeholders::_11,
+                     std::placeholders::_12));
     } 
     else{
       bclient[g]->RetryQuery(pendingQuery->queryMsg.query_seq_num(), pendingQuery->queryMsg); //--> Retry Query, shard clients already have the rcb.

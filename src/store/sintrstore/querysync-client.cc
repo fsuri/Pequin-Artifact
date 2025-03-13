@@ -24,6 +24,7 @@
 #include <google/protobuf/util/message_differencer.h>
 
 #include "store/sintrstore/common.h"
+#include "store/sintrstore/common2.h"
 
 namespace sintrstore {
 
@@ -1412,7 +1413,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
             
             Debug("MaxVAl: %s",BytesToHex(req->maxValue, 100).c_str());
             Debug("MaxTS: [%lu:%lu]", req->maxTs.getTimestamp(), req->maxTs.getID());
-            req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true,
+            req->prcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->table_name, req->dep,req->hasDep, true,
                 req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy);
         }
         // else{ //TODO: Could optimize to do this right at the start of Handle Read to avoid any validation costs... -> Does mean all reads have to lookup twice though.
@@ -1433,8 +1434,10 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
     const std::string &key, const std::string &value, const std::string &table_name, sql::QueryResultProtoWrapper *query_result)
 {
+    return ::sintrstore::ValidateTransactionTableWrite(proof, txnDigest, timestamp, key, value, table_name, query_result,
+        sql_interpreter, config, params.signedMessages, keyManager, verifier);
 
-
+/*
     Debug("[group %i] Trying to validate committed TableWrite.", group);
     
     //*query_result = std::move(sql::QueryResultProtoWrapper(value));
@@ -1543,6 +1546,7 @@ bool ShardClient::ValidateTransactionTableWrite(const proto::CommittedProof &pro
     }
     Debug("VALIDATE TableWrite value successfully for txn %lu.%lu key %s", proof.txn().client_id(), proof.txn().client_seq_num(), key.c_str());
   return true;
+*/
 }
 
 

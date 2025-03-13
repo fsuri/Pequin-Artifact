@@ -34,7 +34,7 @@
 #include "store/common/frontend/validation_transaction.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/sintrstore/common.h"
-// #include "store/sintrstore/common2.h"
+#include "store/sintrstore/common2.h"
 
 #include <google/protobuf/util/message_differencer.h>
 #include <sched.h>
@@ -45,12 +45,14 @@ namespace sintrstore {
 Client2Client::Client2Client(transport::Configuration *config, transport::Configuration *clients_config, Transport *transport,
       uint64_t client_id, uint64_t nshards, uint64_t ngroups, int group, bool pingClients,
       Parameters params, KeyManager *keyManager, Verifier *verifier,
-      Partitioner *part, EndorsementClient *endorseClient, const std::vector<std::string> &keys) :
+      Partitioner *part, EndorsementClient *endorseClient, SQLTransformer *sql_interpreter,
+      const std::vector<std::string> &keys) :
       PingInitiator(this, transport, clients_config->n),
       client_id(client_id), transport(transport), config(config), clients_config(clients_config), 
       nshards(nshards), ngroups(ngroups),
       group(group), part(part), pingClients(pingClients), params(params),
-      keyManager(keyManager), verifier(verifier), endorseClient(endorseClient), keys(keys) {
+      keyManager(keyManager), verifier(verifier), endorseClient(endorseClient), sql_interpreter(sql_interpreter),
+      keys(keys) {
   
   // separate verifier from main client instance
   clients_verifier = new BasicVerifier(transport);
@@ -1178,19 +1180,19 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardPointQuer
         } else if(params.sintr_params.hashEndorsements) {
           Debug("NO TXN DIGEST IN PROOF FOR CLIENT2CLIENT forward point query result");
         }
-        // TODO: 
-        // sql::QueryResultProtoWrapper query_result;
-        // if (!ValidateTransactionTableWrite(fwdPointQueryResultMsg.proof(), &committedTxnDigest,
-        //     write.committed_timestamp(), write.key(), write.committed_value(),
-        //     fwdPointQueryResultMsg.table_name(), &query_result, sql_interpreter,
-        //     config, params.signedMessages, keyManager, verifier)) {
-        //   Debug(
-        //     "Failed to validate committed value for forwarded point query result from client id %lu, seq num %lu",
-        //     curr_client_id,
-        //     curr_client_seq_num
-        //   );
-        //   return false;
-        // }
+
+        sql::QueryResultProtoWrapper query_result;
+        if (!ValidateTransactionTableWrite(fwdPointQueryResultMsg.proof(), &committedTxnDigest,
+            write.committed_timestamp(), write.key(), write.committed_value(),
+            fwdPointQueryResultMsg.table_name(), &query_result, sql_interpreter,
+            config, params.signedMessages, keyManager, verifier)) {
+          Debug(
+            "Failed to validate committed value for forwarded point query result from client id %lu, seq num %lu",
+            curr_client_id,
+            curr_client_seq_num
+          );
+          return false;
+        }
       }
     }
   }
