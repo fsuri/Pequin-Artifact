@@ -822,8 +822,9 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
 
   // forward to validating clients
   // TODO: actually create query id, query sigs
+  std::string query_gen_id = QueryGenId(pendingQuery->queryMsg.query_cmd(), pendingQuery->queryMsg.timestamp());
   c2client->ForwardQueryResultMessage(
-    "", pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
+    query_gen_id, pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
     pendingQuery->group_sigs, true
   );
 

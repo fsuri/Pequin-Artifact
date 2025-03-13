@@ -516,7 +516,7 @@ message ForwardPointQueryResultMessage {
 }
 
 message ForwardQueryResult {
-  required bytes query_id = 1;
+  required bytes query_gen_id = 1;
   required bytes query_result = 2;
 }
 

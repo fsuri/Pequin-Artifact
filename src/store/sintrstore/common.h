@@ -400,6 +400,9 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest);
 
 std::string EndorsedTxnDigest(const std::string &txnDigest, const proto::Transaction &txn, bool hashDigest);
 
+// general query id
+std::string QueryGenId(const std::string &query_cmd, const Timestamp &query_ts);
+
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest);
 std::string QueryRetryId(const std::string &queryId, const uint64_t &retry_version, bool queryHashDigest);
 

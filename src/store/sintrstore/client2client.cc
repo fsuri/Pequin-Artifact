@@ -462,21 +462,21 @@ void Client2Client::ForwardPointQueryResultMessageHelper(const uint64_t client_s
   }
 }
 
-void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result,
+void Client2Client::ForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {
 
   uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
     ForwardQueryResultMessageHelper(
-      client_seq_num, query_id, query_result,
+      client_seq_num, query_gen_id, query_result,
       group_read_sets, group_result_hashes, group_sigs, addReadset
     );
   }
   else {
     auto f = [=]() {
       this->ForwardQueryResultMessageHelper(
-        client_seq_num, query_id, query_result,
+        client_seq_num, query_gen_id, query_result,
         group_read_sets, group_result_hashes, group_sigs, addReadset
       );
       return (void*) true;
@@ -487,7 +487,7 @@ void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const
 }
 
 void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
-    const std::string &query_id, const std::string &query_result,
+    const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {
   
@@ -495,7 +495,7 @@ void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_nu
   fwdQueryResultMsgToSend->set_client_id(client_id);
   fwdQueryResultMsgToSend->set_client_seq_num(client_seq_num);
   proto::ForwardQueryResult fwdQueryResult;
-  fwdQueryResult.set_query_id(query_id);
+  fwdQueryResult.set_query_gen_id(query_gen_id);
   fwdQueryResult.set_query_result(query_result);
   
   if (params.sintr_params.signFwdReadResults) {
@@ -535,10 +535,10 @@ void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_nu
   sentFwdResults.insert(fwdQueryResultMsgToSend);
 
   Debug(
-    "ForwardQueryResult: client id %lu, seq num %lu, query_id %s",
+    "ForwardQueryResult: client id %lu, seq num %lu, query gen id %s",
     client_id,
     client_seq_num,
-    BytesToHex(query_id, 16).c_str()
+    BytesToHex(query_gen_id, 16).c_str()
   );
   for (const auto &i : beginValSent) {
     // do not send to self
@@ -930,22 +930,22 @@ void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryRes
     fwdQueryResult = fwdQueryResultMsg.fwd_query_result();
   }
 
-  std::string curr_query_id = fwdQueryResult.query_id();
+  std::string curr_query_gen_id = fwdQueryResult.query_gen_id();
   std::string curr_query_result = fwdQueryResult.query_result();
 
   bool addReadset = fwdQueryResultMsg.add_readset();
   if (addReadset && params.sintr_params.clientCheckEvidence) {
-    if (!CheckPreparedCommittedEvidence(fwdQueryResultMsg, curr_query_id, curr_query_result)) {
+    if (!CheckPreparedCommittedEvidence(fwdQueryResultMsg, curr_query_gen_id, curr_query_result)) {
       Panic("Invalid prepared or committed evidence on forwarded query result");
       return;
     }
   }
 
   Debug(
-    "HandleForwardQueryResult: from client id %lu, seq num %lu, query id %s, query result %s", 
+    "HandleForwardQueryResult: from client id %lu, seq num %lu, query gen id %s, query result %s", 
     curr_client_id, 
     curr_client_seq_num,
-    BytesToHex(curr_query_id, 16).c_str(),
+    BytesToHex(curr_query_gen_id, 16).c_str(),
     BytesToHex(curr_query_result, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
@@ -1199,7 +1199,7 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardPointQuer
 }
 
 bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
-    const std::string &query_id, const std::string &query_result) {
+    const std::string &query_gen_id, const std::string &query_result) {
   
   uint64_t curr_client_id = fwdQueryResultMsg.client_id();
   uint64_t curr_client_seq_num = fwdQueryResultMsg.client_seq_num();
@@ -1230,7 +1230,15 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardQueryResu
         }
 
         // next make sure that we have matches
-        // TODO: query id
+        if (validated_result.query_gen_id() != query_gen_id) {
+          Debug(
+            "Mismatch in query gen id for forwarded query result from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          continue;
+        }
+
         if (validated_result.query_result() != query_result) {
           Debug(
             "Mismatch in query result for forwarded query result from client id %lu, seq num %lu", 

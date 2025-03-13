@@ -2083,6 +2083,23 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
   }
 }
 
+std::string QueryGenId(const std::string &query_cmd, const Timestamp &query_ts) {
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  std::string digest(BLAKE3_OUT_LEN, 0);
+  blake3_hasher_update(&hasher, (unsigned char *) &query_cmd[0], query_cmd.length());
+  uint64_t timestampId = query_ts.getID();
+  uint64_t timestampTs = query_ts.getTimestamp();
+  blake3_hasher_update(&hasher, (unsigned char *) &timestampId,
+      sizeof(timestampId));
+  blake3_hasher_update(&hasher, (unsigned char *) &timestampTs,
+      sizeof(timestampTs));
+
+  blake3_hasher_finalize(&hasher, (unsigned char *) &digest[0], BLAKE3_OUT_LEN);
+
+  return digest;
+}
+
 std::string QueryDigest(const proto::Query &query, bool queryHashDigest){
     //TODO: Change Txn to also include Query + query digest.
   if (queryHashDigest) {

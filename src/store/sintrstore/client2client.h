@@ -96,7 +96,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const proto::Dependency &dep, bool hasDep, bool addReadset);
   
   // forward query results to other clients
-  void ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result, 
+  void ForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result, 
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
@@ -195,7 +195,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const proto::Dependency &dep, bool hasDep, bool addReadset);
   
   void ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
-    const std::string &query_id, const std::string &query_result,
+    const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
@@ -221,7 +221,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     proto::Write &write, proto::Dependency &dep);
   // check if fwdQueryResultMsg is valid based on f+1 matching server responses
   bool CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
-    const std::string &query_id, const std::string &query_result);
+    const std::string &query_gen_id, const std::string &query_result);
 
   // extract client ids not currently in beginValSent from policy satisfying set
   void ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients);
