@@ -320,7 +320,8 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
     proto::Write *write = pointQueryReply->mutable_write();
     const proto::CommittedProof *committedProof = nullptr;
     std::string enc_primary_key;  //TODO: Replace with query->primary_enc_key()
-
+    write->set_key(query->primary_enc_key());
+    UW_ASSERT(write->key().size() > 0);
    
     //If MVTSO: Read prepared, Set RTS
     if (occType == MVTSO) {

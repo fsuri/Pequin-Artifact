@@ -34,6 +34,7 @@
 #include "store/common/frontend/validation_transaction.h"
 #include "store/benchmark/async/tpcc/tpcc-validation-proto.pb.h"
 #include "store/sintrstore/common.h"
+// #include "store/sintrstore/common2.h"
 
 #include <google/protobuf/util/message_differencer.h>
 #include <sched.h>
@@ -139,6 +140,12 @@ void Client2Client::ReceiveMessage(const TransportAddress &remote,
   else if (type == fwdReadResultMsg.GetTypeName()) {
     ManageDispatchForwardReadResultMessage(remote, data);
   }
+  else if (type == fwdPointQueryResultMsg.GetTypeName()) {
+    ManageDispatchForwardPointQueryResultMessage(remote, data);
+  }
+  else if (type == fwdQueryResultMsg.GetTypeName()) {
+    ManageDispatchForwardQueryResultMessage(remote, data);
+  }
   else if (type == finishValTxnMsg.GetTypeName()) {
     ManageDispatchFinishValidateTxnMessage(remote, data);
   }
@@ -241,7 +248,7 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
       dep, hasDep, addReadset, policyDep, hasPolicyDep);
   }
   else {
-    auto f = [=, this]() {
+    auto f = [=]() {
       this->ForwardReadResultMessageHelper(
         client_seq_num, key, value, ts, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadset,
@@ -359,7 +366,7 @@ void Client2Client::ForwardPointQueryResultMessage(const std::string &key, const
     );
   }
   else {
-    auto f = [=, this]() {
+    auto f = [=]() {
       this->ForwardPointQueryResultMessageHelper(
         client_seq_num, key, value, ts, table_name, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadset
@@ -455,7 +462,7 @@ void Client2Client::ForwardPointQueryResultMessageHelper(const uint64_t client_s
 
 void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
-    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset) {
+    const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {
 
   uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
@@ -465,7 +472,7 @@ void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const
     );
   }
   else {
-    auto f = [=, this]() {
+    auto f = [=]() {
       this->ForwardQueryResultMessageHelper(
         client_seq_num, query_id, query_result,
         group_read_sets, group_result_hashes, group_sigs, addReadset
@@ -480,7 +487,7 @@ void Client2Client::ForwardQueryResultMessage(const std::string &query_id, const
 void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
-    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset) {
+    const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {
   
   proto::ForwardQueryResultMessage *fwdQueryResultMsgToSend = new proto::ForwardQueryResultMessage();
   fwdQueryResultMsgToSend->set_client_id(client_id);
@@ -514,7 +521,7 @@ void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_nu
       for (const auto &[group, query_sigs] : group_sigs) {
         proto::SignedMessages &curr_group_sigs = (*fwdQueryResultMsgToSend->mutable_query_sigs())[group];
         for (const auto &query_sig : query_sigs) {
-          *curr_group_sigs.add_sig_msgs() = *query_sig;
+          *curr_group_sigs.add_sig_msgs() = query_sig;
         }
       }
     }
@@ -595,6 +602,42 @@ void Client2Client::ManageDispatchForwardReadResultMessage(const TransportAddres
     auto f = [this, fwdReadResultMsg](){
       this->HandleForwardReadResultMessage(*fwdReadResultMsg);
       delete fwdReadResultMsg;
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ManageDispatchForwardPointQueryResultMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    fwdPointQueryResultMsg.ParseFromString(data);
+    HandleForwardPointQueryResultMessage(fwdPointQueryResultMsg);
+  }
+  else {
+    proto::ForwardPointQueryResultMessage *fwdPointQueryResultMsg = new proto::ForwardPointQueryResultMessage();
+    fwdPointQueryResultMsg->ParseFromString(data);
+    auto f = [this, fwdPointQueryResultMsg](){
+      this->HandleForwardPointQueryResultMessage(*fwdPointQueryResultMsg);
+      delete fwdPointQueryResultMsg;
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ManageDispatchForwardQueryResultMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    fwdQueryResultMsg.ParseFromString(data);
+    HandleForwardQueryResultMessage(fwdQueryResultMsg);
+  }
+  else {
+    proto::ForwardQueryResultMessage *fwdQueryResultMsg = new proto::ForwardQueryResultMessage();
+    fwdQueryResultMsg->ParseFromString(data);
+    auto f = [this, fwdQueryResultMsg](){
+      this->HandleForwardQueryResultMessage(*fwdQueryResultMsg);
+      delete fwdQueryResultMsg;
       return (void*) true;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
@@ -763,6 +806,149 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
       dep, hasDep, addReadset, policyDep, hasPolicyDep);
 }
 
+void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg) {
+  uint64_t curr_client_id = fwdPointQueryResultMsg.client_id();
+  uint64_t curr_client_seq_num = fwdPointQueryResultMsg.client_seq_num();
+
+  proto::ForwardReadResult fwdReadResult;
+  if (params.sintr_params.signFwdReadResults) {
+    // first check client signature
+    if (!fwdPointQueryResultMsg.has_signed_fwd_read_result()) {
+      Debug(
+        "Missing client signature on forwarded read result from client id %lu, seq num %lu", 
+        curr_client_id, 
+        curr_client_seq_num
+      );
+      return;
+    }
+    std::string data;
+    if (!ValidateHMACedMessage(fwdPointQueryResultMsg.signed_fwd_read_result(), data)) {
+      Debug(
+        "Invalid client signature on forwarded read result from client id %lu, seq num %lu", 
+        curr_client_id, 
+        curr_client_seq_num
+      );
+      return;
+    }
+
+    fwdReadResult.ParseFromString(data);
+  }
+  else {
+    fwdReadResult = fwdPointQueryResultMsg.fwd_read_result();
+  }
+
+  std::string curr_key = fwdReadResult.key();
+  std::string curr_value = fwdReadResult.value();
+
+  proto::Write write;
+  bool hasDep = fwdPointQueryResultMsg.has_dep();
+  proto::Dependency dep;
+  bool addReadset = fwdPointQueryResultMsg.add_readset();
+  // only if addReadset is true will there be dep or committed proofs
+  if (addReadset && params.sintr_params.clientCheckEvidence) {
+    if (!CheckPreparedCommittedEvidence(fwdPointQueryResultMsg, write, dep)) {
+      Panic("Invalid prepared or committed evidence on forwarded point query result");
+      return;
+    }
+    // point query dependencies don't contain full information about the write, only txn digest
+    // so we can't check the key 
+    if (!fwdPointQueryResultMsg.has_dep()) {
+      // if there is an actual value, expect matches
+      if (curr_value.length() > 0) {
+        UW_ASSERT(write.key() == curr_key);
+        if (hasDep) {
+          UW_ASSERT(write.prepared_value() == curr_value);
+          UW_ASSERT(google::protobuf::util::MessageDifferencer::Equals(write.prepared_timestamp(), fwdReadResult.timestamp()));
+        }
+        else {
+          UW_ASSERT(write.committed_value() == curr_value);
+          UW_ASSERT(google::protobuf::util::MessageDifferencer::Equals(write.committed_timestamp(), fwdReadResult.timestamp()));
+        }
+      }
+      // otherwise the write should be empty
+      else {
+        UW_ASSERT(!write.has_key());
+      }
+
+      // curr_key is essentially what the forwarding client is claiming is the key
+      // write contains the server's claim as to what the key is
+      // these two should match
+      // also if value is empty, then no need to check since server makes no claims about it
+      if (curr_value.length() > 0 && curr_key != write.key()) {
+        Debug(
+          "Mismatch in forwarded key and the server key: from client id %lu, seq num %lu, forwarded key %s, server key %s",
+          curr_client_id, 
+          curr_client_seq_num,
+          BytesToHex(curr_key, 16).c_str(),
+          BytesToHex(write.key(), 16).c_str()
+        );
+        return;
+      }
+    }
+  }
+
+  Debug(
+    "HandleForwardPointQueryResult: from client id %lu, seq num %lu, key %s, value %s", 
+    curr_client_id, 
+    curr_client_seq_num,
+    BytesToHex(curr_key, 16).c_str(),
+    BytesToHex(curr_value, 16).c_str()
+  );
+  // tell valClient about this forwardedReadResult
+}
+
+void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryResultMessage &fwdQueryResultMsg) {
+  uint64_t curr_client_id = fwdQueryResultMsg.client_id();
+  uint64_t curr_client_seq_num = fwdQueryResultMsg.client_seq_num();
+
+  proto::ForwardQueryResult fwdQueryResult;
+  if (params.sintr_params.signFwdReadResults) {
+    // first check client signature
+    if (!fwdQueryResultMsg.has_signed_fwd_query_result()) {
+      Debug(
+        "Missing client signature on forwarded query result from client id %lu, seq num %lu", 
+        curr_client_id, 
+        curr_client_seq_num
+      );
+      return;
+    }
+    std::string data;
+    if (!ValidateHMACedMessage(fwdQueryResultMsg.signed_fwd_query_result(), data)) {
+      Debug(
+        "Invalid client signature on forwarded query result from client id %lu, seq num %lu", 
+        curr_client_id, 
+        curr_client_seq_num
+      );
+      return;
+    }
+
+    fwdQueryResult.ParseFromString(data);
+  }
+  else {
+    fwdQueryResult = fwdQueryResultMsg.fwd_query_result();
+  }
+
+  std::string curr_query_id = fwdQueryResult.query_id();
+  std::string curr_query_result = fwdQueryResult.query_result();
+
+  bool addReadset = fwdQueryResultMsg.add_readset();
+  if (addReadset && params.sintr_params.clientCheckEvidence) {
+    if (!CheckPreparedCommittedEvidence(fwdQueryResultMsg, curr_query_id, curr_query_result)) {
+      Panic("Invalid prepared or committed evidence on forwarded query result");
+      return;
+    }
+  }
+
+  Debug(
+    "HandleForwardQueryResult: from client id %lu, seq num %lu, query id %s, query result %s", 
+    curr_client_id, 
+    curr_client_seq_num,
+    BytesToHex(curr_query_id, 16).c_str(),
+    BytesToHex(curr_query_result, 16).c_str()
+  );
+  // tell valClient about this forwardedReadResult
+}
+
 void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg) {
   uint64_t peer_client_id = finishValTxnMsg.client_id();
   uint64_t val_txn_seq_num = finishValTxnMsg.validation_txn_seq_num();
@@ -912,6 +1098,186 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
           return false;
         }
       }
+    }
+  }
+
+  return true;
+}
+
+bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg, 
+    proto::Write &write, proto::Dependency &dep) {
+  uint64_t curr_client_id = fwdPointQueryResultMsg.client_id();
+  uint64_t curr_client_seq_num = fwdPointQueryResultMsg.client_seq_num();
+
+  // if has dependency, then this is based on a prepared txn
+  if (fwdPointQueryResultMsg.has_dep()) {
+    if (params.validateProofs && params.signedMessages && params.verifyDeps) {
+      if (!ValidateDependency(fwdPointQueryResultMsg.dep(), config, params.readDepSize, 
+          keyManager, verifier)) {
+        Debug(
+          "Invalid dependency on forwarded point query result from client id %lu, seq num %lu",
+          curr_client_id, 
+          curr_client_seq_num
+        );
+        return false;
+      }
+    }
+    dep = fwdPointQueryResultMsg.dep();
+    write = fwdPointQueryResultMsg.dep().write();
+  }
+  else {
+    // otherwise can check committed proof and signature
+
+    if (params.validateProofs && params.signedMessages) {
+      // check server signature
+      if (fwdPointQueryResultMsg.has_signed_write()) {
+        if (!verifier->Verify(keyManager->GetPublicKey(fwdPointQueryResultMsg.signed_write().process_id()),
+            fwdPointQueryResultMsg.signed_write().data(), fwdPointQueryResultMsg.signed_write().signature())) {
+          Debug(
+            "Invalid server signature on forwarded point query result from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          return false;
+        }
+
+        write.ParseFromString(fwdPointQueryResultMsg.signed_write().data());
+      }
+      else {
+        if (fwdPointQueryResultMsg.has_write() && fwdPointQueryResultMsg.write().has_committed_value()) {
+          Debug(
+            "Missing server signature on forwarded read result with committed value from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          return false;
+        }
+
+        write = fwdPointQueryResultMsg.write();
+      }
+    }
+    else {
+      write = fwdPointQueryResultMsg.write();
+    }
+      
+    if (params.validateProofs) {
+      // check committed proof
+      if (write.has_committed_value() && write.has_committed_timestamp()) {
+        if (!fwdPointQueryResultMsg.has_proof()) {
+          Debug(
+            "Missing committed value proof for forwarded point query result from client id %lu, seq num %lu",
+            curr_client_id,
+            curr_client_seq_num
+          );
+          return false;
+        }
+
+        std::string committedTxnDigest = TransactionDigest(fwdPointQueryResultMsg.proof().txn(), params.hashDigest);
+        if(params.sintr_params.hashEndorsements && fwdPointQueryResultMsg.proof().txn().has_txndigest()) {
+          committedTxnDigest = fwdPointQueryResultMsg.proof().txn().txndigest();
+        } else if(params.sintr_params.hashEndorsements) {
+          Debug("NO TXN DIGEST IN PROOF FOR CLIENT2CLIENT forward point query result");
+        }
+        // TODO: 
+        // sql::QueryResultProtoWrapper query_result;
+        // if (!ValidateTransactionTableWrite(fwdPointQueryResultMsg.proof(), &committedTxnDigest,
+        //     write.committed_timestamp(), write.key(), write.committed_value(),
+        //     fwdPointQueryResultMsg.table_name(), &query_result, sql_interpreter,
+        //     config, params.signedMessages, keyManager, verifier)) {
+        //   Debug(
+        //     "Failed to validate committed value for forwarded point query result from client id %lu, seq num %lu",
+        //     curr_client_id,
+        //     curr_client_seq_num
+        //   );
+        //   return false;
+        // }
+      }
+    }
+  }
+
+  return true;
+}
+
+bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
+    const std::string &query_id, const std::string &query_result) {
+  
+  uint64_t curr_client_id = fwdQueryResultMsg.client_id();
+  uint64_t curr_client_seq_num = fwdQueryResultMsg.client_seq_num();
+
+  uint64_t num_matches = 0;
+  if (params.validateProofs && params.signedMessages) {
+    for (const auto &[group, curr_query_sigs] : fwdQueryResultMsg.query_sigs()) {
+      for (const auto &query_sig : curr_query_sigs.sig_msgs()) {
+        proto::QueryResult validated_result;
+        // first check signature
+        if (!verifier->Verify(keyManager->GetPublicKey(query_sig.process_id()),
+            query_sig.data(), query_sig.signature())) {
+          Debug(
+            "Invalid server signature on forwarded query result from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          return false;
+        }
+
+        if (!validated_result.ParseFromString(query_sig.data())) {
+          Debug(
+            "Failed to parse query result from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          return false;
+        }
+
+        // next make sure that we have matches
+        // TODO: query id
+        if (validated_result.query_result() != query_result) {
+          Debug(
+            "Mismatch in query result for forwarded query result from client id %lu, seq num %lu", 
+            curr_client_id, 
+            curr_client_seq_num
+          );
+          continue;
+        }
+
+        // check readset
+        if (params.query_params.cacheReadSet) {
+          // only expect hash
+          if (validated_result.query_result_hash() != fwdQueryResultMsg.group_meta().at(group).read_set_hash()) {
+            Debug(
+              "Mismatch in read set hash for forwarded query result from client id %lu, seq num %lu", 
+              curr_client_id, 
+              curr_client_seq_num
+            );
+            continue;
+          }
+        }
+        else {
+          // expect full readset
+          // compute hash to compare
+          std::string validated_result_hash = generateReadSetSingleHash(validated_result.query_read_set());
+          std::string fwd_read_set_hash = generateReadSetSingleHash(fwdQueryResultMsg.group_meta().at(group).query_read_set());
+          if (validated_result_hash != fwd_read_set_hash) {
+            Debug(
+              "Mismatch in read set for forwarded query result from client id %lu, seq num %lu", 
+              curr_client_id, 
+              curr_client_seq_num
+            );
+            continue;
+          }
+        }
+
+        num_matches++;
+      }
+    }
+
+    if (num_matches < params.query_params.resultQuorum) {
+      Debug(
+        "Insufficient number of matches for forwarded query result from client id %lu, seq num %lu", 
+        curr_client_id, 
+        curr_client_seq_num
+      );
+      return false;
     }
   }
 

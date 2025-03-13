@@ -647,7 +647,7 @@ void Client::Query(const std::string &query, query_callback qcb,
     else{
       rcb = std::bind(&Client::QueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6);
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
       stats.Increment("QueryAttempts", 1);
       if(warmup_done) stats.Increment("QueryAttempts_postwarmup", 1);
     }
@@ -699,9 +699,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 
     // new policy can only come from server, which must correspond to addReadSet
     if (policyMsg.IsInitialized()) {
-      if (Message_DebugEnabled(__FILE__)) {
-        Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
-      }
+      Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
       Policy *policy = policyParseClient->Parse(policyMsg.policy());
       endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
     }
@@ -759,7 +757,8 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 }
 
 void Client::QueryResultCallback(PendingQuery *pendingQuery,  
-                                  int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success) 
+                                  int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
+                                  const std::vector<proto::SignedMessage> &query_sigs) 
 { 
 
   if(PROFILING_LAT){
@@ -801,6 +800,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
       pendingQuery->group_read_sets[group] = query_read_set; //Note: this is an allocated object, must be freed eventually.
   }
   if(group == pendingQuery->involved_groups[0]) pendingQuery->result = std::move(result); 
+
+  // add signatures to pendingQuery
+  for(auto &sig : query_sigs){
+    pendingQuery->group_sigs[group].push_back(sig);
+  }
 
   //wait for all shard read-sets to arrive before reporting result. (Realistically result shard replies last, since it has to coordinate data transfer for computation)
   if(pendingQuery->involved_groups.size() != pendingQuery->group_replies) return;
@@ -1041,7 +1045,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
 
     pendingQuery->qcb(REPLY_FAIL, nullptr);
   }
-  
+
   stats.Increment("QueryRetries", 1);
   //if it was a point query
   if(pendingQuery->is_point && params.query_params.eagerPointExec) stats.Increment("PointQueryEager_failures", 1);

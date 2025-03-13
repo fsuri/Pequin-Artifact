@@ -190,7 +190,7 @@ class Client : public ::Client {
     //std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
     std::map<uint64_t, proto::ReadSet*> group_read_sets;
     std::map<uint64_t, std::string> group_result_hashes;
-    std::map<uint64_t, std::vector<proto::SignedMessage*>> group_sigs;
+    std::map<uint64_t, std::vector<proto::SignedMessage>> group_sigs;
     std::string result;
     uint64_t group_replies;
    
@@ -214,7 +214,8 @@ class Client : public ::Client {
                             const proto::CommittedProof &proof, const std::string &serializedWrite, 
                             const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
-                            int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success);  //free parameters
+                            int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
+                            const std::vector<proto::SignedMessage> &query_sigs);  //free parameters
   void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);

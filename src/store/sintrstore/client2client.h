@@ -50,6 +50,7 @@
 #include "store/sintrstore/validation_parse_client.h"
 #include "store/sintrstore/endorsement_client.h"
 #include "store/sintrstore/policy/policy.h"
+#include "store/sintrstore/sql_interpreter.h"
 
 #include <map>
 #include <string>
@@ -97,7 +98,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // forward query results to other clients
   void ForwardQueryResultMessage(const std::string &query_id, const std::string &query_result, 
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
-    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset);
+    const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
   // given a new policy, update the endorsement policy for this client 
   // also contact additional peers as necessary
@@ -196,22 +197,38 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   void ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
-    const std::map<uint64_t, std::vector<proto::SignedMessage*>> &group_sigs, bool addReadset);
+    const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
   void ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchForwardReadResultMessage(const TransportAddress &remote, const std::string &data);
+  void ManageDispatchForwardPointQueryResultMessage(const TransportAddress &remote, const std::string &data);
+  void ManageDispatchForwardQueryResultMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchFinishValidateTxnMessage(const TransportAddress &remote, const std::string &data);
+
   void HandleBeginValidateTxnMessage(const TransportAddress &remote, const proto::BeginValidateTxnMessage &beginValTxnMsg);
   void HandleForwardReadResultMessage(const proto::ForwardReadResultMessage &fwdReadResultMsg);
+  void HandleForwardPointQueryResultMessage(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg);
+  void HandleForwardQueryResultMessage(const proto::ForwardQueryResultMessage &fwdQueryResultMsg);
   void HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg);
+
   // check if fwdReadResultMsg is valid based on either prepared dependency or committed proof
   // also extract write and dep from fwdReadResultMsg
   bool CheckPreparedCommittedEvidence(const proto::ForwardReadResultMessage &fwdReadResultMsg, 
     proto::Write &write, proto::Dependency &dep);
+  // check if fwdPointQueryResultMsg is valid based on either prepared dependency or committed proof
+  // also extract write and dep from fwdPointQueryResultMsg
+  bool CheckPreparedCommittedEvidence(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg, 
+    proto::Write &write, proto::Dependency &dep);
+  // check if fwdQueryResultMsg is valid based on f+1 matching server responses
+  bool CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
+    const std::string &query_id, const std::string &query_result);
+
   // extract client ids not currently in beginValSent from policy satisfying set
   void ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients);
+
   void ValidationThreadFunction();
   void Client2ClientMessageThreadFunction();
+
   bool ValidateHMACedMessage(const proto::SignedMessage &signedMessage, std::string &data);
   // create an hmac from msg and place into signature
   void CreateHMACedMessage(const ::google::protobuf::Message &msg, proto::SignedMessage& signedMessage);
@@ -248,6 +265,9 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // endorsement client can inform client of received validations
   EndorsementClient *endorseClient;
 
+  // TODO: actually initialize and use this
+  SQLTransformer *sql_interpreter;
+
   // threads for validation
   std::vector<std::thread *> valThreads;
   std::atomic<bool> done;
@@ -267,6 +287,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // for received messages
   proto::BeginValidateTxnMessage beginValTxnMsg;
   proto::ForwardReadResultMessage fwdReadResultMsg;
+  proto::ForwardPointQueryResultMessage fwdPointQueryResultMsg;
+  proto::ForwardQueryResultMessage fwdQueryResultMsg;
   proto::FinishValidateTxnMessage finishValTxnMsg;
   PingMessage ping;
 

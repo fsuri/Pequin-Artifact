@@ -75,7 +75,8 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 
 ////////// Queries
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
-typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
+typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool,
+  const std::vector<proto::SignedMessage> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
 typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const proto::Dependency &, bool, bool,
   const proto::CommittedProof &, const std::string &, const std::string &,
   const proto::EndorsementPolicyMessage &)> point_result_callback;  //TODO: This == Get callback.
@@ -340,6 +341,8 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::unordered_map<std::string, std::unordered_map<std::string, Result_mgr>> result_freq; //result_hash (read-set) -> (result (serialization) -> freq)
     //TODO: For each read_set -> maintain a list of deps that is updated.
      std::unordered_map<std::string, std::unordered_map<std::string, proto::ReadSet>> result_read_set; // map: result -> read_set_hash -> read set.
+    
+    std::vector<proto::SignedMessage> query_sigs;
     
     bool query_manager;
     result_callback rcb;
