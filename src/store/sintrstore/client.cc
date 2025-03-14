@@ -587,6 +587,12 @@ void Client::Query(const std::string &query, query_callback qcb,
         //     Warning("PointQuery[%d] Cache latency in ms [%d]. in us [%d]", query_seq_num, duration/1000, duration);
         // }
 
+        // still forward cached point query result but no proofs or dependencies needed
+        c2client->ForwardPointQueryResultMessage(
+          encoded_key, itr->second, Timestamp(), pendingQuery->table_name,
+          proto::CommittedProof(), std::string(), std::string(),
+          proto::Dependency(), false, false
+        );
 
         Debug("Supply point query result from cache! (Query seq: %d)", query_seq_num);
         auto res = new sql::QueryResultProtoWrapper(itr->second);
@@ -599,6 +605,14 @@ void Client::Query(const std::string &query, query_callback qcb,
       auto itr = scan_read_cache.find(query);
       if(itr != scan_read_cache.end()){
         Debug("Supply scan query result from cache! (Query seq: %d). Query: %s", query_seq_num, query.c_str());
+
+        // still forward cached query result but no readset or proofs needed
+        c2client->ForwardQueryResultMessage(
+          pendingQuery->query_gen_id, itr->second,
+          std::map<uint64_t, proto::ReadSet*>(), std::map<uint64_t, std::string>(),
+          std::map<uint64_t, std::vector<proto::SignedMessage>>(), false
+        );
+
         auto res = new sql::QueryResultProtoWrapper(itr->second);
         qcb(REPLY_OK, res);
         return;
@@ -821,10 +835,8 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   if(TEST_READ_SET) TestReadSet(pendingQuery);
 
   // forward to validating clients
-  // TODO: actually create query id, query sigs
-  std::string query_gen_id = QueryGenId(pendingQuery->queryMsg.query_cmd(), pendingQuery->queryMsg.timestamp());
   c2client->ForwardQueryResultMessage(
-    query_gen_id, pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
+    pendingQuery->query_gen_id, pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
     pendingQuery->group_sigs, true
   );
 

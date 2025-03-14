@@ -854,18 +854,12 @@ void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPoi
     }
     // point query dependencies don't contain full information about the write, only txn digest
     // so we can't check the key 
-    if (!fwdPointQueryResultMsg.has_dep()) {
+    if (!hasDep) {
       // if there is an actual value, expect matches
       if (curr_value.length() > 0) {
         UW_ASSERT(write.key() == curr_key);
-        if (hasDep) {
-          UW_ASSERT(write.prepared_value() == curr_value);
-          UW_ASSERT(google::protobuf::util::MessageDifferencer::Equals(write.prepared_timestamp(), fwdReadResult.timestamp()));
-        }
-        else {
-          UW_ASSERT(write.committed_value() == curr_value);
-          UW_ASSERT(google::protobuf::util::MessageDifferencer::Equals(write.committed_timestamp(), fwdReadResult.timestamp()));
-        }
+        UW_ASSERT(write.committed_value() == curr_value);
+        UW_ASSERT(google::protobuf::util::MessageDifferencer::Equals(write.committed_timestamp(), fwdReadResult.timestamp()));
       }
       // otherwise the write should be empty
       else {

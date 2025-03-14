@@ -149,6 +149,8 @@ class Client : public ::Client {
       *queryMsg.mutable_query_cmd() = std::move(query_cmd);
       *queryMsg.mutable_timestamp() = client->txn.timestamp();
       queryMsg.set_retry_version(0);
+
+      query_gen_id = QueryGenId(queryMsg.query_cmd(), queryMsg.timestamp());
     }
     ~PendingQuery(){
        ClearReplySets();
@@ -183,6 +185,8 @@ class Client : public ::Client {
 
     uint64_t version;
     std::string queryId;
+
+    std::string query_gen_id;
 
     proto::Query queryMsg;
     
