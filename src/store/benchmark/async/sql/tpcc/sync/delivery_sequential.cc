@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/delivery.h"
+#include "store/benchmark/async/sql/tpcc/sync/delivery.h"
 
 #include <fmt/core.h>
 
@@ -31,15 +32,14 @@
 
 namespace tpcc_sql { 
 
-ValidationSQLDeliverySequential::ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen)
-    : SQLDeliverySequential(w_id, d_id, gen), ValidationTPCCSQLTransaction(timeout) {
+SyncSQLDeliverySequential::SyncSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+    std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout), SQLDeliverySequential(w_id, d_id, gen) {
 }
 
-ValidationSQLDeliverySequential::~ValidationSQLDeliverySequential() {
+SyncSQLDeliverySequential::~SyncSQLDeliverySequential() {
 }
 
-transaction_status_t ValidationSQLDeliverySequential::Validate(SyncClient &client) {
+transaction_status_t SyncSQLDeliverySequential::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;

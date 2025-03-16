@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/payment.h"
+#include "store/benchmark/async/sql/tpcc/sync/payment.h"
 
 #include <sstream>
 #include <fmt/core.h>
@@ -32,18 +33,20 @@
   
 namespace tpcc_sql {
 
-ValidationSQLPayment::ValidationSQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-    uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
-    SQLPayment(w_id, c_c_last, c_c_id, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
+SyncSQLPayment::SyncSQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+    uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout),
+    SQLPayment(w_id, c_c_last, c_c_id, num_warehouses, gen) {
 }
 
-ValidationSQLPayment::~ValidationSQLPayment() {
+SyncSQLPayment::~SyncSQLPayment() {
 }
 
-transaction_status_t ValidationSQLPayment::Validate(SyncClient &client) {
+
+transaction_status_t SyncSQLPayment::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+  random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
 
   //Update a customer's balance and reflect payment on district/warehouse sales statistics
   //Type: Light-weight read-write Tx, high frequency. (Uses Non-primar key access to CUSTOMER table)
@@ -160,7 +163,6 @@ transaction_status_t ValidationSQLPayment::Validate(SyncClient &client) {
    // (5) Create History entry.
   // statement = fmt::format("INSERT INTO {} (h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) "  
   //           "VALUES ({}, {}, {}, {}, {}, {}, {}, '{}')", HISTORY_TABLE, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
-  uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
   statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}')", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   //Notice("History insert: %s", statement.c_str());

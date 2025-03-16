@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/new_order.h"
+#include "store/benchmark/async/sql/tpcc/sync/new_order.h"
 
 #include <fmt/core.h>
 
@@ -31,15 +32,15 @@
 
 namespace tpcc_sql { 
 
-ValidationSQLNewOrderSequential::ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
-    uint32_t num_warehouses, std::mt19937 &gen) :
-    SQLNewOrderSequential(w_id, C, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
+SyncSQLNewOrderSequential::SyncSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
+    uint32_t num_warehouses, std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout),
+    SQLNewOrderSequential(w_id, C, num_warehouses, gen) {
 }
 
-ValidationSQLNewOrderSequential::~ValidationSQLNewOrderSequential() {
+SyncSQLNewOrderSequential::~SyncSQLNewOrderSequential() {
 }
 
-transaction_status_t ValidationSQLNewOrderSequential::Validate(SyncClient &client) {
+transaction_status_t SyncSQLNewOrderSequential::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;

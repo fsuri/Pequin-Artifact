@@ -32,16 +32,14 @@
 
 namespace tpcc_sql {
 
-static bool join_free_version = false;
-
 class SQLStockLevel : public TPCCSQLTransaction {
  public:
-  SQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+  SQLStockLevel(uint32_t w_id, uint32_t d_id,
       std::mt19937 &gen);
   virtual ~SQLStockLevel();
-  virtual transaction_status_t Execute(SyncClient &client);
+  SQLStockLevel() {};
 
- private:
+ protected:
   uint32_t w_id;
   uint32_t d_id;
   uint8_t min_quantity;

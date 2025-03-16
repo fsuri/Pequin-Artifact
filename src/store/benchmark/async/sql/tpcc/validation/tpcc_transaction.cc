@@ -1,6 +1,8 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -30,7 +32,7 @@ namespace tpcc_sql {
 ValidationTPCCSQLTransaction::ValidationTPCCSQLTransaction(uint32_t timeout) : ValidationTransaction(timeout) {
 }
 
-ValidationTPCCSQLTransaction::~VaildationTPCCSQLTransaction() {
+ValidationTPCCSQLTransaction::~ValidationTPCCSQLTransaction() {
 }
 
 } // namespace tpcc_sql

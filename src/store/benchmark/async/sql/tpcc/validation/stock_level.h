@@ -27,22 +27,19 @@
 #define VALIDATION_SQL_STOCK_LEVEL_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/stock_level.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
 static bool join_free_version = false;
 
-class ValidationSQLStockLevel : public ValidationTPCCSQLTransaction {
+class ValidationSQLStockLevel : public ValidationTPCCSQLTransaction, public SQLStockLevel {
  public:
- ValidationSQLStockLevels(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+ ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
       std::mt19937 &gen);
   virtual ~ValidationSQLStockLevel();
   virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint8_t min_quantity;
 };
 
 } // namespace tpcc_sql

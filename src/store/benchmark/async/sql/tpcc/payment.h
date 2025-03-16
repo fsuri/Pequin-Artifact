@@ -34,12 +34,11 @@ namespace tpcc_sql {
 
 class SQLPayment : public TPCCSQLTransaction {
  public:
-  SQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+  SQLPayment(uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
   virtual ~SQLPayment();
-  virtual transaction_status_t Execute(SyncClient &client);
 
- private:
+ protected:
   std::mt19937 &gen;
 
   uint32_t w_id;
@@ -50,18 +49,19 @@ class SQLPayment : public TPCCSQLTransaction {
   uint32_t c_id;
   uint32_t h_amount;
   uint32_t h_date;
+  uint32_t random_row_id;
   bool c_by_last_name;
   std::string c_last;
 };
 
 class SQLPaymentSequential : public TPCCSQLTransaction {
  public:
-  SQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+  SQLPaymentSequential(uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
+  SQLPaymentSequential(std::mt19937 &gen) : gen(gen) { };
   virtual ~SQLPaymentSequential();
-  virtual transaction_status_t Execute(SyncClient &client);
 
- private:
+ protected:
   std::mt19937 &gen;
 
   uint32_t w_id;
@@ -72,6 +72,7 @@ class SQLPaymentSequential : public TPCCSQLTransaction {
   uint32_t c_id;
   uint32_t h_amount;
   uint32_t h_date;
+  uint32_t random_row_id;
   bool c_by_last_name;
   std::string c_last;
 };

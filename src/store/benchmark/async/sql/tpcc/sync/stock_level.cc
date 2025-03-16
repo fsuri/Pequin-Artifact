@@ -1,6 +1,8 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,7 +25,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/stock_level.h"
+#include "store/benchmark/async/sql/tpcc/sync/stock_level.h"
 
 #include <map>
 #include <fmt/core.h>
@@ -32,14 +34,14 @@
 
 namespace tpcc_sql {
 
-ValidationSQLStockLevel::ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : ValidationTPCCSQLTransaction(timeout), SQLStockLevel(w_id, d_id, gen){
+SyncSQLStockLevel::SyncSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+    std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout), SQLStockLevel(w_id, d_id, gen) {
 }
 
-ValidationSQLStockLevel::~ValidationSQLStockLevel() {
+SyncSQLStockLevel::~SyncSQLStockLevel() {
 }
 
-transaction_status_t ValidationSQLStockLevel::Validate(SyncClient &client) {
+transaction_status_t SyncSQLStockLevel::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string query;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;

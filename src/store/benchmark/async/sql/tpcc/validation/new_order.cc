@@ -33,55 +33,7 @@ namespace tpcc_sql {
 
 ValidationSQLNewOrder::ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
-    ValidationTPCCSQLTransaction(timeout), w_id(w_id) {
-
-  d_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen); 
-  c_id = tpcc_sql::NURand(static_cast<uint32_t>(1023), static_cast<uint32_t>(1), static_cast<uint32_t>(3000), C, gen);
-  ol_cnt = std::uniform_int_distribution<uint8_t>(5, 15)(gen);
-  rbk = std::uniform_int_distribution<uint8_t>(1, 100)(gen);
-  all_local = true;
-  for (uint8_t i = 0; i < ol_cnt; ++i) {
-    if (rbk == 1 && i == ol_cnt - 1) {
-      o_ol_i_ids.push_back(0);
-      Debug("NEXT NEW_ORDER TX is going to rollback! (Trying to access invalid item)");
-    } else {
-      uint32_t i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
-      
-      //Avoid duplicates
-      //TODO: Since we avoid duplicates, should technically adjust quantity value to account for it. Makes no difference for contention though.
-      bool unique_item = unique_items.insert(i_id).second;
-      if(!unique_item) continue; 
-      
-      o_ol_i_ids.push_back(i_id);
-       
-      
-      //Alternatively: Pick new item if encounter duplicate.
-      // uint32_t i_id = 0;
-      // while(!duplicates.insert(i_id).second){
-      //  i_id = tpcc_sql::NURand(static_cast<uint32_t>(8191), static_cast<uint32_t>(1), static_cast<uint32_t>(100000), C, gen); 
-      // }
-      // o_ol_i_ids.push_back(i_id);
-    }
-    uint8_t x = std::uniform_int_distribution<uint8_t>(1, 100)(gen);
-    if (x == 1 && num_warehouses > 1) { //For 1% of the TXs supply from remote warehouse
-      uint32_t remote_w_id = std::uniform_int_distribution<uint32_t>(1, num_warehouses - 1)(gen);
-      if (remote_w_id == w_id) {
-        remote_w_id = num_warehouses; // simple swap to ensure uniform distribution
-      }
-      o_ol_supply_w_ids.push_back(remote_w_id);
-      all_local = false;
-    } else {
-      o_ol_supply_w_ids.push_back(w_id);
-    }
-    o_ol_quantities.push_back(std::uniform_int_distribution<uint8_t>(1, 10)(gen));
-  }
-  o_entry_d = std::time(0);
-
-  ol_cnt = o_ol_i_ids.size();
-  UW_ASSERT(ol_cnt == o_ol_supply_w_ids.size() && ol_cnt == o_ol_quantities.size());
-  //std::cerr << "All local == " << all_local << std::endl;
-
-   std::cerr << "NEW ORDER (parallel)" << std::endl;
+    SQLNewOrder(w_id, C, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
 }
 
 ValidationSQLNewOrder::~ValidationSQLNewOrder() {

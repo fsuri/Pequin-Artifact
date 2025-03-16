@@ -27,50 +27,26 @@
 #define VALIDATION_SQL_NEW_ORDER_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/new_order.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class ValidationSQLNewOrder : public ValidationTPCCSQLTransaction {
+class ValidationSQLNewOrder : public SQLNewOrder, public ValidationTPCCSQLTransaction {
  public:
   ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
   virtual ~ValidationSQLNewOrder();
   virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t c_id;
-  uint8_t ol_cnt;
-  uint8_t rbk;
-  std::vector<uint32_t> o_ol_i_ids;
-  std::set<uint32_t> unique_items;
-  std::vector<uint32_t> o_ol_supply_w_ids;
-  std::vector<uint8_t> o_ol_quantities;
-  uint32_t o_entry_d;
-  bool all_local;
 };
 
 //TODO: Create a shared super class...
-class ValidationSQLNewOrderSequential : public ValidationTPCCSQLTransaction {
+class ValidationSQLNewOrderSequential : public SQLNewOrderSequential, public ValidationTPCCSQLTransaction {
  public:
   ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
   virtual ~ValidationSQLNewOrderSequential();
   virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t c_id;
-  uint8_t ol_cnt;
-  uint8_t rbk;
-  std::vector<uint32_t> o_ol_i_ids;
-  std::set<uint32_t> unique_items;
-  std::vector<uint32_t> o_ol_supply_w_ids;
-  std::vector<uint8_t> o_ol_quantities;
-  uint32_t o_entry_d;
-  bool all_local;
 };
 
 } // namespace tpcc_sql

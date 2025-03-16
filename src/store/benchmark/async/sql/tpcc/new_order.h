@@ -34,12 +34,11 @@ namespace tpcc_sql {
 
 class SQLNewOrder : public TPCCSQLTransaction {
  public:
-  SQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
+  SQLNewOrder(uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
   virtual ~SQLNewOrder();
-  virtual transaction_status_t Execute(SyncClient &client);
 
- private:
+ protected:
   uint32_t w_id;
   uint32_t d_id;
   uint32_t c_id;
@@ -56,12 +55,12 @@ class SQLNewOrder : public TPCCSQLTransaction {
 //TODO: Create a shared super class...
 class SQLNewOrderSequential : public TPCCSQLTransaction {
  public:
-  SQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
+  SQLNewOrderSequential(uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
+  SQLNewOrderSequential() {};
   virtual ~SQLNewOrderSequential();
-  virtual transaction_status_t Execute(SyncClient &client);
 
- private:
+protected:
   uint32_t w_id;
   uint32_t d_id;
   uint32_t c_id;

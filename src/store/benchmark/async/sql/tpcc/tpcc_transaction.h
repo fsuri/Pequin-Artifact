@@ -365,10 +365,13 @@ void deserialize(T& t, std::unique_ptr<const query_result::QueryResult>& queryRe
 }
 
 
-class TPCCSQLTransaction : public SyncTransaction {
+class TPCCSQLTransaction {
  public:
-  TPCCSQLTransaction(uint32_t timeout);
+  TPCCSQLTransaction();
   virtual ~TPCCSQLTransaction();
+
+  // serialize the current transaction state into the variable txnState
+  //virtual void SerializeTxnState(std::string &txnState) = 0;
 };
 
 }

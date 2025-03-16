@@ -27,37 +27,27 @@
 #define VALIDATION_SQL_DELIVERY_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/delivery.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
 static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
 
-class ValidationSQLDelivery : public ValidationTPCCSQLTransaction {
- public:
- ValidationSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+class ValidationSQLDelivery : public SQLDelivery, public ValidationTPCCSQLTransaction {
+  public:
+    ValidationSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
       std::mt19937 &gen);
-  virtual ~ValidationSQLDelivery();
-  virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t o_carrier_id;
-  uint32_t ol_delivery_d;
+    virtual ~ValidationSQLDelivery();
+    virtual transaction_status_t Validate(SyncClient &client);
 };
 
-class ValidationSQLDeliverySequential : public ValidationTPCCSQLTransaction {
- public:
- ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+class ValidationSQLDeliverySequential : public SQLDeliverySequential, public ValidationTPCCSQLTransaction {
+  public:
+    ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
       std::mt19937 &gen);
-  virtual ~ValidationSQLDeliverySequential();
-  virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint32_t o_carrier_id;
-  uint32_t ol_delivery_d;
+    virtual ~ValidationSQLDeliverySequential();
+    virtual transaction_status_t Validate(SyncClient &client);
 };
 
 } // namespace tpcc_sql

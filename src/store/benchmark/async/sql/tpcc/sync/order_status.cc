@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/order_status.h"
+#include "store/benchmark/async/sql/tpcc/sync/order_status.h"
 
 #include <fmt/core.h>
 
@@ -31,15 +32,15 @@
 
 namespace tpcc_sql {
 
-ValidationSQLOrderStatus::ValidationSQLOrderStatus(uint32_t timeout, uint32_t w_id,
-    uint32_t c_c_last, uint32_t c_c_id, std::mt19937 &gen) :
-    SQLOrderStatus(w_id, c_c_last, c_c_id, gen), ValidationTPCCSQLTransaction(timeout) {
+SyncSQLOrderStatus::SyncSQLOrderStatus(uint32_t timeout, uint32_t w_id,
+    uint32_t c_c_last, uint32_t c_c_id, std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout),
+    SQLOrderStatus(w_id, c_c_last, c_c_id, gen) {
 }
 
-ValidationSQLOrderStatus::~ValidationSQLOrderStatus() {
+SyncSQLOrderStatus::~SyncSQLOrderStatus() {
 }
 
-transaction_status_t ValidationSQLOrderStatus::Validate(SyncClient &client) {
+transaction_status_t SyncSQLOrderStatus::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string query;
 

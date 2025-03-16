@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2024 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,23 +27,17 @@
 #define VALIDATION_SQL_ORDER_STATUS_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/order_status.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class ValidationSQLOrderStatus : public ValidationTPCCSQLTransaction {
+class ValidationSQLOrderStatus : public SQLOrderStatus, public ValidationTPCCSQLTransaction {
  public:
  ValidationSQLOrderStatus(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, std::mt19937 &gen);
   virtual ~ValidationSQLOrderStatus();
   virtual transaction_status_t Validate(SyncClient &client);
-
- private:
-  uint32_t c_w_id;
-  uint32_t c_d_id;
-  uint32_t c_id;
-  uint32_t o_id;
-  bool c_by_last_name;
-  std::string c_last;
 };
 
 } // namespace tpcc_sql

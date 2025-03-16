@@ -14,3 +14,6 @@ $(d)sql_tpcc_generator: $(LIB-io-utils) $(o)tpcc_generator.o $(o)tpcc_utils.o
 
 BINS += $(d)sql_tpcc_generator
 
+cd := $(d)
+include $(cd)sync/Rules.mk
+include $(cd)validation/Rules.mk

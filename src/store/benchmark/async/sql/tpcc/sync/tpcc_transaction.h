@@ -2,6 +2,7 @@
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Matthew Burke <matthelb@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,23 +25,19 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/delivery.h"
+#ifndef SYNC_TPCC_SQL_TRANSACTION_H
+#define SYNC_TPCC_SQL_TRANSACTION_H
 
-#include <fmt/core.h>
-
-#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+#include "store/common/frontend/sync_transaction.h"
 
 namespace tpcc_sql {
 
-SQLDelivery::SQLDelivery(uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
+class SyncTPCCSQLTransaction : public SyncTransaction {
+ public:
+  SyncTPCCSQLTransaction(uint32_t timeout);
+  virtual ~SyncTPCCSQLTransaction();
+};
 
-  std::cerr << "DELIVERY (parallel)" << std::endl;
-} 
-  
-SQLDelivery::~SQLDelivery() {
 }
 
-} // namespace tpcc_sql
+#endif /* SYNC_TPCC_SQL_TRANSACTION_H */

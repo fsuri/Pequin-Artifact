@@ -1,6 +1,7 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
+ *                Matthew Burke <matthelb@cs.cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,116 +24,125 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/validation/new_order.h"
+#include "store/benchmark/async/sql/tpcc/sync/new_order.h"
 
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
-namespace tpcc_sql { 
+namespace tpcc_sql {
 
-ValidationSQLNewOrderSequential::ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
-    uint32_t num_warehouses, std::mt19937 &gen) :
-    SQLNewOrderSequential(w_id, C, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
+SyncSQLNewOrder::SyncSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
+    uint32_t num_warehouses, std::mt19937 &gen) : SyncTPCCSQLTransaction(timeout),
+    SQLNewOrder(w_id, C, num_warehouses, gen) {
 }
 
-ValidationSQLNewOrderSequential::~ValidationSQLNewOrderSequential() {
-}
-
-transaction_status_t ValidationSQLNewOrderSequential::Validate(SyncClient &client) {
+SyncSQLNewOrder::~SyncSQLNewOrder() {
+} 
+ 
+transaction_status_t SyncSQLNewOrder::Execute(SyncClient &client) {
   std::unique_ptr<const query_result::QueryResult> queryResult;
   std::string statement;
   std::vector<std::unique_ptr<const query_result::QueryResult>> results;
 
   //Create a new order.
   //Type: Mid-weight read-write TX, high frequency. Backbone of the workload.
-  Debug("NEW_ORDER");
-  //std::cerr << "NEW_ORDER" << std::endl;
-  Debug("Warehouse: %u", w_id); 
-
-  // std::cerr << "OL_CNT: " << unsigned(ol_cnt) << std::endl;
+  Debug("NEW_ORDER (parallel)"); 
+  
+  Debug("Warehouse: %u", w_id);
 
   client.Begin(timeout);
 
   // (1) Retrieve row from WAREHOUSE, extract tax rate
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);
-  client.Query(statement, queryResult, timeout);
-
-  WarehouseRow w_row;
-  deserialize(w_row, queryResult);
-  Debug("  Tax Rate: %u", w_row.get_tax());
+  client.Query(statement, timeout);
 
   // (2) Retrieve row from DISTRICT, extract tax rate. 
   Debug("District: %u", d_id);
   statement = fmt::format("SELECT * FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, w_id);
-  client.Query(statement, queryResult, timeout);
-
-  DistrictRow d_row;
-  
-  deserialize(d_row, queryResult);
-  Debug("  Tax Rate: %u", d_row.get_tax());
-  uint32_t o_id = d_row.get_next_o_id();
-  Debug("  Order Number: %u", o_id);
-  UW_ASSERT(o_id > 2100);
+  client.Query(statement, timeout);
 
 
   // (3) Retrieve customer row from CUSTOMER, extract discount rate, last name, and credit status.
   Debug("Customer: %u", c_id);
   statement = fmt::format("SELECT * FROM {} WHERE c_id = {} AND c_d_id = {} AND c_w_id = {}", CUSTOMER_TABLE, c_id, d_id, w_id);
-  client.Query(statement, queryResult, timeout);
+  client.Query(statement, timeout);
+
+  client.Wait(results);
+
+  WarehouseRow w_row;
+  deserialize(w_row, results[0]);
+  Debug("  Tax Rate: %u", w_row.get_tax());
+
+  DistrictRow d_row;
+  deserialize(d_row, results[1]);
+  Debug("  Tax Rate: %u", d_row.get_tax());
+  uint32_t o_id = d_row.get_next_o_id();
+  Debug("  Order Number: %u", o_id);
+  UW_ASSERT(o_id > 2100);
 
   CustomerRow c_row;
-  deserialize(c_row, queryResult);
+  deserialize(c_row, results[2]);
   Debug("  Discount: %i", c_row.get_discount());
   Debug("  Last Name: %s", c_row.get_last().c_str());
   Debug("  Credit: %s", c_row.get_credit().c_str());
 
-
+  results.clear();
 
   // (2.5) Increment next available order number for District
   d_row.set_next_o_id(d_row.get_next_o_id() + 1);
   statement = fmt::format("UPDATE {} SET d_next_o_id = {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_row.get_next_o_id(), d_id, w_id);
-  client.Write(statement, queryResult, timeout);
+  client.Write(statement, timeout, true); //async
 
   // (4) Insert new row into NewOrder and Order to reflect the creation of the order. 
+  //statement = fmt::format("INSERT INTO {} (no_o_id, no_d_id, no_w_id) VALUES ({}, {}, {})", NEW_ORDER_TABLE, o_id, d_id, w_id);
   statement = fmt::format("INSERT INTO {} (no_w_id, no_d_id, no_o_id) VALUES ({}, {}, {})", NEW_ORDER_TABLE, w_id, d_id, o_id);
-  client.Write(statement, queryResult, timeout, true); //blind_write
+  client.Write(statement, timeout, true, true); //async, blind_write
+
   
+  // statement = fmt::format("INSERT INTO {} (o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
+  //         "VALUES ({}, {}, {}, {}, {}, {}, {}, {})", ORDER_TABLE, o_id, d_id, w_id, c_id, o_entry_d, 0, ol_cnt, all_local);
   statement = fmt::format("INSERT INTO {} (o_w_id, o_d_id, o_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local) "
           "VALUES ({}, {}, {}, {}, {}, {}, {}, {})", ORDER_TABLE, w_id, d_id, o_id, c_id, o_entry_d, 0, ol_cnt, all_local);
-  client.Write(statement, queryResult, timeout, true); //blind write
+  client.Write(statement, timeout, true, true); //async, blind_write
 
+
+  // (5) For each ol, select row from ITEM and retrieve: Price, Name, Data
+  for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
+    Debug("  Order Line %lu", ol_number);
+    Debug("    Item: %u", o_ol_i_ids[ol_number]);
+    statement = fmt::format("SELECT * FROM {} WHERE i_id = {}", ITEM_TABLE, o_ol_i_ids[ol_number]);
+    client.Query(statement, timeout);
+  }
+
+  // (6) For each ol, select row from STOCK and retrieve: Qunatity, District Number, Data
+  for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
+    Debug("  Order Line %lu", ol_number);
+    Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
+    statement = fmt::format("SELECT * FROM {} WHERE s_i_id = {} AND s_w_id = {}",
+          STOCK_TABLE, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
+    client.Query(statement, timeout);
+  }
+
+  client.Wait(results);
 
   // (7) For each ol, increase Stock year to date by requested quantity, and increment stock order count. If order is remote, increment remote cnt.
   //                  insert a new row into ORDER-LINE .
   for (size_t ol_number = 0; ol_number < ol_cnt; ++ol_number) {
-
-    //(5) For each ol, select row from ITEM and retrieve: Price, Name, Data
-    Debug("  Order Line %lu", ol_number);
-    Debug("    Item: %u", o_ol_i_ids[ol_number]);
-    statement = fmt::format("SELECT * FROM {} WHERE i_id = {}", ITEM_TABLE, o_ol_i_ids[ol_number]);
-    client.Query(statement, queryResult, timeout);
-    if(queryResult->empty()) {
-      Notice("Triggering NewOrder Abort");
+    if (results[ol_number]->empty()) {  // (4.5) If not found codition -> Abort and rollback TX.
       client.Abort(timeout);
       return ABORTED_USER;
-    }
-    else {
+    } else {
       ItemRow i_row;
-      deserialize(i_row, queryResult);
+      deserialize(i_row, results[ol_number]);
       Debug("    Item Name: %s", i_row.get_name().c_str());
-
-      // (6) For each ol, select row from STOCK and retrieve: Qunatity, District Number, Data
-     
-      Debug("  Order Line %lu", ol_number);
-      Debug("    Supply Warehouse: %u", o_ol_supply_w_ids[ol_number]);
-      statement = fmt::format("SELECT * FROM {} WHERE s_i_id = {} AND s_w_id = {}",
-            STOCK_TABLE, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-      client.Query(statement, queryResult, timeout);
-    
+      if(i_row.get_price() <= 0){
+        Warning("Item row has price: %d", i_row.get_price());
+        Panic("Invalid item row");
+      }
 
       StockRow s_row;
-      deserialize(s_row, queryResult);
+      deserialize(s_row, results[ol_number + ol_cnt]);
 
       // (6.5) If available quantity exceeds requested quantity by more than 10, just reduce available quant by the requested amount.
       // Otherwise, add 91 new items.
@@ -152,7 +162,7 @@ transaction_status_t ValidationSQLNewOrderSequential::Validate(SyncClient &clien
       }
       statement = fmt::format("UPDATE {} SET s_quantity = {}, s_ytd = {}, s_order_cnt = {}, s_remote_cnt = {} WHERE s_i_id = {} AND s_w_id = {}",
           STOCK_TABLE, s_row.get_quantity(), s_row.get_ytd(), s_row.get_order_cnt(), s_row.get_remote_cnt(), o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number]);
-      client.Write(statement, queryResult, timeout); 
+      client.Write(statement, timeout, true); 
 
       std::string dist_info;
       switch (d_id) {
@@ -189,13 +199,17 @@ transaction_status_t ValidationSQLNewOrderSequential::Validate(SyncClient &clien
         default:
           NOT_REACHABLE();
       }
+      // statement = fmt::format("INSERT INTO {} (ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
+      //       "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}')", 
+      //       ORDER_LINE_TABLE, o_id, d_id, w_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
       statement = fmt::format("INSERT INTO {} (ol_w_id, ol_d_id, ol_o_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info) "
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, {}, '{}')", 
             ORDER_LINE_TABLE, w_id, d_id, o_id, ol_number, o_ol_i_ids[ol_number], o_ol_supply_w_ids[ol_number], 0, o_ol_quantities[ol_number], o_ol_quantities[ol_number] * i_row.get_price(), dist_info);
-      client.Write(statement, queryResult, timeout, true); //blind write
+      client.Write(statement, timeout, true, true); //async, blind write
     }
   }
 
+  client.asyncWait();
 
   Debug("COMMIT");
   return client.Commit(timeout);

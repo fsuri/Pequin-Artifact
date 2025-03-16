@@ -2,6 +2,7 @@
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Matthew Burke <matthelb@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,23 +25,33 @@
  * SOFTWARE.
  *
  **********************************************************************/
+#ifndef SYNC_SQL_DELIVERY_H
+#define SYNC_SQL_DELIVERY_H
+
+#include "store/benchmark/async/sql/tpcc/sync/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 #include "store/benchmark/async/sql/tpcc/delivery.h"
-
-#include <fmt/core.h>
-
-#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
 
-SQLDelivery::SQLDelivery(uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
+static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
 
-  std::cerr << "DELIVERY (parallel)" << std::endl;
-} 
-  
-SQLDelivery::~SQLDelivery() {
-}
+class SyncSQLDelivery : public SyncTPCCSQLTransaction, public SQLDelivery {
+ public:
+  SyncSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+  virtual ~SyncSQLDelivery();
+  virtual transaction_status_t Execute(SyncClient &client);
+};
+
+class SyncSQLDeliverySequential : public SyncTPCCSQLTransaction, public SQLDeliverySequential {
+ public:
+  SyncSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+  virtual ~SyncSQLDeliverySequential();
+  virtual transaction_status_t Execute(SyncClient &client);
+};
 
 } // namespace tpcc_sql
+
+#endif /* SYNC_SQL_DELIVERY_H */
