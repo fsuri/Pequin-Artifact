@@ -50,11 +50,11 @@ inline std::string GetBenchmarkTxnTypeName(SQLTPCCTransactionType txn_type) {
     case SQL_TXN_POLICY_CHANGE:
       return "policy_change";
     case SQL_TXN_DELIVERY_SEQUENTIAL:
-      return "policy_change";
+      return "delivery_sequential";
     case SQL_TXN_NEW_ORDER_SEQUENTIAL:
-      return "policy_change";
+      return "new_order_sequential";
     case SQL_TXN_PAYMENT_SEQUENTIAL:
-      return "policy_change";
+      return "payment_sequential";
     default:
       Panic("Received unexpected txn type: %d", txn_type);
   }
