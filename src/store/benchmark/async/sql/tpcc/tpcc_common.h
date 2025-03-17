@@ -33,7 +33,7 @@
 
 namespace tpcc_sql {
 
-const std::string BENCHMARK_NAME = "tpcc_sql";
+const std::string BENCHMARK_NAME = "tpcc-sql";
 
 inline std::string GetBenchmarkTxnTypeName(SQLTPCCTransactionType txn_type) {
   switch (txn_type) {
