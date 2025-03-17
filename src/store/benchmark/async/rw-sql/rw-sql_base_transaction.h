@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2025 Austin Li <atl63@cornel.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,17 +23,13 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef RW_SQL_TRANSACTION_H
-#define RW_SQL_TRANSACTION_H
+#ifndef RW_SQL_BASE_TRANSACTION_H
+#define RW_SQL_BASE_TRANSACTION_H
+
+#include "store/benchmark/async/common/key_selector.h"
+#include "store/common/frontend/sync_client.h"
 
 #include <vector>
-
-#include "store/common/frontend/async_transaction.h"
-#include "store/common/frontend/client.h"
-#include "store/benchmark/async/common/key_selector.h"
-
-#include "store/common/frontend/sync_client.h"
-#include "store/common/frontend/sync_transaction.h"
 
 namespace rwsql {
 
@@ -48,41 +43,38 @@ inline int mod(int &x, const int &N){
     return (x % N + N) %N;
 }
 
-class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
+class RWSQLBaseTransaction {
  public:
-  RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
+  RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
-  virtual ~RWSQLTransaction();
-
-  transaction_status_t Execute(SyncClient &client);
+  virtual ~RWSQLBaseTransaction();
 
   inline const std::vector<int> getKeyIdxs() const {
     return keyIdxs;
   }
- private:
-  std::string GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound);
-  void SubmitStatement(SyncClient &client, std::string &statement, const int &i);
-  void GetResults(SyncClient &client);
-  bool AdjustBounds(int &left, int &right, uint64_t table);
-  bool AdjustBounds_manual(int &left, int &right, uint64_t table);
-  
  protected:
+  std::string GenerateStatement(const std::string &table_name, int &left_bound, int &right_bound);
+  void SubmitStatement(SyncClient &client, uint32_t timeout, std::string &statement, const int &i);
+  void GetResults(SyncClient &client, uint32_t timeout);
+  bool AdjustBounds(int &left, int &right, uint64_t table, size_t &liveOps, std::vector<std::pair<int, int>> &past_ranges);
+  bool AdjustBounds_manual(int &left, int &right, uint64_t table, size_t &liveOps, std::vector<std::pair<int, int>> &past_ranges);
+
+  std::pair<uint64_t, std::string> GenerateSecondaryCondition();
+  void ExecuteScanStatement(SyncClient &client, uint32_t timeout, const std::string &table_name, int &left_bound, int &right_bound,
+    const std::pair<uint64_t, std::string> &cond_pair);
+  void ExecutePointStatements(SyncClient &client, uint32_t timeout, const std::string &table_name, int &left_bound, int &right_bound,
+    const std::pair<uint64_t, std::string> &cond_pair);
+  void ProcessPointResult(SyncClient &client, uint32_t timeout, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, const std::pair<uint64_t, std::string> &cond_pair);
+  void Update(SyncClient &client, uint32_t timeout, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, uint64_t row);
+  
   inline const std::string &GetKey(int i) const {
     return keySelector->GetKey(keyIdxs[i]);
   }
-
   
   //inline const size_t GetNumOps() const { return numOps; }
 
   KeySelector *keySelector;
   QuerySelector *querySelector;
-
- private:
-  std::pair<uint64_t, std::string> GenerateSecondaryCondition();
-  void ExecuteScanStatement(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound);
-  void ExecutePointStatements(SyncClient &client, const std::string &table_name, int &left_bound, int &right_bound);
-  void ProcessPointResult(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, const std::pair<uint64_t, std::string> &cond_pair);
-  void Update(SyncClient &client, const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, uint64_t row);
 
   std::mt19937 &rand;
 
@@ -102,12 +94,7 @@ class RWSQLTransaction : public SyncTransaction { //AsyncTransaction
   std::vector<uint64_t> tables;
   std::vector<int> starts;
   std::vector<int> ends;
-
-  size_t liveOps;
-  //avoid duplicates
-  std::vector<std::pair<int, int>> past_ranges;
-  
-  std::vector<std::string> statements; //keep statements in scope to allow for parallel Writes
+  std::vector<std::pair<uint64_t, std::string>> secondary_values;
 
   inline int wrap(int x){
     return mod(x, numKeys);
