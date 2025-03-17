@@ -53,7 +53,10 @@ transaction_status_t SyncSQLStockLevel::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  client.Begin(timeout);
+  std::string txnState;
+  SyncSQLStockLevel::SerializeTxnState(txnState);
+
+  client.Begin(timeout, txnState);
 
   // (1) Select the specified row from District and extract the Next Order Id
   query = fmt::format("SELECT d_next_o_id FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, w_id);

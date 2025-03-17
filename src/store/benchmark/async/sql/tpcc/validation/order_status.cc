@@ -33,7 +33,17 @@ namespace tpcc_sql {
 
 ValidationSQLOrderStatus::ValidationSQLOrderStatus(uint32_t timeout, uint32_t w_id,
     uint32_t c_c_last, uint32_t c_c_id, std::mt19937 &gen) :
-    SQLOrderStatus(w_id, c_c_last, c_c_id, gen), ValidationTPCCSQLTransaction(timeout) {
+    ValidationTPCCSQLTransaction(timeout), SQLOrderStatus(w_id, c_c_last, c_c_id, gen) {
+}
+
+ValidationSQLOrderStatus::ValidationSQLOrderStatus(uint32_t timeout, validation::proto::OrderStatus valOrderStatusMsg) : 
+  ValidationTPCCSQLTransaction(timeout) {
+  c_w_id = valOrderStatusMsg.c_w_id();
+  c_d_id = valOrderStatusMsg.c_d_id();
+  c_id = valOrderStatusMsg.c_id();
+  o_id = valOrderStatusMsg.o_id();
+  c_by_last_name = valOrderStatusMsg.c_by_last_name();
+  c_last = valOrderStatusMsg.c_last();
 }
 
 ValidationSQLOrderStatus::~ValidationSQLOrderStatus() {

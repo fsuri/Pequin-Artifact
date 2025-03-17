@@ -36,7 +36,9 @@ class SQLPayment : public TPCCSQLTransaction {
  public:
   SQLPayment(uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
+  SQLPayment(std::mt19937 &gen) : gen(gen) { };
   virtual ~SQLPayment();
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   std::mt19937 &gen;
@@ -60,6 +62,7 @@ class SQLPaymentSequential : public TPCCSQLTransaction {
       uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
   SQLPaymentSequential(std::mt19937 &gen) : gen(gen) { };
   virtual ~SQLPaymentSequential();
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   std::mt19937 &gen;

@@ -52,7 +52,10 @@ transaction_status_t SyncSQLDeliverySequential::Execute(SyncClient &client) {
   Debug("District: %u", d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  client.Begin(timeout);
+  std::string txnState;
+  SyncSQLDeliverySequential::SerializeTxnState(txnState);
+
+  client.Begin(timeout, txnState);
 
   // (1) Retrieve the row from NEW-ORDER with the lowest order id
   //     If none is found, skip delivery of an order for this district. 

@@ -55,7 +55,10 @@ transaction_status_t SyncSQLPaymentSequential::Execute(SyncClient &client) {
   Debug("Warehouse: %u", w_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  client.Begin(timeout);
+  std::string txnState;
+  SyncSQLPaymentSequential::SerializeTxnState(txnState);
+
+  client.Begin(timeout, txnState);
 
   // (1) Retrieve WAREHOUSE row. Update year to date balance. 
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);

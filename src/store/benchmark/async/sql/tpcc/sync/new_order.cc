@@ -50,8 +50,10 @@ transaction_status_t SyncSQLNewOrder::Execute(SyncClient &client) {
   Debug("NEW_ORDER (parallel)"); 
   
   Debug("Warehouse: %u", w_id);
+  std::string txnState;
+  SyncSQLNewOrder::SerializeTxnState(txnState);
 
-  client.Begin(timeout);
+  client.Begin(timeout, txnState);
 
   // (1) Retrieve row from WAREHOUSE, extract tax rate
   statement = fmt::format("SELECT * FROM {} WHERE w_id = {}", WAREHOUSE_TABLE, w_id);

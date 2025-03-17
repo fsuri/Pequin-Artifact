@@ -36,7 +36,9 @@ class SQLNewOrder : public TPCCSQLTransaction {
  public:
   SQLNewOrder(uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
+  SQLNewOrder() {};
   virtual ~SQLNewOrder();
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   uint32_t w_id;
@@ -59,6 +61,7 @@ class SQLNewOrderSequential : public TPCCSQLTransaction {
       uint32_t num_warehouses, std::mt19937 &gen);
   SQLNewOrderSequential() {};
   virtual ~SQLNewOrderSequential();
+  virtual void SerializeTxnState(std::string &txnState) override;
 
 protected:
   uint32_t w_id;

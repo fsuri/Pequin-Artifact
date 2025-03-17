@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2025 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,36 +23,29 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef VALIDATION_SQL_DELIVERY_H
-#define VALIDATION_SQL_DELIVERY_H
 
+#ifndef SQL_TPCC_VALDIATION_POLICY_CHANGE_H
+#define SQL_TPCC_VALDIATION_POLICY_CHANGE_H
+
+#include "store/benchmark/async/sql/tpcc/policy_change.h"
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
 #include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
-#include "store/benchmark/async/sql/tpcc/delivery.h"
-#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
+#include "store/common/frontend/sync_client.h"
+
 
 namespace tpcc_sql {
 
-static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
+// TODO: maybe have only one transaction type for policy change
 
-class ValidationSQLDelivery : public ValidationTPCCSQLTransaction, public SQLDelivery {
-  public:
-    ValidationSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-    ValidationSQLDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
-    virtual ~ValidationSQLDelivery();
-    virtual transaction_status_t Validate(SyncClient &client);
+class ValidationSQLPolicyChange : public ValidationTPCCSQLTransaction, public PolicyChange {
+ public:
+  // constructor with no randomness (all fields directly initialized)
+  ValidationSQLPolicyChange(uint32_t timeout, uint32_t w_id);
+  ValidationSQLPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg);
+  virtual ~ValidationSQLPolicyChange();
+  virtual transaction_status_t Validate(::SyncClient &client);
 };
 
-class ValidationSQLDeliverySequential : public ValidationTPCCSQLTransaction, public SQLDeliverySequential {
-  public:
-    ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-    ValidationSQLDeliverySequential(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
-    virtual ~ValidationSQLDeliverySequential();
-    virtual transaction_status_t Validate(SyncClient &client);
-};
+} // namespace tpcc
 
-} // namespace tpcc_sql
-
-#endif /* VALIDATION_SQL_DELIVERY_H */
+#endif /* SQL_TPCC_VALDIATION_POLICY_CHANGE_H */

@@ -371,7 +371,7 @@ class TPCCSQLTransaction {
   virtual ~TPCCSQLTransaction();
 
   // serialize the current transaction state into the variable txnState
-  //virtual void SerializeTxnState(std::string &txnState) = 0;
+  virtual void SerializeTxnState(std::string &txnState) = 0;
 };
 
 }

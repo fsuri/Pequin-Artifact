@@ -1,8 +1,6 @@
-/*
-
 syntax = "proto2";
 
-package tpcc.validation.proto;
+package tpcc_sql.validation.proto;
 
 message Delivery {
   required uint32 w_id = 1;
@@ -47,10 +45,11 @@ message Payment {
   required uint32 c_id = 6;
   required uint32 h_amount = 7;
   required uint32 h_date = 8;
-  required bool c_by_last_name = 9;
-  required string c_last = 10;
-  required bool sequential = 11;
-  repeated uint32 est_tables = 12;
+  required uint32 random_row_id = 9;
+  required bool c_by_last_name = 10;
+  required string c_last = 11;
+  required bool sequential = 12;
+  repeated uint32 est_tables = 13;
 }
 
 message StockLevel {
@@ -59,4 +58,6 @@ message StockLevel {
   required uint32 min_quantity = 3;
 }
 
-*/
+message PolicyChange {
+  required uint32 w_id = 1;
+}

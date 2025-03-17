@@ -1,6 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -23,27 +23,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef VALIDATION_SQL_STOCK_LEVEL_H
-#define VALIDATION_SQL_STOCK_LEVEL_H
 
-#include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
-#include "store/benchmark/async/sql/tpcc/stock_level.h"
-#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+#ifndef SQL_TPCC_POLICY_CHANGE_H
+#define SQL_TPCC_POLICY_CHANGE_H
+
 #include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
+
 
 namespace tpcc_sql {
 
-static bool join_free_version = false;
-
-class ValidationSQLStockLevel : public ValidationTPCCSQLTransaction, public SQLStockLevel {
+class PolicyChange : public TPCCSQLTransaction {
  public:
- ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  ValidationSQLStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg);
-  virtual ~ValidationSQLStockLevel();
-  virtual transaction_status_t Validate(SyncClient &client);
+  PolicyChange(uint32_t w_id);
+  PolicyChange() {};
+  virtual ~PolicyChange();
+
+  virtual void SerializeTxnState(std::string &txnState) override;
+
+ protected:
+  uint32_t w_id;
 };
 
-} // namespace tpcc_sql
+} // namespace tpcc
 
-#endif /* VALIDATION_SQL_STOCK_LEVEL_H */
+#endif /* SQL_TPCC_POLICY_CHANGE_H */

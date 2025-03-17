@@ -27,24 +27,27 @@
 #define VALIDATION_SQL_NEW_ORDER_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
 #include "store/benchmark/async/sql/tpcc/new_order.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class ValidationSQLNewOrder : public SQLNewOrder, public ValidationTPCCSQLTransaction {
+class ValidationSQLNewOrder : public ValidationTPCCSQLTransaction, public SQLNewOrder {
  public:
   ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
+  ValidationSQLNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
   virtual ~ValidationSQLNewOrder();
   virtual transaction_status_t Validate(SyncClient &client);
 };
 
 //TODO: Create a shared super class...
-class ValidationSQLNewOrderSequential : public SQLNewOrderSequential, public ValidationTPCCSQLTransaction {
+class ValidationSQLNewOrderSequential : public ValidationTPCCSQLTransaction, public SQLNewOrderSequential {
  public:
   ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
       uint32_t num_warehouses, std::mt19937 &gen);
+  ValidationSQLNewOrderSequential(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
   virtual ~ValidationSQLNewOrderSequential();
   virtual transaction_status_t Validate(SyncClient &client);
 };

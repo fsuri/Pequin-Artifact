@@ -38,6 +38,7 @@ class SQLOrderStatus : public TPCCSQLTransaction {
       uint32_t c_c_id, std::mt19937 &gen);
   SQLOrderStatus() {};
   virtual ~SQLOrderStatus();
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   uint32_t c_w_id;

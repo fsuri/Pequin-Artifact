@@ -34,7 +34,23 @@ namespace tpcc_sql {
 
 ValidationSQLPaymentSequential::ValidationSQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
     uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
-    SQLPaymentSequential(w_id, c_c_last, c_c_id, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
+    ValidationTPCCSQLTransaction(timeout), SQLPaymentSequential(w_id, c_c_last, c_c_id, num_warehouses, gen) {
+}
+
+ValidationSQLPaymentSequential::ValidationSQLPaymentSequential(uint32_t timeout, std::mt19937 &gen,
+  validation::proto::Payment valPaymentMsg) : 
+  ValidationTPCCSQLTransaction(timeout), SQLPaymentSequential(gen) {
+  w_id = valPaymentMsg.w_id();
+  d_id = valPaymentMsg.d_id();
+  d_w_id = valPaymentMsg.d_w_id();
+  c_w_id = valPaymentMsg.c_w_id();
+  c_d_id = valPaymentMsg.c_d_id();
+  c_id = valPaymentMsg.c_id();
+  h_amount = valPaymentMsg.h_amount();
+  h_date = valPaymentMsg.h_date();
+  c_by_last_name = valPaymentMsg.c_by_last_name();
+  c_last = valPaymentMsg.c_last();
+  random_row_id = valPaymentMsg.random_row_id();
 }
 
 ValidationSQLPaymentSequential::~ValidationSQLPaymentSequential() {
@@ -137,7 +153,6 @@ transaction_status_t ValidationSQLPaymentSequential::Validate(SyncClient &client
   // (5) Create History entry.
 
 
-  uint32_t random_row_id = std::uniform_int_distribution<uint32_t>(1, UINT32_MAX)(gen);
    statement = fmt::format("INSERT INTO {} (row_id, h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data) " 
             "VALUES ({}, {}, {}, {}, {}, {}, {}, {}, '{}')", HISTORY_TABLE, random_row_id, c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, w_row.get_name() + "    " + d_row.get_name());
   client.Write(statement, queryResult, timeout, true); //blind write

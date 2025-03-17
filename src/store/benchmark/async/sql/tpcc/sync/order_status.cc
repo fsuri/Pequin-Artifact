@@ -51,7 +51,10 @@ transaction_status_t SyncSQLOrderStatus::Execute(SyncClient &client) {
   Debug("District: %u", c_d_id);
   //std::cerr << "warehouse: " << w_id << std::endl;
 
-  client.Begin(timeout);
+  std::string txnState;
+  SyncSQLOrderStatus::SerializeTxnState(txnState);
+
+  client.Begin(timeout, txnState);
 
   // (1) Select customer (based on last name OR customer number)
   CustomerRow c_row;

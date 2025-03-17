@@ -27,15 +27,17 @@
 #define VALIDATION_SQL_ORDER_STATUS_H
 
 #include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
 #include "store/benchmark/async/sql/tpcc/order_status.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class ValidationSQLOrderStatus : public SQLOrderStatus, public ValidationTPCCSQLTransaction {
+class ValidationSQLOrderStatus : public ValidationTPCCSQLTransaction, public SQLOrderStatus {
  public:
  ValidationSQLOrderStatus(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, std::mt19937 &gen);
+  ValidationSQLOrderStatus(uint32_t timeout, validation::proto::OrderStatus valOrderStatusMsg);
   virtual ~ValidationSQLOrderStatus();
   virtual transaction_status_t Validate(SyncClient &client);
 };

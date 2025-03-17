@@ -33,7 +33,7 @@ namespace tpcc_sql {
 
 ValidationSQLNewOrderSequential::ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
     uint32_t num_warehouses, std::mt19937 &gen) :
-    SQLNewOrderSequential(w_id, C, num_warehouses, gen), ValidationTPCCSQLTransaction(timeout) {
+    ValidationTPCCSQLTransaction(timeout), SQLNewOrderSequential(w_id, C, num_warehouses, gen) {
 }
 
 ValidationSQLNewOrderSequential::~ValidationSQLNewOrderSequential() {

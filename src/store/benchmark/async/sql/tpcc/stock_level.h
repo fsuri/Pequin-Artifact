@@ -38,6 +38,7 @@ class SQLStockLevel : public TPCCSQLTransaction {
       std::mt19937 &gen);
   virtual ~SQLStockLevel();
   SQLStockLevel() {};
+  virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
   uint32_t w_id;
