@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2024 Austin Li <atl63@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,22 +23,46 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/delivery.h"
 
-#include <fmt/core.h>
-
+#include "store/benchmark/async/sql/tpcc/validation/policy_change.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+#include "store/sintrstore/sintr-proto.pb.h"
+#include "store/sintrstore/policy/policy-proto.pb.h"
+
 
 namespace tpcc_sql {
 
-SQLDelivery::SQLDelivery(uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
-  std::cerr << "DELIVERY (parallel)" << std::endl;
-} 
-  
-SQLDelivery::~SQLDelivery() {
+ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, uint32_t w_id) :
+  ValidationTPCCSQLTransaction(timeout) {
+  this->w_id = w_id;
 }
 
-} // namespace tpcc_sql
+ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg) : 
+  ValidationTPCCSQLTransaction(timeout) {
+  w_id = valPolicyChangeMsg.w_id();
+}
+
+ValidationSQLPolicyChange::~ValidationSQLPolicyChange() {
+}
+
+transaction_status_t ValidationSQLPolicyChange::Validate(::SyncClient &client) {
+  Debug("POLICY_CHANGE");
+  Debug("Warehouse: %u", w_id);
+
+  client.Begin(timeout);
+
+  // distict table has policy id 1, change it to be policy of weight 3
+  ::sintrstore::proto::PolicyObject policy;
+  policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
+  ::sintrstore::proto::WeightPolicyMessage weight_policy;
+  weight_policy.set_weight(3);
+  weight_policy.SerializeToString(policy.mutable_policy_data());
+  
+  std::string policy_str;
+  policy.SerializeToString(&policy_str);
+  client.Put("1", policy_str, timeout);
+
+  return client.Commit(timeout);
+}
+
+} // namespace tpcc

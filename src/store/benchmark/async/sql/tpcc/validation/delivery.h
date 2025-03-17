@@ -1,8 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
- *                Liam Arzola <lma77@cornell.edu>
+ * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,27 +23,36 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SQL_STOCK_LEVEL_H
-#define SQL_STOCK_LEVEL_H
+#ifndef VALIDATION_SQL_DELIVERY_H
+#define VALIDATION_SQL_DELIVERY_H
 
+#include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+#include "store/benchmark/async/sql/tpcc/delivery.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class SQLStockLevel : public TPCCSQLTransaction {
- public:
-  SQLStockLevel(uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  virtual ~SQLStockLevel();
-  SQLStockLevel() {};
-  virtual void SerializeTxnState(std::string &txnState) override;
+static bool use_earliest_new_order_table = true; //Use this if backend executor is too stupid to execute MIN without doing a scan...
 
- protected:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint8_t min_quantity;
+class ValidationSQLDelivery : public ValidationTPCCSQLTransaction, public SQLDelivery {
+  public:
+    ValidationSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+    ValidationSQLDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+    virtual ~ValidationSQLDelivery();
+    virtual transaction_status_t Validate(SyncClient &client);
+};
+
+class ValidationSQLDeliverySequential : public ValidationTPCCSQLTransaction, public SQLDeliverySequential {
+  public:
+    ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+    ValidationSQLDeliverySequential(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+    virtual ~ValidationSQLDeliverySequential();
+    virtual transaction_status_t Validate(SyncClient &client);
 };
 
 } // namespace tpcc_sql
 
-#endif /* SQL_STOCK_LEVEL_H */
+#endif /* VALIDATION_SQL_DELIVERY_H */

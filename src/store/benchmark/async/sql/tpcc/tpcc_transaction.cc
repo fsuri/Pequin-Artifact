@@ -29,7 +29,7 @@
 
 namespace tpcc_sql {
 
-TPCCSQLTransaction::TPCCSQLTransaction(uint32_t timeout) : SyncTransaction(timeout) {
+TPCCSQLTransaction::TPCCSQLTransaction() {
 }
 
 TPCCSQLTransaction::~TPCCSQLTransaction() {

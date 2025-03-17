@@ -1,7 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
+ * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,22 +23,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/delivery.h"
+#ifndef VALIDATION_SQL_STOCK_LEVEL_H
+#define VALIDATION_SQL_STOCK_LEVEL_H
 
-#include <fmt/core.h>
-
-#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/stock_level.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-SQLDelivery::SQLDelivery(uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0);
-  std::cerr << "DELIVERY (parallel)" << std::endl;
-} 
-  
-SQLDelivery::~SQLDelivery() {
-}
+static bool join_free_version = false;
+
+class ValidationSQLStockLevel : public ValidationTPCCSQLTransaction, public SQLStockLevel {
+ public:
+ ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
+      std::mt19937 &gen);
+  ValidationSQLStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg);
+  virtual ~ValidationSQLStockLevel();
+  virtual transaction_status_t Validate(SyncClient &client);
+};
 
 } // namespace tpcc_sql
+
+#endif /* VALIDATION_SQL_STOCK_LEVEL_H */

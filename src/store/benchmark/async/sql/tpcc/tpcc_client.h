@@ -33,6 +33,20 @@
 #include "store/benchmark/async/sync_transaction_bench_client.h"
 
 namespace tpcc_sql {
+  
+enum SQLTPCCTransactionType {
+  SQL_TXN_NEW_ORDER = 0,
+  SQL_TXN_NEW_ORDER_SEQUENTIAL,
+  SQL_TXN_PAYMENT,
+  SQL_TXN_PAYMENT_SEQUENTIAL,
+  SQL_TXN_ORDER_STATUS,
+  SQL_TXN_STOCK_LEVEL,
+  SQL_TXN_DELIVERY,
+  SQL_TXN_DELIVERY_SEQUENTIAL,
+  SQL_TXN_POLICY_CHANGE,
+  NUM_TXN_TYPES
+};
+  
 
 class TPCCSQLClient : public SyncTransactionBenchClient {
  public:

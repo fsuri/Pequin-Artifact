@@ -2,6 +2,7 @@
  *
  * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
  *                Matthew Burke <matthelb@cs.cornell.edu>
+ *                Liam Arzola <lma77@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -24,45 +25,31 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/sql/tpcc/delivery.h"
+#ifndef SYNC_SQL_PAYMENT_H
+#define SYNC_SQL_PAYMENT_H
 
-#include <fmt/core.h>
+#include "store/benchmark/async/sql/tpcc/sync/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/payment.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
-#include "store/benchmark/async/sql/tpcc/tpcc_common.h"
-#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
-#include "store/common/common-proto.pb.h"
-#include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+namespace tpcc_sql {
 
-namespace tpcc_sql { 
+class SyncSQLPayment : public SyncTPCCSQLTransaction, public SQLPayment {
+ public:
+  SyncSQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+      uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
+  virtual ~SyncSQLPayment();
+  virtual transaction_status_t Execute(SyncClient &client);
+};
 
-SQLDeliverySequential::SQLDeliverySequential(uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
-  o_carrier_id = std::uniform_int_distribution<uint32_t>(1, 10)(gen);
-  ol_delivery_d = std::time(0); 
-}
-
-SQLDeliverySequential::~SQLDeliverySequential() {
-}
-
-void SQLDeliverySequential::SerializeTxnState(std::string &txnState) {
-  TxnState currTxnState = TxnState();
-  std::string txn_name;
-  txn_name.append(BENCHMARK_NAME);
-  txn_name.push_back('_');
-  txn_name.append(GetBenchmarkTxnTypeName(SQL_TXN_DELIVERY_SEQUENTIAL));
-  currTxnState.set_txn_name(txn_name);
-
-  validation::proto::Delivery curr_txn = validation::proto::Delivery();
-  curr_txn.set_sequential(true);
-  curr_txn.set_w_id(w_id);
-  curr_txn.set_d_id(d_id);
-  curr_txn.set_o_carrier_id(o_carrier_id);
-  curr_txn.set_ol_delivery_d(ol_delivery_d);
-  std::string txn_data;
-  curr_txn.SerializeToString(&txn_data);
-  currTxnState.set_txn_data(txn_data);
-
-  currTxnState.SerializeToString(&txnState);
-}
+class SyncSQLPaymentSequential : public SyncTPCCSQLTransaction, public SQLPaymentSequential {
+ public:
+  SyncSQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+      uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
+  virtual ~SyncSQLPaymentSequential();
+  virtual transaction_status_t Execute(SyncClient &client);
+};
 
 } // namespace tpcc_sql
+
+#endif /* SYNC_SQL_PAYMENT_H */

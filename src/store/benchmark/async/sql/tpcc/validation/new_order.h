@@ -1,8 +1,6 @@
 /***********************************************************************
  *
- * Copyright 2021 Florian Suri-Payer <fsp@cs.cornell.edu>
- *                Matthew Burke <matthelb@cs.cornell.edu>
- *                Liam Arzola <lma77@cornell.edu>
+ * Copyright 2025 Daniel Lee <dhl93@cornell.edu>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -25,27 +23,35 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#ifndef SQL_STOCK_LEVEL_H
-#define SQL_STOCK_LEVEL_H
+#ifndef VALIDATION_SQL_NEW_ORDER_H
+#define VALIDATION_SQL_NEW_ORDER_H
 
+#include "store/benchmark/async/sql/tpcc/validation/tpcc_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+#include "store/benchmark/async/sql/tpcc/new_order.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_transaction.h"
 
 namespace tpcc_sql {
 
-class SQLStockLevel : public TPCCSQLTransaction {
+class ValidationSQLNewOrder : public ValidationTPCCSQLTransaction, public SQLNewOrder {
  public:
-  SQLStockLevel(uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  virtual ~SQLStockLevel();
-  SQLStockLevel() {};
-  virtual void SerializeTxnState(std::string &txnState) override;
+  ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
+      uint32_t num_warehouses, std::mt19937 &gen);
+  ValidationSQLNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  virtual ~ValidationSQLNewOrder();
+  virtual transaction_status_t Validate(SyncClient &client);
+};
 
- protected:
-  uint32_t w_id;
-  uint32_t d_id;
-  uint8_t min_quantity;
+//TODO: Create a shared super class...
+class ValidationSQLNewOrderSequential : public ValidationTPCCSQLTransaction, public SQLNewOrderSequential {
+ public:
+  ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
+      uint32_t num_warehouses, std::mt19937 &gen);
+  ValidationSQLNewOrderSequential(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  virtual ~ValidationSQLNewOrderSequential();
+  virtual transaction_status_t Validate(SyncClient &client);
 };
 
 } // namespace tpcc_sql
 
-#endif /* SQL_STOCK_LEVEL_H */
+#endif /* VALIDATION_SQL_NEW_ORDER_H */
