@@ -89,9 +89,6 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
       ends.push_back(end);
       Debug("Range: %d. Base: %d. End: %d", range, base, end);
     }
-
-    secondary_values.push_back(GenerateSecondaryCondition());
-
   }
 }
 

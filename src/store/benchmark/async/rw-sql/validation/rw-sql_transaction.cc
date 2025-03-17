@@ -52,10 +52,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   liveOps = numOps;
   past_ranges.clear();
   statements.clear();
-  // reset secondary values
-  for (int i = 0; i < numOps; ++i) {
-    secondary_values.push_back(GenerateSecondaryCondition());
-  }
 
   Debug("Start next Transaction");
 

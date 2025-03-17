@@ -33,6 +33,8 @@
 
 namespace rwsql {
 
+const std::string BENCHMARK_NAME = "rwsql";
+
 static bool AVOID_DUPLICATE_READS = true; 
 static bool POINT_READS_ENABLED = true;
 static bool PARALLEL_QUERIES = true;
