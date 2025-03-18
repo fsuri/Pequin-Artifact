@@ -42,7 +42,7 @@ class EstimatePolicy {
   EstimatePolicy() {}
   ~EstimatePolicy(){}
   // takes in transaction state, policy, and endorsement client and returns an estimated policy
-  void EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, EndorsementClient *endorseClient) const;
+  void EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, const EndorsementClient *endorseClient) const;
 
  private:
   /*

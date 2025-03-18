@@ -43,7 +43,7 @@
 
 namespace sintrstore {
 
-  void EstimatePolicy::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, EndorsementClient *endorseClient) const {
+  void EstimatePolicy::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *policyClient, const EndorsementClient *endorseClient) const {
     std::string txn_name(protoTxnState.txn_name());
 
     size_t pos = txn_name.find("_");
