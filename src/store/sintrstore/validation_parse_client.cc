@@ -37,6 +37,14 @@
 #include "store/benchmark/async/rw-sync/rw-base_transaction.h"
 #include "store/benchmark/async/rw-sync/rw-validation-proto.pb.h"
 #include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_common.h"
+#include "store/benchmark/async/sql/tpcc/validation/delivery.h"
+#include "store/benchmark/async/sql/tpcc/validation/new_order.h"
+#include "store/benchmark/async/sql/tpcc/validation/order_status.h"
+#include "store/benchmark/async/sql/tpcc/validation/payment.h"
+#include "store/benchmark/async/sql/tpcc/validation/stock_level.h"
+#include "store/benchmark/async/sql/tpcc/validation/policy_change.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
 
 
 namespace sintrstore {
@@ -93,6 +101,58 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
     ::rwsync::validation::proto::RWSync valTxnData;
     UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
     return new ::rwsync::RWValTransaction(timeout, keys, valTxnData);
+  }
+  else if (txn_bench == ::tpcc_sql::BENCHMARK_NAME) {
+    ::tpcc_sql::SQLTPCCTransactionType tpcc_txn_type = ::tpcc_sql::GetBenchmarkTxnTypeEnum(txn_type);
+    switch (tpcc_txn_type) {
+      case ::tpcc_sql::SQL_TXN_DELIVERY: {
+        ::tpcc_sql::validation::proto::Delivery valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLDelivery(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_DELIVERY_SEQUENTIAL: {
+        ::tpcc_sql::validation::proto::Delivery valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLDeliverySequential(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_NEW_ORDER: {
+        ::tpcc_sql::validation::proto::NewOrder valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLNewOrder(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_NEW_ORDER_SEQUENTIAL: {
+        ::tpcc_sql::validation::proto::NewOrder valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLNewOrderSequential(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_ORDER_STATUS: {
+        ::tpcc_sql::validation::proto::OrderStatus valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLOrderStatus(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_PAYMENT: {
+        ::tpcc_sql::validation::proto::Payment valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLPayment(timeout, rand, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_PAYMENT_SEQUENTIAL: {
+        ::tpcc_sql::validation::proto::Payment valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLPaymentSequential(timeout, rand, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_STOCK_LEVEL: {
+        ::tpcc_sql::validation::proto::StockLevel valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLStockLevel(timeout, valTxnData);
+      }
+      case ::tpcc_sql::SQL_TXN_POLICY_CHANGE: {
+        ::tpcc_sql::validation::proto::PolicyChange valTxnData;
+        UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        return new ::tpcc_sql::ValidationSQLPolicyChange(timeout, valTxnData);
+      }
+      default:
+        Panic("Received unexpected txn type: %s", txn_type.c_str());
+    }
   }
   else {
     Panic("Received unexpected txn benchmark: %s", txn_bench.c_str());

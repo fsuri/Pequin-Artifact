@@ -34,9 +34,12 @@
 #include "store/benchmark/async/rw-sync/rw-base_transaction.h"
 #include "store/benchmark/async/rw-sync/rw-validation-proto.pb.h"
 #include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
-#include "store/sintrstore/policy/weight_policy.h"
-// TODO: handle acl policy
-#include "store/sintrstore/policy/acl_policy.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_common.h"
+#include "store/benchmark/async/sql/tpcc/validation/delivery.h"
+#include "store/benchmark/async/sql/tpcc/validation/new_order.h"
+#include "store/benchmark/async/sql/tpcc/validation/payment.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+
 
 namespace sintrstore {
 
@@ -87,9 +90,8 @@ namespace sintrstore {
         }
       }
       if (repeated_values.size() > 0) {
-        const Policy *temp_policy;
-        for (int const &value : repeated_values)
-        {
+        for (int const &value : repeated_values) {
+          const Policy *temp_policy;
           UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), temp_policy));
           policyClient->AddPolicy(temp_policy);
         }
@@ -106,6 +108,58 @@ namespace sintrstore {
         const Policy *temp_policy;
         UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
         policyClient->AddPolicy(temp_policy);
+      }
+    }
+    else if (txn_bench == ::tpcc_sql::BENCHMARK_NAME) {
+      ::google::protobuf::RepeatedField<::google::protobuf::uint32> repeated_values;
+
+      ::tpcc_sql::SQLTPCCTransactionType tpcc_txn_type = ::tpcc_sql::GetBenchmarkTxnTypeEnum(txn_type);
+      switch (tpcc_txn_type) {
+        case ::tpcc_sql::SQL_TXN_DELIVERY: {
+          ::tpcc_sql::validation::proto::Delivery valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc_sql::SQL_TXN_DELIVERY_SEQUENTIAL: {
+          ::tpcc_sql::validation::proto::Delivery valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc_sql::SQL_TXN_NEW_ORDER: {
+          ::tpcc_sql::validation::proto::NewOrder valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc_sql::SQL_TXN_NEW_ORDER_SEQUENTIAL: {
+          ::tpcc_sql::validation::proto::NewOrder valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc_sql::SQL_TXN_PAYMENT: {
+          ::tpcc_sql::validation::proto::Payment valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        case ::tpcc_sql::SQL_TXN_PAYMENT_SEQUENTIAL: {
+          ::tpcc_sql::validation::proto::Payment valTxnData;
+          UW_ASSERT(valTxnData.ParseFromString(protoTxnState.txn_data()));
+          repeated_values = valTxnData.est_tables();
+          break;
+        }
+        default:
+          break;
+      }
+      if (repeated_values.size() > 0) {
+        for (int const &value : repeated_values) {
+          const Policy *temp_policy;
+          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), temp_policy));
+          policyClient->AddPolicy(temp_policy);
+        }
       }
     }
     else {
