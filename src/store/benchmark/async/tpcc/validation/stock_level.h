@@ -37,7 +37,7 @@ class ValidationStockLevel : public ValidationTPCCTransaction, public StockLevel
  public:
   // constructor with no randomness (all fields directly initialized)
   ValidationStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id, uint8_t min_quantity);
-  ValidationStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg);
+  ValidationStockLevel(uint32_t timeout, const validation::proto::StockLevel &valStockLevelMsg);
   virtual ~ValidationStockLevel();
   virtual transaction_status_t Validate(::SyncClient &client);
 };

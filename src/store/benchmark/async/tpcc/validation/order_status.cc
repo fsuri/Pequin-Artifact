@@ -41,7 +41,7 @@ ValidationOrderStatus::ValidationOrderStatus(uint32_t timeout, uint32_t w_id, ui
   this->c_last = c_last;
 }
 
-ValidationOrderStatus::ValidationOrderStatus(uint32_t timeout, validation::proto::OrderStatus valOrderStatusMsg) : 
+ValidationOrderStatus::ValidationOrderStatus(uint32_t timeout, const validation::proto::OrderStatus &valOrderStatusMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valOrderStatusMsg.w_id();
   d_id = valOrderStatusMsg.d_id();

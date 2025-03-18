@@ -44,7 +44,7 @@ ValidationPayment::ValidationPayment(uint32_t timeout, uint32_t w_id, uint32_t d
   this->c_by_last_name = c_by_last_name;
   this->c_last = c_last;
 }
-ValidationPayment::ValidationPayment(uint32_t timeout, validation::proto::Payment valPaymentMsg) : 
+ValidationPayment::ValidationPayment(uint32_t timeout, const validation::proto::Payment &valPaymentMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valPaymentMsg.w_id();
   d_id = valPaymentMsg.d_id();

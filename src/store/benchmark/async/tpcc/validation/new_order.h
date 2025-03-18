@@ -41,7 +41,7 @@ class ValidationNewOrder : public ValidationTPCCTransaction, public NewOrder {
     uint32_t c_id, uint8_t ol_cnt, uint8_t rbk, std::vector<uint32_t> o_ol_i_ids,
     std::vector<uint32_t> o_ol_supply_w_ids, std::vector<uint8_t> o_ol_quantities, 
     uint32_t o_entry_d, bool all_local);
-  ValidationNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  ValidationNewOrder(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg);
   virtual ~ValidationNewOrder();
   virtual transaction_status_t Validate(::SyncClient &client);
 };

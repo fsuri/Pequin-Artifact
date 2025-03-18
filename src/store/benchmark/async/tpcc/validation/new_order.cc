@@ -46,7 +46,7 @@ ValidationNewOrder::ValidationNewOrder(uint32_t timeout, uint32_t w_id, uint32_t
   this->all_local = all_local;
 }
 
-ValidationNewOrder::ValidationNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg) :
+ValidationNewOrder::ValidationNewOrder(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg) :
     ValidationTPCCTransaction(timeout) {
   w_id = valNewOrderMsg.w_id();
   d_id = valNewOrderMsg.d_id();

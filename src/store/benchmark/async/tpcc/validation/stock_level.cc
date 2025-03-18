@@ -37,7 +37,7 @@ ValidationStockLevel::ValidationStockLevel(uint32_t timeout, uint32_t w_id, uint
   this->min_quantity = min_quantity;
 }
 
-ValidationStockLevel::ValidationStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg) : 
+ValidationStockLevel::ValidationStockLevel(uint32_t timeout, const validation::proto::StockLevel &valStockLevelMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valStockLevelMsg.w_id();
   d_id = valStockLevelMsg.d_id();
