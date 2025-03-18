@@ -35,18 +35,15 @@ namespace tpcc_sql {
 
 class ValidationSQLPayment : public ValidationTPCCSQLTransaction, public SQLPayment {
  public:
-  ValidationSQLPayment(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-      uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
-  ValidationSQLPayment(uint32_t timeout, std::mt19937 &gen, validation::proto::Payment valPaymentMsg);
+  // even though gen is not needed for Validate, need it for calling SQLPayment constructor
+  ValidationSQLPayment(uint32_t timeout, std::mt19937 &gen, const validation::proto::Payment &valPaymentMsg);
   virtual ~ValidationSQLPayment();
   virtual transaction_status_t Validate(SyncClient &client);
 };
 
 class ValidationSQLPaymentSequential : public ValidationTPCCSQLTransaction, public SQLPaymentSequential {
  public:
- ValidationSQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-      uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen);
-  ValidationSQLPaymentSequential(uint32_t timeout, std::mt19937 &gen, validation::proto::Payment valPaymentMsg);
+  ValidationSQLPaymentSequential(uint32_t timeout, std::mt19937 &gen, const validation::proto::Payment &valPaymentMsg);
   virtual ~ValidationSQLPaymentSequential();
   virtual transaction_status_t Validate(SyncClient &client);
 };

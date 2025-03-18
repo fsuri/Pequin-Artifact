@@ -35,9 +35,7 @@ namespace tpcc_sql {
 
 class ValidationSQLOrderStatus : public ValidationTPCCSQLTransaction, public SQLOrderStatus {
  public:
- ValidationSQLOrderStatus(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-      uint32_t c_c_id, std::mt19937 &gen);
-  ValidationSQLOrderStatus(uint32_t timeout, validation::proto::OrderStatus valOrderStatusMsg);
+  ValidationSQLOrderStatus(uint32_t timeout, const validation::proto::OrderStatus &valOrderStatusMsg);
   virtual ~ValidationSQLOrderStatus();
   virtual transaction_status_t Validate(SyncClient &client);
 };

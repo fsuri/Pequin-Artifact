@@ -37,18 +37,14 @@ static bool use_earliest_new_order_table = true; //Use this if backend executor 
 
 class ValidationSQLDelivery : public ValidationTPCCSQLTransaction, public SQLDelivery {
   public:
-    ValidationSQLDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-    ValidationSQLDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+    ValidationSQLDelivery(uint32_t timeout, const validation::proto::Delivery &valDeliveryMsg);
     virtual ~ValidationSQLDelivery();
     virtual transaction_status_t Validate(SyncClient &client);
 };
 
 class ValidationSQLDeliverySequential : public ValidationTPCCSQLTransaction, public SQLDeliverySequential {
   public:
-    ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-    ValidationSQLDeliverySequential(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+    ValidationSQLDeliverySequential(uint32_t timeout, const validation::proto::Delivery &valDeliveryMsg);
     virtual ~ValidationSQLDeliverySequential();
     virtual transaction_status_t Validate(SyncClient &client);
 };

@@ -31,9 +31,23 @@
 
 namespace tpcc_sql { 
 
-ValidationSQLNewOrderSequential::ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
-    uint32_t num_warehouses, std::mt19937 &gen) :
-    ValidationTPCCSQLTransaction(timeout), SQLNewOrderSequential(w_id, C, num_warehouses, gen) {
+ValidationSQLNewOrderSequential::ValidationSQLNewOrderSequential(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg) :
+    ValidationTPCCSQLTransaction(timeout) {
+  w_id = valNewOrderMsg.w_id();
+  d_id = valNewOrderMsg.d_id();
+  c_id = valNewOrderMsg.c_id();
+  ol_cnt = valNewOrderMsg.ol_cnt();
+  rbk = valNewOrderMsg.rbk();
+  o_ol_i_ids = std::vector(valNewOrderMsg.o_ol_i_ids().begin(), valNewOrderMsg.o_ol_i_ids().end());
+  o_ol_supply_w_ids = std::vector(valNewOrderMsg.o_ol_supply_w_ids().begin(), valNewOrderMsg.o_ol_supply_w_ids().end());
+  // protobuf only has uint32 type, but here we only need uint8_t in the vector
+  o_ol_quantities = std::vector<uint8_t>();
+  for (int i = 0; i < valNewOrderMsg.o_ol_quantities().size(); i++) {
+    o_ol_quantities.push_back(valNewOrderMsg.o_ol_quantities(i) & 0xFF);
+  }
+  unique_items = std::set(valNewOrderMsg.unique_items().begin(), valNewOrderMsg.unique_items().end());
+  o_entry_d = valNewOrderMsg.o_entry_d();
+  all_local = valNewOrderMsg.all_local();
 }
 
 ValidationSQLNewOrderSequential::~ValidationSQLNewOrderSequential() {

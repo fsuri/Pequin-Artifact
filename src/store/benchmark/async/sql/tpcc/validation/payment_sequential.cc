@@ -32,14 +32,9 @@
 
 namespace tpcc_sql { 
 
-ValidationSQLPaymentSequential::ValidationSQLPaymentSequential(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
-    uint32_t c_c_id, uint32_t num_warehouses, std::mt19937 &gen) :
-    ValidationTPCCSQLTransaction(timeout), SQLPaymentSequential(w_id, c_c_last, c_c_id, num_warehouses, gen) {
-}
-
 ValidationSQLPaymentSequential::ValidationSQLPaymentSequential(uint32_t timeout, std::mt19937 &gen,
-  validation::proto::Payment valPaymentMsg) : 
-  ValidationTPCCSQLTransaction(timeout), SQLPaymentSequential(gen) {
+    const validation::proto::Payment &valPaymentMsg) : 
+    ValidationTPCCSQLTransaction(timeout), SQLPaymentSequential(gen) {
   w_id = valPaymentMsg.w_id();
   d_id = valPaymentMsg.d_id();
   d_w_id = valPaymentMsg.d_w_id();

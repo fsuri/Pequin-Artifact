@@ -31,13 +31,8 @@
 
 namespace tpcc_sql {
 
-ValidationSQLNewOrder::ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
-    uint32_t num_warehouses, std::mt19937 &gen) :
-    ValidationTPCCSQLTransaction(timeout), SQLNewOrder(w_id, C, num_warehouses, gen) {
-}
-
-ValidationSQLNewOrder::ValidationSQLNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg) :
-  ValidationTPCCSQLTransaction(timeout) {
+ValidationSQLNewOrder::ValidationSQLNewOrder(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg) :
+    ValidationTPCCSQLTransaction(timeout) {
   w_id = valNewOrderMsg.w_id();
   d_id = valNewOrderMsg.d_id();
   c_id = valNewOrderMsg.c_id();

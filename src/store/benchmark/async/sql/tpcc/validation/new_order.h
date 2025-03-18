@@ -35,9 +35,7 @@ namespace tpcc_sql {
 
 class ValidationSQLNewOrder : public ValidationTPCCSQLTransaction, public SQLNewOrder {
  public:
-  ValidationSQLNewOrder(uint32_t timeout, uint32_t w_id, uint32_t C,
-      uint32_t num_warehouses, std::mt19937 &gen);
-  ValidationSQLNewOrder(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  ValidationSQLNewOrder(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg);
   virtual ~ValidationSQLNewOrder();
   virtual transaction_status_t Validate(SyncClient &client);
 };
@@ -45,9 +43,7 @@ class ValidationSQLNewOrder : public ValidationTPCCSQLTransaction, public SQLNew
 //TODO: Create a shared super class...
 class ValidationSQLNewOrderSequential : public ValidationTPCCSQLTransaction, public SQLNewOrderSequential {
  public:
-  ValidationSQLNewOrderSequential(uint32_t timeout, uint32_t w_id, uint32_t C,
-      uint32_t num_warehouses, std::mt19937 &gen);
-  ValidationSQLNewOrderSequential(uint32_t timeout, validation::proto::NewOrder valNewOrderMsg);
+  ValidationSQLNewOrderSequential(uint32_t timeout, const validation::proto::NewOrder &valNewOrderMsg);
   virtual ~ValidationSQLNewOrderSequential();
   virtual transaction_status_t Validate(SyncClient &client);
 };

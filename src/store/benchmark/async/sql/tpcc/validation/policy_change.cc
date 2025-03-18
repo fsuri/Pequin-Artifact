@@ -37,7 +37,7 @@ ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, uint32_t 
   this->w_id = w_id;
 }
 
-ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg) : 
+ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, const validation::proto::PolicyChange &valPolicyChangeMsg) : 
   ValidationTPCCSQLTransaction(timeout) {
   w_id = valPolicyChangeMsg.w_id();
 }

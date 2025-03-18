@@ -31,9 +31,12 @@
 
 namespace tpcc_sql { 
 
-ValidationSQLDeliverySequential::ValidationSQLDeliverySequential(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen)
-    : ValidationTPCCSQLTransaction(timeout), SQLDeliverySequential(w_id, d_id, gen) {
+ValidationSQLDeliverySequential::ValidationSQLDeliverySequential(uint32_t timeout, const validation::proto::Delivery &valDeliveryMsg) :
+    ValidationTPCCSQLTransaction(timeout) {
+  w_id = valDeliveryMsg.w_id();
+  d_id = valDeliveryMsg.d_id();
+  o_carrier_id = valDeliveryMsg.o_carrier_id();
+  ol_delivery_d = valDeliveryMsg.ol_delivery_d();
 }
 
 ValidationSQLDeliverySequential::~ValidationSQLDeliverySequential() {

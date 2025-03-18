@@ -41,6 +41,7 @@ class SQLPayment : public TPCCSQLTransaction {
   virtual void SerializeTxnState(std::string &txnState) override;
 
  protected:
+  // for regular execute need randomness
   std::mt19937 &gen;
 
   uint32_t w_id;

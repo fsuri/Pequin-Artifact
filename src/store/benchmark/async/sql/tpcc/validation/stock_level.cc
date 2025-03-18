@@ -32,12 +32,8 @@
 
 namespace tpcc_sql {
 
-ValidationSQLStockLevel::ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : ValidationTPCCSQLTransaction(timeout), SQLStockLevel(w_id, d_id, gen){
-}
-
-ValidationSQLStockLevel::ValidationSQLStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg) : 
-  ValidationTPCCSQLTransaction(timeout) {
+ValidationSQLStockLevel::ValidationSQLStockLevel(uint32_t timeout, const validation::proto::StockLevel &valStockLevelMsg) : 
+    ValidationTPCCSQLTransaction(timeout) {
   w_id = valStockLevelMsg.w_id();
   d_id = valStockLevelMsg.d_id();
   // protobuf only has uint32 type, but here we only need uint8_t

@@ -37,9 +37,7 @@ static bool join_free_version = false;
 
 class ValidationSQLStockLevel : public ValidationTPCCSQLTransaction, public SQLStockLevel {
  public:
- ValidationSQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-      std::mt19937 &gen);
-  ValidationSQLStockLevel(uint32_t timeout, validation::proto::StockLevel valStockLevelMsg);
+  ValidationSQLStockLevel(uint32_t timeout, const validation::proto::StockLevel &valStockLevelMsg);
   virtual ~ValidationSQLStockLevel();
   virtual transaction_status_t Validate(SyncClient &client);
 };
