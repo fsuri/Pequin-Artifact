@@ -108,21 +108,25 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
       case ::tpcc_sql::SQL_TXN_DELIVERY: {
         ::tpcc_sql::validation::proto::Delivery valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(!valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLDelivery(timeout, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_DELIVERY_SEQUENTIAL: {
         ::tpcc_sql::validation::proto::Delivery valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLDeliverySequential(timeout, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_NEW_ORDER: {
         ::tpcc_sql::validation::proto::NewOrder valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(!valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLNewOrder(timeout, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_NEW_ORDER_SEQUENTIAL: {
         ::tpcc_sql::validation::proto::NewOrder valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLNewOrderSequential(timeout, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_ORDER_STATUS: {
@@ -133,11 +137,13 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
       case ::tpcc_sql::SQL_TXN_PAYMENT: {
         ::tpcc_sql::validation::proto::Payment valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(!valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLPayment(timeout, rand, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_PAYMENT_SEQUENTIAL: {
         ::tpcc_sql::validation::proto::Payment valTxnData;
         UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
+        UW_ASSERT(valTxnData.sequential());
         return new ::tpcc_sql::ValidationSQLPaymentSequential(timeout, rand, valTxnData);
       }
       case ::tpcc_sql::SQL_TXN_STOCK_LEVEL: {
