@@ -121,7 +121,7 @@ class ValidationClient : public ::Client {
   struct PendingValidationQuery {
     // difference between query seq num and client seq num?
     PendingValidationQuery(uint64_t txn_client_id, const TimestampMessage &ts, uint64_t txn_client_seq_num, uint64_t query_seq_num,
-        const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
+        const std::string &query_cmd, const query_callback &qcb, bool cache_result) : txn_client_seq_num(txn_client_seq_num), 
         version(0UL), group_replies(0UL), vqcb(qcb), cache_result(cache_result){
       queryMsg.Clear();
       queryMsg.set_client_id(txn_client_id);
@@ -181,7 +181,8 @@ class ValidationClient : public ::Client {
     std::string result;
     uint64_t group_replies;
     uint64_t start_time;
-   
+    uint64_t txn_client_seq_num;
+
     bool is_point;
     std::string key;
     std::string table_name;
