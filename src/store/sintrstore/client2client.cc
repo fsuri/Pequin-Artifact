@@ -240,19 +240,19 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   }
 }
 
-void Client2Client::ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+void Client2Client::SendForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
 
   // get the current client seq num so it doesn't change during the forwarding process
   uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
-    ForwardReadResultMessageHelper(client_seq_num, key, value, ts, proof, serializedWrite, serializedWriteTypeName,
+    SendForwardReadResultMessageHelper(client_seq_num, key, value, ts, proof, serializedWrite, serializedWriteTypeName,
       dep, hasDep, addReadset, policyDep, hasPolicyDep);
   }
   else {
     auto f = [=]() {
-      this->ForwardReadResultMessageHelper(
+      this->SendForwardReadResultMessageHelper(
         client_seq_num, key, value, ts, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadset,
         policyDep, hasPolicyDep
@@ -264,7 +264,7 @@ void Client2Client::ForwardReadResultMessage(const std::string &key, const std::
   }
 }
 
-void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num,
+void Client2Client::SendForwardReadResultMessageHelper(const uint64_t client_seq_num,
     const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep) {
@@ -356,21 +356,21 @@ void Client2Client::ForwardReadResultMessageHelper(const uint64_t client_seq_num
   }
 }
 
-void Client2Client::ForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+void Client2Client::SendForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const std::string &table_name, const proto::CommittedProof &proof,
     const std::string &serializedWrite, const std::string &serializedWriteTypeName,
     const proto::Dependency &dep, bool hasDep, bool addReadset) {
   
   uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
-    ForwardPointQueryResultMessageHelper(
+    SendForwardPointQueryResultMessageHelper(
       client_seq_num, key, value, ts, table_name, proof, serializedWrite, 
       serializedWriteTypeName, dep, hasDep, addReadset
     );
   }
   else {
     auto f = [=]() {
-      this->ForwardPointQueryResultMessageHelper(
+      this->SendForwardPointQueryResultMessageHelper(
         client_seq_num, key, value, ts, table_name, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadset
       );
@@ -381,9 +381,9 @@ void Client2Client::ForwardPointQueryResultMessage(const std::string &key, const
   }
 }
 
-// basically same logic as ForwardReadResultMessageHelper
+// basically same logic as SendForwardReadResultMessageHelper
 // no policy dep but additional table_name field
-void Client2Client::ForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
+void Client2Client::SendForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &key, const std::string &value, const Timestamp &ts,
     const std::string &table_name, const proto::CommittedProof &proof,
     const std::string &serializedWrite, const std::string &serializedWriteTypeName,
@@ -463,20 +463,20 @@ void Client2Client::ForwardPointQueryResultMessageHelper(const uint64_t client_s
   }
 }
 
-void Client2Client::ForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result,
+void Client2Client::SendForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {
 
   uint64_t client_seq_num = this->client_seq_num;
   if (!params.sintr_params.client2clientMultiThreading) {
-    ForwardQueryResultMessageHelper(
+    SendForwardQueryResultMessageHelper(
       client_seq_num, query_gen_id, query_result,
       group_read_sets, group_result_hashes, group_sigs, addReadset
     );
   }
   else {
     auto f = [=]() {
-      this->ForwardQueryResultMessageHelper(
+      this->SendForwardQueryResultMessageHelper(
         client_seq_num, query_gen_id, query_result,
         group_read_sets, group_result_hashes, group_sigs, addReadset
       );
@@ -487,7 +487,7 @@ void Client2Client::ForwardQueryResultMessage(const std::string &query_gen_id, c
   }
 }
 
-void Client2Client::ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
+void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset) {

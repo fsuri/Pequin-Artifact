@@ -85,18 +85,18 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     PolicyClient *policyClient);
 
   // forward server read reply to other peers
-  void ForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+  void SendForwardReadResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
   
   // forward server point query result to other peers
-  void ForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
+  void SendForwardPointQueryResultMessage(const std::string &key, const std::string &value, const Timestamp &ts,
     const std::string &table_name, const proto::CommittedProof &proof,
     const std::string &serializedWrite, const std::string &serializedWriteTypeName,
     const proto::Dependency &dep, bool hasDep, bool addReadset);
   
   // forward query results to other clients
-  void ForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result, 
+  void SendForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result, 
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
@@ -191,18 +191,18 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     std::atomic<uint64_t> num_finished;
   };
   
-  void ForwardReadResultMessageHelper(const uint64_t client_seq_num, 
+  void SendForwardReadResultMessageHelper(const uint64_t client_seq_num, 
     const std::string &key, const std::string &value, const Timestamp &ts,
     const proto::CommittedProof &proof, const std::string &serializedWrite, const std::string &serializedWriteTypeName, 
     const proto::Dependency &dep, bool hasDep, bool addReadset, const proto::Dependency &policyDep, bool hasPolicyDep);
   
-  void ForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
+  void SendForwardPointQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &key, const std::string &value, const Timestamp &ts,
     const std::string &table_name, const proto::CommittedProof &proof,
     const std::string &serializedWrite, const std::string &serializedWriteTypeName,
     const proto::Dependency &dep, bool hasDep, bool addReadset);
   
-  void ForwardQueryResultMessageHelper(const uint64_t client_seq_num,
+  void SendForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_gen_id, const std::string &query_result,
     const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
