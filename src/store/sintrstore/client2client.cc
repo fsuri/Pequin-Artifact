@@ -39,6 +39,7 @@
 #include <google/protobuf/util/message_differencer.h>
 #include <sched.h>
 #include <pthread.h>
+#include <memory>
 
 namespace sintrstore {
 
@@ -1199,86 +1200,119 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardQueryResu
   uint64_t curr_client_seq_num = fwdQueryResultMsg.client_seq_num();
 
   uint64_t num_matches = 0;
+  uint64_t total_sigs = 0;
   if (params.validateProofs && params.signedMessages) {
+    std::shared_ptr<AsyncQuerySigCheck> asyncQuerySigCheck = std::make_shared<AsyncQuerySigCheck>(params.query_params.resultQuorum);
+
     for (const auto &[group, curr_query_sigs] : fwdQueryResultMsg.query_sigs()) {
       for (const auto &query_sig : curr_query_sigs.sig_msgs()) {
-        proto::QueryResult validated_result;
-        // first check signature
-        if (!verifier->Verify(keyManager->GetPublicKey(query_sig.process_id()),
-            query_sig.data(), query_sig.signature())) {
-          Debug(
-            "Invalid server signature on forwarded query result from client id %lu, seq num %lu", 
-            curr_client_id, 
-            curr_client_seq_num
-          );
-          return false;
-        }
-
-        if (!validated_result.ParseFromString(query_sig.data())) {
-          Debug(
-            "Failed to parse query result from client id %lu, seq num %lu", 
-            curr_client_id, 
-            curr_client_seq_num
-          );
-          return false;
-        }
-
-        // next make sure that we have matches
-        if (validated_result.query_gen_id() != query_gen_id) {
-          Debug(
-            "Mismatch in query gen id for forwarded query result from client id %lu, seq num %lu", 
-            curr_client_id, 
-            curr_client_seq_num
-          );
-          continue;
-        }
-
-        if (validated_result.query_result() != query_result) {
-          Debug(
-            "Mismatch in query result for forwarded query result from client id %lu, seq num %lu", 
-            curr_client_id, 
-            curr_client_seq_num
-          );
-          continue;
-        }
-
-        // check readset
-        if (params.query_params.cacheReadSet) {
-          // only expect hash
-          if (validated_result.query_result_hash() != fwdQueryResultMsg.group_meta().at(group).read_set_hash()) {
+        ++total_sigs;
+        if (!params.sintr_params.parallelQuerySigsCheck) {
+          if (!CheckQuerySigHelper(query_sig, query_gen_id, query_result,
+              fwdQueryResultMsg.group_meta().at(group).query_read_set(),
+              fwdQueryResultMsg.group_meta().at(group).read_set_hash())) {
             Debug(
-              "Mismatch in read set hash for forwarded query result from client id %lu, seq num %lu", 
-              curr_client_id, 
+              "Invalid query signature on forwarded query result from client id %lu, seq num %lu",
+              curr_client_id,
               curr_client_seq_num
             );
             continue;
           }
+  
+          num_matches++;
         }
         else {
-          // expect full readset
-          // compute hash to compare
-          std::string validated_result_hash = generateReadSetSingleHash(validated_result.query_read_set());
-          std::string fwd_read_set_hash = generateReadSetSingleHash(fwdQueryResultMsg.group_meta().at(group).query_read_set());
-          if (validated_result_hash != fwd_read_set_hash) {
-            Debug(
-              "Mismatch in read set for forwarded query result from client id %lu, seq num %lu", 
-              curr_client_id, 
-              curr_client_seq_num
-            );
-            continue;
-          }
+          // send each query sig to worker thread
+          auto f = [
+            this, asyncQuerySigCheck,
+            query_sig, query_gen_id, query_result,
+            query_read_set = fwdQueryResultMsg.group_meta().at(group).query_read_set(),
+            query_read_set_hash = fwdQueryResultMsg.group_meta().at(group).read_set_hash()
+          ] {
+            if (this->CheckQuerySigHelper(query_sig, query_gen_id, query_result, query_read_set, query_read_set_hash)) {
+              ++asyncQuerySigCheck->num_check_passed;
+            }
+            ++asyncQuerySigCheck->num_finished;
+            return (void*) true;
+          };
+          transport->DispatchTP_noCB(std::move(f));
         }
-
-        num_matches++;
       }
     }
 
-    if (num_matches < params.query_params.resultQuorum) {
-      Debug(
-        "Insufficient number of matches for forwarded query result from client id %lu, seq num %lu", 
-        curr_client_id, 
-        curr_client_seq_num
-      );
+    if (!params.sintr_params.parallelQuerySigsCheck) {
+      if (num_matches < params.query_params.resultQuorum) {
+        Debug(
+          "Insufficient number of matches for forwarded query result from client id %lu, seq num %lu", 
+          curr_client_id, 
+          curr_client_seq_num
+        );
+        return false;
+      }
+    }
+    else {
+      // wait for all to finish
+      while (asyncQuerySigCheck->num_check_passed < params.query_params.resultQuorum || 
+          asyncQuerySigCheck->num_finished < total_sigs) {
+        std::this_thread::yield();
+      }
+      if (asyncQuerySigCheck->num_check_passed < params.query_params.resultQuorum) {
+        Debug(
+          "Insufficient number of matches for forwarded query result from client id %lu, seq num %lu", 
+          curr_client_id, 
+          curr_client_seq_num
+        );
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool Client2Client::CheckQuerySigHelper(const proto::SignedMessage &query_sig,
+    const std::string &query_gen_id, const std::string &query_result,
+    const proto::ReadSet &query_read_set, const std::string &query_read_set_hash) {
+  
+  proto::QueryResult validated_result;
+  // first check signature
+  if (!verifier->Verify(keyManager->GetPublicKey(query_sig.process_id()),
+      query_sig.data(), query_sig.signature())) {
+    Debug("Invalid server signature on forwarded query result");
+    return false;
+  }
+
+  if (!validated_result.ParseFromString(query_sig.data())) {
+    Debug("Failed to parse query result");
+    return false;
+  }
+
+  // next make sure that we have matches
+  if (validated_result.query_gen_id() != query_gen_id) {
+    Debug("Mismatch in query gen id for forwarded query result");
+    return false;
+  }
+
+  if (validated_result.query_result() != query_result) {
+    Debug("Mismatch in query result for forwarded query result");
+    return false;
+  }
+
+  // check readset
+  if (params.query_params.cacheReadSet) {
+    // only expect hash
+    if (validated_result.query_result_hash() != query_read_set_hash) {
+      Debug("Mismatch in read set hash for forwarded query result");
+      return false;
+    }
+  }
+  else {
+    // expect full readset
+    // compute hash to compare
+    std::string validated_result_hash = generateReadSetSingleHash(validated_result.query_read_set());
+    std::string fwd_read_set_hash = generateReadSetSingleHash(query_read_set);
+    if (validated_result_hash != fwd_read_set_hash) {
+      Debug("Mismatch in read set for forwarded query result");
       return false;
     }
   }

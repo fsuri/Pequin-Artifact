@@ -509,6 +509,7 @@ DEFINE_validator(sintr_client_validation, &ValidateSintrClientValidation);
 DEFINE_bool(sintr_client_pin_cores, false, "sintr pin client cores for validation");
 DEFINE_bool(sintr_client2client_multi_threading, false, "sintr enable multi-threading for client-to-client communication");
 DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement check");
+DEFINE_bool(sintr_parallel_query_sigs_check, false, "parallelize query signature check on forwarded query result");
 
 ///////////////////////////////////////////////////////////
 
@@ -1648,7 +1649,8 @@ int main(int argc, char **argv) {
         FLAGS_sintr_client2client_multi_threading,
         FLAGS_sintr_parallel_endorsement_check,
         false,
-        FLAGS_sintr_hash_endorsements
+        FLAGS_sintr_hash_endorsements,
+        FLAGS_sintr_parallel_query_sigs_check
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

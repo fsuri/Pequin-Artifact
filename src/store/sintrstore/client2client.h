@@ -182,6 +182,14 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     std::vector<T *> buffer;
     size_t size;
   };
+
+  struct AsyncQuerySigCheck {
+    AsyncQuerySigCheck(uint64_t resultQuorum) : resultQuorum(resultQuorum), num_check_passed(0), num_finished(0) {} 
+
+    const uint64_t resultQuorum;
+    std::atomic<uint64_t> num_check_passed;
+    std::atomic<uint64_t> num_finished;
+  };
   
   void ForwardReadResultMessageHelper(const uint64_t client_seq_num, 
     const std::string &key, const std::string &value, const Timestamp &ts,
@@ -222,6 +230,10 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // check if fwdQueryResultMsg is valid based on f+1 matching server responses
   bool CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
     const std::string &query_gen_id, const std::string &query_result);
+  // helper for query result check evidence
+  bool CheckQuerySigHelper(const proto::SignedMessage &query_sig,
+    const std::string &query_gen_id, const std::string &query_result,
+    const proto::ReadSet &query_read_set, const std::string &query_read_set_hash);
 
   // extract client ids not currently in beginValSent from policy satisfying set
   void ExtractFromPolicyClientsToContact(const std::vector<int> &policySatSet, std::set<uint64_t> &clients);

@@ -844,12 +844,13 @@ typedef struct SintrParameters {
   const bool parallelEndorsementCheck; // parallel endorsement check
   const bool useOCCForPolicies; // use OCC for policies
   const bool hashEndorsements; // hash endorsements with txn digest to get updated txn digest
+  const bool parallelQuerySigsCheck; // parallel query signature check on forwarded query results
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
     std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic,
     bool checkPolicyLeak, bool clientPinCores, uint64_t minEnablePullPolicies, bool client2clientMultiThreading,
-    bool parallelEndorsementCheck, bool useOCCForPolicies, bool hashEndorsements) :
+    bool parallelEndorsementCheck, bool useOCCForPolicies, bool hashEndorsements, bool parallelQuerySigsCheck) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
@@ -865,7 +866,8 @@ typedef struct SintrParameters {
     client2clientMultiThreading(client2clientMultiThreading),
     parallelEndorsementCheck(parallelEndorsementCheck),
     useOCCForPolicies(useOCCForPolicies),
-    hashEndorsements(hashEndorsements) {}
+    hashEndorsements(hashEndorsements),
+    parallelQuerySigsCheck(parallelQuerySigsCheck) {}
 
 } SintrParameters;
 
