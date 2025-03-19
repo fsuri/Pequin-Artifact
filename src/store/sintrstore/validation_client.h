@@ -120,68 +120,26 @@ class ValidationClient : public ::Client {
 
   struct PendingValidationQuery {
     // difference between query seq num and client seq num?
-    PendingValidationQuery(uint64_t txn_client_id, const TimestampMessage &ts, uint64_t txn_client_seq_num, uint64_t query_seq_num,
-        const std::string &query_cmd, const query_callback &qcb, bool cache_result) : txn_client_seq_num(txn_client_seq_num), 
-        version(0UL), group_replies(0UL), vqcb(qcb), cache_result(cache_result){
-      queryMsg.Clear();
-      queryMsg.set_client_id(txn_client_id);
-      queryMsg.set_query_seq_num(query_seq_num);
-      *queryMsg.mutable_query_cmd() = std::move(query_cmd);
-      *queryMsg.mutable_timestamp() = std::move(ts);
-      queryMsg.set_retry_version(0);
+    PendingValidationQuery(const TimestampMessage &ts,
+        const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
+        vqcb(qcb), cache_result(cache_result){
 
-      query_gen_id = QueryGenId(queryMsg.query_cmd(), queryMsg.timestamp());
+      query_gen_id = QueryGenId(query_cmd, ts);
+
       struct timespec ts_start;
       clock_gettime(CLOCK_MONOTONIC, &ts_start);
       start_time = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     }
     ~PendingValidationQuery(){
-       ClearReplySets();
-    }
-
-   void ClearReplySets(){
-    for(auto [group, rs]: group_read_sets){
-        if(rs!=nullptr) delete rs;
-    }
-    group_read_sets.clear();
-    group_result_hashes.clear();
-   }
-
-   void SetInvolvedGroups(std::vector<uint64_t> &involved_groups_){
-      involved_groups = std::move(involved_groups_);
-      queryMsg.set_query_manager(involved_groups[0]);
-    }
-    void SetQueryId(bool hash_query_id){
-      //bool hash_query_id = client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet && client->params.hashDigest;
-      queryId = QueryDigest(queryMsg, hash_query_id); 
-
-      // if(client->params.query_params.signClientQueries && client->params.query_params.cacheReadSet){ //TODO: when to use hash id? always?
-      //     queryId = QueryDigest(queryMsg, client->params.hashDigest); 
-      // }
-      // else{
-      //     queryId =  "[" + std::to_string(queryMsg.query_seq_num()) + ":" + std::to_string(queryMsg.client_id()) + "]";
-      // }
     }
     bool cache_result;
     query_callback vqcb;
     query_timeout_callback vqcb_timeout;
 
-    uint64_t version;
-    std::string queryId;
-
     std::string query_gen_id;
-
-    proto::Query queryMsg;
+    Timeout *timeout;
     
-    std::vector<uint64_t> involved_groups;
-    //std::map<uint64_t, std::map<std::string, TimestampMessage>> group_read_sets;
-    std::map<uint64_t, proto::ReadSet*> group_read_sets;
-    std::map<uint64_t, std::string> group_result_hashes;
-    std::map<uint64_t, std::vector<proto::SignedMessage>> group_sigs;
-    std::string result;
-    uint64_t group_replies;
     uint64_t start_time;
-    uint64_t txn_client_seq_num;
 
     bool is_point;
     std::string key;
