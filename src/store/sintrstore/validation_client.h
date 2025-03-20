@@ -118,6 +118,36 @@ class ValidationClient : public ::Client {
     uint64_t start_time;
   };
 
+  struct PendingValidationQuery {
+    // difference between query seq num and client seq num?
+    PendingValidationQuery(const Timestamp &ts,
+        const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
+        vqcb(qcb), cache_result(cache_result){
+
+      query_gen_id = QueryGenId(query_cmd, ts);
+
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      start_time = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    }
+    ~PendingValidationQuery(){
+    }
+    bool cache_result;
+    query_callback vqcb;
+    query_timeout_callback vqcb_timeout;
+
+    std::string query_gen_id;
+    Timeout *timeout;
+    
+    uint64_t start_time;
+
+    bool is_point;
+    std::string key;
+    std::string table_name;
+    std::vector<std::string> p_col_values; //if point read: this contains primary_key_col_vaues (in order) ==> Together with table_name can be used to compute encoding.
+  };
+
+
   // for a (txn_client_id, txn_client_seq_num) pair, keep track of all relevant transaction state
   struct AllValidationTxnState {
     AllValidationTxnState() {}
