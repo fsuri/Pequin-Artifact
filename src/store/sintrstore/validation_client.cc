@@ -237,11 +237,6 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
     sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
 
     //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
-      //     //Cache point read results. This can help optimize common point Select + point Update patterns.
-      // if(!result.empty()){ //only cache if we did find a row.
-      //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
-      //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
-      // } 
     
     if (!IsTxnParticipant(txn, point_target_group)) {
       txn->add_involved_groups(point_target_group);
@@ -347,7 +342,6 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     //Invoke partitioner function to figure out which group/shard we need to request from. 
     // invalid conversion from int to uint64_t?
     int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
-    //if(target_group != 0) Panic("Trying to use a Shard other than 0");   //FIXME: Remove: Just for testing single-shard setup currently
 
     std::vector<uint64_t> involved_groups = {target_group};
   
@@ -370,11 +364,10 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
         [curr_gen_id=pendingQuery->query_gen_id](const PendingValidationQuery *req) { return req->query_gen_id == curr_gen_id; }
       );
       if (reqs_itr == pendingQueries.end()) {
-        // pendingGet fulfilled
+        // pendingQuery fulfilled
         return;
       }
       Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->query_gen_id, 16).c_str());
-      // pendingGet->vrtcb(REPLY_TIMEOUT, pendingGet->key);
     });
   
     pendingQuery->timeout->Reset();
