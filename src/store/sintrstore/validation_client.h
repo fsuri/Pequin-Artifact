@@ -120,7 +120,7 @@ class ValidationClient : public ::Client {
 
   struct PendingValidationQuery {
     // difference between query seq num and client seq num?
-    PendingValidationQuery(const TimestampMessage &ts,
+    PendingValidationQuery(const Timestamp &ts,
         const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
         vqcb(qcb), cache_result(cache_result){
 
