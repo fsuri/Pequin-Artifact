@@ -29,6 +29,8 @@
 #include <fmt/core.h>
 
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_common.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
 
 namespace tpcc_sql {
 
@@ -161,6 +163,35 @@ transaction_status_t SyncSQLDelivery::Execute(SyncClient &client) {
 
   Debug("COMMIT");
   return client.Commit(timeout);
+}
+
+void SyncSQLDelivery::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(SQL_TXN_DELIVERY));
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::Delivery curr_txn = validation::proto::Delivery();
+  curr_txn.set_sequential(false);
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_o_carrier_id(o_carrier_id);
+  curr_txn.set_ol_delivery_d(ol_delivery_d);
+  std::vector<TPCC_Table> est_tables = SyncSQLDelivery::HeuristicFunction();
+  for(const auto& value : est_tables) {
+    curr_txn.add_est_tables((int)value);
+  }
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
+
+  currTxnState.SerializeToString(&txnState);
+}
+
+std::vector<TPCC_Table> SyncSQLDelivery::HeuristicFunction() {
+  return {NEW_ORDER, ORDER, ORDER_LINE, CUSTOMER, EARLIEST_NEW_ORDER};
 }
 
 } // namespace tpcc_sql
