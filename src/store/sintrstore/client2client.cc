@@ -57,8 +57,8 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
   
   // separate verifier from main client instance
   clients_verifier = new BasicVerifier(transport);
-
-  valClient = new ValidationClient(transport, client_id, nshards, ngroups, part); 
+  
+  valClient = new ValidationClient(transport, client_id, nshards, ngroups, part, &params.query_params); 
   valParseClient = new ValidationParseClient(10000, keys); // TODO: pass arg for timeout length
   transport->Register(this, *clients_config, group, client_id); 
 

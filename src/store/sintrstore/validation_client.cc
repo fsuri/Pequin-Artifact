@@ -28,12 +28,26 @@
 #include "store/sintrstore/common.h"
 #include "lib/message.h"
 
+#include "store/common/query_result/query_result.h"
+#include "store/common/query_result/query_result_proto_wrapper.h"
+#include "store/common/query_result/query_result_proto_builder.h"
+
 namespace sintrstore {
 
-ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part) : 
-  transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part) {}
+ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part,
+  const QueryParameters* query_params) : 
+  transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params) {}
 
 ValidationClient::~ValidationClient() {
+  // TODO: Garbage collection/free memory for allValTxnStates
+  for (auto it = clientIDtoSQL.begin(); it != clientIDtoSQL.end(); ++it) {
+    delete it->second;
+  }
+  clientIDtoSQL.clear();
+  for (auto it = allValTxnStates.begin(); it != allValTxnStates.end(); ++it) {
+    delete it->second;
+  }
+  allValTxnStates.clear();
 }
 
 void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
@@ -41,7 +55,7 @@ void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
   uint64_t txn_client_id, txn_client_seq_num;
   GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
-
+  
   allValTxnStatesMap::accessor a;
   if (!allValTxnStates.find(a, txn_id)) {
     // Begin should always happen after SetTxnTimestamp, which inserts at txn_id
@@ -155,6 +169,217 @@ void ValidationClient::Put(const std::string &key, const std::string &value,
   pcb(REPLY_OK, key, value);
 }
 
+void ValidationClient::SQLRequest(std::string &statement, sql_callback scb,
+  sql_timeout_callback stcb, uint32_t timeout){
+
+  size_t pos;
+  if((pos = statement.find(select_hook) != string::npos)){  
+    Query(statement, std::move(scb), std::move(stcb), timeout);
+  }
+  else {
+    Write(statement, std::move(scb), std::move(stcb), timeout);
+  }
+}
+
+void ValidationClient::Write(std::string &write_statement, write_callback wcb,
+  write_timeout_callback wtcb, uint32_t timeout, bool blind_write){ //blind_write: default false, must be explicit application choice to skip.
+
+  //////////////////
+  // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
+  //TODO: parse write statement into table, column list, values_list, and read condition
+
+  Debug("Processing Write Statement: %s", write_statement.c_str());
+  std::string read_statement;
+  std::function<void(int, query_result::QueryResult*)>  write_continuation;
+  bool skip_query_interpretation = false;
+  uint64_t point_target_group = 0;
+
+  uint64_t txn_client_id, txn_client_seq_num;
+  std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
+  allValTxnStatesMap::accessor a;
+  if (!allValTxnStates.find(a, txn_id)) {
+    // Write should always happen after SetTxnTimestamp, which inserts at txn_id
+    Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
+  }
+    
+  proto::Transaction *txn = a->second->txn;
+  GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
+  ClientToSQLInterpreterMap::accessor ca;
+  if (!clientIDtoSQL.find(ca, txn_client_id)) {
+    // Write should always happen after SetTxnTimestamp, which inserts at txn_id
+    Panic("cannot find client ID %d in client accessor", txn_client_id);
+  }
+  SQLTransformer sql_interpreter = *(ca->second);
+
+  //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
+  a->second->pendingWriteStatements.push_back(write_statement);
+
+  try{
+    sql_interpreter.TransformWriteStatement(a->second->pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
+    ca.release();
+  }
+  catch(...){
+    Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
+  }
+
+  Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
+
+  //Testing/Debug only
+  //  Debug("Current read set: Before next write.");
+  //  for(auto read: txn.read_set()){
+  //     Debug("Read set already contains: %s", read.key().c_str());
+  //   }
+
+  if(read_statement.empty()){ //Must be point operation (Insert/Delete)
+    //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+    //NOTE: must return a QueryResult... 
+    Debug("No read statement, immediately writing in validation client");  
+    sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
+
+    //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
+      //     //Cache point read results. This can help optimize common point Select + point Update patterns.
+      // if(!result.empty()){ //only cache if we did find a row.
+      //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+      //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
+      // } 
+    
+    if (!IsTxnParticipant(txn, point_target_group)) {
+      txn->add_involved_groups(point_target_group);
+    }
+    a.release();
+
+    write_continuation(REPLY_OK, write_result);
+  }
+  else{
+    Debug("Issuing re-con Query validation");
+    a.release();
+    Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+    //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
+    //TODO: add a field for "is_point" (for Inserts we already know!)
+  }
+  return;
+}
+
+void ValidationClient::Query(const std::string &query, query_callback qcb,
+  query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
+
+  UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
+
+  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
+    // Latency_Start(&getLatency);
+    
+    uint64_t txn_client_id, txn_client_seq_num;
+    GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
+    std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);  
+    allValTxnStatesMap::accessor a;
+    if (!allValTxnStates.find(a, txn_id)) {
+      // Query should always happen after SetTxnTimestamp, which inserts at txn_id
+      Panic("cannot find transaction %s in allValTxnStates for query", txn_id.c_str());
+    }
+    proto::Transaction *txn = a->second->txn;
+  
+    //TEST: Set TS only at the end.
+    //txn.mutable_timestamp()->set_timestamp(timeServer.GetTime());
+
+    Debug("Query[%lu:%lu] (client:tx-seq). TS: [%lu:%lu]: %s.", 
+            client_id, txn_client_seq_num, txn->timestamp().timestamp(), txn->timestamp().id(), query.c_str());
+
+
+    // Contact the appropriate shard to execute the query on.
+    //TODO: Determine involved groups
+    //Requires parsing the Query statement to extract tables touched? Might touch multiple shards...
+    //Assume for now only touching one group. (single sharded system)
+    PendingValidationQuery *pendingQuery = new PendingValidationQuery(Timestamp(txn->timestamp()), query, qcb, cache_result);
+    //TODO: Check col conditions. --> Switch between QueryResultCallback and PointQueryResultCallback
+    ClientToSQLInterpreterMap::accessor ca;
+    if (!clientIDtoSQL.find(ca, txn_client_id)) {
+      // Put should always happen after SetTxnTimestamp, which inserts at txn_id
+      Panic("cannot find client ID %d in client accessor", txn_client_id);
+    }
+    SQLTransformer sql_interpreter = *(ca->second);
+  
+    pendingQuery->is_point = skip_query_interpretation? false : sql_interpreter.InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, true); 
+    ca.release();
+    Debug("Query is of type: %s ", pendingQuery->is_point? "POINT" : "RANGE");
+    
+    if(pendingQuery->is_point){
+      Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
+      std::string encoded_key = EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values);
+      auto itr = a->second->point_read_cache.find(encoded_key);
+      if(itr != a->second->point_read_cache.end()){
+
+        //   if(PROFILING_LAT){
+        //     struct timespec ts_start;
+        //     clock_gettime(CLOCK_MONOTONIC, &ts_start);
+        //     uint64_t query_end_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+            
+        //     //Should not take more than 1 ms (already generous) to parse and prepare.
+        //     auto duration = query_end_ms - query_start_times[query_seq_num];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
+        //     Warning("PointQuery[%d] Cache latency in ms [%d]. in us [%d]", query_seq_num, duration/1000, duration);
+        // }
+        Debug("Supply point query result from cache!");
+        auto res = new sql::QueryResultProtoWrapper(itr->second);
+        qcb(REPLY_OK, res);
+        delete pendingQuery;
+        pendingQuery = nullptr;
+        return;
+      }
+    } 
+    //Alternatively: Instead of storing the key, we could also let servers provide the keys and wait for f+1 matching keys. But then we'd have to wait for 2f+1 reads in total... ==> Client stores key
+    else{
+      auto itr = a->second->scan_read_cache.find(query);
+      if(itr != a->second->scan_read_cache.end()){
+        Debug("Supply scan query result from cache! Query: %s", query.c_str());
+
+        auto res = new sql::QueryResultProtoWrapper(itr->second);
+        qcb(REPLY_OK, res);
+        delete pendingQuery;
+        pendingQuery = nullptr;
+        return;
+      }
+    }
+    a->second->pendingQueries.push_back(pendingQuery);
+
+    //std::vector<uint64_t> involved_groups = {0};//{0UL, 1UL};
+      // Contact the appropriate shard to get the value.
+    std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
+
+    //Invoke partitioner function to figure out which group/shard we need to request from. 
+    // invalid conversion from int to uint64_t?
+    int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
+    //if(target_group != 0) Panic("Trying to use a Shard other than 0");   //FIXME: Remove: Just for testing single-shard setup currently
+
+    std::vector<uint64_t> involved_groups = {target_group};
+  
+    // If needed, add this shard to set of participants and send BEGIN.
+    for(auto &i: involved_groups){
+      if (!IsTxnParticipant(txn, i)) {
+        txn->add_involved_groups(i);
+      }
+    }
+    pendingQuery->timeout = new Timeout(transport, 2000, [this, txn_id, pendingQuery]() {
+      allValTxnStatesMap::accessor a;
+      if (!allValTxnStates.find(a, txn_id)) {
+        // transaction has completed
+        return;
+      }
+      std::vector<PendingValidationQuery *> pendingQueries = a->second->pendingQueries;
+  
+      auto reqs_itr = std::find_if(
+        pendingQueries.begin(), pendingQueries.end(), 
+        [curr_gen_id=pendingQuery->query_gen_id](const PendingValidationQuery *req) { return req->query_gen_id == curr_gen_id; }
+      );
+      if (reqs_itr == pendingQueries.end()) {
+        // pendingGet fulfilled
+        return;
+      }
+      Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->query_gen_id, 16).c_str());
+      // pendingGet->vrtcb(REPLY_TIMEOUT, pendingGet->key);
+    });
+  
+    pendingQuery->timeout->Reset();
+  });
+}
 void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
   ccb(COMMITTED);
@@ -197,6 +422,15 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
   } 
   else {
     txn = a->second->txn;
+  }
+  ClientToSQLInterpreterMap::accessor ac;
+  const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
+  if(isNewClientID) {
+    // TODO: Add query params object
+    SQLTransformer* sql_interpreter = new SQLTransformer(query_params);
+    ac->second = sql_interpreter;
+  } else {
+    ac->second->NewTx(txn);
   }
   ts.serialize(txn->mutable_timestamp());
 }
@@ -249,6 +483,15 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second);
+    ClientToSQLInterpreterMap::accessor ac;
+    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
+    if(isNewClientID) {
+      // TODO: Add query params object
+      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
+      ac->second = sql_interpreter;
+    } else {
+      ac->second->NewTx(txn);
+    }
     return;
   }
 
