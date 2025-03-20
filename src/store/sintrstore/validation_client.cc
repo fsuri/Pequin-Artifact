@@ -55,7 +55,7 @@ void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
   uint64_t txn_client_id, txn_client_seq_num;
   GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
-  
+
   allValTxnStatesMap::accessor a;
   if (!allValTxnStates.find(a, txn_id)) {
     // Begin should always happen after SetTxnTimestamp, which inserts at txn_id
