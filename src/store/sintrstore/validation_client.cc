@@ -295,6 +295,8 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       pendingQuery = nullptr;
       return;
     }
+    // probably need to check txn read set & query_set of txn
+    // to find if query result has already been forwarded
   }
   a->second->pendingQueries.push_back(pendingQuery);
 
@@ -480,6 +482,164 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
   delete req;
 }
 
+void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
+    const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset) {
+  std::string curr_key = fwdReadResult.key();
+  std::string curr_value = fwdReadResult.value();
+  Timestamp curr_ts = Timestamp(fwdReadResult.timestamp());
+  Debug(
+    "ProcessForwardPointQueryResult from client id %lu, seq num %lu for key %s", 
+    txn_client_id,
+    txn_client_seq_num,
+    BytesToHex(curr_key, 16).c_str()
+  );
+
+  // lambda for editing txn state
+  // TODO: need to know query cmd, but what if forward comes before validation query is registered?
+  auto editTxnStateCB = [
+    this, &curr_key, &curr_value, &curr_ts, &dep, hasDep, addReadset
+  ](AllValidationTxnState *allValTxnState) {
+    if (addReadset) {
+      bool cache_point = !curr_value.empty(); // && pendingQuery->queryMsg.query_cmd().find("SELECT *") != std::string::npos;
+      AddReadset(allValTxnState, curr_key, curr_value, curr_ts, false, cache_point);
+    }
+    if (hasDep) {
+      AddDep(allValTxnState, dep);
+    }
+  };
+
+  std::string curr_txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
+
+  allValTxnStatesMap::accessor a;
+  const bool isNewKey = allValTxnStates.insert(a, curr_txn_id);
+  if (isNewKey) {
+    Debug(
+      "ProcessForwardPointQueryResult from client id %lu, seq num %lu, before txn_id in allValTxnStates registered for key %s", 
+      txn_client_id,
+      txn_client_seq_num,
+      BytesToHex(curr_key, 16).c_str()
+    );
+    proto::Transaction *txn = new proto::Transaction();
+    txn->set_client_id(txn_client_id);
+    txn->set_client_seq_num(txn_client_seq_num);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    editTxnStateCB(a->second);
+    return;
+  }
+
+  std::vector<PendingValidationQuery *> *reqs = &a->second->pendingQueries;
+  auto reqs_itr = std::find_if(
+    reqs->begin(), reqs->end(),
+    [&curr_key](const PendingValidationQuery *req) { return req->is_point && req->key == curr_key; }
+  );
+  if (reqs_itr == reqs->end()) {
+    Debug(
+      "ProcessForwardPointQueryResult from client id %lu, seq num %lu, before PendingValidationQuery registered for key %s", 
+      txn_client_id,
+      txn_client_seq_num,
+      BytesToHex(curr_key, 16).c_str()
+    );
+    editTxnStateCB(a->second);
+    return;
+  }
+  // callback
+  PendingValidationQuery *req = *reqs_itr;
+
+  req->ts = curr_ts;
+  editTxnStateCB(a->second);
+  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_value);
+  req->vqcb(REPLY_OK, q_result);
+
+  // remove from vector
+  reqs->erase(reqs_itr);
+  // free memory
+  delete req;
+}
+
+void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
+    const proto::ForwardQueryResult &fwdQueryResult, const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta,
+    bool addReadset) {
+  std::string curr_query_gen_id = fwdQueryResult.query_gen_id();
+  std::string curr_query_result = fwdQueryResult.query_result();
+  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
+  Debug(
+    "ProcessForwardQueryResult from client id %lu, seq num %lu, query gen id %s, query result %s", 
+    txn_client_id, 
+    txn_client_seq_num,
+    BytesToHex(curr_query_gen_id, 16).c_str(),
+    BytesToHex(curr_query_result, 16).c_str()
+  );
+
+  // lambda for editing txn state
+  auto editTxnStateCB = [
+    this, &curr_query_gen_id, &curr_query_result, &queryGroupMeta, addReadset
+  ](AllValidationTxnState *allValTxnState, PendingValidationQuery* pendingQuery, sql::QueryResultProtoWrapper *q_result, bool cache_result) {
+    if (addReadset) {
+      AddQueryReadset(allValTxnState, queryGroupMeta);
+    }
+    if (!q_result->empty() && cache_result) {
+      // Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update
+      // if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos){
+      //   allValTxnState->scan_read_cache[pendingQuery->queryMsg.query_cmd()] = curr_query_result;  
+      // }
+    }
+  };
+
+  // find matching pending query by first going off txn client id and sequence number, then query_gen_id
+  // if forwarded query result is for a query that the validation transaction has not yet gotten to,
+  // add it to the appropriate transaction query result cache
+
+  std::string curr_txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
+
+  allValTxnStatesMap::accessor a;
+  const bool isNewKey = allValTxnStates.insert(a, curr_txn_id);
+  if (isNewKey) {
+    Debug(
+      "ProcessForwardQueryResult from client id %lu, seq num %lu, before txn_id in allValTxnStates registered for query %s", 
+      txn_client_id,
+      txn_client_seq_num,
+      BytesToHex(curr_query_gen_id, 16).c_str()
+    );
+    proto::Transaction *txn = new proto::Transaction();
+    txn->set_client_id(txn_client_id);
+    txn->set_client_seq_num(txn_client_seq_num);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    // TODO: should not be always false for cache result
+    editTxnStateCB(a->second, nullptr, q_result, false);
+    delete q_result;
+    return;
+  }
+
+  std::vector<PendingValidationQuery *> *reqs = &a->second->pendingQueries;
+  auto reqs_itr = std::find_if(
+    reqs->begin(), reqs->end(), 
+    [&curr_query_gen_id](const PendingValidationQuery *req) { return req->query_gen_id == curr_query_gen_id; }
+  );
+  if (reqs_itr == reqs->end()) {
+    Debug(
+      "ProcessForwardQueryResult from client id %lu, seq num %lu, before PendingQuery registered for query %s", 
+      txn_client_id,
+      txn_client_seq_num,
+      BytesToHex(curr_query_gen_id, 16).c_str()
+    );
+    editTxnStateCB(a->second, nullptr, q_result, false);
+    delete q_result;
+    return;
+  }
+
+  // callback
+  PendingValidationQuery *req = *reqs_itr;
+
+  editTxnStateCB(a->second, req, q_result, req->cache_result);
+  req->vqcb(REPLY_OK, q_result);
+  // no need to delete q_result since the query callback will take care of it
+
+  // remove from vector
+  reqs->erase(reqs_itr);
+  // free memory
+  delete req;
+}
+
 proto::Transaction *ValidationClient::GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num) {
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
   allValTxnStatesMap::accessor a;
@@ -523,15 +683,48 @@ bool ValidationClient::BufferGet(const AllValidationTxnState *allValTxnState, co
 }
 
 void ValidationClient::AddReadset(AllValidationTxnState *allValTxnState,
-    const std::string &key, const std::string &value, const Timestamp &ts) {
+    const std::string &key, const std::string &value, const Timestamp &ts,
+    bool is_get, bool cache_point) {
   // add to readset
   proto::Transaction *txn = allValTxnState->txn;
   ReadMessage *read = txn->add_read_set();
   read->set_key(key);
   ts.serialize(read->mutable_readtime());
 
-  // add to readValues for future BufferGets
-  allValTxnState->readValues[key] = value;
+  if (is_get) {
+    // add to readValues for future BufferGets
+    allValTxnState->readValues[key] = value;
+  }
+  else if (cache_point) {
+    // add to point_read_cache for future point queries
+    allValTxnState->point_read_cache[key] = value;
+  }
+}
+
+void ValidationClient::AddQueryReadset(AllValidationTxnState *allValTxnState,
+    const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta) {
+
+  proto::Transaction *txn = allValTxnState->txn;
+
+  proto::QueryResultMetaData *queryRep = txn->add_query_set();
+  for (const auto &[group, queryMeta] : queryGroupMeta) {
+    if(query_params->cacheReadSet) {
+      proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+      queryMD.set_read_set_hash(queryMeta.read_set_hash());
+    }
+    else {
+      if (query_params->mergeActiveAtClient) {
+        for(const auto &read : queryMeta.query_read_set().read_set()) {
+          ReadMessage* add_read = txn->add_read_set();
+          *add_read = std::move(read);
+        }
+      }
+      else {
+        proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+        *queryMD.mutable_query_read_set() = queryMeta.query_read_set();
+      }
+    }
+  }
 }
 
 void ValidationClient::AddDep(AllValidationTxnState *allValTxnState, const proto::Dependency &dep) {
