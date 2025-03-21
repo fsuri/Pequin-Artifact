@@ -161,6 +161,7 @@ class ValidationClient : public ::Client {
     Timeout *timeout;
     
     uint64_t start_time;
+    Timestamp ts;
 
     bool is_point;
     std::string key;

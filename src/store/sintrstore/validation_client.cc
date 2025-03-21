@@ -295,6 +295,8 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       pendingQuery = nullptr;
       return;
     }
+    // probably need to check txn read set & query_set of txn
+    // to find if query result has already been forwarded
   }
   a->second->pendingQueries.push_back(pendingQuery);
 
@@ -571,7 +573,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
   // lambda for editing txn state
   auto editTxnStateCB = [
     this, &curr_query_gen_id, &curr_query_result, &queryGroupMeta, addReadset
-  ](AllValidationTxnState *allValTxnState, sql::QueryResultProtoWrapper *q_result, bool cache_result) {
+  ](AllValidationTxnState *allValTxnState, PendingValidationQuery* pendingQuery, sql::QueryResultProtoWrapper *q_result, bool cache_result) {
     if (addReadset) {
       AddQueryReadset(allValTxnState, queryGroupMeta);
     }
@@ -706,13 +708,13 @@ void ValidationClient::AddQueryReadset(AllValidationTxnState *allValTxnState,
 
   proto::QueryResultMetaData *queryRep = txn->add_query_set();
   for (const auto &[group, queryMeta] : queryGroupMeta) {
-    if(query_parms->cacheReadSet) {
+    if(query_params->cacheReadSet) {
       proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
       queryMD.set_read_set_hash(queryMeta.read_set_hash());
     }
     else {
       if (query_params->mergeActiveAtClient) {
-        for(auto &read : *queryMeta.query_read_set().mutable_read_set()){
+        for(const auto &read : queryMeta.query_read_set().read_set()) {
           ReadMessage* add_read = txn->add_read_set();
           *add_read = std::move(read);
         }
