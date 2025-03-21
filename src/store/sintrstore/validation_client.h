@@ -35,6 +35,8 @@
 #include "store/sintrstore/sintr-proto.pb.h"
 #include "store/sintrstore/common.h"
 
+#include "store/sintrstore/sql_interpreter.h"
+
 #include <string>
 #include <vector>
 #include <thread>
@@ -56,7 +58,7 @@ typedef std::function<void(int, const std::string &)> validation_read_timeout_ca
 // on a different thread, client2client will call ProcessForwardReadResult upon receiving forwarded read results
 class ValidationClient : public ::Client {
  public:
-  ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part);
+  ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part, const QueryParameters* query_params);
   virtual ~ValidationClient();
 
   // Begin a transaction.
@@ -71,6 +73,15 @@ class ValidationClient : public ::Client {
   virtual void Put(const std::string &key, const std::string &value,
     put_callback pcb, put_timeout_callback ptcb, uint32_t timeout) override;
 
+  virtual void SQLRequest(std::string &statement, sql_callback scb,
+    sql_timeout_callback stcb, uint32_t timeout) override;
+  
+  virtual void Write(std::string &write_statement, write_callback wcb,
+      write_timeout_callback wtcb, uint32_t timeout, bool blind_write = false) override;
+  
+  virtual void Query(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override;
+  
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t timeout) override;
 
@@ -138,6 +149,9 @@ class ValidationClient : public ::Client {
       start_time = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
     }
     ~PendingValidationQuery(){
+      if (timeout != nullptr) {
+        delete timeout;
+      }
     }
     bool cache_result;
     query_callback vqcb;
@@ -166,8 +180,14 @@ class ValidationClient : public ::Client {
       for (auto &pendingGet : pendingGets) {
         delete pendingGet;
       }
+      ClearTxnQueries();
     }
-    
+    void ClearTxnQueries(){
+      for(auto &pendingQuery: pendingQueries){
+        delete pendingQuery;
+      }
+      pendingQueries.clear();
+    }
     uint64_t txn_client_id;
     uint64_t txn_client_seq_num;
     // this tracks the readset/writeset etc. of the transaction
@@ -176,6 +196,11 @@ class ValidationClient : public ::Client {
     std::map<std::string, std::string> readValues;
     // this tracks the pending validation gets
     std::vector<PendingValidationGet *> pendingGets;
+    std::vector<PendingValidationQuery *> pendingQueries;
+
+    std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
+    std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
+    std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
@@ -205,6 +230,8 @@ class ValidationClient : public ::Client {
   uint64_t ngroups;
   // for computing txn involved groups
   Partitioner *part;
+  // for sql query interpreter
+  const QueryParameters* query_params;
 
   // map from thread id to (txn_client_id, txn_client_seq_num) tracks what each thread is doing
   typedef tbb::concurrent_hash_map<std::thread::id, std::pair<uint64_t, uint64_t>> threadValTxnIdsMap;
@@ -212,6 +239,8 @@ class ValidationClient : public ::Client {
   // map from (txn_client_id, txn_client_seq_num) to all relevant validation txn state
   typedef tbb::concurrent_hash_map<std::string, AllValidationTxnState *> allValTxnStatesMap;
   allValTxnStatesMap allValTxnStates;
+  typedef tbb::concurrent_hash_map<uint64_t, SQLTransformer *> ClientToSQLInterpreterMap;
+  ClientToSQLInterpreterMap clientIDtoSQL;
 };
 
 } // namespace sintrstore
