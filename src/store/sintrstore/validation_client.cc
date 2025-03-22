@@ -431,7 +431,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
 
   // lambda for editing txn state
   auto editTxnStateCB = [
-    this, &curr_key, &curr_value, &curr_ts, &dep, hasDep, addReadset, &policyDep, hasPolicyDep
+    this, curr_key, curr_value, curr_ts, dep, hasDep, addReadset, policyDep, hasPolicyDep
   ](AllValidationTxnState *allValTxnState) {
     if (addReadset) {
       AddReadset(allValTxnState, curr_key, curr_value, curr_ts);
@@ -526,7 +526,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
   // lambda for editing txn state
   // TODO: need to know query cmd, but what if forward comes before validation query is registered?
   auto editTxnStateCB = [
-    this, &curr_key, &curr_value, &curr_ts, &dep, hasDep, addReadset
+    this, curr_key, curr_value, curr_ts, dep, hasDep, addReadset
   ](AllValidationTxnState *allValTxnState) {
     if (addReadset) {
       bool cache_point = !curr_value.empty(); // && pendingQuery->queryMsg.query_cmd().find("SELECT *") != std::string::npos;
@@ -601,7 +601,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
 
   // lambda for editing txn state
   auto editTxnStateCB = [
-    this, &curr_query_gen_id, &curr_query_result, &queryGroupMeta, addReadset
+    this, curr_query_gen_id, curr_query_result, queryGroupMeta, addReadset
   ](AllValidationTxnState *allValTxnState, PendingValidationQuery* pendingQuery, bool cache_result) {
     sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
     if (addReadset) {
