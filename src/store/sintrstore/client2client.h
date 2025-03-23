@@ -97,7 +97,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   
   // forward query results to other clients
   void SendForwardQueryResultMessage(const std::string &query_gen_id, const std::string &query_result, 
-    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const proto::QueryResultMetaData &query_res_meta,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
   // given a new policy, update the endorsement policy for this client 
@@ -204,7 +204,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   
   void SendForwardQueryResultMessageHelper(const uint64_t client_seq_num,
     const std::string &query_gen_id, const std::string &query_result,
-    const std::map<uint64_t, proto::ReadSet*> &group_read_sets, const std::map<uint64_t, std::string> &group_result_hashes,
+    const proto::QueryResultMetaData &query_res_meta,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
   void ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data);
@@ -227,9 +227,9 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   // also extract write and dep from fwdPointQueryResultMsg
   bool CheckPreparedCommittedEvidence(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg, 
     proto::Write &write, proto::Dependency &dep);
-  // check if fwdQueryResultMsg is valid based on f+1 matching server responses
-  bool CheckPreparedCommittedEvidence(const proto::ForwardQueryResultMessage &fwdQueryResultMsg,
-    const std::string &query_gen_id, const std::string &query_result);
+  // check if fwdQueryResult is valid based on f+1 matching server responses in fwdQueryResultMsg
+  bool CheckPreparedCommittedEvidence(const proto::ForwardQueryResult &fwdQueryResult,
+    const proto::ForwardQueryResultMessage &fwdQueryResultMsg);
   // helper for query result check evidence
   bool CheckQuerySigHelper(const proto::SignedMessage &query_sig,
     const std::string &query_gen_id, const std::string &query_result,

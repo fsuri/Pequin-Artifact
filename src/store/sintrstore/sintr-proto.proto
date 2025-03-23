@@ -518,6 +518,7 @@ message ForwardPointQueryResultMessage {
 message ForwardQueryResult {
   required bytes query_gen_id = 1;
   required bytes query_result = 2;
+  required QueryResultMetaData query_res_meta = 3;
 }
 
 message ForwardQueryResultMessage {
@@ -527,12 +528,10 @@ message ForwardQueryResultMessage {
     ForwardQueryResult fwd_query_result = 3;
     SignedMessage signed_fwd_query_result = 4;
   }
-  // contains query readset per group
-  map<uint64, QueryGroupMeta> group_meta = 5;
   // server signatures on query result and readset per group, should be f+1 exact matches
-  map<uint64, SignedMessages> query_sigs = 6;
+  map<uint64, SignedMessages> query_sigs = 5;
   // tell validating client whether to add to readset
-  optional bool add_readset = 7;
+  optional bool add_readset = 6;
 }
 
 message FinishValidateTxnMessage {

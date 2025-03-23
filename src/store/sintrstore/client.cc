@@ -609,7 +609,7 @@ void Client::Query(const std::string &query, query_callback qcb,
         // still forward cached query result but no readset or proofs needed
         c2client->SendForwardQueryResultMessage(
           pendingQuery->query_gen_id, itr->second,
-          std::map<uint64_t, proto::ReadSet*>(), std::map<uint64_t, std::string>(),
+          proto::QueryResultMetaData(),
           std::map<uint64_t, std::vector<proto::SignedMessage>>(), false
         );
 
@@ -834,12 +834,6 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   //just for testing
   if(TEST_READ_SET) TestReadSet(pendingQuery);
 
-  // forward to validating clients
-  c2client->SendForwardQueryResultMessage(
-    pendingQuery->query_gen_id, pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
-    pendingQuery->group_sigs, true
-  );
-
   //Make query meta data part of current transaction. 
   //==> Add repeated item <QueryReply> with query_id, final version, and QueryMeta field per involved shard. Query Meta = optional read_sets, optional_result_hashes (+version)
   proto::QueryResultMetaData *queryRep = txn.add_query_set();
@@ -900,6 +894,12 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     }
     pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
   }
+
+  // forward to validating clients
+  c2client->SendForwardQueryResultMessage(
+    pendingQuery->query_gen_id, pendingQuery->result, *queryRep,
+    pendingQuery->group_sigs, true
+  );
 
   Debug("Upcall with Query result");
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
