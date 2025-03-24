@@ -335,6 +335,37 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
 }
 void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
+
+  uint64_t txn_client_id, txn_client_seq_num;
+  GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
+  std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
+
+  allValTxnStatesMap::accessor a;
+  if (!allValTxnStates.find(a, txn_id)) {
+    // Put should always happen after SetTxnTimestamp, which inserts at txn_id
+    Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
+  }
+
+  proto::Transaction *txn = a->second->txn;
+  
+  // if has queries, and query deps are meant to be reported by client:
+  // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
+  if(!txn->query_set().empty() && !query_params->cacheReadSet && query_params->mergeActiveAtClient){
+    std::sort(txn->mutable_deps()->begin(), txn->mutable_deps()->end(), sortDepSet);
+    // erases all but last appearance
+    txn->mutable_deps()->erase(std::unique(txn->mutable_deps()->begin(), txn->mutable_deps()->end(), equalDep), txn->mutable_deps()->end());
+  }
+
+  for(auto &[table_name, table_write] : txn->table_writes()){
+    if(table_write.has_changed_table() && table_write.changed_table()){
+      WriteMessage *table_ver = txn->add_write_set();
+      table_ver->set_key(EncodeTable(table_name));
+      table_ver->set_value("");
+      table_ver->set_is_table_col_version(true);
+      table_ver->mutable_rowupdates()->set_row_idx(-1); 
+    }
+  }
+
   ccb(COMMITTED);
 }
 
@@ -557,8 +588,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
 }
 
 void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
-    const proto::ForwardQueryResult &fwdQueryResult, const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta,
-    bool addReadset) {
+    const proto::ForwardQueryResult &fwdQueryResult, bool addReadset) {
   std::string curr_query_gen_id = fwdQueryResult.query_gen_id();
   std::string curr_query_result = fwdQueryResult.query_result();
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
@@ -572,10 +602,10 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
 
   // lambda for editing txn state
   auto editTxnStateCB = [
-    this, &curr_query_gen_id, &curr_query_result, &queryGroupMeta, addReadset
+    this, &curr_query_gen_id, &curr_query_result, &fwdQueryResult, addReadset
   ](AllValidationTxnState *allValTxnState, PendingValidationQuery* pendingQuery, sql::QueryResultProtoWrapper *q_result, bool cache_result) {
     if (addReadset) {
-      AddQueryReadset(allValTxnState, queryGroupMeta);
+      AddQueryReadset(allValTxnState, fwdQueryResult);
     }
     if (!q_result->empty() && cache_result) {
       // Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update
@@ -702,26 +732,30 @@ void ValidationClient::AddReadset(AllValidationTxnState *allValTxnState,
 }
 
 void ValidationClient::AddQueryReadset(AllValidationTxnState *allValTxnState,
-    const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta) {
+    const proto::ForwardQueryResult &fwdQueryResult) {
 
   proto::Transaction *txn = allValTxnState->txn;
 
   proto::QueryResultMetaData *queryRep = txn->add_query_set();
-  for (const auto &[group, queryMeta] : queryGroupMeta) {
-    if(query_params->cacheReadSet) {
-      proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
-      queryMD.set_read_set_hash(queryMeta.read_set_hash());
-    }
-    else {
-      if (query_params->mergeActiveAtClient) {
-        for(const auto &read : queryMeta.query_read_set().read_set()) {
-          ReadMessage* add_read = txn->add_read_set();
-          *add_read = std::move(read);
-        }
+  queryRep->set_query_id(fwdQueryResult.query_res_meta().query_id());
+  queryRep->set_retry_version(fwdQueryResult.query_res_meta().retry_version());
+
+  if (query_params->cacheReadSet || !query_params->mergeActiveAtClient) {
+    *queryRep->mutable_group_meta() = fwdQueryResult.query_res_meta().group_meta();
+  }
+  else { // query_params->mergeActiveAtClient
+    for (const auto &[group, queryMeta] : fwdQueryResult.query_res_meta().group_meta()) {
+      for (const auto &read : queryMeta.query_read_set().read_set()) {
+        *txn->add_read_set() = read;
       }
-      else {
-        proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
-        *queryMD.mutable_query_read_set() = queryMeta.query_read_set();
+      for (const auto &dep : queryMeta.query_read_set().deps()){
+        *txn->add_deps() = dep;
+      }
+      for (const auto &pred: queryMeta.query_read_set().read_predicates()){
+        if(!txn->read_predicates().empty() && pred.pred_instances_size() == 1){ //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
+          if(pred.pred_instances()[0] == txn->read_predicates()[txn->read_predicates_size()-1].pred_instances()[0]) continue;
+        }
+        *txn->add_read_predicates() = pred;
       }
     }
   }

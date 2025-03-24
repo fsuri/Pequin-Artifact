@@ -34,7 +34,7 @@
 #include "store/sintrstore/localbatchverifier.h"
 #include "store/sintrstore/basicverifier.h"
 #include "store/sintrstore/common.h"
-#include "store/sintrstore/policy/weight_policy.h"
+#include "store/sintrstore/common2.h"
 #include "store/sintrstore/policy/policy.h"
 #include "store/sintrstore/estimate_policy.h"
 #include <sys/time.h>
@@ -1126,21 +1126,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
 void Client::AddWriteSetIdx(proto::Transaction &txn){
   if(!params.query_params.sql_mode) return; //only for sql_mode. NOT correct behavior for non-sql mode (in that mode there are no TableWrites)
 
-  //Correct the write_set_idx according to the position of the write_key *after* sorting.
-  const std::string *curr_table;
-  for(int i=0; i<txn.write_set_size();++i){
-    auto &write = txn.write_set()[i];
-    if(write.is_table_col_version()){
-      //curr_table = &write.key(); //Note: This works because we've inserted write keys for all of our Tablewrites, and the write keys are sorted.
-      //Use DecodeTable if we are using TableEncoding. If not, use line above.
-      curr_table = DecodeTable(write.key()); //Note: This works because we've inserted write keys for all of our Tablewrites.
-      Debug("Print: Curr Table: %s", curr_table->c_str());
-      UW_ASSERT(txn.table_writes().count(*curr_table));
-    }
-    else{
-      (*txn.mutable_table_writes()->at(*curr_table).mutable_rows())[write.rowupdates().row_idx()].set_write_set_idx(i);
-    }
-  }
+  AddWriteSetIdx(txn);
 }
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,

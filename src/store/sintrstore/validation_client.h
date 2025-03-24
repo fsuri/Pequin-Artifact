@@ -106,8 +106,7 @@ class ValidationClient : public ::Client {
   void ProcessForwardPointQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
     const proto::ForwardReadResult &fwdPointQueryResult, const proto::Dependency &dep, bool hasDep, bool addReadset);
   void ProcessForwardQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
-    const proto::ForwardQueryResult &fwdQueryResult, const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta,
-    bool addReadset);
+    const proto::ForwardQueryResult &fwdQueryResult, bool addReadset);
 
   // return completed transaction for requested id
   proto::Transaction *GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num);
@@ -213,7 +212,7 @@ class ValidationClient : public ::Client {
   void AddReadset(AllValidationTxnState *allValTxnState, const std::string &key, 
     const std::string &value, const Timestamp &ts, bool is_get = true, bool cache_point = false);
   void AddQueryReadset(AllValidationTxnState *allValTxnState,
-    const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta);
+    const proto::ForwardQueryResult &fwdQueryResult);
   // add dep to the dependencies of transaction 
   void AddDep(AllValidationTxnState *allValTxnState, const proto::Dependency &dep);
   // is group g involved in txn

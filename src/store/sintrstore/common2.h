@@ -38,6 +38,7 @@
 #include "store/common/query_result/query_result_proto_wrapper.h"
 
 namespace sintrstore {
+// this file contains functions that were made common because of sintr
 
 // this function has to be declared here and not common.h because it creates circular header dependency there
 bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std::string *txnDigest, const Timestamp &timestamp, 
@@ -45,6 +46,8 @@ bool ValidateTransactionTableWrite(const proto::CommittedProof &proof, const std
     SQLTransformer *sql_interpreter,
     const transport::Configuration *config, bool signedMessages,
     KeyManager *keyManager, Verifier *verifier);
+
+void AddWriteSetIdx(proto::Transaction &txn);
 
 } // namespace sintrstore
 

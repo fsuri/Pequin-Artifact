@@ -1381,6 +1381,9 @@ void Client2Client::ValidationThreadFunction() {
       if (params.parallel_CCC) {
         std::sort(txn->mutable_read_set()->begin(), txn->mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
+        if (params.query_params.sql_mode) {
+          AddWriteSetIdx(*txn);
+        }
       }
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());
 
