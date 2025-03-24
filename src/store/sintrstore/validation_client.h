@@ -203,6 +203,13 @@ class ValidationClient : public ::Client {
     std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
     std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
     std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
+
+    // key to get callback function map
+    std::map<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>> pendingForwardedReadCB;
+    // key to point query callback map
+    std::map<std::string, std::function<std::string(AllValidationTxnState*)>> pendingForwardedPointQueryCB;
+    // query ID to query callback map
+    std::map<std::string, std::function<std::string(AllValidationTxnState*, PendingValidationQuery*, bool)>> pendingForwardedQueryCB;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
