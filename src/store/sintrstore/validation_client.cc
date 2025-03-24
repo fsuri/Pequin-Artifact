@@ -407,7 +407,6 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
   ClientToSQLInterpreterMap::accessor ac;
   const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
   if(isNewClientID) {
-    // TODO: Add query params object
     SQLTransformer* sql_interpreter = new SQLTransformer(query_params);
     ac->second = sql_interpreter;
   } else {
@@ -465,15 +464,6 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedReadCB[curr_key] = editTxnStateCB;
-    ClientToSQLInterpreterMap::accessor ac;
-    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
-    if(isNewClientID) {
-      // TODO: Add query params object
-      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
-      ac->second = sql_interpreter;
-    } else {
-      ac->second->NewTx(txn);
-    }
     return;
   }
 
@@ -554,6 +544,14 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedPointQueryCB[curr_key] = editTxnStateCB;
+    ClientToSQLInterpreterMap::accessor ac;
+    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
+    if(isNewClientID) {
+      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
+      ac->second = sql_interpreter;
+    } else {
+      ac->second->NewTx(txn);
+    }
     return;
   }
 
@@ -638,6 +636,14 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedQueryCB[curr_query_gen_id] = editTxnStateCB;
+    ClientToSQLInterpreterMap::accessor ac;
+    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
+    if(isNewClientID) {
+      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
+      ac->second = sql_interpreter;
+    } else {
+      ac->second->NewTx(txn);
+    }
     return;
   }
 
