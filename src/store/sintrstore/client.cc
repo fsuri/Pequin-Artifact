@@ -1302,10 +1302,10 @@ void Client::Phase1(PendingRequest *req) {
   */
 
   // add endorsement to txn
+  *(req->txn.mutable_endorsements()) = protoEndorsements;
+  // this does not modify transaction itself, so need to modify below
+  *txn.mutable_endorsements() = protoEndorsements;
   if(params.sintr_params.hashEndorsements) {
-    *(req->txn.mutable_endorsements()) = protoEndorsements;
-    // this does not modify transaction itself, so need to modify below
-    *txn.mutable_endorsements() = protoEndorsements;
     req->txnDigest = EndorsedTxnDigest(req->txnDigest, txn, params.hashDigest);
   }
 
