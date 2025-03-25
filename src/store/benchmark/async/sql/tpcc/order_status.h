@@ -34,12 +34,13 @@ namespace tpcc_sql {
 
 class SQLOrderStatus : public TPCCSQLTransaction {
  public:
-  SQLOrderStatus(uint32_t timeout, uint32_t w_id, uint32_t c_c_last,
+  SQLOrderStatus(uint32_t w_id, uint32_t c_c_last,
       uint32_t c_c_id, std::mt19937 &gen);
+  SQLOrderStatus() {};
   virtual ~SQLOrderStatus();
-  virtual transaction_status_t Execute(SyncClient &client);
+  virtual void SerializeTxnState(std::string &txnState) override;
 
- private:
+ protected:
   uint32_t c_w_id;
   uint32_t c_d_id;
   uint32_t c_id;

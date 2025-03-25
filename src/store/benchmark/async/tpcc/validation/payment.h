@@ -38,7 +38,7 @@ class ValidationPayment : public ValidationTPCCTransaction, public Payment {
   // constructor with no randomness (all fields directly initialized)
   ValidationPayment(uint32_t timeout, uint32_t w_id, uint32_t d_id, uint32_t d_w_id, uint32_t c_w_id,
     uint32_t c_d_id, uint32_t c_id, uint32_t h_amount, uint32_t h_date, bool c_by_last_name, std::string c_last);
-  ValidationPayment(uint32_t timeout, validation::proto::Payment valPaymentMsg);
+  ValidationPayment(uint32_t timeout, const validation::proto::Payment &valPaymentMsg);
   virtual ~ValidationPayment();
   virtual transaction_status_t Validate(::SyncClient &client);
 };

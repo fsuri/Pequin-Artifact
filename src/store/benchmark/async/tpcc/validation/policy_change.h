@@ -39,7 +39,7 @@ class ValidationPolicyChange : public ValidationTPCCTransaction, public PolicyCh
  public:
   // constructor with no randomness (all fields directly initialized)
   ValidationPolicyChange(uint32_t timeout, uint32_t w_id);
-  ValidationPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg);
+  ValidationPolicyChange(uint32_t timeout, const validation::proto::PolicyChange &valPolicyChangeMsg);
   virtual ~ValidationPolicyChange();
   virtual transaction_status_t Validate(::SyncClient &client);
 };

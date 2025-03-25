@@ -48,7 +48,7 @@ void EndorsementClient::SetClientSeqNum(uint64_t client_seq_num) {
   this->client_seq_num = client_seq_num;
 }
 
-const std::vector<proto::SignedMessage> &EndorsementClient::GetEndorsements() {
+const std::vector<proto::SignedMessage> &EndorsementClient::GetEndorsements() const {
   std::shared_lock lock(mutex);
   return endorsements;
 }
@@ -172,7 +172,7 @@ void EndorsementClient::UpdateRequirement(const Policy *policy) {
   policyClient->AddPolicy(policy);
 }
 
-std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) {
+std::vector<int> EndorsementClient::DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const {
   return policyClient->DifferenceToSatisfied(potentialEndorsements);
 }
 
@@ -204,7 +204,7 @@ void EndorsementClient::AddValidation(const uint64_t peer_client_id, const std::
   }
 }
 
-bool EndorsementClient::IsSatisfied() {
+bool EndorsementClient::IsSatisfied() const {
   std::shared_lock lock(mutex);
   bool satisfied = policyClient->IsSatisfied(client_ids_received);
   if (!satisfied) {
@@ -222,7 +222,7 @@ void EndorsementClient::Reset() {
   pendingEndorsements.clear();
 }
 
-bool EndorsementClient::GetPolicyFromCache(const std::string &key, const Policy *&policy) {
+bool EndorsementClient::GetPolicyFromCache(const std::string &key, const Policy *&policy) const {
   uint64_t policyId = policyIdFunction(key, "");
   auto it = policyCache.find(policyId);
   if (it == policyCache.end()) {
@@ -233,7 +233,7 @@ bool EndorsementClient::GetPolicyFromCache(const std::string &key, const Policy 
   return true;
 }
 
-bool EndorsementClient::GetPolicyFromCache(uint64_t policyId, const Policy *&policy) {
+bool EndorsementClient::GetPolicyFromCache(uint64_t policyId, const Policy *&policy) const {
   auto it = policyCache.find(policyId);
   if (it == policyCache.end()) {
     Panic("Policy cache is missing policy with id %lu", policyId);

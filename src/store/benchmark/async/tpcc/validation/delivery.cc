@@ -36,7 +36,7 @@ ValidationDelivery::ValidationDelivery(uint32_t timeout, uint32_t w_id, uint32_t
   this->ol_delivery_d = ol_delivery_d;
 }
 
-ValidationDelivery::ValidationDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg) : 
+ValidationDelivery::ValidationDelivery(uint32_t timeout, const validation::proto::Delivery &valDeliveryMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valDeliveryMsg.w_id();
   d_id = valDeliveryMsg.d_id();

@@ -45,7 +45,7 @@ class EndorsementClient {
   EndorsementClient(uint64_t client_id, KeyManager *keyManager, policy_id_function policyIdFunction);
   ~EndorsementClient();
 
-  const std::vector<proto::SignedMessage> &GetEndorsements();
+  const std::vector<proto::SignedMessage> &GetEndorsements() const;
   void SetClientSeqNum(uint64_t client_seq_num);
   void SetExpectedTxnOutput(const std::string &expectedTxnDigest);
   void DebugSetExpectedTxnOutput(const proto::Transaction &expectedTxn);
@@ -54,20 +54,20 @@ class EndorsementClient {
   void UpdateRequirement(const Policy *policy);
   // what additional client ids are needed so that this policy is satisfied by potentialEndorsements
   // if potentialEndorsements is good enough, return empty vector
-  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements);
+  std::vector<int> DifferenceToSatisfied(const std::set<uint64_t> &potentialEndorsements) const;
   // add validation from peer client
   // this can be called from a different thread than the rest of the functions
   void AddValidation(const uint64_t peer_client_id, const std::string &valTxnDigest, 
     const proto::SignedMessage &signedValTxnDigest);
   // check if the policy is satisfied by actual endorsements collected so far
-  bool IsSatisfied();
+  bool IsSatisfied() const;
   void Reset();
 
   // return true if policy exists for key, false otherwise
   // given a reference to a policy pointer, update it with the policy in the cache
   // does not allocate a new policy object
-  bool GetPolicyFromCache(const std::string &key, const Policy *&policy);
-  bool GetPolicyFromCache(uint64_t policyId, const Policy *&policy);
+  bool GetPolicyFromCache(const std::string &key, const Policy *&policy) const;
+  bool GetPolicyFromCache(uint64_t policyId, const Policy *&policy) const;
   // update the mapping from policy id to policy; takes ownership of policy (policy should be allocated on heap)
   void UpdatePolicyCache(uint64_t policyId, Policy *policy);
   // initialize the policy cache with the given map; takes ownership of policies (policies should be allocated on heap)

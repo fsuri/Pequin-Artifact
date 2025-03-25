@@ -335,7 +335,7 @@ void Client::Get(const std::string &key, get_callback gcb,
         *txn.add_deps() = policyDep;
       }
 
-      c2client->ForwardReadResultMessage(
+      c2client->SendForwardReadResultMessage(
         key, val, ts, proof, serializedWrite, 
         serializedWriteTypeName, dep, hasDep, addReadSet,
         policyDep, hasPolicyDep
@@ -588,7 +588,7 @@ void Client::Query(const std::string &query, query_callback qcb,
         // }
 
         // still forward cached point query result but no proofs or dependencies needed
-        c2client->ForwardPointQueryResultMessage(
+        c2client->SendForwardPointQueryResultMessage(
           encoded_key, itr->second, Timestamp(), pendingQuery->table_name,
           proto::CommittedProof(), std::string(), std::string(),
           proto::Dependency(), false, false
@@ -607,7 +607,7 @@ void Client::Query(const std::string &query, query_callback qcb,
         Debug("Supply scan query result from cache! (Query seq: %d). Query: %s", query_seq_num, query.c_str());
 
         // still forward cached query result but no readset or proofs needed
-        c2client->ForwardQueryResultMessage(
+        c2client->SendForwardQueryResultMessage(
           pendingQuery->query_gen_id, itr->second,
           std::map<uint64_t, proto::ReadSet*>(), std::map<uint64_t, std::string>(),
           std::map<uint64_t, std::vector<proto::SignedMessage>>(), false
@@ -727,7 +727,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 
   // note that the pendingQuery->table_name has been moved out, so is no longer valid
   // instead we use the table_name passed in as an argument
-  c2client->ForwardPointQueryResultMessage(
+  c2client->SendForwardPointQueryResultMessage(
     key, result, read_time, table_name, proof,
     serializedWrite, serializedWriteTypeName, dep, hasDep, addReadSet
   );
@@ -835,7 +835,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   if(TEST_READ_SET) TestReadSet(pendingQuery);
 
   // forward to validating clients
-  c2client->ForwardQueryResultMessage(
+  c2client->SendForwardQueryResultMessage(
     pendingQuery->query_gen_id, pendingQuery->result, pendingQuery->group_read_sets, pendingQuery->group_result_hashes,
     pendingQuery->group_sigs, true
   );
@@ -1316,10 +1316,10 @@ void Client::Phase1(PendingRequest *req) {
   */
 
   // add endorsement to txn
+  *(req->txn.mutable_endorsements()) = protoEndorsements;
+  // this does not modify transaction itself, so need to modify below
+  *txn.mutable_endorsements() = protoEndorsements;
   if(params.sintr_params.hashEndorsements) {
-    *(req->txn.mutable_endorsements()) = protoEndorsements;
-    // this does not modify transaction itself, so need to modify below
-    *txn.mutable_endorsements() = protoEndorsements;
     req->txnDigest = EndorsedTxnDigest(req->txnDigest, txn, params.hashDigest);
   }
 

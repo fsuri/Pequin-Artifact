@@ -30,12 +30,15 @@
 #include <map>
 #include <fmt/core.h>
 
+#include "store/benchmark/async/sql/tpcc/tpcc_common.h"
+#include "store/benchmark/async/sql/tpcc/tpcc-sql-validation-proto.pb.h"
+#include "store/common/common-proto.pb.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 
 namespace tpcc_sql {
 
-SQLStockLevel::SQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
-    std::mt19937 &gen) : TPCCSQLTransaction(timeout), w_id(w_id), d_id(d_id) {
+SQLStockLevel::SQLStockLevel(uint32_t w_id, uint32_t d_id,
+    std::mt19937 &gen) : w_id(w_id), d_id(d_id) {
   min_quantity = std::uniform_int_distribution<uint8_t>(10, 20)(gen);
 
   std::cerr << "STOCK_LEVEL (parallel)" << std::endl;
@@ -44,74 +47,23 @@ SQLStockLevel::SQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
 SQLStockLevel::~SQLStockLevel() {
 }
 
-transaction_status_t SQLStockLevel::Execute(SyncClient &client) {
-  std::unique_ptr<const query_result::QueryResult> queryResult;
-  std::string query;
-  std::vector<std::unique_ptr<const query_result::QueryResult>> results;
+void SQLStockLevel::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState = TxnState();
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  txn_name.append(GetBenchmarkTxnTypeName(SQL_TXN_STOCK_LEVEL));
+  currTxnState.set_txn_name(txn_name);
 
-  //Determine the number of recently sold items with stock below a given threshold
-  //Type: Heavy read-only Tx, low frequency
-  Debug("STOCK_LEVEL (parallel)");
-  Debug("Warehouse: %u", w_id);
-  Debug("District: %u", d_id);
-  //std::cerr << "warehouse: " << w_id << std::endl;
+  validation::proto::StockLevel curr_txn = validation::proto::StockLevel();
+  curr_txn.set_w_id(w_id);
+  curr_txn.set_d_id(d_id);
+  curr_txn.set_min_quantity(min_quantity);
+  std::string txn_data;
+  curr_txn.SerializeToString(&txn_data);
+  currTxnState.set_txn_data(txn_data);
 
-  client.Begin(timeout);
-
-  // (1) Select the specified row from District and extract the Next Order Id
-  query = fmt::format("SELECT d_next_o_id FROM {} WHERE d_id = {} AND d_w_id = {}", DISTRICT_TABLE, d_id, w_id);
-  client.Query(query, queryResult, timeout);
-  uint32_t next_o_id;
-  deserialize(next_o_id, queryResult);
-  Debug("Orders: %u-%u", next_o_id - 20, next_o_id - 1);
-
-
-  if(join_free_version){
-      query = fmt::format("SELECT ol_i_id FROM {} WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} ", ORDER_LINE_TABLE, w_id, d_id, next_o_id, next_o_id - 20);
-      client.Query(query, queryResult, timeout);  
-
-      //For each unique item.
-      std::set<uint32_t> stockItems;
-      size_t strsIdx = 0;
-      for (int i = 0; i < queryResult->size(); ++i) {
-        uint32_t i_id;
-        deserialize(i_id, queryResult, i);
-        Debug("Item %d", i_id);
-
-        //Check all distinct items.
-        if (stockItems.insert(i_id).second) {  //ca 200 point reads...
-            query = fmt::format("SELECT s_i_id FROM {} WHERE s_w_id = {} AND s_i_id = {} AND s_quantity < {}", STOCK_TABLE, w_id, i_id, min_quantity);
-            client.Query(query, timeout);  
-          } 
-      }
-      client.Wait(results);
-      // Num distinct stocks with quant < min_quant == Number of results that are non-empty.
-  }
-  else{
-      // // (2) Select the 20 most recent orders from the district: Select the orders from OrderLine (from this district) with    next_o_id - 20 <= id < next_o_id
-      // // (3) Count all rows in STOCK with distinct items whose quantity is below the min_quantity threshold.
-      query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {}, {} "
-                          "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} "
-                          " AND s_i_id = ol_i_id AND s_w_id = {} AND s_quantity < {} "
-                          "AND s_i_id = s_i_id", //REFLEXIVE TO TRICK PELOTONS DUMB JOIN PLANNER 
-                          ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
-
-      // query = fmt::format("SELECT COUNT(DISTINCT(s_i_id)) FROM {} INNER JOIN {} ON s_i_id = ol_i_id "
-      //                   "WHERE ol_w_id = {} AND ol_d_id = {} AND ol_o_id < {} AND ol_o_id >= {} AND s_w_id = {} AND s_quantity < {}",
-      //                   ORDER_LINE_TABLE, STOCK_TABLE, w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
-      //TODO: Write it as a an explicit JOIN somehow to more easily extract individual table predicates?
-      // query = fmt::format("SELECT COUNT(DISTINCT(Stock.i_id)) FROM (SELECT * FROM OrderLine WHERE w_id = {} AND d_id = {} AND o_id < {} AND o_id >= {}) "
-      //                     "LEFT JOIN (SELECT * FROM STOCK WHERE w_id = {} AND quantity < {}) " //This is super inefficient..
-      //                     "ON Stock.i_id = OrderLine.i_id;", w_id, d_id, next_o_id, next_o_id - 20, w_id, min_quantity);
-
-      client.Query(query, queryResult, timeout);
-      uint32_t stock_count;
-      deserialize(stock_count, queryResult);
-      Debug("Stock Count: %u", stock_count);
-  }
-
-  Debug("COMMIT");
-  return client.Commit(timeout);
+  currTxnState.SerializeToString(&txnState);
 }
 
 } // namespace tpcc_sql

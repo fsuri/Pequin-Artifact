@@ -37,7 +37,7 @@ ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, uint32_t w_id) 
   this->w_id = w_id;
 }
 
-ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, validation::proto::PolicyChange valPolicyChangeMsg) : 
+ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, const validation::proto::PolicyChange &valPolicyChangeMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valPolicyChangeMsg.w_id();
 }

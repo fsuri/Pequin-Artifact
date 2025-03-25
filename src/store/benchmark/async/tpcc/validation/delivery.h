@@ -38,7 +38,7 @@ class ValidationDelivery : public ValidationTPCCTransaction, public Delivery {
   // constructor with no randomness (all fields directly initialized)
   ValidationDelivery(uint32_t timeout, uint32_t w_id, uint32_t d_id, 
     uint32_t o_carrier_id, uint32_t ol_delivery_d);
-  ValidationDelivery(uint32_t timeout, validation::proto::Delivery &valDeliveryMsg);
+  ValidationDelivery(uint32_t timeout, const validation::proto::Delivery &valDeliveryMsg);
   virtual ~ValidationDelivery();
   virtual transaction_status_t Validate(::SyncClient &client);
 };
