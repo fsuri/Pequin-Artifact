@@ -102,6 +102,13 @@ class ValidationClient : public ::Client {
     const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset,
     const proto::Dependency &policyDep, bool hasPolicyDep);
 
+  // either fill one of the pending validation queries or put into readset for future validation query
+  void ProcessForwardPointQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
+    const proto::ForwardReadResult &fwdPointQueryResult, const proto::Dependency &dep, bool hasDep, bool addReadset);
+  void ProcessForwardQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
+    const proto::ForwardQueryResult &fwdQueryResult, const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta,
+    bool addReadset);
+
   // return completed transaction for requested id
   proto::Transaction *GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num);
 
@@ -133,7 +140,7 @@ class ValidationClient : public ::Client {
     // difference between query seq num and client seq num?
     PendingValidationQuery(const Timestamp &ts,
         const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
-        vqcb(qcb), cache_result(cache_result){
+        vqcb(qcb), cache_result(cache_result), query_cmd(query_cmd) {
 
       query_gen_id = QueryGenId(query_cmd, ts);
 
@@ -152,8 +159,10 @@ class ValidationClient : public ::Client {
 
     std::string query_gen_id;
     Timeout *timeout;
+    std::string query_cmd;
     
     uint64_t start_time;
+    Timestamp ts;
 
     bool is_point;
     std::string key;
@@ -194,13 +203,24 @@ class ValidationClient : public ::Client {
     std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
     std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
     std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
+
+    // key to get callback function map
+    std::map<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>> pendingForwardedReadCB;
+    // key to point query callback map
+    std::map<std::string, std::function<std::string(AllValidationTxnState*)>> pendingForwardedPointQueryCB;
+    // query ID to query callback map
+    std::map<std::string, std::function<std::string(AllValidationTxnState*, PendingValidationQuery*, bool)>> pendingForwardedQueryCB;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
     validation_read_callback vrcb);
   // add (key, ts) to the readset of transaction txn_id
+  // if is_get is true, then this is from a get so we should add to readValues
+  // otherwise it is from a query, so look at cache_point to decide whether to add to point_read_cache
   void AddReadset(AllValidationTxnState *allValTxnState, const std::string &key, 
-    const std::string &value, const Timestamp &ts);
+    const std::string &value, const Timestamp &ts, bool is_get = true, bool cache_point = false);
+  void AddQueryReadset(AllValidationTxnState *allValTxnState,
+    const std::map<uint64_t, proto::QueryGroupMeta> &queryGroupMeta);
   // add dep to the dependencies of transaction 
   void AddDep(AllValidationTxnState *allValTxnState, const proto::Dependency &dep);
   // is group g involved in txn
@@ -212,7 +232,7 @@ class ValidationClient : public ::Client {
   // transport for timeout functionality
   Transport *transport;
   // My own client ID
-  uint64_t client_id;
+  const uint64_t client_id;
   // Number of shards.
   uint64_t nshards;
   // Number of replica groups.
