@@ -45,7 +45,7 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
   max_random_size = value_categories < 0? UINT64_MAX : log(value_categories) / log(alpha_numeric_size);
 
   Notice("New TX with %d ops. Read only? %d", numOps, readOnly);
-
+  std::vector<std::pair<int, int>> past_ranges;
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
     tables.push_back(table);
@@ -88,6 +88,25 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
       uint64_t end = (base + range) % querySelector->numKeys; //calculate end point for range. Note: wrap around if > numKeys
       ends.push_back(end);
       Debug("Range: %d. Base: %d. End: %d", range, base, end);
+    } 
+    //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
+    if(DISABLE_WRAP_AROUND && ends.back() < starts.back()){
+      Debug("DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0");
+      starts[starts.size()-1] = 0;
+    }
+    // end and starts legnth should be the same
+    int removeIndex = starts.size()-1;
+    if(!AdjustBounds(starts.back(), ends.back(), table, numOps, past_ranges)) {
+      // remove the last starts.back value (before we potentially add new queries)
+      // we could just set them to a specific number and skip loop based on that number
+      // might be more efficient
+      if(removeIndex+1 != starts.size()) {
+        // do not process the next two ops because we split this op into two operations
+        // add one to i because we add 2 new ops and delete one => 1 new op overall
+        i++;
+      }
+      starts.erase(starts.begin() + removeIndex);
+      ends.erase(ends.begin() + removeIndex);
     }
   }
 }

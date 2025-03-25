@@ -50,7 +50,6 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
   liveOps = numOps;
-  past_ranges.clear();
   statements.clear();
   // reset secondary values
   for (int i = 0; i < numOps; ++i) {
@@ -69,22 +68,9 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
     string table_name = "t" + std::to_string(tables[i]);
     int left_bound = starts[i]; 
-    int right_bound = ends[i];  //If right_bound < left_bound, wrap around and read >= left, and <= right. Turn statement into OR
+    int right_bound = ends[i];
     UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
 
-    if(DISABLE_WRAP_AROUND && right_bound < left_bound){
-      Debug("DO NOT ALLOW WRAP AROUNDS. ADJUST QUERY TO LEFT = 0");
-      left_bound = 0;
-      //continue;
-    }
-
-    if(AVOID_DUPLICATE_READS){
-      //adjust bounds: shrink to not overlap. //if shrinkage makes bounds invert => cancel this read.
-      if(!AdjustBounds(left_bound, right_bound, tables[i], liveOps, past_ranges)){
-        Debug("CANCELLED REDUNDANT QUERY");
-        continue;
-      } 
-    }
     UW_ASSERT(left_bound >= 0 && left_bound < querySelector->numKeys && right_bound >= 0 && right_bound < querySelector->numKeys);
 
     auto &secondary_val = secondary_values[i];

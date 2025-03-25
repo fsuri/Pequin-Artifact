@@ -47,8 +47,6 @@ class RWSQLValTransaction : public ::ValidationTransaction, public RWSQLBaseTran
   
  private:
   size_t liveOps;
-  //avoid duplicates
-  std::vector<std::pair<int, int>> past_ranges;
   
   std::vector<std::string> statements; //keep statements in scope to allow for parallel Writes
 
