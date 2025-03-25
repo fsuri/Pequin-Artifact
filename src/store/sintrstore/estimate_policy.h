@@ -49,7 +49,7 @@ class EstimatePolicy {
     As this is a prototype, we'll implement the tables-to-policy ID mapping function in the Sintr client code. 
     Application developers should implement it in their own client code (e.g., tpcc) and then use it within Sintr.
   */
-  uint64_t TableToPolicyID(const int &t) const;
+  uint64_t TableToPolicyID(const int &t, const std::string &txn_bench) const;
 };
 
 } // namespace sintrstore

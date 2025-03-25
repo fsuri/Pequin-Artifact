@@ -35,6 +35,7 @@
 #include "store/benchmark/async/rw-sync/rw-validation-proto.pb.h"
 #include "store/benchmark/async/rw-sync/validation/rw-val_transaction.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_common.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_schema.h"
 #include "store/benchmark/async/sql/tpcc/validation/delivery.h"
 #include "store/benchmark/async/sql/tpcc/validation/new_order.h"
 #include "store/benchmark/async/sql/tpcc/validation/payment.h"
@@ -92,7 +93,7 @@ namespace sintrstore {
       if (repeated_values.size() > 0) {
         for (int const &value : repeated_values) {
           const Policy *temp_policy;
-          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), temp_policy));
+          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value, txn_bench), temp_policy));
           policyClient->AddPolicy(temp_policy);
         }
       }
@@ -157,7 +158,7 @@ namespace sintrstore {
       if (repeated_values.size() > 0) {
         for (int const &value : repeated_values) {
           const Policy *temp_policy;
-          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value), temp_policy));
+          UW_ASSERT(endorseClient->GetPolicyFromCache(EstimatePolicy::TableToPolicyID(value, txn_bench), temp_policy));
           policyClient->AddPolicy(temp_policy);
         }
       }
@@ -170,33 +171,61 @@ namespace sintrstore {
     }
   }
 
-  uint64_t EstimatePolicy::TableToPolicyID(const int &t) const {
-    ::tpcc::Tables table = static_cast<::tpcc::Tables>(t);
-    switch (table) {
-    case ::tpcc::Tables::WAREHOUSE:
-      return 0;
-    case ::tpcc::Tables::DISTRICT:
-      return 0;
-    case ::tpcc::Tables::CUSTOMER:
-      return 0;
-    case ::tpcc::Tables::HISTORY:
-      return 0;
-    case ::tpcc::Tables::NEW_ORDER:
-      return 0;
-    case ::tpcc::Tables::ORDER:
-      return 0;
-    case ::tpcc::Tables::ORDER_LINE:
-      return 0;
-    case ::tpcc::Tables::ITEM:
-      return 0;
-    case ::tpcc::Tables::STOCK:
-      return 0;
-    case ::tpcc::Tables::ORDER_BY_CUSTOMER:
-      return 0;
-    case ::tpcc::Tables::EARLIEST_NEW_ORDER:
-      return 0;
-    default:
-      Panic("Received unexpected table type: %d", t);
+  uint64_t EstimatePolicy::TableToPolicyID(const int &t, const std::string &txn_bench) const {
+    if(txn_bench == ::tpcc::BENCHMARK_NAME) {
+      ::tpcc::Tables table = static_cast<::tpcc::Tables>(t);
+      switch (table) {
+      case ::tpcc::Tables::WAREHOUSE:
+        return 0;
+      case ::tpcc::Tables::DISTRICT:
+        return 0;
+      case ::tpcc::Tables::CUSTOMER:
+        return 0;
+      case ::tpcc::Tables::HISTORY:
+        return 0;
+      case ::tpcc::Tables::NEW_ORDER:
+        return 0;
+      case ::tpcc::Tables::ORDER:
+        return 0;
+      case ::tpcc::Tables::ORDER_LINE:
+        return 0;
+      case ::tpcc::Tables::ITEM:
+        return 0;
+      case ::tpcc::Tables::STOCK:
+        return 0;
+      case ::tpcc::Tables::ORDER_BY_CUSTOMER:
+        return 0;
+      case ::tpcc::Tables::EARLIEST_NEW_ORDER:
+        return 0;
+      default:
+        Panic("Received unexpected table type for tpcc: %d", t);
+      }
+    } else if(txn_bench == ::tpcc_sql::BENCHMARK_NAME) {
+      ::tpcc_sql::TPCC_Table table = static_cast<::tpcc_sql::TPCC_Table>(t);
+      switch (table) {
+        case ::tpcc_sql::TPCC_Table::WAREHOUSE:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::DISTRICT:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::CUSTOMER:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::HISTORY:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::NEW_ORDER:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::ORDER:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::ORDER_LINE:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::ITEM:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::STOCK:
+          return 0;
+        case ::tpcc_sql::TPCC_Table::EARLIEST_NEW_ORDER:
+          return 0;
+        default:
+          Panic("Received unexpected table type for tpcc sql: %d", t);
+      }
     }
   }
 
