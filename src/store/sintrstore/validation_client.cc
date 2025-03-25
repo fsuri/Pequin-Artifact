@@ -34,9 +34,25 @@
 
 namespace sintrstore {
 
-ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part,
-  const QueryParameters* query_params) : 
-  transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params) {}
+ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nclients, uint64_t nshards, uint64_t ngroups, 
+    Partitioner *part, std::string &table_registry, const QueryParameters* query_params) : 
+    transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params) {
+
+  if (query_params->sql_mode) {
+    for (uint64_t i = 0; i < nclients; i++) {
+      // will not validate for self
+      if (i == client_id) {
+        continue;
+      }
+      ClientToSQLInterpreterMap::accessor ac;
+      clientIDtoSQL.insert(ac, i);
+      SQLTransformer* sql_interpreter = new SQLTransformer(query_params);
+      sql_interpreter->RegisterTables(table_registry);
+      sql_interpreter->RegisterPartitioner(part, nshards, ngroups, -1);
+      ac->second = sql_interpreter;
+    }
+  }
+}
 
 ValidationClient::~ValidationClient() {
   // TODO: Garbage collection/free memory for allValTxnStates
@@ -199,6 +215,7 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
   uint64_t point_target_group = 0;
 
   uint64_t txn_client_id, txn_client_seq_num;
+  GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
   allValTxnStatesMap::accessor a;
   if (!allValTxnStates.find(a, txn_id)) {
@@ -207,19 +224,18 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
   }
     
   proto::Transaction *txn = a->second->txn;
-  GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
-  ClientToSQLInterpreterMap::accessor ca;
-  if (!clientIDtoSQL.find(ca, txn_client_id)) {
+  ClientToSQLInterpreterMap::accessor ac;
+  if (!clientIDtoSQL.find(ac, txn_client_id)) {
     // Write should always happen after SetTxnTimestamp, which inserts at txn_id
-    Panic("cannot find client ID %d in client accessor", txn_client_id);
+    Panic("cannot find client ID %lu in client accessor", txn_client_id);
   }
-  SQLTransformer *sql_interpreter = ca->second;
+  SQLTransformer *sql_interpreter = ac->second;
 
   a->second->pendingWriteStatements.push_back(write_statement);
 
   try{
     sql_interpreter->TransformWriteStatement(a->second->pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
-    ca.release();
+    ac.release();
   }
   catch(...){
     Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
@@ -269,14 +285,14 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       client_id, txn_client_seq_num, txn->timestamp().timestamp(), txn->timestamp().id(), query.c_str());
 
   PendingValidationQuery *pendingQuery = new PendingValidationQuery(Timestamp(txn->timestamp()), query, qcb, cache_result);
-  ClientToSQLInterpreterMap::accessor ca;
-  if (!clientIDtoSQL.find(ca, txn_client_id)) {
-    Panic("cannot find client ID %d in client accessor", txn_client_id);
+  ClientToSQLInterpreterMap::accessor ac;
+  if (!clientIDtoSQL.find(ac, txn_client_id)) {
+    Panic("cannot find client ID %lu in client accessor", txn_client_id);
   }
-  SQLTransformer* sql_interpreter = ca->second;
+  SQLTransformer* sql_interpreter = ac->second;
   
   pendingQuery->is_point = skip_query_interpretation? false : sql_interpreter->InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, true); 
-  ca.release();
+  ac.release();
   Debug("Query is of type: %s ", pendingQuery->is_point? "POINT" : "RANGE");
   if(pendingQuery->is_point){
     Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
@@ -293,15 +309,23 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     // check if forward read result already received (if callback exists)
     if(a->second->pendingForwardedPointQueryCB.find(encoded_key) != a->second->pendingForwardedPointQueryCB.end()) {
       Debug("Adding point query to readset for key %s", BytesToHex(encoded_key, 16).c_str());
-      auto res = new sql::QueryResultProtoWrapper(a->second->pendingForwardedPointQueryCB[encoded_key](a->second));
+      auto res = new sql::QueryResultProtoWrapper(
+        a->second->pendingForwardedPointQueryCB[encoded_key](a->second, pendingQuery->query_cmd)
+      );
       a->second->pendingForwardedPointQueryCB.erase(encoded_key);
       qcb(REPLY_OK, res);
       delete pendingQuery;
       pendingQuery = nullptr;
       return;
     }
+
+    // record the key
+    pendingQuery->key = encoded_key;
   } 
   else{
+    Debug("Query gen id: %s", BytesToHex(pendingQuery->query_gen_id, 16).c_str());
+
+    // check if query is in cache
     auto itr = a->second->scan_read_cache.find(query);
     if(itr != a->second->scan_read_cache.end()){
       Debug("Supply scan query result from cache! Query: %s", query.c_str());
@@ -317,9 +341,8 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     // check if forward query result already received (if callback exists)
     if(a->second->pendingForwardedQueryCB.find(pendingQuery->query_gen_id) != a->second->pendingForwardedQueryCB.end()) {
       Debug("Adding query %s result to readset", pendingQuery->query_gen_id.c_str());
-      auto res = new sql::QueryResultProtoWrapper(
-        a->second->pendingForwardedQueryCB[pendingQuery->query_gen_id](a->second, pendingQuery, cache_result));
-        a->second->pendingForwardedQueryCB.erase(pendingQuery->query_gen_id);
+      auto res = a->second->pendingForwardedQueryCB[pendingQuery->query_gen_id](a->second, pendingQuery->query_cmd, cache_result);
+      a->second->pendingForwardedQueryCB.erase(pendingQuery->query_gen_id);
       qcb(REPLY_OK, res);
       delete pendingQuery;
       pendingQuery = nullptr;
@@ -356,7 +379,13 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       // pendingQuery fulfilled
       return;
     }
-    Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->query_gen_id, 16).c_str());
+
+    if (pendingQuery->is_point) {
+      Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->key, 16).c_str());
+    }
+    else {
+      Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->query_gen_id, 16).c_str());
+    }
   });
   
   pendingQuery->timeout->Reset();
@@ -435,15 +464,16 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
   else {
     txn = a->second->txn;
   }
+  ts.serialize(txn->mutable_timestamp());
+  
   ClientToSQLInterpreterMap::accessor ac;
   const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
   if(isNewClientID) {
-    SQLTransformer* sql_interpreter = new SQLTransformer(query_params);
-    ac->second = sql_interpreter;
+    // constructor should cover all clients
+    Panic("Client %lu does not have a SQL interpreter", txn_client_id);
   } else {
     ac->second->NewTx(txn);
   }
-  ts.serialize(txn->mutable_timestamp());
 }
 
 void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
@@ -545,12 +575,11 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
   );
 
   // lambda for editing txn state
-  // TODO: need to know query cmd, but what if forward comes before validation query is registered?
   auto editTxnStateCB = [
     this, curr_key, curr_value, curr_ts, dep, hasDep, addReadset
-  ](AllValidationTxnState *allValTxnState) {
+  ](AllValidationTxnState *allValTxnState, const std::string &query_cmd) {
     if (addReadset) {
-      bool cache_point = !curr_value.empty(); // && pendingQuery->queryMsg.query_cmd().find("SELECT *") != std::string::npos;
+      bool cache_point = !curr_value.empty() && query_cmd.find("SELECT *") != std::string::npos;
       AddReadset(allValTxnState, curr_key, curr_value, curr_ts, false, cache_point);
     }
     if (hasDep) {
@@ -575,14 +604,6 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedPointQueryCB[curr_key] = editTxnStateCB;
-    ClientToSQLInterpreterMap::accessor ac;
-    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
-    if(isNewClientID) {
-      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
-      ac->second = sql_interpreter;
-    } else {
-      ac->second->NewTx(txn);
-    }
     return;
   }
 
@@ -605,7 +626,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
   PendingValidationQuery *req = *reqs_itr;
 
   req->ts = curr_ts;
-  editTxnStateCB(a->second);
+  editTxnStateCB(a->second, req->query_cmd);
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_value);
   req->vqcb(REPLY_OK, q_result);
 
@@ -629,21 +650,19 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
 
   // lambda for editing txn state
   auto editTxnStateCB = [
-    this, curr_query_gen_id, curr_query_result, fwdQueryResult, addReadset
-  ](AllValidationTxnState *allValTxnState, PendingValidationQuery* pendingQuery, bool cache_result) {
+    this, curr_query_result, fwdQueryResult, addReadset
+  ](AllValidationTxnState *allValTxnState, const std::string &query_cmd, bool cache_result) {
     sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
     if (addReadset) {
       AddQueryReadset(allValTxnState, fwdQueryResult);
     }
     if (!q_result->empty() && cache_result) {
       // Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update
-      // if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos){
-      //   allValTxnState->scan_read_cache[pendingQuery->queryMsg.query_cmd()] = curr_query_result;  
-      // }
+      if(size_t pos = query_cmd.find("SELECT *"); pos != std::string::npos){
+        allValTxnState->scan_read_cache[query_cmd] = curr_query_result;  
+      }
     }
-    delete q_result;
-    q_result = nullptr;
-    return curr_query_result;
+    return q_result;
   };
 
   // find matching pending query by first going off txn client id and sequence number, then query_gen_id
@@ -666,14 +685,6 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedQueryCB[curr_query_gen_id] = editTxnStateCB;
-    ClientToSQLInterpreterMap::accessor ac;
-    const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
-    if(isNewClientID) {
-      SQLTransformer *sql_interpreter = new SQLTransformer(query_params);
-      ac->second = sql_interpreter;
-    } else {
-      ac->second->NewTx(txn);
-    }
     return;
   }
 
@@ -696,9 +707,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
   // callback
   PendingValidationQuery *req = *reqs_itr;
 
-  editTxnStateCB(a->second, req, req->cache_result);
-
-  sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
+  sql::QueryResultProtoWrapper *q_result = editTxnStateCB(a->second, req->query_cmd, req->cache_result);
   req->vqcb(REPLY_OK, q_result);
   // no need to delete q_result since the query callback will take care of it
 
@@ -778,22 +787,29 @@ void ValidationClient::AddQueryReadset(AllValidationTxnState *allValTxnState,
   queryRep->set_query_id(fwdQueryResult.query_res_meta().query_id());
   queryRep->set_retry_version(fwdQueryResult.query_res_meta().retry_version());
 
-  if (query_params->cacheReadSet || !query_params->mergeActiveAtClient) {
-    *queryRep->mutable_group_meta() = fwdQueryResult.query_res_meta().group_meta();
-  }
-  else { // query_params->mergeActiveAtClient
-    for (const auto &[group, queryMeta] : fwdQueryResult.query_res_meta().group_meta()) {
-      for (const auto &read : queryMeta.query_read_set().read_set()) {
-        *txn->add_read_set() = read;
-      }
-      for (const auto &dep : queryMeta.query_read_set().deps()){
-        *txn->add_deps() = dep;
-      }
-      for (const auto &pred: queryMeta.query_read_set().read_predicates()){
-        if(!txn->read_predicates().empty() && pred.pred_instances_size() == 1){ //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
-          if(pred.pred_instances()[0] == txn->read_predicates()[txn->read_predicates_size()-1].pred_instances()[0]) continue;
+  for (const auto &[group, queryMeta] : fwdQueryResult.query_res_meta().group_meta()) {
+    if (query_params->cacheReadSet) {
+      proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
+      queryMD.set_read_set_hash(queryMeta.read_set_hash());
+    }
+    else {
+      if (query_params->mergeActiveAtClient) {
+        for (const auto &read : queryMeta.query_read_set().read_set()) {
+          *txn->add_read_set() = read;
         }
-        *txn->add_read_predicates() = pred;
+        for (const auto &dep : queryMeta.query_read_set().deps()){
+          *txn->add_deps() = dep;
+        }
+        for (const auto &pred: queryMeta.query_read_set().read_predicates()){
+          if(!txn->read_predicates().empty() && pred.pred_instances_size() == 1){ //This is just a simple check that sees if there are 2 consecutive preds (that only have 1 instantiation) with the same pred_instance
+            if(pred.pred_instances()[0] == txn->read_predicates()[txn->read_predicates_size()-1].pred_instances()[0]) continue;
+          }
+          *txn->add_read_predicates() = pred;
+        }
+      }
+      else {
+        proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group];
+        *queryMD.mutable_query_read_set() = queryMeta.query_read_set();
       }
     }
   }

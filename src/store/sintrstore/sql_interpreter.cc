@@ -185,7 +185,7 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
 
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool &skip_query_interpretation, bool blind_write){
+    uint64_t &target_group, bool &skip_query_interpretation, bool blind_write, std::vector<std::string> *keys_written){
 
     //match on write type:
     size_t pos = 0;
@@ -201,15 +201,15 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group, blind_write);
+        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group, blind_write, keys_written);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
-        TransformUpdate(pos, write_statement, read_statement, write_continuation, wcb);
+        TransformUpdate(pos, write_statement, read_statement, write_continuation, wcb, keys_written);
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation);
+        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation, keys_written);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -220,7 +220,8 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write,
+    std::vector<std::string> *keys_written){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
     // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
@@ -349,6 +350,9 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
         WriteMessage *write = txn->add_write_set();
         write->set_key(enc_key);
+        if (keys_written != nullptr) {
+            keys_written->push_back(enc_key);
+        }
        
         //New version: 
         TableWrite *table_write = AddTableWrite(table_name, col_registry);
@@ -410,7 +414,7 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
     //TODO: Update many TX to be blind writes. (where we know write is successful OR we know that write is idempotent)
 
-     write_continuation = [this, wcb, enc_key, table_name, &col_registry, value_list, &target_group](int status, query_result::QueryResult* result){
+     write_continuation = [this, wcb, enc_key, table_name, &col_registry, value_list, &target_group, keys_written](int status, query_result::QueryResult* result){
         if(!result->empty()){
             Debug("Insert continuation has a result row already -> do not Insert.");
             //Note: If the result is not empty, then we already have the read set.
@@ -443,6 +447,9 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
              //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
             WriteMessage *write = txn->add_write_set();
             write->set_key(enc_key);
+            if (keys_written != nullptr) {
+                keys_written->push_back(enc_key);
+            }
          
             TableWrite *table_write = AddTableWrite(table_name, col_registry);
             table_write->set_changed_table(true); //Add Table Version later.
@@ -470,7 +477,8 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
 
 
 void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_statement,
-    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb){
+    std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb,
+    std::vector<std::string> *keys_written){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-update/ 
 
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <col_name = condition>
@@ -561,7 +569,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
                // Note: if we want to support parallel writes (async) then we might need to identify the query explicitly (rather than just checking the latest query seq)
                                         
     
-    write_continuation = [this, wcb, table_name, col_updates, is_customer_update](int status, query_result::QueryResult* result) mutable {
+    write_continuation = [this, wcb, table_name, col_updates, is_customer_update, keys_written](int status, query_result::QueryResult* result) mutable {
 
         //std::cerr << "TEST WRITE CONT" << std::endl;
         Debug("Performing write_continuation"); //FIXME: Debug doesnt seem to be registered
@@ -693,6 +701,9 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
             // }
 
             write->set_key(enc_key);
+            if (keys_written != nullptr) {
+                keys_written->push_back(enc_key);
+            }
 
             if(update_primary_key){ //Also set Primary key we replace.
                 write = txn->add_write_set();
@@ -739,7 +750,7 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool &skip_query_interpretation){
+    uint64_t &target_group, bool &skip_query_interpretation, std::vector<std::string> *keys_written){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
@@ -806,6 +817,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         write->set_key(enc_key);
         write->set_value("d");
         write->mutable_rowupdates()->set_deletion(true);
+        if (keys_written != nullptr) {
+            keys_written->push_back(enc_key);
+        }
     
         std::vector<const std::string*> primary_key_column_values;
         int col_idx = 0;
@@ -860,7 +874,7 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
     read_statement = fmt::format("SELECT {0} FROM {1} WHERE {2};", std::move(col_statement), table_name, std::move(where_cond));
     
      //////// Create Write continuation:  
-    write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry](int status, query_result::QueryResult* result){
+    write_continuation = [this, wcb, table_name, col_registry_ptr = &col_registry, keys_written](int status, query_result::QueryResult* result){
 
          //Write Table Version itself. //Only for kv-store.
         // WriteMessage *table_ver = txn->add_write_set();
@@ -914,6 +928,9 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
             write->set_key(enc_key);
             write->set_value("d");
             write->mutable_rowupdates()->set_deletion(true);
+            if (keys_written != nullptr) {
+                keys_written->push_back(enc_key);
+            }
         }
 
         result->set_rows_affected(result->size()); 

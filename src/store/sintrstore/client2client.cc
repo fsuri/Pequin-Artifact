@@ -46,7 +46,7 @@ namespace sintrstore {
 Client2Client::Client2Client(transport::Configuration *config, transport::Configuration *clients_config, Transport *transport,
       uint64_t client_id, uint64_t nshards, uint64_t ngroups, int group, bool pingClients,
       Parameters params, KeyManager *keyManager, Verifier *verifier,
-      Partitioner *part, EndorsementClient *endorseClient, SQLTransformer *sql_interpreter,
+      Partitioner *part, EndorsementClient *endorseClient, SQLTransformer *sql_interpreter, std::string &table_registry,
       const std::vector<std::string> &keys) :
       PingInitiator(this, transport, clients_config->n),
       client_id(client_id), transport(transport), config(config), clients_config(clients_config), 
@@ -58,7 +58,7 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
   // separate verifier from main client instance
   clients_verifier = new BasicVerifier(transport);
   
-  valClient = new ValidationClient(transport, client_id, nshards, ngroups, part, &params.query_params); 
+  valClient = new ValidationClient(transport, client_id, clients_config->n, nshards, ngroups, part, table_registry, &this->params.query_params); 
   valParseClient = new ValidationParseClient(10000, keys); // TODO: pass arg for timeout length
   transport->Register(this, *clients_config, group, client_id); 
 
@@ -793,8 +793,10 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
     BytesToHex(curr_value, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
-  valClient->ProcessForwardReadResult(curr_client_id, curr_client_seq_num, fwdReadResult, 
-      dep, hasDep, addReadset, policyDep, hasPolicyDep);
+  valClient->ProcessForwardReadResult(
+    curr_client_id, curr_client_seq_num, fwdReadResult,
+    dep, hasDep, addReadset, policyDep, hasPolicyDep
+  );
 }
 
 void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg) {
@@ -880,6 +882,10 @@ void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPoi
     BytesToHex(curr_value, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
+  valClient->ProcessForwardPointQueryResult(
+    curr_client_id, curr_client_seq_num, fwdReadResult,
+    dep, hasDep, addReadset
+  );
 }
 
 void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryResultMessage &fwdQueryResultMsg) {
@@ -932,6 +938,7 @@ void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryRes
     BytesToHex(curr_query_result, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
+  valClient->ProcessForwardQueryResult(curr_client_id, curr_client_seq_num, fwdQueryResult, addReadset);
 }
 
 void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg) {

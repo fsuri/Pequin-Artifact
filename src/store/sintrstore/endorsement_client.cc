@@ -136,22 +136,36 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
     Debug("write set mismatch: received size %d, expected size %d", txn.write_set_size(), expectedTxn.write_set_size());
   }
   for (int i = 0; i < expectedTxn.write_set_size(); i++) {
-    if (!google::protobuf::util::MessageDifferencer::Equals(txn.write_set(i), expectedTxn.write_set(i))) {
+    if (txn.write_set(i).key() != expectedTxn.write_set(i).key()) {
       Debug(
-        "write set mismatch: received key %s, value %s, expected key %s, value %s",
+        "write set mismatch[%d]: received key %s, expected key %s",
+        i,
         BytesToHex(txn.write_set(i).key(), 16).c_str(),
+        BytesToHex(expectedTxn.write_set(i).key(), 16).c_str()
+      );
+    }
+    if (txn.write_set(i).value() != expectedTxn.write_set(i).value()) {
+      Debug(
+        "write set mismatch[%d]: received value %s, expected value %s",
+        i,
         BytesToHex(txn.write_set(i).value(), 16).c_str(),
-        BytesToHex(expectedTxn.write_set(i).key(), 16).c_str(),
         BytesToHex(expectedTxn.write_set(i).value(), 16).c_str()
       );
     }
+    // if (!google::protobuf::util::MessageDifferencer::Equals(txn.write_set(i), expectedTxn.write_set(i))) {
+    //   Debug(
+    //     "write set mismatch: received %s, expected %s",
+    //     txn.write_set(i).ShortDebugString().c_str(),
+    //     expectedTxn.write_set(i).ShortDebugString().c_str()
+    //   );
+    // }
   }
 
   if (txn.deps_size() != expectedTxn.deps_size()) {
     Debug("dependencies mismatch: received size %d, expected size %d", txn.deps_size(), expectedTxn.deps_size());
   }
   for (int i = 0; i < expectedTxn.deps_size(); i++) {
-    if (!google::protobuf::util::MessageDifferencer::Equals(txn.deps(i), expectedTxn.deps(i))) {
+    if (txn.deps(i).write().prepared_txn_digest() != expectedTxn.deps(i).write().prepared_txn_digest()) {
       Debug("dependencies mismatch: index %d", i);
     }
   }
@@ -164,6 +178,93 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
       expectedTxn.timestamp().timestamp(),
       expectedTxn.timestamp().id()
     );
+  }
+
+  // query stuff
+  if (txn.query_set_size() != expectedTxn.query_set_size()) {
+    Debug("query set mismatch: received size %d, expected size %d", txn.query_set_size(), expectedTxn.query_set_size());
+  }
+  for (int i = 0; i < expectedTxn.query_set_size(); i++) {
+    if (!google::protobuf::util::MessageDifferencer::Equals(txn.query_set(i), expectedTxn.query_set(i))) {
+      Debug(
+        "query set mismatch: received id %s, expected id %s",
+        BytesToHex(txn.query_set(i).query_id(), 16).c_str(),
+        BytesToHex(txn.query_set(i).query_id(), 16).c_str()
+      );
+      Debug(
+        "query set mismatch: received %s, expected %s",
+        txn.query_set(i).ShortDebugString().c_str(),
+        expectedTxn.query_set(i).ShortDebugString().c_str()
+      );
+    }
+  }
+
+  if (txn.read_predicates_size() != expectedTxn.read_predicates_size()) {
+    Debug("read predicates mismatch: received size %d, expected size %d", txn.read_predicates_size(), expectedTxn.read_predicates_size());
+  }
+  for (int i = 0; i < expectedTxn.read_predicates_size(); i++) {
+    if (!google::protobuf::util::MessageDifferencer::Equals(txn.read_predicates(i), expectedTxn.read_predicates(i))) {
+      Debug("read predicates mismatch: on index %d", i);
+    }
+  }
+
+  // protobuf map has undefined order, so must sort first
+  std::vector<std::pair<const std::string*, const TableWrite*>> tt;
+  for (const auto &[table, table_write]: txn.table_writes()) {
+    tt.emplace_back(&table, &table_write);
+  }
+  std::sort(tt.begin(), tt.end(), [](auto l, auto r){ return (*l.first) < (*r.first); });
+
+  std::vector<std::pair<const std::string*, const TableWrite*>> expectedTt;
+  for (const auto &[table, table_write]: expectedTxn.table_writes()) {
+    expectedTt.emplace_back(&table, &table_write);
+  }
+  std::sort(expectedTt.begin(), expectedTt.end(), [](auto l, auto r){ return (*l.first) < (*r.first); });
+
+  if (tt.size() != expectedTt.size()) {
+    Debug("table writes mismatch: received size %d, expected size %d", tt.size(), expectedTt.size());
+  }
+  for (int i = 0; i < expectedTt.size(); i++) {
+    if (*tt[i].first != *expectedTt[i].first) {
+      Debug(
+        "table writes mismatch: received table %s, expected table %s",
+        (*tt[i].first).c_str(),
+        (*expectedTt[i].first).c_str()
+      );
+    }
+    if (tt[i].second->rows_size() != expectedTt[i].second->rows_size()) {
+      Debug(
+        "table writes mismatch: received rows size %d, expected rows size %d",
+        tt[i].second->rows_size(),
+        expectedTt[i].second->rows_size()
+      );
+    }
+    for (int j = 0; j < expectedTt[i].second->rows_size(); j++) {
+      if (tt[i].second->rows(j).has_deletion() != expectedTt[i].second->rows(j).has_deletion()) {
+        Debug(
+          "table writes mismatch: received deletion %d, expected deletion %d",
+          tt[i].second->rows(j).has_deletion(),
+          expectedTt[i].second->rows(j).has_deletion()
+        );
+      }
+      if (tt[i].second->rows(j).column_values_size() != expectedTt[i].second->rows(j).column_values_size()) {
+        Debug(
+          "table writes mismatch: received column values size %d, expected column values size %d",
+          tt[i].second->rows(j).column_values_size(),
+          expectedTt[i].second->rows(j).column_values_size()
+        );
+      }
+      for (int k = 0; k < expectedTt[i].second->rows(j).column_values_size(); k++) {
+        if (tt[i].second->rows(j).column_values(k) != expectedTt[i].second->rows(j).column_values(k)) {
+          Debug(
+            "table writes mismatch[%d][%d][%d]: received column value %s, expected column value %s",
+            i, j, k,
+            tt[i].second->rows(j).column_values(k).c_str(),
+            expectedTt[i].second->rows(j).column_values(k).c_str()
+          );
+        }
+      }
+    }
   }
 }
 

@@ -58,7 +58,8 @@ typedef std::function<void(int, const std::string &)> validation_read_timeout_ca
 // on a different thread, client2client will call ProcessForwardReadResult upon receiving forwarded read results
 class ValidationClient : public ::Client {
  public:
-  ValidationClient(Transport *transport, uint64_t client_id, uint64_t nshards, uint64_t ngroups, Partitioner *part, const QueryParameters* query_params);
+  ValidationClient(Transport *transport, uint64_t client_id, uint64_t nclients, uint64_t nshards, uint64_t ngroups, Partitioner *part,
+    std::string &table_registry, const QueryParameters* query_params);
   virtual ~ValidationClient();
 
   // Begin a transaction.
@@ -139,7 +140,7 @@ class ValidationClient : public ::Client {
     // difference between query seq num and client seq num?
     PendingValidationQuery(const Timestamp &ts,
         const std::string &query_cmd, const query_callback &qcb, bool cache_result) :
-        vqcb(qcb), cache_result(cache_result), query_cmd(query_cmd) {
+        vqcb(qcb), cache_result(cache_result), query_cmd(query_cmd), timeout(nullptr) {
 
       query_gen_id = QueryGenId(query_cmd, ts);
 
@@ -206,9 +207,9 @@ class ValidationClient : public ::Client {
     // key to get callback function map
     std::map<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>> pendingForwardedReadCB;
     // key to point query callback map
-    std::map<std::string, std::function<std::string(AllValidationTxnState*)>> pendingForwardedPointQueryCB;
+    std::map<std::string, std::function<std::string(AllValidationTxnState*, const std::string &)>> pendingForwardedPointQueryCB;
     // query ID to query callback map
-    std::map<std::string, std::function<std::string(AllValidationTxnState*, PendingValidationQuery*, bool)>> pendingForwardedQueryCB;
+    std::map<std::string, std::function<sql::QueryResultProtoWrapper*(AllValidationTxnState*, const std::string &, bool)>> pendingForwardedQueryCB;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 

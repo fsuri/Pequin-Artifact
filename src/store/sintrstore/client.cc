@@ -100,7 +100,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   c2client = new Client2Client(
     config, clients_config, transport, client_id, nshards, ngroups, 0,
     pingReplicas, params, keyManager, verifier, part, endorseClient, &sql_interpreter,
-    keys
+    table_registry, keys
   );
 
   Debug("Sintr client [%lu] created! %lu %lu", client_id, nshards,
@@ -433,12 +433,13 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     std::function<void(int, query_result::QueryResult*)>  write_continuation;
     bool skip_query_interpretation = false;
     uint64_t point_target_group = 0;
+    std::vector<std::string> *keys_written = new std::vector<std::string>();
 
     //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
     pendingWriteStatements.push_back(write_statement);
 
     try{
-      sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
+      sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write, keys_written);
     }
     catch(...){
       Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
@@ -451,6 +452,21 @@ void Client::Write(std::string &write_statement, write_callback wcb,
   //  for(auto read: txn.read_set()){
   //     Debug("Read set already contains: %s", read.key().c_str());
   //   }
+
+  // call write_continuation and then update policy accordingly
+  auto write_cont_update_policy = [this, write_continuation, keys_written](int status, query_result::QueryResult *result){
+    write_continuation(status, result);
+
+    // update policy for current transaction
+    for (const auto &key : *keys_written) {
+      Debug("keys_written key %s", BytesToHex(key, 16).c_str());
+      const Policy *policy;
+      endorseClient->GetPolicyFromCache(key, policy);
+      c2client->HandlePolicyUpdate(policy);
+    }
+
+    delete keys_written;
+  };
 
     if(read_statement.empty()){ //Must be point operation (Insert/Delete)
       //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
@@ -470,12 +486,12 @@ void Client::Write(std::string &write_statement, write_callback wcb,
         bclient[point_target_group]->Begin(client_seq_num);
       }  
 
-      write_continuation(REPLY_OK, write_result);
+      write_cont_update_policy(REPLY_OK, write_result);
     }
     else{
       Debug("Issuing re-con Query");
       stats.Increment("total_recon_reads");
-      Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+      Query(read_statement, std::move(write_cont_update_policy), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
       //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
       //TODO: add a field for "is_point" (for Inserts we already know!)
     }
@@ -1126,7 +1142,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
 void Client::AddWriteSetIdx(proto::Transaction &txn){
   if(!params.query_params.sql_mode) return; //only for sql_mode. NOT correct behavior for non-sql mode (in that mode there are no TableWrites)
 
-  AddWriteSetIdx(txn);
+  ::sintrstore::AddWriteSetIdx(txn);
 }
 
 void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
