@@ -5,11 +5,13 @@ package rwsql.validation.proto;
 message RWSql {
   required uint32 num_ops = 1;
   required bool read_only = 2;
-  required bool fixed_range = 3;
-  required bool read_secondary_condition = 4;
-  required int32 value_size = 5; 
-  required uint64 value_categories = 6;
-  required uint64 max_random_size = 7;
-  required bool scan_as_point = 8;
-  required bool exec_point_scan_parallel = 9;
+  required bool read_secondary_condition = 3;
+  required int32 value_size = 4; 
+  required uint64 value_categories = 5;
+  required bool scan_as_point = 6;
+  required bool exec_point_scan_parallel = 7;
+  required int32 num_keys = 8;
+  repeated uint64 tables = 9;
+  repeated int32 starts = 10;
+  repeated int32 ends = 11;
 }

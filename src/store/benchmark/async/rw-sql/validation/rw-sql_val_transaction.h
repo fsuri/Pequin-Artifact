@@ -42,7 +42,7 @@ namespace rwsql {
 
 class RWSQLValTransaction : public ::ValidationTransaction, RWSQLBaseTransaction {
  public:
-  RWSQLValTransaction(QuerySelector *querySelector, std::mt19937 &rand, const validation::proto::RWSql &msg);
+  RWSQLValTransaction(std::mt19937 &rand, const validation::proto::RWSql &msg);
   virtual ~RWSQLValTransaction();
 
   transaction_status_t Validate(SyncClient &client);

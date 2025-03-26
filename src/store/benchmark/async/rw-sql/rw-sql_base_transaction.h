@@ -49,6 +49,10 @@ class RWSQLBaseTransaction {
  public:
   RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
+  RWSQLBaseTransaction(const size_t &numOps, bool readSecondaryCondition, int32_t numKeys, int32_t value_size, uint64_t value_categories,std::mt19937 &rand,
+    bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false) : numOps(numOps), readSecondaryCondition(readSecondaryCondition),
+    numKeys(numKeys), value_size(value_size), value_categories(value_categories), readOnly(readOnly), scanAsPoint(scanAsPoint),
+    execPointScanParallel(execPointScanParallel), rand(rand) {}; // initializing rand to avoid initialization error (rand is not used in validation txn)
   virtual ~RWSQLBaseTransaction();
 
   inline const std::vector<int> getKeyIdxs() const {
@@ -81,21 +85,23 @@ class RWSQLBaseTransaction {
   std::mt19937 &rand;
 
   const size_t numOps;
-  const int numKeys;
+  const int32_t numKeys;
   
   const bool readOnly;
   const bool readSecondaryCondition;
   const int32_t value_size; 
   const uint64_t value_categories;
+  // max_random_size not used in rw sql transaction
   uint64_t max_random_size;
   const bool scanAsPoint;
   const bool execPointScanParallel;
 
+  // not used in the rw sql transaction
   std::vector<int> keyIdxs;
 
   std::vector<uint64_t> tables;
-  std::vector<int> starts;
-  std::vector<int> ends;
+  std::vector<int32_t> starts;
+  std::vector<int32_t> ends;
   std::vector<std::pair<uint64_t, std::string>> secondary_values;
 
   inline int wrap(int x){
