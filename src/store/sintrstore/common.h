@@ -493,6 +493,15 @@ inline static bool compareReadSets (google::protobuf::RepeatedPtrField<ReadMessa
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin(), equalReadMsg); 
 }
 
+inline static bool sortRowUpdates(const RowUpdates *&lhs, const RowUpdates *&rhs) {
+    if (lhs->has_deletion() != rhs->has_deletion()) {
+        return lhs->has_deletion() < rhs->has_deletion();
+    }
+    std::string l_cols = std::accumulate(lhs->column_values().begin(), lhs->column_values().end(), std::string(""));
+    std::string r_cols = std::accumulate(rhs->column_values().begin(), rhs->column_values().end(), std::string(""));
+    return l_cols < r_cols; 
+}
+
 
 struct QueryReadSetMgr {
         QueryReadSetMgr(){}

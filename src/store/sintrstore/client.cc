@@ -459,7 +459,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 
     // update policy for current transaction
     for (const auto &key : *keys_written) {
-      Debug("keys_written key %s", BytesToHex(key, 16).c_str());
+      Debug("keys_written key %s", key.c_str());
       const Policy *policy;
       endorseClient->GetPolicyFromCache(key, policy);
       c2client->HandlePolicyUpdate(policy);
@@ -1240,6 +1240,11 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         //Panic("Client should never read same key twice");
         return;
       }
+    }
+    else if(params.query_params.sql_mode) {
+      // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
+      std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
+      AddWriteSetIdx(txn);
     }
 
     //TEST: Set TS only at the end.

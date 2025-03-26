@@ -451,7 +451,7 @@ void Client2Client::SendForwardPointQueryResultMessageHelper(const uint64_t clie
     "ForwardPointQueryResult: client id %lu, seq num %lu, key %s, result %s",
     client_id,
     client_seq_num,
-    BytesToHex(key, 16).c_str(),
+    key.c_str(),
     BytesToHex(value, 16).c_str()
   );
   for (const auto &i : beginValSent) {
@@ -878,7 +878,7 @@ void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPoi
     "HandleForwardPointQueryResult: from client id %lu, seq num %lu, key %s, value %s", 
     curr_client_id, 
     curr_client_seq_num,
-    BytesToHex(curr_key, 16).c_str(),
+    curr_key.c_str(),
     BytesToHex(curr_value, 16).c_str()
   );
   // tell valClient about this forwardedReadResult
@@ -1392,6 +1392,12 @@ void Client2Client::ValidationThreadFunction() {
           AddWriteSetIdx(*txn);
         }
       }
+      else if (params.query_params.sql_mode) {
+        // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
+        std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
+        AddWriteSetIdx(*txn);
+      }
+
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());
 
       // struct timespec ts_start;

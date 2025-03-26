@@ -119,11 +119,15 @@ void ValidationClient::Get(const std::string &key, get_callback gcb,
     return;
   }
   // check if forward read result already received (if callback exists)
-  if(a->second->pendingForwardedReadCB.find(key) != a->second->pendingForwardedReadCB.end()) {
+  auto itr = std::find_if(
+    a->second->pendingForwardedReadCB.begin(), a->second->pendingForwardedReadCB.end(),
+    [&key](const auto &key_cb) { return key_cb.first == key; }
+  );
+  if(itr != a->second->pendingForwardedReadCB.end()) {
     Debug("Adding queried get to readset for key %s", BytesToHex(key, 16).c_str());
-    std::pair<std::string, Timestamp> res = a->second->pendingForwardedReadCB[key](a->second);
+    std::pair<std::string, Timestamp> res = itr->second(a->second);
     vrcb(REPLY_OK, txn_client_id, txn_client_seq_num, key, res.first, res.second);
-    a->second->pendingForwardedReadCB.erase(key);
+    a->second->pendingForwardedReadCB.erase(itr);
     return;
   }
 
@@ -290,6 +294,16 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     Panic("cannot find client ID %lu in client accessor", txn_client_id);
   }
   SQLTransformer* sql_interpreter = ac->second;
+
+  // update involved groups for txn
+  std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
+  int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
+  std::vector<uint64_t> involved_groups = {target_group};
+  for(auto &i: involved_groups){
+    if (!IsTxnParticipant(txn, i)) {
+      txn->add_involved_groups(i);
+    }
+  }
   
   pendingQuery->is_point = skip_query_interpretation? false : sql_interpreter->InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, true); 
   ac.release();
@@ -307,12 +321,14 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       return;
     }
     // check if forward read result already received (if callback exists)
-    if(a->second->pendingForwardedPointQueryCB.find(encoded_key) != a->second->pendingForwardedPointQueryCB.end()) {
-      Debug("Adding point query to readset for key %s", BytesToHex(encoded_key, 16).c_str());
-      auto res = new sql::QueryResultProtoWrapper(
-        a->second->pendingForwardedPointQueryCB[encoded_key](a->second, pendingQuery->query_cmd)
-      );
-      a->second->pendingForwardedPointQueryCB.erase(encoded_key);
+    auto cb_itr = std::find_if(
+      a->second->pendingForwardedPointQueryCB.begin(), a->second->pendingForwardedPointQueryCB.end(),
+      [&encoded_key](const auto &key_cb) { return key_cb.first == encoded_key; }
+    );
+    if(cb_itr != a->second->pendingForwardedPointQueryCB.end()) {
+      Debug("Adding point query to readset for key %s", encoded_key.c_str());
+      auto res = new sql::QueryResultProtoWrapper(cb_itr->second(a->second, pendingQuery->query_cmd));
+      a->second->pendingForwardedPointQueryCB.erase(cb_itr);
       qcb(REPLY_OK, res);
       delete pendingQuery;
       pendingQuery = nullptr;
@@ -339,30 +355,30 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     // probably need to check txn read set & query_set of txn
     // to find if query result has already been forwarded
     // check if forward query result already received (if callback exists)
-    if(a->second->pendingForwardedQueryCB.find(pendingQuery->query_gen_id) != a->second->pendingForwardedQueryCB.end()) {
-      Debug("Adding query %s result to readset", pendingQuery->query_gen_id.c_str());
-      auto res = a->second->pendingForwardedQueryCB[pendingQuery->query_gen_id](a->second, pendingQuery->query_cmd, cache_result);
-      a->second->pendingForwardedQueryCB.erase(pendingQuery->query_gen_id);
+    auto cb_itr = std::find_if(
+      a->second->pendingForwardedQueryCB.begin(), a->second->pendingForwardedQueryCB.end(),
+      [&curr_query_gen_id = pendingQuery->query_gen_id](const auto &key_cb) { return key_cb.first == curr_query_gen_id; }
+    );
+    if(cb_itr != a->second->pendingForwardedQueryCB.end()) {
+      Debug("Adding query %s result to readset", BytesToHex(pendingQuery->query_gen_id, 16).c_str());
+      auto res = cb_itr->second(a->second, pendingQuery->query_cmd, cache_result);
+      a->second->pendingForwardedQueryCB.erase(cb_itr);
       qcb(REPLY_OK, res);
       delete pendingQuery;
       pendingQuery = nullptr;
       return;
     }
   }
+
+  Debug(
+    "Registering PendingValidationQuery for client id %lu, seq num %lu on key %s", 
+    txn_client_id, 
+    txn_client_seq_num, 
+    pendingQuery->key.c_str()
+  );
+
   a->second->pendingQueries.push_back(pendingQuery);
 
-  // Contact the appropriate shard to get the value.
-  std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
-
-  int target_group = (*part)(pendingQuery->table_name, query, nshards, -1, txnGroups, false) % ngroups;
-
-  std::vector<uint64_t> involved_groups = {target_group};
-  
-  for(auto &i: involved_groups){
-    if (!IsTxnParticipant(txn, i)) {
-      txn->add_involved_groups(i);
-    }
-  }
   pendingQuery->timeout = new Timeout(transport, 2000, [this, txn_id, pendingQuery]() {
     allValTxnStatesMap::accessor a;
     if (!allValTxnStates.find(a, txn_id)) {
@@ -381,7 +397,7 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
     }
 
     if (pendingQuery->is_point) {
-      Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->key, 16).c_str());
+      Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), pendingQuery->key.c_str());
     }
     else {
       Panic("Timeout triggered for txn_id %s key %s", txn_id.c_str(), BytesToHex(pendingQuery->query_gen_id, 16).c_str());
@@ -390,6 +406,7 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
   
   pendingQuery->timeout->Reset();
 }
+
 void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     uint32_t timeout) {
 
@@ -524,7 +541,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
-    a->second->pendingForwardedReadCB[curr_key] = editTxnStateCB;
+    a->second->pendingForwardedReadCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
 
@@ -540,7 +557,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
       txn_client_seq_num,
       BytesToHex(curr_key, 16).c_str()
     );
-    a->second->pendingForwardedReadCB[curr_key] = editTxnStateCB;
+    a->second->pendingForwardedReadCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
   // callback
@@ -571,7 +588,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     "ProcessForwardPointQueryResult from client id %lu, seq num %lu for key %s", 
     txn_client_id,
     txn_client_seq_num,
-    BytesToHex(curr_key, 16).c_str()
+    curr_key.c_str()
   );
 
   // lambda for editing txn state
@@ -597,13 +614,13 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
       "ProcessForwardPointQueryResult from client id %lu, seq num %lu, before txn_id in allValTxnStates registered for key %s", 
       txn_client_id,
       txn_client_seq_num,
-      BytesToHex(curr_key, 16).c_str()
+      curr_key.c_str()
     );
     proto::Transaction *txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
-    a->second->pendingForwardedPointQueryCB[curr_key] = editTxnStateCB;
+    a->second->pendingForwardedPointQueryCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
 
@@ -617,9 +634,9 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
       "ProcessForwardPointQueryResult from client id %lu, seq num %lu, before PendingValidationQuery registered for key %s", 
       txn_client_id,
       txn_client_seq_num,
-      BytesToHex(curr_key, 16).c_str()
+      curr_key.c_str()
     );
-    a->second->pendingForwardedPointQueryCB[curr_key] = editTxnStateCB;
+    a->second->pendingForwardedPointQueryCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
   // callback
@@ -684,7 +701,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
-    a->second->pendingForwardedQueryCB[curr_query_gen_id] = editTxnStateCB;
+    a->second->pendingForwardedQueryCB.push_back(std::make_pair(curr_query_gen_id, editTxnStateCB));
     return;
   }
 
@@ -700,7 +717,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       txn_client_seq_num,
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
-    a->second->pendingForwardedQueryCB[curr_query_gen_id] = editTxnStateCB;
+    a->second->pendingForwardedQueryCB.push_back(std::make_pair(curr_query_gen_id, editTxnStateCB));
     return;
   }
 

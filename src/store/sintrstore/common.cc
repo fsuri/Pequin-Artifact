@@ -2060,13 +2060,20 @@ std::string TransactionDigest(const proto::Transaction &txn, bool hashDigest) {
     for (const auto &[table, table_write]: tt) {
       blake3_hasher_update(&hasher, (unsigned char *) &(*table)[0], table->length());
 
-      for(const auto &row: table_write->rows()){
-          if(row.has_deletion()){
+      // need to sort rowUpdates first
+      std::vector<const RowUpdates*> rows;
+      for (int j = 0; j < table_write->rows_size(); j++) {
+        rows.push_back(&table_write->rows(j));
+      }
+      std::sort(rows.begin(), rows.end(), sortRowUpdates);
+
+      for(const auto &row: rows){
+          if(row->has_deletion()){
             // bool del = row.deletion();
             // blake3_hasher_update(&hasher, (unsigned char *) &del, sizeof(del));
-            blake3_hasher_update(&hasher, &(const unsigned char &) row.deletion(), sizeof(row.deletion()));
+            blake3_hasher_update(&hasher, &(const unsigned char &) row->deletion(), sizeof(row->deletion()));
           }
-          for(const auto &val: row.column_values()){
+          for(const auto &val: row->column_values()){
             blake3_hasher_update(&hasher, (unsigned char *) &val[0], val.length());
           }
       }

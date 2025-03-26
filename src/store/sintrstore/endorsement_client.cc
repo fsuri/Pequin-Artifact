@@ -239,28 +239,41 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
         expectedTt[i].second->rows_size()
       );
     }
+    // need to sort rowUpdates first
+    std::vector<const RowUpdates*> rows;
+    for (int j = 0; j < tt[i].second->rows_size(); j++) {
+      rows.push_back(&tt[i].second->rows(j));
+    }
+    std::sort(rows.begin(), rows.end(), sortRowUpdates);
+
+    std::vector<const RowUpdates*> expectedRows;
     for (int j = 0; j < expectedTt[i].second->rows_size(); j++) {
-      if (tt[i].second->rows(j).has_deletion() != expectedTt[i].second->rows(j).has_deletion()) {
+      expectedRows.push_back(&expectedTt[i].second->rows(j));
+    }
+    std::sort(expectedRows.begin(), expectedRows.end(), sortRowUpdates);
+
+    for (int j = 0; j < expectedRows.size(); j++) {
+      if (rows[j]->has_deletion() != expectedRows[j]->has_deletion()) {
         Debug(
           "table writes mismatch: received deletion %d, expected deletion %d",
-          tt[i].second->rows(j).has_deletion(),
-          expectedTt[i].second->rows(j).has_deletion()
+          rows[j]->has_deletion(),
+          expectedRows[j]->has_deletion()
         );
       }
-      if (tt[i].second->rows(j).column_values_size() != expectedTt[i].second->rows(j).column_values_size()) {
+      if (rows[j]->column_values_size() != expectedRows[j]->column_values_size()) {
         Debug(
           "table writes mismatch: received column values size %d, expected column values size %d",
-          tt[i].second->rows(j).column_values_size(),
-          expectedTt[i].second->rows(j).column_values_size()
+          rows[j]->column_values_size(),
+          expectedRows[j]->column_values_size()
         );
       }
-      for (int k = 0; k < expectedTt[i].second->rows(j).column_values_size(); k++) {
-        if (tt[i].second->rows(j).column_values(k) != expectedTt[i].second->rows(j).column_values(k)) {
+      for (int k = 0; k < expectedRows[j]->column_values_size(); k++) {
+        if (rows[j]->column_values(k) != expectedRows[j]->column_values(k)) {
           Debug(
             "table writes mismatch[%d][%d][%d]: received column value %s, expected column value %s",
             i, j, k,
-            tt[i].second->rows(j).column_values(k).c_str(),
-            expectedTt[i].second->rows(j).column_values(k).c_str()
+            rows[j]->column_values(k).c_str(),
+            expectedRows[j]->column_values(k).c_str()
           );
         }
       }

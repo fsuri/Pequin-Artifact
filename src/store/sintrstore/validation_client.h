@@ -204,12 +204,14 @@ class ValidationClient : public ::Client {
     std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
     std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
 
-    // key to get callback function map
-    std::map<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>> pendingForwardedReadCB;
-    // key to point query callback map
-    std::map<std::string, std::function<std::string(AllValidationTxnState*, const std::string &)>> pendingForwardedPointQueryCB;
-    // query ID to query callback map
-    std::map<std::string, std::function<sql::QueryResultProtoWrapper*(AllValidationTxnState*, const std::string &, bool)>> pendingForwardedQueryCB;
+    // need vectors rather than map so that if two pending forwarded read results are received for the same key
+    // we can process them in order with separate callbacks
+    // key to get callback function vector
+    std::vector<std::pair<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>>> pendingForwardedReadCB;
+    // key to point query callback vector
+    std::vector<std::pair<std::string, std::function<std::string(AllValidationTxnState*, const std::string &)>>> pendingForwardedPointQueryCB;
+    // query ID to query callback vector
+    std::vector<std::pair<std::string, std::function<sql::QueryResultProtoWrapper*(AllValidationTxnState*, const std::string &, bool)>>> pendingForwardedQueryCB;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
