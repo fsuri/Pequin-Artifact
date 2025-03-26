@@ -42,6 +42,8 @@ class SyncSQLDelivery : public SyncTPCCSQLTransaction, public SQLDelivery {
       std::mt19937 &gen);
   virtual ~SyncSQLDelivery();
   virtual transaction_status_t Execute(SyncClient &client);
+  virtual std::vector<TPCC_Table> HeuristicFunction() override;
+  virtual void SerializeTxnState(std::string &txnState) override;
 };
 
 class SyncSQLDeliverySequential : public SyncTPCCSQLTransaction, public SQLDeliverySequential {
@@ -50,6 +52,8 @@ class SyncSQLDeliverySequential : public SyncTPCCSQLTransaction, public SQLDeliv
       std::mt19937 &gen);
   virtual ~SyncSQLDeliverySequential();
   virtual transaction_status_t Execute(SyncClient &client);
+  virtual std::vector<TPCC_Table> HeuristicFunction() override;
+  virtual void SerializeTxnState(std::string &txnState) override;
 };
 
 } // namespace tpcc_sql

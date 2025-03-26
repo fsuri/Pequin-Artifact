@@ -29,6 +29,7 @@
 #define SYNC_TPCC_SQL_TRANSACTION_H
 
 #include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/sql/tpcc/tpcc_schema.h"
 
 namespace tpcc_sql {
 
@@ -36,6 +37,10 @@ class SyncTPCCSQLTransaction : public SyncTransaction {
  public:
   SyncTPCCSQLTransaction(uint32_t timeout);
   virtual ~SyncTPCCSQLTransaction();
+
+  virtual std::vector<TPCC_Table> HeuristicFunction() {
+    return {};
+  }
 };
 
 }
