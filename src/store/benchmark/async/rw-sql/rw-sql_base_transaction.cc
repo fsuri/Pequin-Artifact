@@ -39,7 +39,7 @@ static uint64_t periodic = 0;
 
 RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
     int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
-    : querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), 
+    : querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), rand(rand),
     value_size(value_size), value_categories(value_categories), scanAsPoint(scanAsPoint), execPointScanParallel(execPointScanParallel), numKeys((int) querySelector->numKeys){
 
   // not used in the code
@@ -115,7 +115,7 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
 RWSQLBaseTransaction::~RWSQLBaseTransaction() {
 }
 
-std::pair<uint64_t, std::string> RWSQLBaseTransaction::GenerateSecondaryCondition(std::mt19937 &rand){
+std::pair<uint64_t, std::string> RWSQLBaseTransaction::GenerateSecondaryCondition(){
   std::pair<uint64_t, std::string> cond_pair = {0, ""};
 
   if(!readSecondaryCondition) return cond_pair;

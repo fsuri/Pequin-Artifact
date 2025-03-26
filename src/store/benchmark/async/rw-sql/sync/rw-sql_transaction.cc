@@ -35,9 +35,6 @@ RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOp
                                      int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
     : SyncTransaction(10000), RWSQLBaseTransaction(querySelector, numOps, rand, readSecondaryCondition, fixedRange, 
       value_size, value_categories, readOnly, scanAsPoint, execPointScanParallel) {
-  for (int i = 0; i < numOps; ++i) {
-    secondary_values.push_back(GenerateSecondaryCondition(rand));
-  }
 }
 
 RWSQLTransaction::~RWSQLTransaction() {
@@ -52,6 +49,9 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
   liveOps = numOps;
   statements.clear();
+  for (int i = 0; i < numOps; ++i) {
+    secondary_values.push_back(GenerateSecondaryCondition());
+  }
 
   Debug("Start next Transaction");
 
