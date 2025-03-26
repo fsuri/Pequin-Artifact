@@ -32,10 +32,9 @@
 
 namespace rwsql {
 
-RWSQLValTransaction::RWSQLValTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
-                                     int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
-    : ValidationTransaction(10000), RWSQLBaseTransaction(querySelector, numOps, rand, readSecondaryCondition, fixedRange, 
-      value_size, value_categories, readOnly, scanAsPoint, execPointScanParallel) {
+RWSQLValTransaction::RWSQLValTransaction(QuerySelector *querySelector, std::mt19937 &rand, const validation::proto::RWSql &msg) 
+    : ValidationTransaction(10000), liveOps(msg.num_ops()), RWSQLBaseTransaction(querySelector, liveOps, rand, msg.read_secondary_condition(),
+    msg.fixed_range(), msg.value_size(), msg.value_categories(), msg.read_only(), msg.scan_as_point(), msg.exec_point_scan_parallel()) {
 }
 
 RWSQLValTransaction::~RWSQLValTransaction() {

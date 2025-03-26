@@ -40,10 +40,9 @@
 
 namespace rwsql {
 
-class RWSQLValTransaction : public ::ValidationTransaction, public RWSQLBaseTransaction {
+class RWSQLValTransaction : public ::ValidationTransaction, RWSQLBaseTransaction {
  public:
-  RWSQLValTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
-    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
+  RWSQLValTransaction(QuerySelector *querySelector, std::mt19937 &rand, const validation::proto::RWSql &msg);
   virtual ~RWSQLValTransaction();
 
   transaction_status_t Validate(SyncClient &client);
