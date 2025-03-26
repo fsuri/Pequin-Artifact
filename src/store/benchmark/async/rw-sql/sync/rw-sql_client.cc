@@ -24,7 +24,7 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/rw-sql/rw-sql_client.h"
+#include "store/benchmark/async/rw-sql/sync/rw-sql_client.h"
 
 #include <iostream>
 #include "rw-sql_client.h"

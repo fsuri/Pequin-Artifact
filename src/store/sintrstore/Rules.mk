@@ -35,7 +35,7 @@ LIB-sintr-store := $(o)server.o $(o)server_fallback.o $(o)servertools.o $(o)quer
 	$(LIB-query-engine) $(o)table_store_interface_peloton.o $(o)table_store_interface_toy.o \
 	$(LIB-sintr-policy)  #$(o)table_store_interface_old.o
 
-LIB-sintr-validation := $(LIB-store-frontend) $(LIB-validation-tpcc) $(LIB-rw-val) \
+LIB-sintr-validation := $(LIB-store-frontend) $(LIB-validation-tpcc) $(LIB-rw-val) $(LIB-rw-sql-val) \
 	$(o)validation_parse_client.o $(o)validation_client.o $(o)estimate_policy.o
 
 LIB-sintr-client := $(LIB-udptransport) \

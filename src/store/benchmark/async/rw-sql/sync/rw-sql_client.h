@@ -29,7 +29,7 @@
 
 #include "store/benchmark/async/async_transaction_bench_client.h"
 #include "store/benchmark/async/sync_transaction_bench_client.h"
-#include "store/benchmark/async/rw-sql/rw-sql_transaction.h"
+#include "store/benchmark/async/rw-sql/sync/rw-sql_transaction.h"
 #include "store/benchmark/async/common/key_selector.h"
 #include <unordered_map>
 

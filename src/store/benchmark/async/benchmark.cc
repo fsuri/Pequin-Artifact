@@ -61,7 +61,7 @@
 #include "store/benchmark/async/sql/tpcch/tpcch_client.h"
 #include "store/benchmark/async/smallbank/smallbank_client.h"
 #include "store/benchmark/async/toy/toy_client.h"
-#include "store/benchmark/async/rw-sql/rw-sql_client.h"
+#include "store/benchmark/async/rw-sql/sync/rw-sql_client.h"
 #include "store/benchmark/async/rw-sync/sync/rw-sync_client.h"
 
 // probs for tpcch 
