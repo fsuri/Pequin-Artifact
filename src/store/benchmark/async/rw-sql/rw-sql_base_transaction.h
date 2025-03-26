@@ -49,10 +49,10 @@ class RWSQLBaseTransaction {
  public:
   RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
-  RWSQLBaseTransaction(const size_t &numOps, bool readSecondaryCondition, int32_t numKeys, int32_t value_size, uint64_t value_categories,std::mt19937 &rand,
+  RWSQLBaseTransaction(const size_t &numOps, bool readSecondaryCondition, int32_t numKeys, int32_t value_size, uint64_t value_categories,
     bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false) : numOps(numOps), readSecondaryCondition(readSecondaryCondition),
     numKeys(numKeys), value_size(value_size), value_categories(value_categories), readOnly(readOnly), scanAsPoint(scanAsPoint),
-    execPointScanParallel(execPointScanParallel), rand(rand) {}; // initializing rand to avoid initialization error (rand is not used in validation txn)
+    execPointScanParallel(execPointScanParallel) {}; // initializing rand to avoid initialization error (rand is not used in validation txn)
   virtual ~RWSQLBaseTransaction();
 
   inline const std::vector<int> getKeyIdxs() const {
@@ -65,7 +65,7 @@ class RWSQLBaseTransaction {
   bool AdjustBounds(int &left, int &right, uint64_t table, size_t &liveOps, std::vector<std::pair<int, int>> &past_ranges);
   bool AdjustBounds_manual(int &left, int &right, uint64_t table, size_t &liveOps, std::vector<std::pair<int, int>> &past_ranges);
 
-  std::pair<uint64_t, std::string> GenerateSecondaryCondition();
+  std::pair<uint64_t, std::string> GenerateSecondaryCondition(std::mt19937 &rand);
   void ExecuteScanStatement(SyncClient &client, uint32_t timeout, const std::string &table_name, int &left_bound, int &right_bound,
     const std::pair<uint64_t, std::string> &cond_pair);
   void ExecutePointStatements(SyncClient &client, uint32_t timeout, const std::string &table_name, int &left_bound, int &right_bound,
@@ -81,8 +81,6 @@ class RWSQLBaseTransaction {
 
   KeySelector *keySelector;
   QuerySelector *querySelector;
-
-  std::mt19937 &rand;
 
   const size_t numOps;
   const int32_t numKeys;

@@ -2,6 +2,11 @@ syntax = "proto2";
 
 package rwsql.validation.proto;
 
+message SecondaryPair {
+  required uint64 first = 1;
+  required string second = 2;
+}
+
 message RWSql {
   required uint32 num_ops = 1;
   required bool read_only = 2;
@@ -14,4 +19,5 @@ message RWSql {
   repeated uint64 tables = 9;
   repeated int32 starts = 10;
   repeated int32 ends = 11;
+  repeated SecondaryPair secondary_values = 12;
 }

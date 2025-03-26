@@ -39,7 +39,7 @@ static uint64_t periodic = 0;
 
 RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
     int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
-    : rand(rand), querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), 
+    : querySelector(querySelector), numOps(numOps), readOnly(readOnly), readSecondaryCondition(readSecondaryCondition), 
     value_size(value_size), value_categories(value_categories), scanAsPoint(scanAsPoint), execPointScanParallel(execPointScanParallel), numKeys((int) querySelector->numKeys){
 
   // not used in the code
@@ -115,7 +115,7 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
 RWSQLBaseTransaction::~RWSQLBaseTransaction() {
 }
 
-std::pair<uint64_t, std::string> RWSQLBaseTransaction::GenerateSecondaryCondition(){
+std::pair<uint64_t, std::string> RWSQLBaseTransaction::GenerateSecondaryCondition(std::mt19937 &rand){
   std::pair<uint64_t, std::string> cond_pair = {0, ""};
 
   if(!readSecondaryCondition) return cond_pair;
@@ -280,6 +280,7 @@ void RWSQLBaseTransaction::ProcessPointResult(SyncClient &client, uint32_t timeo
 void RWSQLBaseTransaction::Update(SyncClient &client, uint32_t timeout, 
   const std::string &table_name, const int &key, std::unique_ptr<const query_result::QueryResult> &queryResult, uint64_t row){
  //Note: this function can be used both for Scan/Point consumption.
+ // Using std::rand() in this function is fine because the seed should be the same for both initiating client and validating client
   std::string statement;
 
   try{
