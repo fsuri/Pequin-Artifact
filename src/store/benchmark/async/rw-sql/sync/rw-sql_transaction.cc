@@ -55,7 +55,10 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
 
   Debug("Start next Transaction");
 
-  client.Begin(timeout);
+  std::string txnState;
+  SerializeTxnState(txnState);
+
+  client.Begin(timeout, txnState);
 
   //Execute #liveOps queries
   for(int i=0; i < liveOps; ++i){
@@ -106,6 +109,41 @@ transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
  
   //usleep(1000); //sleep to simulate sequential access.
   return commitRes;
+}
+
+void RWSQLTransaction::SerializeTxnState(std::string &txnState) {
+  TxnState currTxnState;
+  std::string txn_name;
+  txn_name.append(BENCHMARK_NAME);
+  txn_name.push_back('_');
+  currTxnState.set_txn_name(txn_name);
+
+  validation::proto::RWSql curr_txn;
+  curr_txn.set_num_ops(numOps);
+  curr_txn.set_read_only(readOnly);
+  curr_txn.set_read_secondary_condition(readSecondaryCondition);
+  curr_txn.set_value_size(value_size);
+  curr_txn.set_value_categories(value_categories);
+  curr_txn.set_scan_as_point(scanAsPoint);
+  curr_txn.set_exec_point_scan_parallel(execPointScanParallel);
+  curr_txn.set_num_keys(numKeys);
+  for (const uint64_t &i : tables) {
+    curr_txn.add_tables(i);
+  }
+  for (const int32_t &i : starts) {
+    curr_txn.add_starts(i);
+  }
+  for (const int32_t &i : ends) {
+    curr_txn.add_ends(i);
+  }
+  for(const std::pair<uint64_t, std::string> &i : secondary_values) {
+    validation::proto::SecondaryPair* pair = curr_txn.add_secondary_values();
+    pair->set_first(i.first);
+    pair->set_second(i.second);
+  }
+
+  curr_txn.SerializeToString(currTxnState.mutable_txn_data());
+  currTxnState.SerializeToString(&txnState);
 }
 
 } // namespace rw

@@ -33,6 +33,7 @@
 #include "store/common/frontend/sync_client.h"
 #include "store/common/frontend/sync_transaction.h"
 #include "store/benchmark/async/rw-sql/rw-sql_base_transaction.h"
+#include "store/benchmark/async/rw-sql/rw-sql-validation-proto.pb.h"
 
 #include <vector>
 
