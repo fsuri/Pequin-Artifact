@@ -27,8 +27,6 @@
 #include "store/benchmark/async/rw-sql/sync/rw-sql_transaction.h"
 #include <fmt/core.h>
 #include "store/common/query_result/query_result.h"
-#include "rw-sql_transaction.h"
-
 #include <functional>
 
 namespace rwsql {

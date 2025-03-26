@@ -24,28 +24,27 @@
  * SOFTWARE.
  *
  **********************************************************************/
-#include "store/benchmark/async/rw-sql/sync/rw-sql_transaction.h"
+#include "store/benchmark/async/rw-sql/validation/rw-sql_val_transaction.h"
 #include <fmt/core.h>
 #include "store/common/query_result/query_result.h"
-#include "rw-sql_transaction.h"
 
 #include <functional>
 
 namespace rwsql {
 
-RWSQLTransaction::RWSQLTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
+RWSQLValTransaction::RWSQLValTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                                      int32_t value_size, uint64_t value_categories, bool readOnly, bool scanAsPoint, bool execPointScanParallel) 
-    : SyncTransaction(10000), RWSQLBaseTransaction(querySelector, numOps, rand, readSecondaryCondition, fixedRange, 
+    : ValidationTransaction(10000), RWSQLBaseTransaction(querySelector, numOps, rand, readSecondaryCondition, fixedRange, 
       value_size, value_categories, readOnly, scanAsPoint, execPointScanParallel) {
 }
 
-RWSQLTransaction::~RWSQLTransaction() {
+RWSQLValTransaction::~RWSQLValTransaction() {
 }
 
 static int count = 1;
 
 //WARNING: CURRENTLY DO NOT SUPPORT READ YOUR OWN WRITES
-transaction_status_t RWSQLTransaction::Execute(SyncClient &client) {
+transaction_status_t RWSQLValTransaction::Validate(SyncClient &client) {
   //Note: Semantic CC cannot help this Transaction avoid aborts. Since it does value++, all TXs that touch value must be totally ordered. 
   
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries

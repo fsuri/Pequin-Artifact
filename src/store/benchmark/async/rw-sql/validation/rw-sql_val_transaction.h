@@ -29,9 +29,12 @@
 
 #include "store/common/frontend/client.h"
 #include "store/benchmark/async/common/key_selector.h"
-#include "store/common/frontend/sync_client.h"
-#include "store/benchmark/async/rw-sql/rw-sql_base_transaction.h"
 #include "store/common/frontend/validation_transaction.h"
+
+#include "store/benchmark/async/rw-sql/rw-sql-validation-proto.pb.h"
+#include "store/common/frontend/sync_client.h"
+#include "store/common/frontend/sync_transaction.h"
+#include "store/benchmark/async/rw-sql/rw-sql_base_transaction.h"
 
 #include <vector>
 
@@ -39,11 +42,11 @@ namespace rwsql {
 
 class RWSQLValTransaction : public ::ValidationTransaction, public RWSQLBaseTransaction {
  public:
-  RWSQLValTransaction(uint32_t timeout,
-    QuerySelector *querySelector, const validation::proto::RWSql &msg);
+  RWSQLValTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
+    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
   virtual ~RWSQLValTransaction();
 
-  transaction_status_t Execute(SyncClient &client);
+  transaction_status_t Validate(SyncClient &client);
   
  private:
   size_t liveOps;
