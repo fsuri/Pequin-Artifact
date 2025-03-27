@@ -8,7 +8,7 @@ message SecondaryPair {
 }
 
 message RWSql {
-  required uint32 num_ops = 1;
+  required uint64 num_ops = 1;
   required bool read_only = 2;
   required bool read_secondary_condition = 3;
   required int32 value_size = 4; 

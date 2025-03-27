@@ -33,7 +33,7 @@
 namespace rwsql {
 
 RWSQLValTransaction::RWSQLValTransaction(std::mt19937 &rand, const validation::proto::RWSql &msg) 
-    : ValidationTransaction(10000), liveOps(msg.num_ops()), RWSQLBaseTransaction(liveOps, msg.read_secondary_condition(),
+    : ValidationTransaction(10000), liveOps(msg.num_ops()), RWSQLBaseTransaction(msg.num_ops(), msg.read_secondary_condition(),
     msg.num_keys(), msg.value_size(), msg.value_categories(), rand, msg.read_only(), msg.scan_as_point(), msg.exec_point_scan_parallel())
 {
   for(const int32_t &i : msg.tables()) {
@@ -60,7 +60,6 @@ transaction_status_t RWSQLValTransaction::Validate(SyncClient &client) {
   //Note: Semantic CC cannot help this Transaction avoid aborts. Since it does value++, all TXs that touch value must be totally ordered. 
   
   //reset Tx exec state. When avoiding redundant queries we may split into new queries. liveOps keeps track of total number of attempted queries
-  liveOps = numOps;
   statements.clear();
 
   Debug("Start next Transaction");
@@ -76,8 +75,8 @@ transaction_status_t RWSQLValTransaction::Validate(SyncClient &client) {
     string table_name = "t" + std::to_string(tables[i]);
     int left_bound = starts[i]; 
     int right_bound = ends[i];
-    UW_ASSERT(left_bound < querySelector->numKeys && right_bound < querySelector->numKeys);
-    UW_ASSERT(left_bound >= 0 && left_bound < querySelector->numKeys && right_bound >= 0 && right_bound < querySelector->numKeys);
+    UW_ASSERT(left_bound < numKeys && right_bound < numKeys);
+    UW_ASSERT(left_bound >= 0 && left_bound < numKeys && right_bound >= 0 && right_bound < numKeys);
 
     auto &secondary_val = secondary_values[i];
 

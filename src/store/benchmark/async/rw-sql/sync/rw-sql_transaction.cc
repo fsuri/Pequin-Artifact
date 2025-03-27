@@ -119,7 +119,7 @@ void RWSQLTransaction::SerializeTxnState(std::string &txnState) {
   currTxnState.set_txn_name(txn_name);
 
   validation::proto::RWSql curr_txn;
-  curr_txn.set_num_ops(numOps);
+  curr_txn.set_num_ops(static_cast<uint64_t>(numOps));
   curr_txn.set_read_only(readOnly);
   curr_txn.set_read_secondary_condition(readSecondaryCondition);
   curr_txn.set_value_size(value_size);
