@@ -165,7 +165,7 @@ ValidationTransaction *ValidationParseClient::Parse(const TxnState& txnState) {
   } else if (txn_bench == ::rwsql::BENCHMARK_NAME) {
     ::rwsql::validation::proto::RWSql valTxnData;
     UW_ASSERT(valTxnData.ParseFromString(txnState.txn_data()));
-    return new ::rwsql::RWSQLValTransaction(rand, valTxnData);
+    return new ::rwsql::RWSQLValTransaction(timeout, rand, valTxnData);
   }
   else {
     Panic("Received unexpected txn benchmark: %s", txn_bench.c_str());

@@ -32,8 +32,8 @@
 
 namespace rwsql {
 
-RWSQLValTransaction::RWSQLValTransaction(std::mt19937 &rand, const validation::proto::RWSql &msg) 
-    : ValidationTransaction(10000), liveOps(msg.num_ops()), RWSQLBaseTransaction(msg.num_ops(), msg.read_secondary_condition(),
+RWSQLValTransaction::RWSQLValTransaction(uint32_t timeout, std::mt19937 &rand, const validation::proto::RWSql &msg) 
+    : ValidationTransaction(timeout), liveOps(msg.num_ops()), RWSQLBaseTransaction(msg.num_ops(), msg.read_secondary_condition(),
     msg.num_keys(), msg.value_size(), msg.value_categories(), rand, msg.read_only(), msg.scan_as_point(), msg.exec_point_scan_parallel())
 {
   for(const int32_t &i : msg.tables()) {
