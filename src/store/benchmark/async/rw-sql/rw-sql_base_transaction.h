@@ -49,7 +49,7 @@ class RWSQLBaseTransaction {
  public:
   RWSQLBaseTransaction(QuerySelector *querySelector, uint64_t &numOps, std::mt19937 &rand, bool readSecondaryCondition, bool fixedRange, 
                    int32_t value_size, uint64_t value_categories, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false);
-  RWSQLBaseTransaction(const size_t &numOps, bool readSecondaryCondition, int32_t numKeys, int32_t value_size, uint64_t value_categories,
+  RWSQLBaseTransaction(const uint64_t &numOps, bool readSecondaryCondition, int32_t numKeys, int32_t value_size, uint64_t value_categories,
     std::mt19937 &rand, bool readOnly=false, bool scanAsPoint=false, bool execPointScanParallel=false) : numOps(numOps),
     readSecondaryCondition(readSecondaryCondition), numKeys(numKeys), value_size(value_size), value_categories(value_categories),
     readOnly(readOnly), scanAsPoint(scanAsPoint),
