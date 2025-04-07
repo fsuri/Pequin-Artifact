@@ -433,7 +433,7 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   if (!a->second->pendingForwardedPointQuery.empty() || !a->second->pendingForwardedQuery.empty() ||
       !a->second->pendingForwardedRead.empty()) {
     // TODO: remove extra readset additions from transaction and send to initiating client
-    Panic("Transaction includes more values in readset than necessary, extra forwarded point queries: %d forwarded queries: %d forwarded reads: %d",
+    Panic("Transaction includes more values in readset than necessary, extra forwarded point queries: %d, forwarded queries: %d, forwarded reads: %d",
       a->second->pendingForwardedPointQuery.size(),
       a->second->pendingForwardedQuery.size(),
       a->second->pendingForwardedRead.size());
@@ -558,7 +558,13 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second);
-    a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    if(a->second->readValues.find(curr_key) == a->second->readValues.end()) {
+      a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    } else if(a->second->readValues[curr_key] != curr_value){
+      // if the cached values isn't the same as the current value
+      Panic("Cached value %s and current value %s are not the same for key %s",
+        a->second->readValues[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
+    }
     return;
   }
 
@@ -575,7 +581,14 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
       BytesToHex(curr_key, 16).c_str()
     );
     editTxnStateCB(a->second);
-    a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    // if not in the cache then add it to pending forwarded read
+    if(a->second->readValues.find(curr_key) == a->second->readValues.end()) {
+      a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    } else if(a->second->readValues[curr_key] != curr_value){
+      // if the cached values isn't the same as the current value
+      Panic("Cached value %s and current value %s are not the same for key %s",
+        a->second->readValues[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
+    }
     return;
   }
   // callback
@@ -638,7 +651,13 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
+    if(a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
+      a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
+    } else if(a->second->point_read_cache[curr_key] != curr_value){
+      // if the cached values isn't the same as the current value
+      Panic("Cached value %s and current value %s are not the same for key %s",
+        a->second->point_read_cache[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
+    }
     return;
   }
 
@@ -655,7 +674,13 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
       curr_key.c_str()
     );
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
+    if(a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
+      a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
+    } else if(a->second->point_read_cache[curr_key] != curr_value){
+      // if the cached values isn't the same as the current value
+      Panic("Cached value %s and current value %s are not the same for key %s",
+        a->second->point_read_cache[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
+    }
     return;
   }
   // callback
@@ -719,7 +744,13 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, "", nullptr, false);
-    a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    if(a->second->scan_read_cache.find(curr_query_gen_id) == a->second->scan_read_cache.end()) {
+      a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    } else if(a->second->scan_read_cache[curr_query_gen_id] != curr_query_result){
+      // if the cached values isn't the same as the current value
+      Panic("Cached results %s and current value %s are not the same for query gen ID %s",
+        a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
+    }
     return;
   }
 
@@ -736,7 +767,13 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
     editTxnStateCB(a->second, "", nullptr, false);
-    a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    if(a->second->scan_read_cache.find(curr_query_gen_id) == a->second->scan_read_cache.end()) {
+      a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    } else if(a->second->scan_read_cache[curr_query_gen_id] != curr_query_result){
+      // if the cached values isn't the same as the current value
+      Panic("Cached results %s and current value %s are not the same for query gen ID %s",
+        a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
+    }
     return;
   }
 
