@@ -289,6 +289,8 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       client_id, txn_client_seq_num, txn->timestamp().timestamp(), txn->timestamp().id(), query.c_str());
 
   PendingValidationQuery *pendingQuery = new PendingValidationQuery(Timestamp(txn->timestamp()), query, qcb, cache_result);
+  // map query gen ID to query command
+  a->second->queryIDToCmd[pendingQuery->query_gen_id] = query;
   ClientToSQLInterpreterMap::accessor ac;
   if (!clientIDtoSQL.find(ac, txn_client_id)) {
     Panic("cannot find client ID %lu in client accessor", txn_client_id);
@@ -744,9 +746,10 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, "", nullptr, false);
-    if(a->second->scan_read_cache.find(curr_query_gen_id) == a->second->scan_read_cache.end()) {
+    if(a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
+      a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
-    } else if(a->second->scan_read_cache[curr_query_gen_id] != curr_query_result){
+    } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
       // if the cached values isn't the same as the current value
       Panic("Cached results %s and current value %s are not the same for query gen ID %s",
         a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
@@ -767,9 +770,10 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
     editTxnStateCB(a->second, "", nullptr, false);
-    if(a->second->scan_read_cache.find(curr_query_gen_id) == a->second->scan_read_cache.end()) {
+    if(a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
+      a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
-    } else if(a->second->scan_read_cache[curr_query_gen_id] != curr_query_result){
+    } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
       // if the cached values isn't the same as the current value
       Panic("Cached results %s and current value %s are not the same for query gen ID %s",
         a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
