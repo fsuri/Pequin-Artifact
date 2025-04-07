@@ -485,10 +485,10 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
   
   ClientToSQLInterpreterMap::accessor ac;
   const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
-  if(isNewClientID) {
+  if(isNewClientID && query_params->sql_mode) {
     // constructor should cover all clients
     Panic("Client %lu does not have a SQL interpreter", txn_client_id);
-  } else {
+  } else if(query_params->sql_mode) {
     ac->second->NewTx(txn);
   }
 }
