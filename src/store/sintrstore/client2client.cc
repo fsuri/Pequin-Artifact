@@ -498,7 +498,7 @@ void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_se
   proto::ForwardQueryResult fwdQueryResult;
   fwdQueryResult.set_query_gen_id(query_gen_id);
   fwdQueryResult.set_query_result(query_result);
-  if(query_res_meta.has_query_id() && query_res_meta.has_retry_version()) {
+  if(query_res_meta.IsInitialized()) {
     *fwdQueryResult.mutable_query_res_meta() = query_res_meta;
   }
   
