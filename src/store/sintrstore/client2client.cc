@@ -498,7 +498,9 @@ void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_se
   proto::ForwardQueryResult fwdQueryResult;
   fwdQueryResult.set_query_gen_id(query_gen_id);
   fwdQueryResult.set_query_result(query_result);
-  *fwdQueryResult.mutable_query_res_meta() = query_res_meta;
+  if(query_res_meta.has_query_id() && query_res_meta.has_retry_version()) {
+    *fwdQueryResult.mutable_query_res_meta() = query_res_meta;
+  }
   
   if (params.sintr_params.signFwdReadResults) {
     CreateHMACedMessage(fwdQueryResult, *fwdQueryResultMsgToSend->mutable_signed_fwd_query_result());
@@ -987,7 +989,8 @@ void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTx
     valTxnDigest = finishValTxnMsg.validation_txn_digest();
   }
 
-  Debug("HandleFinishValidateTxnMessage: txn digest %s", BytesToHex(valTxnDigest, 16).c_str());
+  Debug("HandleFinishValidateTxnMessage: txn digest %s for client %lu from client %lu with seq number %lu",
+    BytesToHex(valTxnDigest, 16).c_str(), client_id, peer_client_id,val_txn_seq_num);
 
   if (params.sintr_params.debugEndorseCheck) {
     endorseClient->DebugCheck(finishValTxnMsg.val_txn());

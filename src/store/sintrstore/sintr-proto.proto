@@ -518,7 +518,7 @@ message ForwardPointQueryResultMessage {
 message ForwardQueryResult {
   required bytes query_gen_id = 1;
   required bytes query_result = 2;
-  required QueryResultMetaData query_res_meta = 3;
+  optional QueryResultMetaData query_res_meta = 3;
 }
 
 message ForwardQueryResultMessage {
