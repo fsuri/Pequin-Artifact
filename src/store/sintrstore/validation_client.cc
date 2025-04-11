@@ -544,7 +544,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second);
-    if(a->second->readValues.find(curr_key) == a->second->readValues.end()) {
+    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end()) {
       a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
     } else if(a->second->readValues[curr_key] != curr_value){
       // if the cached values isn't the same as the current value
@@ -568,7 +568,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     );
     editTxnStateCB(a->second);
     // if not in the cache then add it to pending forwarded read
-    if(a->second->readValues.find(curr_key) == a->second->readValues.end()) {
+    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end()) {
       a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
     } else if(a->second->readValues[curr_key] != curr_value){
       // if the cached values isn't the same as the current value
@@ -637,7 +637,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    if(a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
+    if(addReadset && a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
       a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
     } else if(a->second->point_read_cache[curr_key] != curr_value){
       // if the cached values isn't the same as the current value
@@ -660,7 +660,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
       curr_key.c_str()
     );
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    if(a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
+    if(addReadset && a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
       a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
     } else if(a->second->point_read_cache[curr_key] != curr_value){
       // if the cached values isn't the same as the current value
@@ -730,7 +730,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
     editTxnStateCB(a->second, "", nullptr, false);
-    if(a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
+    if(addReadset && a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
       a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
     } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
@@ -754,7 +754,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
     editTxnStateCB(a->second, "", nullptr, false);
-    if(a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
+    if(addReadset && a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
       a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
     } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
