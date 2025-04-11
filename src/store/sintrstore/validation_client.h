@@ -250,14 +250,14 @@ class ValidationClient : public ::Client {
   std::string table_registry;
 
   // map from thread id to (txn_client_id, txn_client_seq_num) tracks what each thread is doing
+  // TODO: Change to a regular map instead of a concurrent hash map because the keys are thread IDs
   typedef tbb::concurrent_hash_map<std::thread::id, std::pair<uint64_t, uint64_t>> threadValTxnIdsMap;
   threadValTxnIdsMap threadValTxnIds;
   // map from (txn_client_id, txn_client_seq_num) to all relevant validation txn state
   typedef tbb::concurrent_hash_map<std::string, AllValidationTxnState *> allValTxnStatesMap;
   allValTxnStatesMap allValTxnStates;
   // map from thread id to (SQL Transformer) that stores a sql interpreter for each validation thread
-  typedef tbb::concurrent_hash_map<std::thread::id, SQLTransformer*> threadValSQLMap;
-  threadValSQLMap threadValtoSQL;
+  std::map<std::thread::id, SQLTransformer*> threadValtoSQL;
 };
 
 } // namespace sintrstore
