@@ -11,13 +11,14 @@ for ((i=1; i<=N; i++)); do
     # check client output
     for file in $OUTPUT_DIR/client-*.out; do
         if [ -f "$file" ]; then
-            if grep -q LATENCY $file; then
+            if grep -q LATENCY $file && ! grep -q mismatch $file; then
                 echo "$file: OK"
             else
                 exit 1
             fi
         fi
     done
+    sleep 0.1
 done
 
 echo "Done"
