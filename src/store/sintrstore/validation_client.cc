@@ -434,6 +434,7 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
   if (!a->second->pendingForwardedPointQuery.empty() || !a->second->pendingForwardedQuery.empty() ||
       !a->second->pendingForwardedRead.empty()) {
     // TODO: remove extra readset additions from transaction and send to initiating client
+    // May also trigger if validating client receives duplicated messages due to asynchrony
     Panic("Transaction includes more values in readset than necessary, extra forwarded point queries: %d, forwarded queries: %d, forwarded reads: %d",
       a->second->pendingForwardedPointQuery.size(),
       a->second->pendingForwardedQuery.size(),
