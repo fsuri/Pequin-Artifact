@@ -92,6 +92,9 @@ class ValidationClient : public ::Client {
   // Set the current transaction id (client that initiated and seq num)
   // associate transaction id with current thread id
   void SetThreadValTxnId(uint64_t txn_client_id, uint64_t txn_client_seq_num);
+  
+  // Associate the current validation thread id with an SQL Interpreter
+  void SetThreadValSQLInterpreter();
 
   // Set the timestamp for the txn
   // timestamp was chosen by initiating client
@@ -176,13 +179,6 @@ class ValidationClient : public ::Client {
     AllValidationTxnState() {}
     AllValidationTxnState(uint64_t txn_client_id, uint64_t txn_client_seq_num, proto::Transaction *txn) : 
       txn_client_id(txn_client_id), txn_client_seq_num(txn_client_seq_num), txn(txn) {}
-    AllValidationTxnState(uint64_t txn_client_id, uint64_t txn_client_seq_num, proto::Transaction *txn,
-      const QueryParameters* query_params, std::string table_registry, Partitioner *part, uint64_t nshards, uint64_t ngroups) : 
-      txn_client_id(txn_client_id), txn_client_seq_num(txn_client_seq_num), txn(txn) {
-        sql_interpreter = new SQLTransformer(query_params);
-        sql_interpreter->RegisterTables(table_registry);
-        sql_interpreter->RegisterPartitioner(part, nshards, ngroups, -1);  
-    }
     ~AllValidationTxnState() {
       // do not delete txn, since it is returned from GetCompletedTxn
       // delete all pendingGets
@@ -190,10 +186,6 @@ class ValidationClient : public ::Client {
         delete pendingGet;
       }
       ClearTxnQueries();
-      if(sql_interpreter != nullptr) {
-        delete sql_interpreter;
-        sql_interpreter = nullptr;  
-      }
     }
     void ClearTxnQueries(){
       for(auto &pendingQuery: pendingQueries){
@@ -214,8 +206,6 @@ class ValidationClient : public ::Client {
     std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
     std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
     std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
-
-    SQLTransformer* sql_interpreter = nullptr;
 
     // need vectors rather than map so that if two pending forwarded read results are received for the same key
     // we can process them in order with separate callbacks
@@ -265,6 +255,9 @@ class ValidationClient : public ::Client {
   // map from (txn_client_id, txn_client_seq_num) to all relevant validation txn state
   typedef tbb::concurrent_hash_map<std::string, AllValidationTxnState *> allValTxnStatesMap;
   allValTxnStatesMap allValTxnStates;
+  // map from thread id to (SQL Transformer) that stores a sql interpreter for each validation thread
+  typedef tbb::concurrent_hash_map<std::thread::id, SQLTransformer*> threadValSQLMap;
+  threadValSQLMap threadValtoSQL;
 };
 
 } // namespace sintrstore

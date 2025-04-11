@@ -40,7 +40,11 @@ ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uin
     table_registry(table_registry) {}
 
 ValidationClient::~ValidationClient() {
-  // TODO: Garbage collection/free memory for allValTxnStates
+  for (auto it = threadValtoSQL.begin(); it != threadValtoSQL.end(); ++it) {
+    delete it->second;
+  }
+  threadValtoSQL.clear();
+
   for (auto it = allValTxnStates.begin(); it != allValTxnStates.end(); ++it) {
     delete it->second;
   }
@@ -207,9 +211,16 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
     // Write should always happen after SetTxnTimestamp, which inserts at txn_id
     Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
   }
-    
+  
   proto::Transaction *txn = a->second->txn;
-  SQLTransformer *sql_interpreter = a->second->sql_interpreter;
+
+  threadValSQLMap::accessor at;
+  if (!threadValtoSQL.find(at, std::this_thread::get_id())) {
+     std::ostringstream oss;
+     oss << std::this_thread::get_id() << std::endl;
+     Panic("cannot find thread ID %s in thread ID to SQL accessor", oss.str().c_str());
+  }
+  SQLTransformer *sql_interpreter = at->second;
 
   a->second->pendingWriteStatements.push_back(write_statement);
 
@@ -277,7 +288,14 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       client_id, txn_client_seq_num, txn->timestamp().timestamp(), txn->timestamp().id(), query.c_str());
 
   PendingValidationQuery *pendingQuery = new PendingValidationQuery(Timestamp(txn->timestamp()), query, qcb, cache_result);
-  SQLTransformer* sql_interpreter = a->second->sql_interpreter;
+
+  threadValSQLMap::accessor at;
+  if (!threadValtoSQL.find(at, std::this_thread::get_id())) {
+     std::ostringstream oss;
+     oss << std::this_thread::get_id() << std::endl;
+     Panic("cannot find thread ID %s in thread ID to SQL accessor in query", oss.str().c_str());
+  }
+  SQLTransformer *sql_interpreter = at->second;
 
   // update involved groups for txn
   std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
@@ -455,6 +473,16 @@ void ValidationClient::SetThreadValTxnId(uint64_t txn_client_id, uint64_t txn_cl
   a->second = std::make_pair(txn_client_id, txn_client_seq_num);
 }
 
+void ValidationClient::SetThreadValSQLInterpreter() {
+  threadValSQLMap::accessor a;
+  const bool isNewThread = threadValtoSQL.insert(a, std::this_thread::get_id());
+  if(isNewThread) {
+    a->second = new SQLTransformer(query_params);
+    a->second->RegisterTables(table_registry);
+    a->second->RegisterPartitioner(part, nshards, ngroups, -1);
+  }
+}
+
 void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_client_seq_num, const Timestamp &ts) {
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
   allValTxnStatesMap::accessor a;
@@ -464,7 +492,7 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
     txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
   } 
   else {
     txn = a->second->txn;
@@ -472,8 +500,14 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
   ts.serialize(txn->mutable_timestamp());
   
   if(query_params->sql_mode) {
+    threadValSQLMap::accessor at;
+    if (!threadValtoSQL.find(at, std::this_thread::get_id())) {
+      std::ostringstream oss;
+      oss << std::this_thread::get_id() << std::endl;
+      Panic("cannot find thread ID %s in thread ID to SQL accessor", oss.str().c_str());
+    }
     Debug("CREATING NEW TX for client %lu seq num %lu", txn_client_id, txn_client_seq_num);
-    a->second->sql_interpreter->NewTx(txn);
+    at->second->NewTx(txn);
   }
 }
 
@@ -603,7 +637,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     proto::Transaction *txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedPointQueryCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
@@ -684,7 +718,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     proto::Transaction *txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     a->second->pendingForwardedQueryCB.push_back(std::make_pair(curr_query_gen_id, editTxnStateCB));
     return;
   }
