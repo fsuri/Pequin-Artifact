@@ -101,6 +101,15 @@ void ValidationClient::Get(const std::string &key, get_callback gcb,
       txn_client_seq_num,
       BytesToHex(key, 16).c_str()
     );
+    // remove pending Forwarded read from vector
+    auto itr = std::find_if(
+      a->second->pendingForwardedRead.begin(), a->second->pendingForwardedRead.end(),
+      [&key](const auto &key_value) { return key_value.first == key; }
+    );
+    if(itr != a->second->pendingForwardedRead.end()) {
+      Debug("removing pending forwarded read for key %s", BytesToHex(key, 16).c_str());
+      a->second->pendingForwardedRead.erase(itr);
+    }
     return;
   }
   // check if forward read result already received (if callback exists)
@@ -575,7 +584,9 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second);
-    a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    if(addReadset) {
+      a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
+    }
     return;
   }
 
@@ -593,8 +604,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     );
     editTxnStateCB(a->second);
     // if not in the cache then add it to pending forwarded read
-    if(addReadset && (a->second->readValues.find(curr_key) == a->second->readValues.end()
-      || a->second->readValues[curr_key] == "")) {
+    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end()) {
       a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
     } else if(addReadset && a->second->readValues[curr_key] != curr_value
       && a->second->readValues[curr_key] != "") {
@@ -754,7 +764,9 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, "", nullptr, false);
-    a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    if(addReadset) {
+      a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
+    }
     return;
   }
 
