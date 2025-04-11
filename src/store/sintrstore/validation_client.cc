@@ -574,13 +574,7 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second);
-    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end()) {
-      a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
-    } else if(a->second->readValues[curr_key] != curr_value){
-      // if the cached values isn't the same as the current value
-      Panic("Cached value %s and current value %s are not the same for key %s",
-        a->second->readValues[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
-    }
+    a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
     return;
   }
 
@@ -598,10 +592,12 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
     );
     editTxnStateCB(a->second);
     // if not in the cache then add it to pending forwarded read
-    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end()) {
+    if(addReadset && (a->second->readValues.find(curr_key) == a->second->readValues.end()
+      || a->second->readValues[curr_key] == "")) {
       a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
-    } else if(a->second->readValues[curr_key] != curr_value){
-      // if the cached values isn't the same as the current value
+    } else if(addReadset && a->second->readValues[curr_key] != curr_value
+      && a->second->readValues[curr_key] != "") {
+      // if the cached values isn't the same as the current value and cached value is non empty
       Panic("Cached value %s and current value %s are not the same for key %s",
         a->second->readValues[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
     }
@@ -667,13 +663,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    if(addReadset && a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
-      a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
-    } else if(a->second->point_read_cache[curr_key] != curr_value){
-      // if the cached values isn't the same as the current value
-      Panic("Cached value %s and current value %s are not the same for key %s",
-        a->second->point_read_cache[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
-    }
+    a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
     return;
   }
 
@@ -690,11 +680,14 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
       curr_key.c_str()
     );
     editTxnStateCB(a->second, ""); // use empty string for query, maybe cache result when query is executed
-    if(addReadset && a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()) {
+    // for some reason using addReadset for query point reads causes some queries to stall indefinitely
+    if(a->second->point_read_cache.find(curr_key) == a->second->point_read_cache.end()
+      || a->second->point_read_cache[curr_key] == "") {
       a->second->pendingForwardedPointQuery.push_back(std::make_pair(curr_key, curr_value));
-    } else if(a->second->point_read_cache[curr_key] != curr_value){
-      // if the cached values isn't the same as the current value
-      Panic("Cached value %s and current value %s are not the same for key %s",
+    } else if(addReadset && a->second->point_read_cache[curr_key] != curr_value &&
+      a->second->point_read_cache[curr_key] != "") {
+      // if the cached values isn't the same as the current value and cached value is non empty
+      Panic("Cached value %s and current value %s are not the same for point query key %s",
         a->second->point_read_cache[curr_key].c_str(), curr_value.c_str(), curr_key.c_str());
     }
     return;
@@ -760,14 +753,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     txn->set_client_seq_num(txn_client_seq_num);
     a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
     editTxnStateCB(a->second, "", nullptr, false);
-    if(addReadset && a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
-      a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
-      a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
-    } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
-      // if the cached values isn't the same as the current value
-      Panic("Cached results %s and current value %s are not the same for query gen ID %s",
-        a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
-    }
+    a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
     return;
   }
 
@@ -784,11 +770,12 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
     editTxnStateCB(a->second, "", nullptr, false);
-    if(addReadset && a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
-      a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()) {
+    if(addReadset && (a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
+      (a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()))) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
-    } else if(a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result){
-      // if the cached values isn't the same as the current value
+    } else if(addReadset && a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result
+        && a->second->scan_read_cache[curr_query_gen_id] != ""){
+      // if the cached values isn't the same as the current value and cached value is non empty
       Panic("Cached results %s and current value %s are not the same for query gen ID %s",
         a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
     }
