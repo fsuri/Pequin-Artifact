@@ -36,30 +36,11 @@ namespace sintrstore {
 
 ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nclients, uint64_t nshards, uint64_t ngroups, 
     Partitioner *part, std::string &table_registry, const QueryParameters* query_params) : 
-    transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params) {
-
-  if (query_params->sql_mode) {
-    for (uint64_t i = 0; i < nclients; i++) {
-      // will not validate for self
-      if (i == client_id) {
-        continue;
-      }
-      ClientToSQLInterpreterMap::accessor ac;
-      clientIDtoSQL.insert(ac, i);
-      SQLTransformer* sql_interpreter = new SQLTransformer(query_params);
-      sql_interpreter->RegisterTables(table_registry);
-      sql_interpreter->RegisterPartitioner(part, nshards, ngroups, -1);
-      ac->second = sql_interpreter;
-    }
-  }
-}
+    transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params),
+    table_registry(table_registry) {}
 
 ValidationClient::~ValidationClient() {
   // TODO: Garbage collection/free memory for allValTxnStates
-  for (auto it = clientIDtoSQL.begin(); it != clientIDtoSQL.end(); ++it) {
-    delete it->second;
-  }
-  clientIDtoSQL.clear();
   for (auto it = allValTxnStates.begin(); it != allValTxnStates.end(); ++it) {
     delete it->second;
   }
@@ -228,18 +209,12 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
   }
     
   proto::Transaction *txn = a->second->txn;
-  ClientToSQLInterpreterMap::accessor ac;
-  if (!clientIDtoSQL.find(ac, txn_client_id)) {
-    // Write should always happen after SetTxnTimestamp, which inserts at txn_id
-    Panic("cannot find client ID %lu in client accessor", txn_client_id);
-  }
-  SQLTransformer *sql_interpreter = ac->second;
+  SQLTransformer *sql_interpreter = a->second->sql_interpreter;
 
   a->second->pendingWriteStatements.push_back(write_statement);
 
   try{
     sql_interpreter->TransformWriteStatement(a->second->pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
-    ac.release();
   }
   catch(...){
     Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
@@ -252,6 +227,19 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
   //  for(auto read: txn.read_set()){
   //     Debug("Read set already contains: %s", read.key().c_str());
   //   }
+ /*
+  auto write_cont = [this, write_continuation, keys_written, write_statement, txn_client_id, txn_client_seq_num](int status, query_result::QueryResult *result){
+    Debug("validation write cont for client %lu with seq num %lu with write statement %s", txn_client_id, txn_client_seq_num, write_statement.c_str());
+    write_continuation(status, result);
+
+    // update policy for current transaction
+    for (const auto &key : *keys_written) {
+      Debug("validation keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), txn_client_id, txn_client_seq_num);
+    }
+
+    delete keys_written;
+  };
+  */
 
   if(read_statement.empty()){ //Must be point operation (Insert/Delete)
     Debug("No read statement, immediately writing in validation client");  
@@ -289,11 +277,7 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
       client_id, txn_client_seq_num, txn->timestamp().timestamp(), txn->timestamp().id(), query.c_str());
 
   PendingValidationQuery *pendingQuery = new PendingValidationQuery(Timestamp(txn->timestamp()), query, qcb, cache_result);
-  ClientToSQLInterpreterMap::accessor ac;
-  if (!clientIDtoSQL.find(ac, txn_client_id)) {
-    Panic("cannot find client ID %lu in client accessor", txn_client_id);
-  }
-  SQLTransformer* sql_interpreter = ac->second;
+  SQLTransformer* sql_interpreter = a->second->sql_interpreter;
 
   // update involved groups for txn
   std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
@@ -306,7 +290,6 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
   }
   
   pendingQuery->is_point = skip_query_interpretation? false : sql_interpreter->InterpretQueryRange(query, pendingQuery->table_name, pendingQuery->p_col_values, true); 
-  ac.release();
   Debug("Query is of type: %s ", pendingQuery->is_point? "POINT" : "RANGE");
   if(pendingQuery->is_point){
     Debug("Encoded key: %s", EncodeTableRow(pendingQuery->table_name, pendingQuery->p_col_values).c_str()); 
@@ -422,6 +405,8 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
 
   proto::Transaction *txn = a->second->txn;
   
+  Debug("Committing validation for client %d, seq num %d and txn ID: %s", txn_client_id, txn_client_seq_num,
+      BytesToHex(TransactionDigest(*txn, true), 16).c_str());
   // if has queries, and query deps are meant to be reported by client:
   // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
   if(!txn->query_set().empty() && !query_params->cacheReadSet && query_params->mergeActiveAtClient){
@@ -455,6 +440,9 @@ void ValidationClient::Abort(abort_callback acb, abort_timeout_callback atcb,
     // Abort should always happen after SetTxnTimestamp, which inserts at txn_id
     Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
   }
+
+  Debug("Validation ABORT[%lu:%lu]", txn_client_id, txn_client_seq_num);
+
   delete a->second->txn;
   allValTxnStates.erase(a);
   a.release();
@@ -476,20 +464,16 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
     txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
   } 
   else {
     txn = a->second->txn;
   }
   ts.serialize(txn->mutable_timestamp());
   
-  ClientToSQLInterpreterMap::accessor ac;
-  const bool isNewClientID = clientIDtoSQL.insert(ac, txn_client_id);
-  if(isNewClientID && query_params->sql_mode) {
-    // constructor should cover all clients
-    Panic("Client %lu does not have a SQL interpreter", txn_client_id);
-  } else if(query_params->sql_mode) {
-    ac->second->NewTx(txn);
+  if(query_params->sql_mode) {
+    Debug("CREATING NEW TX for client %lu seq num %lu", txn_client_id, txn_client_seq_num);
+    a->second->sql_interpreter->NewTx(txn);
   }
 }
 
@@ -619,7 +603,7 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
     proto::Transaction *txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
     a->second->pendingForwardedPointQueryCB.push_back(std::make_pair(curr_key, editTxnStateCB));
     return;
   }
@@ -700,7 +684,7 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
     proto::Transaction *txn = new proto::Transaction();
     txn->set_client_id(txn_client_id);
     txn->set_client_seq_num(txn_client_seq_num);
-    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn, query_params, table_registry, part, nshards, ngroups);
     a->second->pendingForwardedQueryCB.push_back(std::make_pair(curr_query_gen_id, editTxnStateCB));
     return;
   }
