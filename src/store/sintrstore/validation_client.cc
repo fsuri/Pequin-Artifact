@@ -102,7 +102,6 @@ void ValidationClient::Get(const std::string &key, get_callback gcb,
       BytesToHex(key, 16).c_str()
     );
     // remove pending Forwarded read from vector
-    /*
     auto itr = std::find_if(
       a->second->pendingForwardedRead.begin(), a->second->pendingForwardedRead.end(),
       [&key](const auto &key_value) { return key_value.first == key; }
@@ -111,7 +110,6 @@ void ValidationClient::Get(const std::string &key, get_callback gcb,
       Debug("removing pending forwarded read for key %s", BytesToHex(key, 16).c_str());
       a->second->pendingForwardedRead.erase(itr);
     }
-    */
     return;
   }
   // check if forward read result already received (if callback exists)
@@ -604,15 +602,10 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
       txn_client_seq_num,
       BytesToHex(curr_key, 16).c_str()
     );
-    // if not in the cache or in the writeset then add it to pending forwarded read
-    bool inWriteSet = false;
-    for (const auto &write : a->second->txn->write_set()) {
-      if (write.key() == curr_key) {
-        inWriteSet = true;
-        break;
-      }
-    }
-    if(addReadset && a->second->readValues.find(curr_key) == a->second->readValues.end() && !inWriteSet) {
+    // if addReadset is true then add it to pending forwarded read
+    if(addReadset) {
+      Debug("Added curr key %s with value %s to readset of txn client ID: %lu , seq num: %lu",
+        curr_key.c_str(), curr_value.c_str(), txn_client_id, txn_client_seq_num);
       a->second->pendingForwardedRead.push_back(std::make_pair(curr_key, std::make_pair(curr_value, curr_ts)));
     }
     editTxnStateCB(a->second);
