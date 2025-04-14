@@ -493,7 +493,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, V> const &tsVal,
       const proto::Transaction::TxnPolicyType txnPolicyType = proto::Transaction::NONE);
 
-    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
+    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote, bool include_policy = false);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);

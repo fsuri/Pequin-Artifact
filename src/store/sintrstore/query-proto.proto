@@ -33,6 +33,7 @@ message QueryRequest {
  optional bool eager_exec = 7;
 
  optional bool is_point = 8;
+ optional bool include_policy = 9;
 }
 
 // message Write { //For reference:  let committed_value = serialized committed proto result
