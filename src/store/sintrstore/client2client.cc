@@ -1370,6 +1370,9 @@ void Client2Client::ValidationThreadFunction() {
     );
 
     valClient->SetThreadValTxnId(curr_client_id, curr_client_seq_num);
+    if(params.query_params.sql_mode) {
+      valClient->SetThreadValSQLInterpreter();
+    }
     valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts);
 
     struct timespec ts_start;
