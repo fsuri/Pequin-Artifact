@@ -1226,6 +1226,7 @@ void Server::HandleRead(const TransportAddress &remote,
         // if GetPolicy returns a prepared policy then it has no proof
         if (tsPolicy.second.proof == nullptr) {
           // this shouldn't trigger if useOCCForPolicies is true
+          UW_ASSERT(!params.sintr_params.useOCCForPolicies);
           Debug("Prepared policy id write with most recent ts %lu.%lu.",
                   tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
           tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
@@ -1236,6 +1237,14 @@ void Server::HandleRead(const TransportAddress &remote,
             tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
           }
           *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
+        } else {
+          // using a committed policy for a prepared write
+          tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
+          readReply->mutable_write()->mutable_committed_policy()->set_policy_id(preparedPolicyId);
+          tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+          if (params.validateProofs) {
+            *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
+          }
         }
       }
     }

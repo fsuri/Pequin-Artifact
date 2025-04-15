@@ -399,6 +399,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         // if GetPolicy returns a prepared policy then it has no proof
         if (tsPolicy.second.proof == nullptr) {
             // this shouldn't trigger if useOCCForPolicies is true
+            UW_ASSERT(!params.sintr_params.useOCCForPolicies);
             Debug("Prepared policy id write with most recent ts %lu.%lu.",
                     tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
             tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_prepared_policy_timestamp());
@@ -409,6 +410,13 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
                 tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
             }
             *pointQueryReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
+        } else {
+            tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_committed_policy_timestamp());
+            pointQueryReply->mutable_write()->mutable_committed_policy()->set_policy_id(preparedPolicyId);
+            tsPolicy.second.policy->SerializeToProtoMessage(pointQueryReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+            if (params.validateProofs) {
+                *pointQueryReply->mutable_policy_proof() = *tsPolicy.second.proof;
+            }
         }
     }
 
@@ -759,7 +767,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 }
 
 //Note: WARNING: must be called while holding a lock on query_md. 
-void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId, bool include_policy){
 
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     query_md->is_waiting = false;
