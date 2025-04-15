@@ -206,15 +206,14 @@ class ValidationClient : public ::Client {
     std::vector<std::string> pendingWriteStatements; //Just a temp cache to keep Translated Write statements in scope during a TX.
     std::map<std::string, std::string> point_read_cache; // Cache the read results from point reads. 
     std::map<std::string, std::string> scan_read_cache; //Cache results from scan reads (only for Select *)
+    std::map<std::string, std::string> queryIDToCmd; // map for query gen ID to query command
 
-    // need vectors rather than map so that if two pending forwarded read results are received for the same key
-    // we can process them in order with separate callbacks
-    // key to get callback function vector
-    std::vector<std::pair<std::string, std::function<std::pair<std::string,Timestamp>(AllValidationTxnState*)>>> pendingForwardedReadCB;
-    // key to point query callback vector
-    std::vector<std::pair<std::string, std::function<std::string(AllValidationTxnState*, const std::string &)>>> pendingForwardedPointQueryCB;
-    // query ID to query callback vector
-    std::vector<std::pair<std::string, std::function<sql::QueryResultProtoWrapper*(AllValidationTxnState*, const std::string &, bool)>>> pendingForwardedQueryCB;
+    // vector of keys to ensure that only readset keys in transaction are added
+    std::vector<std::pair<std::string, std::pair<std::string, Timestamp>>> pendingForwardedRead;
+    // vector of query pointread keys to ensure that only readset keys from query in transaction are added
+    std::vector<std::pair<std::string, std::string>> pendingForwardedPointQuery;
+    // vector of query IDs to ensure that only readset keys from query in transaction are added
+    std::vector<std::pair<std::string, std::string>> pendingForwardedQuery;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
