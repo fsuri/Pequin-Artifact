@@ -177,6 +177,10 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_client2client_multi_threading=%s' % str(config['sintr_protocol_settings']['sintr_client2client_multi_threading']).lower()
             if 'sintr_hash_endorsements' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_hash_endorsements=%s' % str(config['sintr_protocol_settings']['sintr_hash_endorsements']).lower()
+            if 'sintr_parallel_endorsement_check' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_parallel_endorsement_check=%s' % str(config['sintr_protocol_settings']['sintr_parallel_endorsement_check']).lower()
+            if 'sintr_parallel_query_sigs_check' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_parallel_query_sigs_check=%s' % str(config['sintr_protocol_settings']['sintr_parallel_query_sigs_check']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings
@@ -583,6 +587,12 @@ class IndicusCodebase(ExperimentCodebase):
                 replica_command += ' --sintr_policy_function_name %s' % config['sintr_protocol_settings']['sintr_policy_function_name']
             if 'sintr_check_policy_leak' in config['sintr_protocol_settings']:
                 replica_command += ' --sintr_check_policy_leak=%s' % str(config['sintr_protocol_settings']['sintr_check_policy_leak']).lower()
+            if 'sintr_parallel_endorsement_check' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_parallel_endorsement_check=%s' % str(config['sintr_protocol_settings']['sintr_parallel_endorsement_check']).lower()
+            if 'sintr_use_occ_for_policies' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_use_occ_for_policies=%s' % str(config['sintr_protocol_settings']['sintr_use_occ_for_policies']).lower()
+            if 'sintr_hash_endorsements' in config['sintr_protocol_settings']:
+                replica_command += ' --sintr_hash_endorsements=%s' % str(config['sintr_protocol_settings']['sintr_hash_endorsements']).lower()
 
         #if 'rw_or_retwis' in config:
         #    replica_command += ' --rw_or_retwis=%s' % str(config['rw_or_retwis']).lower()
