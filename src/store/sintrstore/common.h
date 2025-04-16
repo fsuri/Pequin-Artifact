@@ -502,6 +502,17 @@ inline static bool sortRowUpdates(const RowUpdates *&lhs, const RowUpdates *&rhs
     return l_cols < r_cols; 
 }
 
+inline static double mean(const std::vector<uint64_t> &vec) {
+    if (vec.size() == 0) {
+        return 0.0;
+    }
+    double sum = 0;
+    for(auto val : vec){
+        sum += val;
+    }
+    return sum / vec.size();
+}
+
 
 struct QueryReadSetMgr {
         QueryReadSetMgr(){}

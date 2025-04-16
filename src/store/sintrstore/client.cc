@@ -170,12 +170,9 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry, const std::string &txnState) {
   
   // if (exec_time_ms.size() > 0 && exec_time_ms.size() % 2000 == 0) {
-  //   double mean_latency = std::accumulate(exec_time_ms.begin(), exec_time_ms.end(), 0.0) / exec_time_ms.size();
-  //   std::cerr << "Mean execution latency: " << mean_latency << std::endl;
-  //   double mean_endorsement_wait_latency = std::accumulate(endorsement_wait_ms.begin(), endorsement_wait_ms.end(), 0.0) / endorsement_wait_ms.size();
-  //   std::cerr << "Mean endorsement wait latency: " << mean_endorsement_wait_latency << std::endl;
-  //   double mean_phase1_latency = std::accumulate(phase1_time_ms.begin(), phase1_time_ms.end(), 0.0) / phase1_time_ms.size();
-  //   std::cerr << "Mean phase1 latency: " << mean_phase1_latency << std::endl;
+  //   std::cerr << "Mean execution latency: " << mean(exec_time_ms) << std::endl;
+  //   std::cerr << "Mean endorsement wait latency: " << mean(endorsement_wait_ms) << std::endl;
+  //   std::cerr << "Mean phase1 latency: " << mean(phase1_time_ms) << std::endl;
   // }
 
   // fail the current txn iff failuer timer is up and
