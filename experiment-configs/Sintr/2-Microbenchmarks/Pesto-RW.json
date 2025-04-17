@@ -47,8 +47,8 @@
   "value_size": -1,
   "value_categories": 100,
 
-  "rw_read_only": true,
-  "rw_read_only_rate": 100,
+  "rw_read_only": false,
+  "rw_read_only_rate": 0,
   "rw_secondary_condition": false,
   "fixed_range": true,
   "max_range": 10,

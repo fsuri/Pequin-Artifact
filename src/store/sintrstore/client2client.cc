@@ -168,13 +168,9 @@ bool Client2Client::SendPing(size_t replica, const PingMessage &ping) {
 void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const TxnState &protoTxnState, uint64_t txnStartTime,
     PolicyClient *policyClient) {
 
-  // if (create_hmac_ms.size() > 0 && create_hmac_ms.size() % 2000 == 0) {
-  //   if (create_hmac_ms.size() > 0) {
-  //     std::cerr << "Mean create HMAC latency: " << mean(create_hmac_ms) << std::endl;
-  //   }
-  //   if (verify_endorse_ms.size() > 0) {
-  //     std::cerr << "Mean verify endorsement latency: " << mean(verify_endorse_ms) << std::endl;
-  //   }
+  // if (create_hmac_us.count > 0 && create_hmac_us.count % 2000 == 0) {
+  //   std::cerr << "Mean create HMAC latency: " << create_hmac_us.mean() << std::endl;
+  //   std::cerr << "Mean verify endorsement latency: " << verify_endorse_us.mean() << std::endl;
   // }
   this->client_seq_num = client_seq_num;
 
@@ -285,7 +281,7 @@ void Client2Client::SendForwardReadResultMessageHelper(const uint64_t client_seq
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // create_hmac_ms.push_back(duration);
+    // create_hmac_us.add(duration);
   }
   else {
     *fwdReadResultMsgToSend->mutable_fwd_read_result() = std::move(fwdReadResult);
@@ -406,7 +402,7 @@ void Client2Client::SendForwardPointQueryResultMessageHelper(const uint64_t clie
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // create_hmac_ms.push_back(duration);
+    // create_hmac_us.add(duration);
   }
   else {
     *fwdPointQueryResultMsgToSend->mutable_fwd_read_result() = std::move(fwdReadResult);
@@ -517,7 +513,7 @@ void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_se
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // create_hmac_ms.push_back(duration);
+    // create_hmac_us.add(duration);
   }
   else {
     *fwdQueryResultMsgToSend->mutable_fwd_query_result() = std::move(fwdQueryResult);
@@ -680,16 +676,10 @@ void Client2Client::ManageDispatchFinishValidateTxnMessage(const TransportAddres
 
 void Client2Client::HandleBeginValidateTxnMessage(const TransportAddress &remote, 
     const proto::BeginValidateTxnMessage &beginValTxnMsg) {
-  // if (verify_hmac_ms.size() > 0 && verify_hmac_ms.size() % 2000 == 0) {
-  //   if (verify_hmac_ms.size() > 0) {
-  //     std::cerr << "Mean verify HMAC latency: " << mean(verify_hmac_ms) << std::endl;
-  //   }
-  //   if (check_committed_prepared_ms.size() > 0) {
-  //     std::cerr << "Mean check committed prepared latency: " << mean(check_committed_prepared_ms) << std::endl;
-  //   }
-  //   if (send_finish_val_ms.size() > 0) {
-  //     std::cerr << "Mean send finish validation latency: " << mean(send_finish_val_ms) << std::endl;
-  //   }
+  // if (verify_hmac_us.count > 0 && verify_hmac_us.count % 2000 == 0) {
+  //   std::cerr << "Mean verify HMAC latency: " << verify_hmac_us.mean() << std::endl;
+  //   std::cerr << "Mean check committed prepared latency: " << check_committed_prepared_us.mean() << std::endl;
+  //   std::cerr << "Mean send finish validation latency: " << send_finish_val_us.mean() << std::endl;
   // }
   uint64_t curr_client_id = beginValTxnMsg.client_id();
   uint64_t curr_client_seq_num = beginValTxnMsg.client_seq_num();
@@ -738,7 +728,7 @@ void Client2Client::HandleForwardReadResultMessage(const proto::ForwardReadResul
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // verify_hmac_ms.push_back(duration);
+    // verify_hmac_us.add(duration);
 
     fwdReadResult.ParseFromString(data);
   }
@@ -844,7 +834,7 @@ void Client2Client::HandleForwardPointQueryResultMessage(const proto::ForwardPoi
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // verify_hmac_ms.push_back(duration);
+    // verify_hmac_us.add(duration);
 
     fwdReadResult.ParseFromString(data);
   }
@@ -943,7 +933,7 @@ void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryRes
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // verify_hmac_ms.push_back(duration);
+    // verify_hmac_us.add(duration);
 
     fwdQueryResult.ParseFromString(data);
   }
@@ -1011,7 +1001,7 @@ void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTx
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // verify_endorse_ms.push_back(duration);
+    // verify_endorse_us.add(duration);
 
     valTxnDigest = signedMsg.data();
   }
@@ -1073,7 +1063,7 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardReadResul
         // clock_gettime(CLOCK_MONOTONIC, &ts_end);
         // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
         // auto duration = end - start;
-        // check_committed_prepared_ms.push_back(duration);
+        // check_committed_prepared_us.add(duration);
 
         write.ParseFromString(fwdReadResultMsg.signed_write().data());
       }
@@ -1226,7 +1216,7 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardPointQuer
   // clock_gettime(CLOCK_MONOTONIC, &ts_end);
   // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   // auto duration = end - start;
-  // check_committed_prepared_ms.push_back(duration);
+  // check_committed_prepared_us.add(duration);
 
   return true;
 }
@@ -1315,7 +1305,7 @@ bool Client2Client::CheckPreparedCommittedEvidence(const proto::ForwardQueryResu
   // clock_gettime(CLOCK_MONOTONIC, &ts_end);
   // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   // auto duration = end - start;
-  // check_committed_prepared_ms.push_back(duration);
+  // check_committed_prepared_us.add(duration);
 
   return true;
 }
@@ -1487,7 +1477,7 @@ void Client2Client::ValidationThreadFunction() {
       // clock_gettime(CLOCK_MONOTONIC, &ts_end);
       // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
       // auto duration = end - start;
-      // send_finish_val_ms.push_back(duration);
+      // send_finish_val_us.add(duration);
 
       transport->SendMessage(this, *valInfo->remote, finishValTxnMsg);
       delete txn;

@@ -169,10 +169,10 @@ Client::~Client()
 void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
       uint32_t timeout, bool retry, const std::string &txnState) {
   
-  // if (exec_time_ms.size() > 0 && exec_time_ms.size() % 2000 == 0) {
-  //   std::cerr << "Mean execution latency: " << mean(exec_time_ms) << std::endl;
-  //   std::cerr << "Mean endorsement wait latency: " << mean(endorsement_wait_ms) << std::endl;
-  //   std::cerr << "Mean phase1 latency: " << mean(phase1_time_ms) << std::endl;
+  // if (exec_time_us.count > 0 && exec_time_us.count % 2000 == 0) {
+  //   std::cerr << "Mean execution latency: " << exec_time_us.mean() << std::endl;
+  //   std::cerr << "Mean endorsement wait latency: " << endorsement_wait_us.mean() << std::endl;
+  //   std::cerr << "Mean phase1 latency: " << phase1_time_us.mean() << std::endl;
   // }
 
   // fail the current txn iff failuer timer is up and
@@ -1161,7 +1161,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       
         //Should not take more than 1 ms (already generous) to parse and prepare.
         auto duration = exec_end_ms - exec_start_ms;
-        // exec_time_ms.push_back(duration);
+        exec_time_us.add(duration);
         //Warning("  Transaction total execution latency in us [%d]", duration);
 
         //Notice("Tx has %d deps", txn.deps().size());
@@ -1283,6 +1283,12 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       }
     }
 
+    if (PROFILING_LAT) {
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      phase1_ready_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    }
+
     Phase1(req);
   });
 }
@@ -1301,9 +1307,9 @@ void Client::Phase1(PendingRequest *req) {
   if(PROFILING_LAT){
     struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
-    endorsements_received_ms = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
-    auto duration = endorsements_received_ms - commit_start_ms;
-    // endorsement_wait_ms.push_back(duration);
+    endorsements_received_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    auto duration = endorsements_received_us - phase1_ready_us;
+    endorsement_wait_us.add(duration);
     // Warning("  Transaction waiting for endorsements latency in us [%d]", duration);
   }
   
@@ -1767,8 +1773,8 @@ void Client::Writeback(PendingRequest *req) {
     // auto duration = commit_end_ms - commit_start_ms;
     //Warning("     Transaction commit latency in us [%d]", duration);
 
-    auto duration = commit_end_ms - endorsements_received_ms;
-    // phase1_time_ms.push_back(duration);
+    auto duration = commit_end_ms - endorsements_received_us;
+    phase1_time_us.add(duration);
   }
 
   //total_writebacks++;

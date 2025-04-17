@@ -1431,7 +1431,7 @@ void Server::HandlePhase1(const TransportAddress &remote, proto::Phase1 &msg) {
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // new_digest_ms.push_back(duration);
+    // new_digest_us.add(duration);
   }
   Debug("Received Phase1 message for txn id: %s", BytesToHex(txnDigest, 16).c_str());
   *txn->mutable_txndigest() = txnDigest; //Hack to have access to txnDigest inside TXN later (used for abstain conflict, and for FindTableVersion)
@@ -3100,13 +3100,10 @@ void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts,
 }
 
 bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn) {
-  // if (extract_policy_ms.size() > 0 && extract_policy_ms.size() % 2000 == 0) {
-  //   double mean_extract_policy_latency = std::accumulate(extract_policy_ms.begin(), extract_policy_ms.end(), 0.0) / extract_policy_ms.size();
-  //   std::cerr << "Mean extract policy latency: " << mean_extract_policy_latency << std::endl;
-  //   double mean_validate_endorsements_latency = std::accumulate(validate_endorsements_ms.begin(), validate_endorsements_ms.end(), 0.0) / validate_endorsements_ms.size();
-  //   std::cerr << "Mean validate endorsements latency: " << mean_validate_endorsements_latency << std::endl;
-  //   double mean_new_digest_latency = std::accumulate(new_digest_ms.begin(), new_digest_ms.end(), 0.0) / new_digest_ms.size();
-  //   std::cerr << "Mean new digest latency: " << mean_new_digest_latency << std::endl;
+  // if (extract_policy_us.count > 0 && extract_policy_us.count % 2000 == 0) {
+  //   std::cerr << "Mean extract policy latency: " << extract_policy_us.mean() << std::endl;
+  //   std::cerr << "Mean validate endorsements latency: " << validate_endorsements_us.mean() << std::endl;
+  //   std::cerr << "Mean new digest latency: " << new_digest_us.mean() << std::endl;
   // }
 
   PolicyClient policyClient;
@@ -3179,7 +3176,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
   // clock_gettime(CLOCK_MONOTONIC, &ts_end);
   // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   // auto duration = end - start;
-  // extract_policy_ms.push_back(duration);
+  // extract_policy_us.add(duration);
 }
 
 bool Server::ValidateEndorsements(const PolicyClient &policyClient, const proto::SignedMessages *endorsements, 
@@ -3268,7 +3265,7 @@ bool Server::ValidateEndorsementHelper(const proto::SignedMessage &endorsement, 
     // clock_gettime(CLOCK_MONOTONIC, &ts_end);
     // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     // auto duration = end - start;
-    // validate_endorsements_ms.push_back(duration);
+    // validate_endorsements_us.add(duration);
   }
 
   return true;

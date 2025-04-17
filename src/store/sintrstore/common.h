@@ -119,7 +119,19 @@ struct Triplet {
   signedCallback cb;
 };
 
-
+struct mean_tracker {
+    mean_tracker() : sum(0), count(0) {}
+    uint64_t sum;
+    uint64_t count;
+    void add(uint64_t value) {
+        sum += value;
+        count++;
+    }
+    double mean() const {
+        if (count == 0) return 0;
+        return static_cast<double>(sum) / count;
+    }
+};
 
 //static bool True = true;
 //static bool False = false;
@@ -501,18 +513,6 @@ inline static bool sortRowUpdates(const RowUpdates *&lhs, const RowUpdates *&rhs
     std::string r_cols = std::accumulate(rhs->column_values().begin(), rhs->column_values().end(), std::string(""));
     return l_cols < r_cols; 
 }
-
-inline static double mean(const std::vector<uint64_t> &vec) {
-    if (vec.size() == 0) {
-        return 0.0;
-    }
-    double sum = 0;
-    for(auto val : vec){
-        sum += val;
-    }
-    return sum / vec.size();
-}
-
 
 struct QueryReadSetMgr {
         QueryReadSetMgr(){}
