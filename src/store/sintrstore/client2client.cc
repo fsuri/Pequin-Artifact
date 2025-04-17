@@ -1392,6 +1392,11 @@ void Client2Client::ExtractFromPolicyClientsToContact(const std::vector<int> &po
 
 void Client2Client::ValidationThreadFunction() {
   ::SyncClient syncClient(valClient);
+
+  if(params.query_params.sql_mode) {
+    valClient->SetThreadValSQLInterpreter();
+  }
+
   while(!done) {
     ValidationInfo *valInfo;
     validationQueue.pop(valInfo);
@@ -1402,17 +1407,17 @@ void Client2Client::ValidationThreadFunction() {
     uint64_t curr_client_seq_num = valInfo->txn_client_seq_num;
     Timestamp curr_ts = valInfo->txn_ts;
     ValidationTransaction *valTxn = valInfo->valTxn;
+
+    std::ostringstream oss;
+    oss << std::this_thread::get_id() << std::endl;
     Debug(
-      "%lu will validate for client %lu, seq num %lu",
-      std::this_thread::get_id(),
+      "%s will validate for client %lu, seq num %lu",
+      oss.str().c_str(),
       curr_client_id,
       curr_client_seq_num
     );
 
     valClient->SetThreadValTxnId(curr_client_id, curr_client_seq_num);
-    if(params.query_params.sql_mode) {
-      valClient->SetThreadValSQLInterpreter();
-    }
     valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts);
 
     struct timespec ts_start;
