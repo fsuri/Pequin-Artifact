@@ -24,9 +24,7 @@ SQLUpdateReservation::SQLUpdateReservation(uint32_t timeout, std::mt19937 &gen, 
         attr_val = std::uniform_int_distribution<int64_t>(1, 100000)(gen);
        
 
-        std::cerr << "UPDATE_RESERVATION: " << r_id << ". Flight:" << f_id << ". New seat: " << seatnum << std::endl;
-        Debug("UPDATE_RESERVATION");
-
+        Debug("UPDATE_RESERVATION: %d. Flight: %d. New seat: %d", r_id, f_id, seatnum);
     }
 
 SQLUpdateReservation::~SQLUpdateReservation() {}

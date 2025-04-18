@@ -203,9 +203,9 @@ namespace auctionmark
 
     inline void initialize_user_id_generator(int client_id)
     {
-      std::cerr << "call init" << std::endl;
-      std::cerr << "num clients: " << num_clients << std::endl;
-      std::cerr << "client id: " << client_id << std::endl;
+      Debug("call init");
+      Debug("num clients: %d", num_clients);
+      Debug("client id: %d", client_id);
       user_id_generator = UserIdGenerator(users_per_item_count, num_clients, client_id);
     }
   };

@@ -173,15 +173,15 @@ int main(int argc, char *argv[]) {
 
     std::string file_name = "sql-tpcc";
     TableWriter writer = TableWriter(file_name);
-    std::cerr << "Generating SEATS Tables" << std::endl;
+    Notice("Generating SEATS Tables");
     // generate all tables
     GenerateRegionTable(writer);
-    std::cerr << "Generated Regions" << std::endl;
+    Notice("Generated Regions");
     std::vector<int> nation_keys = GenerateNationTable(writer);
-    std::cerr << "Generated Nations" << std::endl;
+    Notice("Generated Nations");
     GenerateSupplierTable(writer, nation_keys, FLAGS_num_suppliers);
-    std::cerr << "Generated Supplier" << std::endl;
+    Notice("Generated Supplier");
     writer.flush();
-    std::cerr << "Finished SEATS Table Generation" << std::endl;
+    Notice("Finished SEATS Table Generation");
     return 0;
 }

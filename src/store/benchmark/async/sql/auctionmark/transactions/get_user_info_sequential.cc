@@ -33,7 +33,7 @@ namespace auctionmark {
 GetUserInfo::GetUserInfo(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : 
     AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-    std::cerr << std::endl << "GET USER INFO" << std::endl;
+    Debug("GET USER INFO");
 
     UserId userId = profile.get_random_buyer_id();
     user_id = userId.encode();
@@ -91,7 +91,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_feedback){
      //getUserFeedback
-    std::cerr << "getUserFeedback" << std::endl;
+    Debug("getUserFeedback");
     statement = fmt::format("SELECT u_id, u_rating, u_sattr0, u_sattr1, uf_rating, uf_date, uf_sattr0  FROM {}, {} "
                             "WHERE u_id = '{}' AND uf_u_id = '{}' AND uf_u_id = u_id "
                             "ORDER BY uf_date DESC LIMIT 25", TABLE_USERACCT, TABLE_USERACCT_FEEDBACK, user_id, user_id); 
@@ -101,7 +101,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
  
   if(get_comments){
     //getItemComments    //ITEM_COL_STR: "i_id, i_u_id, i_name, i_current_price, i_num_bids, i_end_date, i_status";
-    std::cerr << "getItemComments" << std::endl;
+    Debug("getItemComments");
     statement = fmt::format("SELECT {}, ic_id, ic_i_id, ic_u_id, ic_buyer_id, ic_question, ic_created FROM {}, {} "
                             "WHERE i_u_id = '{}' AND i_status = {} "
                             "AND i_id = ic_i_id AND i_u_id = ic_u_id AND ic_response = '' " 
@@ -125,7 +125,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_seller_items){
     //getSellerItems
-    std::cerr << "getSellerItems" << std::endl;
+    Debug("getSellerItems");
     statement = fmt::format("SELECT {} FROM {} WHERE i_u_id = '{}' ORDER BY i_end_date DESC LIMIT 25", ITEM_COLUMNS_STR, TABLE_ITEM, user_id);
     client.Query(statement, queryResult, timeout);
     for(int i=0; i < queryResult->size(); ++i){
@@ -139,7 +139,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
               
   if(get_buyer_items){
      //getBuyerItems
-    std::cerr << "getBuyerItems" << std::endl;
+    Debug("getBuyerItems");
     statement = fmt::format("SELECT {} FROM {}, {} "
                             "WHERE ui_u_id = '{}' AND ui_i_id = i_id AND ui_i_u_id = i_u_id " 
                             "AND i_id = i_id AND i_u_id = i_u_id " //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 
@@ -158,7 +158,7 @@ transaction_status_t GetUserInfo::Execute(SyncClient &client) {
 
   if(get_watched_items){
     //getWatchedItems
-    std::cerr << "getWatchedItems" << std::endl;
+    Debug("getWatchedItems");
     statement = fmt::format("SELECT {}, uw_u_id, uw_created FROM {}, {} "
                             "WHERE uw_u_id = '{}' AND uw_i_id = i_id AND uw_i_u_id = i_u_id " 
                             "AND i_id = i_id AND i_u_id = i_u_id " //ADDED REFLEXIVE ARG FOR PELOTON PARSING. TODO: AUTOMATE THIS IN SQL_INTERPRETER 

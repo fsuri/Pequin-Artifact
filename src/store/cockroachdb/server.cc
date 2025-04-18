@@ -152,23 +152,26 @@ Server::Server(const transport::Configuration &config, KeyManager *keyManager,
     Notice("Cluster initliazed by node %d. Listening %s:%s", id, host.c_str(),
            port.c_str());
 
-    // Server::exec_sql(
-    //     "CREATE TABLE IF NOT EXISTS datastore ( key_ TEXT PRIMARY KEY, val_ "
-    //     "TEXT NOT NULL)");
     std::string lock_timeout_cmd = "ALTER DATABASE defaultdb SET lock_timeout = '50ms';";
     Notice("Issuing SQL command %s", lock_timeout_cmd.c_str());
     exec_sql(lock_timeout_cmd);
     std::string set_num_replicas = "ALTER RANGE default CONFIGURE ZONE USING range_min_bytes = 0, range_max_bytes = 134217728, num_replicas = 1;";
-//    std::string set_num_replicas = "ALTER RANGE default CONFIGURE ZONE USING num_replicas = 1;";
     Notice("Issuing SQL command %s", set_num_replicas.c_str());
     exec_sql(set_num_replicas);
     std::string enable_merge_queue = "SET CLUSTER SETTING kv.range_merge.queue_enabled = true;";
     Notice("Issuing SQL command %s", enable_merge_queue.c_str());
     exec_sql(enable_merge_queue);
+    // Configure rebalancing interval
+    std::string rebalancing_interval_cmd =
+        "SET CLUSTER SETTING kv.allocator.load_based_rebalancing_interval = "
+        "'30s';";
+    Notice("Setting locality-based rebalancing: %s",
+           rebalancing_interval_cmd.c_str());
+    exec_sql(rebalancing_interval_cmd);
     // Experimental: reduce Raft batch size
-    // std::string set_batch = "SET CLUSTER SETTING kv.transaction.write_pipelining.max_batch_size = 1;";
-    // Notice("Issuing SQL command %s", set_batch.c_str());
-    // exec_sql(set_batch);
+    // std::string set_batch = "SET CLUSTER SETTING
+    // kv.transaction.write_pipelining.max_batch_size = 1;"; Notice("Issuing SQL
+    // command %s", set_batch.c_str()); exec_sql(set_batch);
   }
   if (idx == config.n - 1) {
     // If node is the last one in the group, serve as load balancer

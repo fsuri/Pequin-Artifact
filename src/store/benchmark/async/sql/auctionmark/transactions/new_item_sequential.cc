@@ -39,7 +39,7 @@ NewItem::NewItem(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 
   item_id = itemId.encode();
   seller_id = sellerId.encode();
 
-  std::cerr << std::endl << "NEW ITEM: " << item_id << ", seller: " << seller_id << std::endl;
+  Debug("NEW ITEM: %s, seller: %s", item_id.c_str(), seller_id.c_str());
 
   name = RandomAString(6, 32, gen);
   description = RandomAString(50, 255, gen);
@@ -181,7 +181,7 @@ transaction_status_t NewItem::Execute(SyncClient &client) {
   std::string insertItem = fmt::format("INSERT INTO {} (i_id, i_u_id, i_c_id, i_name, i_description, i_user_attributes, i_initial_price, i_current_price, "
                                                       "i_num_bids, i_num_images, i_num_global_attrs, i_num_comments, i_start_date, i_end_date, i_status, i_created, i_updated, "
                                                       "i_iattr0, i_iattr1, i_iattr2, i_iattr3, i_iattr4, i_iattr5, i_iattr6, i_iattr7) "
-                                        "VALUES ('{}', '{}', {}, '{}', '{}', '{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, 0, 0, 0, 0, 0, 0, 0, 0)", 
+                                        "VALUES ('{}', '{}', {}, '{}', '{}', '{}', {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, 0, 0, 0, 0, 0, 0, 0, 0)", 
                                         TABLE_ITEM,
                                         item_id, seller_id, category_id, name, description, attributes, initial_price, initial_price, 0, 
                                         images.size(), gav_ids.size(), 0, current_time, end_date, ItemStatus::OPEN, current_time, current_time);

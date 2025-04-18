@@ -38,7 +38,7 @@ SQLStockLevel::SQLStockLevel(uint32_t timeout, uint32_t w_id, uint32_t d_id,
     std::mt19937 &gen) : TPCCSQLTransaction(timeout), w_id(w_id), d_id(d_id) {
   min_quantity = std::uniform_int_distribution<uint8_t>(10, 20)(gen);
 
-  std::cerr << "STOCK_LEVEL (parallel)" << std::endl;
+  Debug("STOCK_LEVEL (parallel)");
 }
 
 SQLStockLevel::~SQLStockLevel() {

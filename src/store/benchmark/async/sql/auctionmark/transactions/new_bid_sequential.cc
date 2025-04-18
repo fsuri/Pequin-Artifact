@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewBid::NewBid(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile) {
 
-  std::cerr << std::endl << "NEW BID" << std::endl;
+  Debug("NEW BID");
 
   benchmark_times = {profile.get_loader_start_time(), profile.get_client_start_time()};
   std::optional<ItemInfo> itemInfo;
