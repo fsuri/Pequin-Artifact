@@ -636,7 +636,7 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
         | Lat (ms)    | 9.5   |  9     |  9     |  9.3   |  9.8   |  11    |  12.4  |  13.8  |  16.4  |
 
 
-    - Seats: Peak Throughput: 7695 tx/s, Ankle Latency ~6ms
+    - Seats: Peak Throughput: 5697 tx/s, Ankle Latency ~13ms
 
         Config file: `/experiment-configs/CRDB/TODO' //FIXME:
 
