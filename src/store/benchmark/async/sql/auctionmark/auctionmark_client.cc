@@ -66,13 +66,13 @@ AuctionMarkClient::AuctionMarkClient(
   profile.update_and_get_current_time();
   UW_ASSERT((double) scale_factor == profile.get_scale_factor());
 
-  std::cerr << "loader start time (scaled):" << profile.get_loader_start_time() << std::endl;
-  std::cerr << "client start time (scaled):" << profile.get_client_start_time() << std::endl; //FIXME: This has not been scaled!
+  Notice("loader start time (scaled): %lu", profile.get_loader_start_time());
+  Notice("client start time (scaled): %lu", profile.get_client_start_time()); //FIXME: This has not been scaled!
 
-  std::cerr << "pending comment size at start: " << profile.num_pending_comment_responses() << std::endl;
-  std::cerr << "available items start: " << profile.get_available_items_count() << std::endl;
-  std::cerr << "items waiting for purchase at start: " << profile.get_waiting_for_purchase_items_count() << std::endl;
-  std::cerr << "completed items at start: " << profile.get_completed_items_count() << std::endl;
+  Notice("pending comment size at start: %d", profile.num_pending_comment_responses());
+  Notice("available items start: %d", profile.get_available_items_count());
+  Notice("items waiting for purchase at start: %d", profile.get_waiting_for_purchase_items_count());
+  Notice("completed items at start: %d", profile.get_completed_items_count());
 
   // std::cerr << "total: " << num_clients << std::endl;
   // std::cerr << "client id: " << client_id << std::endl;
@@ -95,8 +95,8 @@ SyncTransaction *AuctionMarkClient::GetNextTransaction()
   //Close Auctions runs periodically (only on the first client)
   int real_time_seconds = CLOSE_AUCTIONS_INTERVAL / TIME_SCALE_FACTOR;
   if (need_close_auctions && now - profile.get_last_close_auctions_time() >= real_time_seconds * MILLISECONDS_IN_A_SECOND) {
-    std::cerr << "last close auction time (scaled):" << profile.get_last_close_auctions_time() << std::endl;
-    std::cerr << "current time (scaled):" << now << std::endl;
+    Notice("last close auction time (scaled): %lu", profile.get_last_close_auctions_time());
+    Notice("current time (scaled): %lu", now);
     lastOp = "close_auctions";
     return new CloseAuctions(GetTimeout(), profile, gen);
   } 

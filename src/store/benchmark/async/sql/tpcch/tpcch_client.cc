@@ -34,7 +34,7 @@ TPCCHSQLClient::TPCCHSQLClient(SyncClient &client, Transport &transport, uint64_
       SyncTransactionBenchClient(client, transport, id, numRequests,
         expDuration, delay, warmupSec, cooldownSec, tputInterval, abortBackoff,
         retryAborted, maxBackoff, maxAttempts, timeout, latencyFilename) {
-          std::cerr << "TPCCH Client " << id << " created" << std::endl;
+          Debug("TPCCH Client %d created", id);
 
   gen.seed(id + time(NULL));
 }
@@ -100,7 +100,7 @@ SyncTransaction* TPCCHSQLClient::GetNextTransaction() {
     weight += DEFAULT_Q_WEIGHTS[t];
     if (t_rand <= weight) {
       int t_type = t + 1;
-      std::cerr << "Transaction " << t_type << std::endl;
+      Debug("Transaction %d", t_type);
       lastOp = "q" + std::to_string(t_type);
       return ConvertTIDToTransaction(t_type);
     }

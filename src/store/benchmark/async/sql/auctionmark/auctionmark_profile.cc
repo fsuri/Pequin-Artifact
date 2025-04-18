@@ -591,7 +591,7 @@ namespace auctionmark
   // SERIALIZATION METHODS
   // -----------------------------------------------------------------
   void AuctionMarkProfile::save_profile() {
-    fprintf(stderr, "Saving to profile. Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d\n", 
+    Debug("Saving to profile. Avail items: %d. Ending soon items: %d, Waiting for purchase items: %d, items_completed: %d", 
             items_available.size(), items_ending_soon.size(), items_waiting_for_purchase.size(), items_completed.size());
 
     // //TEST
@@ -604,8 +604,8 @@ namespace auctionmark
     // }
     // //TEST
 
-    std::cerr << "items_per_cat.size: " << items_per_category.size() << std::endl;
-    std::cerr << "seller cnt: " << seller_item_cnt.size() << std::endl;
+    Debug("items_per_cat.size: %d", items_per_category.size());
+    Debug("seller cnt: %d", seller_item_cnt.size());
     // for (auto& items : all_item_sets) {
     //   if (items->size() > ITEM_ID_CACHE_SIZE) {
     //     std::cerr << "shuffling items old size: " << items->size() << " new size: " << ITEM_ID_CACHE_SIZE << std::endl;
@@ -634,7 +634,7 @@ namespace auctionmark
   }
 
   void AuctionMarkProfile::copy_profile(int client_id, const AuctionMarkProfile &other) {
-    std::cerr << "copy profile. id: " << client_id << std::endl;
+    Debug("copy profile. id: %d", client_id);
     this->client_id = client_id;
     scale_factor = other.scale_factor;
     loader_start_time = other.loader_start_time;
@@ -667,7 +667,7 @@ namespace auctionmark
       }
     }
 
-    std::cerr << "finish copy profile. id: " << client_id << std::endl;
+    Debug("finish copy profile. id: %d", client_id);
   }
 
   void AuctionMarkProfile::configure_initial(int client_id){

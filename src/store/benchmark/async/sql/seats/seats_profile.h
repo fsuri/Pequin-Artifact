@@ -108,8 +108,7 @@ class SeatsProfile {
       const histogram &flights = airport_flights[dep_aid_code];
 
       if(flights.empty()){ //This should never happen
-        std::cerr << "airport: " << dep_aid_code << " has no outbound flights" << std::endl;
-        assert(false);
+        Panic("airport: %s has no outbound flights", dep_aid_code);
       }
 
       auto arr_aid_code = getRandValFromHistogram(flights, gen);

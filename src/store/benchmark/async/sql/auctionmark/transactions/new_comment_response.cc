@@ -31,7 +31,7 @@ namespace auctionmark {
 
 NewCommentResponse::NewCommentResponse(uint32_t timeout, AuctionMarkProfile &profile, std::mt19937_64 &gen) : AuctionMarkTransaction(timeout), profile(profile), gen(gen) {
 
-  std::cerr << "NEW COMMENT RESPONSE" << std::endl;
+  Debug("NEW COMMENT RESPONSE");
 
   if (profile.num_pending_comment_responses() == 0) {
     throw std::runtime_error("new_comment_response construction: no pending comment responses");
