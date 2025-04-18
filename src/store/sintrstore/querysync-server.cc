@@ -798,7 +798,48 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 
     //Clear set snapshot. Could've been set by EagerPlusSnapshot path.
     query_md->queryResultReply->mutable_result()->clear_local_ss();
-
+    
+    if(include_policy) {
+        std::set<uint64_t> prev_policies;
+        proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
+        for(auto &read: queryReadSetMgr.read_set->read_set()){
+            // get the policies associated with the readset keys in the query
+            uint64_t policyId = policyIdFunction(read.key(), "");
+            if(prev_policies.find(policyId) == prev_policies.end()) {
+                std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+                const proto::Transaction *mostRecentPolicyTxn;
+                if(params.sintr_params.useOCCForPolicies) {
+                    GetPolicy(policyId, query_md->ts, tsPolicy, false);
+                } else {
+                    GetPolicy(policyId, query_md->ts, tsPolicy, true, &mostRecentPolicyTxn);
+                }
+                // garbage collection is handled by google protobuf
+                proto::QueryPolicy *query_policy = queryResultReply->add_query_policy();
+                tsPolicy.first.serialize(query_policy->mutable_policy_timestamp());
+                query_policy->mutable_endorsement_policy()->set_policy_id(policyId);
+                tsPolicy.second.policy->SerializeToProtoMessage(query_policy->mutable_endorsement_policy()->mutable_policy());
+                // if GetPolicy returns a prepared policy then it has no proof
+                if (tsPolicy.second.proof == nullptr) {
+                    // this shouldn't trigger if useOCCForPolicies is true
+                    UW_ASSERT(!params.sintr_params.useOCCForPolicies);
+                    Debug("Prepared policy id write with most recent ts %lu.%lu.",
+                        tsPolicy.first.getTimestamp(), tsPolicy.first.getID());                        
+                    std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+                    if(params.sintr_params.hashEndorsements) {
+                            tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
+                    }
+                    *query_policy->mutable_prepared_policy_txn_digest() = tempDigest;
+                } else {
+                    Debug("Committed policy id write with most recent ts %lu.%lu.",
+                        tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+                    if (params.validateProofs) {
+                        *query_policy->mutable_policy_proof() = *tsPolicy.second.proof;
+                    }
+                }
+                prev_policies.insert(policyId);
+            }
+        }
+    }
    
     if(TEST_FAIL_QUERY && query_md->retry_version == 0){ //Test to simulate a retry once.
         FailQuery(query_md);

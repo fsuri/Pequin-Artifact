@@ -103,9 +103,15 @@ message QueryResultReply {
     }
 
     optional CommittedProof point_proof = 5; //For point read
+    repeated QueryPolicy query_policy = 6; // For sending policies
 }
 
-
+message QueryPolicy {
+  optional EndorsementPolicyMessage endorsement_policy = 1;
+  optional TimestampMessage policy_timestamp = 2;
+  optional bytes prepared_policy_txn_digest = 3;
+  optional CommittedProof policy_proof = 4;
+}
 
 message FailQueryMsg {
   required uint64 replica_id = 1;

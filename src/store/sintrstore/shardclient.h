@@ -139,7 +139,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
   // Get the value corresponding to key.
   virtual void Get(uint64_t id, const std::string &key, const TimestampMessage &ts,
       uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback &gcb,
-      read_timeout_callback &gtcb, uint32_t timeout);
+      read_timeout_callback &gtcb, uint32_t timeout, bool get_from_put = false);
 
   // Set the value for the given key.
   virtual void Put(uint64_t id, const std::string &key,
@@ -245,6 +245,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_callback gcb;
     read_timeout_callback gtcb;
     bool firstCommittedReply;
+    bool get_from_put;
 
     //std::map<Timestamp, std::map<std::pair<std::string, std::string>, proto::Signatures>> prepared_new;
     std::map<std::tuple<Timestamp, std::string, std::string>, std::pair<uint64_t, proto::Signatures>> prepared_new; //Tuple (Timestamp, TxnDigest, Value)
@@ -629,7 +630,7 @@ SQLTransformer *sql_interpreter;
   const uint64_t phase1DecisionTimeout;
   std::vector<int> closestReplicas;
   bool failureActive;
-  bool get_policy_shard_client;
+  bool get_policy_shard_client; // TODO: Add multithread support for this var
 
   uint64_t lastReqId;
   proto::Transaction txn;

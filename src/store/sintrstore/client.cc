@@ -318,15 +318,14 @@ void Client::Get(const std::string &key, get_callback gcb,
         ReadMessage *read = txn.add_read_set();
         read->set_key(key);
         ts.serialize(read->mutable_readtime());
-        
-        // new policy can only come from server, which must correspond to addReadSet
-        if (policyMsg.IsInitialized()) {
-          if (Message_DebugEnabled(__FILE__)) {
-            Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
-          }
-          Policy *policy = policyParseClient->Parse(policyMsg.policy());
-          endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+      }
+      // new policy can only come from server, which must correspond to addReadSet
+      if (policyMsg.IsInitialized()) {
+        if (Message_DebugEnabled(__FILE__)) {
+          Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
         }
+        Policy *policy = policyParseClient->Parse(policyMsg.policy());
+        endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
       }
       if (hasDep) {
         *txn.add_deps() = dep;

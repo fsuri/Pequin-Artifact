@@ -161,7 +161,7 @@ void ShardClient::Begin(uint64_t id) {
 void ShardClient::Get(uint64_t id, const std::string &key,
     const TimestampMessage &ts, uint64_t readMessages, uint64_t rqs,
     uint64_t rds, read_callback &gcb, read_timeout_callback &gtcb,
-    uint32_t timeout) {
+    uint32_t timeout, bool get_from_put) {
   if (BufferGet(key, gcb)) {
     Debug("[group %i] read from buffer.", group);
     return;
@@ -175,6 +175,7 @@ void ShardClient::Get(uint64_t id, const std::string &key,
   pendingGet->rds = rds;
   pendingGet->gcb = gcb;
   pendingGet->gtcb = gtcb;
+  pendingGet->get_from_put = get_from_put;
 
   read.Clear();
   read.set_req_id(reqId);
@@ -967,7 +968,7 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
     req->maxTs.serialize(read->mutable_readtime());
     readValues[req->key] = req->maxValue;
     req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
-        req->hasDep, true,
+        req->hasDep, !req->get_from_put,
         req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy,
         proto::Dependency(), false); // deprecated so just add dummy params here
     delete req; //XXX VERY IMPORTANT: dont delete while something is still dispatched for this reqId
@@ -1238,7 +1239,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       *read->mutable_key() = req->key;
       req->maxTs.serialize(read->mutable_readtime());
       
-      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, true,
+      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, !req->get_from_put,
         req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy,
         req->policyDep, req->hasPolicyDep);
     }

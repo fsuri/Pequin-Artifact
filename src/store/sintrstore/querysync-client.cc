@@ -894,6 +894,39 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         else stats->Increment("Sync_successes");
 
         pendingQuery->done = true;
+        // since the query is done, check if it has any policies
+        /*
+        if(queryResult.query_policy_size() > 0) {
+            for(auto const &policy : queryResult.query_policy()) {
+                // since useOCCForPolicies is true policy should have a policy proof
+                if(params.sintr_params.useOCCForPolicies || policy.has_policy_proof()) {
+                    if (params.validateProofs) {
+                        std::string committedPolicyTxnDigest = TransactionDigest(policy.policy_proof().txn(), params.hashDigest);
+                        if(params.sintr_params.hashEndorsements) {
+                            Debug("USING TXN DIGEST IN POLICY PROOF READ REPLY");
+                            committedPolicyTxnDigest = EndorsedTxnDigest(committedPolicyTxnDigest, policy.policy_proof().txn(), params.hashDigest);
+                        }
+                        std::string policyObjectStr;
+                        policy.endorsement_policy().policy().SerializeToString(&policyObjectStr);
+                        if (!ValidateTransactionWrite(policy.policy_proof(), &committedPolicyTxnDigest,
+                            std::to_string(write->committed_policy().policy_id()), policyObjectStr, write->committed_policy_timestamp(),
+                            config, params.signedMessages, keyManager, verifier)) {
+                            Debug("[group %i] Failed to validate committed policy for query %s.",
+                                group, queryResult.result().query_gen_id().c_str());
+                            return;
+                        }
+                        Debug("[group %i] ReadReply for %lu with committed policy id %lu.", group, reply.req_id(), write->committed_policy().policy_id());
+                        Timestamp policyTs(policy.policy_timestamp());
+                        if (req->firstCommittedReply || req->maxPolicyTs < policyTs) {
+                            req->maxPolicyTs = policyTs;
+                            req->maxPolicy = write->committed_policy();
+                        }
+                    }
+                } else {
+
+                }
+            }
+        }*/
         //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         pendingQuery->rcb(REPLY_OK, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true,
             pendingQuery->query_sigs);
