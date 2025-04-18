@@ -18,8 +18,8 @@
       "client_threads_per_process"
     ]
   ],
-  "replication_protocol": ["sintr"],
-  "client_protocol_mode": ["sintr"],
+  "replication_protocol": ["pequin"],
+  "client_protocol_mode": ["pequin"],
   "num_shards": [1],
   "num_groups": [1],
 
@@ -156,43 +156,22 @@
     }
   ],
 
-  "sintr_protocol_settings": {
-    "client_network_config_file_name": "client.config",
-    "client_port": 7587,
-    "sintr_max_val_threads": 1,
-    "sintr_sign_fwd_read_results": true,
-    "sintr_sign_finish_validation": true,
-    "sintr_debug_endorse_check": false,
-    "sintr_client_check_evidence": true,
-    "sintr_policy_function_name": "basic_id",
-    "sintr_policy_config_path": "/home/atl63/Pequin-Artifact/src/0_local_test_outputs/configs/policy-grouped.config",
-    "sintr_read_include_policy": 0,
-    "sintr_client_validation": "client-validation-exact",
-    "sintr_check_policy_leak": true,
-    "sintr_client_pin_cores": true,
-    "sintr_client2client_multi_threading": false,
-    "sintr_parallel_endorsement_check": false,
-    "sintr_parallel_query_sigs_check": false,
-    "sintr_hash_endorsements": true,
-    "sintr_use_occ_for_policies": true
-  },
-
   "experiment_name": "sintr",
   "codebase_name": "indicus",
 
   "_client total is the upper bound on total client processes": 0,
   "_actual client count = threads_per_client * min(client_total, num_servers * client_nodes_per_server * processes_per_node)": 0,
 
-  "client_total": [[2]],
-  "client_processes_per_client_node": [[2]],
+  "client_total": [[1]],
+  "client_processes_per_client_node": [[1]],
   "client_threads_per_process": [[1]],
 
   "client_nodes_per_server": 1,
   "_NOTE: Pin again since now we don't use Peloton threads": 0,
   "pin_server_processes": [0, 1, 2, 3, 4, 5, 6, 7],
-  "pin_client_processes": [0, 2, 4, 6],
+  "pin_client_processes": [0, 1, 2, 3, 4, 5, 6, 7],
   "client_debug_output": false,
-  "_client_debug_output": "store/sintrstore/client2client.cc",
+  "_client_debug_output": "store/pequinstore/*",
   "server_debug_output": false,
   "_server_debug_output": "store/pequinstore/*",
   "server_debug_stats": false,
@@ -474,6 +453,5 @@
   "client_cpuprofile": false,
   "server_gc_debug_trace": false,
   "_server_wrap_command": "valgrind --tool=none %s",
-  "__server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s",
-  "_client_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s"
+  "__server_wrap_command": "valgrind --tool=callgrind --instr-atstart=no --toggle-collect=\"*TCPTransport::Run*\" %s"
 }

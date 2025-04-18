@@ -304,11 +304,11 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   proto::FinishValidateTxnMessage finishValTxnMsg;
   PingMessage ping;
 
-  std::vector<uint64_t> create_hmac_ms;
-  std::vector<uint64_t> verify_hmac_ms;
-  std::vector<uint64_t> check_committed_prepared_ms;
-  std::vector<uint64_t> send_finish_val_ms;
-  std::vector<uint64_t> verify_endorse_ms;
+  mean_tracker create_hmac_us;
+  mean_tracker verify_hmac_us;
+  mean_tracker check_committed_prepared_us;
+  mean_tracker send_finish_val_us;
+  mean_tracker verify_endorse_us;
 };
 
 } // namespace sintrstore

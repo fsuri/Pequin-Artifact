@@ -1314,9 +1314,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void TEST_READ_MATERIALIZED_f();
   void TEST_READ_FROM_SS_f();
 
-  std::vector<uint64_t> extract_policy_ms;
-  std::vector<uint64_t> validate_endorsements_ms;
-  std::vector<uint64_t> new_digest_ms;
+  mean_tracker extract_policy_us;
+  mean_tracker validate_endorsements_us;
+  mean_tracker new_digest_us;
 };
 
 } // namespace sintrstore

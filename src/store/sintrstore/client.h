@@ -455,10 +455,11 @@ class Client : public ::Client {
   uint64_t commit_start_ms;
   uint64_t commit_end_ms;
 
-  uint64_t endorsements_received_ms;
-  std::vector<uint64_t> exec_time_ms;
-  std::vector<uint64_t> endorsement_wait_ms;
-  std::vector<uint64_t> phase1_time_ms;
+  uint64_t endorsements_received_us;
+  uint64_t phase1_ready_us;
+  mean_tracker exec_time_us;
+  mean_tracker endorsement_wait_us;
+  mean_tracker phase1_time_us;
 };
 
 } // namespace sintrstore
