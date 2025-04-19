@@ -1,5 +1,6 @@
 #include "store/benchmark/async/json_table_writer.h"
 #include "store/benchmark/async/sql/tpcch/tpcch_constants.h"
+#include "lib/message.h"
 #include <gflags/gflags.h>
 #include <random>
 #include <sstream>

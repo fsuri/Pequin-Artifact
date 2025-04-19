@@ -2,6 +2,7 @@
 #define SEATS_SQL_SEATS_PROFILE_H 
 #include "store/benchmark/async/sql/seats/seats_constants.h"
 #include "store/benchmark/async/sql/seats/seats_util.h"
+#include "lib/message.h"
 #include <cstdint>
 #include <vector>
 #include <random>
