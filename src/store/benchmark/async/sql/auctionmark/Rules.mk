@@ -20,7 +20,7 @@ OBJ-auctionmark-client := $(o)auctionmark_client.o
 LIB-auctionmark :=  $(LIB-auctionmark-profile)  $(LIB-auctionmark-transactions) $(OBJ-auctionmark-client) 
 
 
-$(d)sql_auctionmark_generator: $(LIB-io-utils) $(LIB-auctionmark-utils) $(LIB-auctionmark-profile) $(o)auctionmark_generator.o
+$(d)sql_auctionmark_generator: $(LIB-message) $(LIB-io-utils) $(LIB-auctionmark-utils) $(LIB-auctionmark-profile) $(o)auctionmark_generator.o
 
 BINS += $(d)sql_auctionmark_generator
 
