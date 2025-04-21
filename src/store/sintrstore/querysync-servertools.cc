@@ -252,7 +252,7 @@ std::string Server::ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *q
 }
 
 //TODO: Measure Exec time. Measure Send time.
-void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId, bool include_policy){
 
     query_md->executed_query = true;
 
@@ -275,6 +275,10 @@ void Server::ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *quer
     else{
             query_md->queryResultReply->mutable_result()->set_query_result(result); //set for non-query manager.
             //query_md->queryResult->set_query_result(dummy_result);
+    }
+    
+    if(include_policy) {
+        GetQueryPolicies(queryReadSetMgr, query_md);
     }
 
     SendQueryReply(query_md);
@@ -957,7 +961,7 @@ void Server::UpdateWaitingQueries(const std::string &txnDigest, bool is_abort){
                      // (Note: This is handled by retry_version check now. Can remove is_waiting.)
                      Debug("Waking Query[%lu:%lu:%lu]", query_md->client_id, query_md->query_seq_num, query_md->retry_version);
                     //Note: is_waiting -> make sure query is waiting. E.g. missing_txn could be empty because we re-tried the query and now are not missing any. In this case is_waiting will be set to false. -> no need to call callback
-                    HandleSyncCallback(q, query_md, queryId); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
+                    HandleSyncCallback(q, query_md, queryId, query_md->get_policy); //TODO: Should this be dispatched again? So that multiple waiting queries don't execute sequentially?
                 }
         }
         q.release();
@@ -1143,7 +1147,7 @@ void Server::UpdateWaitingQueriesTS(const uint64_t &txnTS, const std::string &tx
                 qm.release();
 
                 //If CheckPresence = yes && missing_txns.empty => HandleSyncCallback()
-                if(ready && isFinished) HandleSyncCallback(q, query_md, queryId);
+                if(ready && isFinished) HandleSyncCallback(q, query_md, queryId, query_md->get_policy);
                 
             }
         }

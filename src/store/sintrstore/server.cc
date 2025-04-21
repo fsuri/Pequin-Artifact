@@ -3177,7 +3177,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
         GetPolicy(policyId, read.readtime(), tsPolicy, true);
       }
       if (!policyClient.IsImpliedBy(tsPolicy.second.policy)) {
-        //Panic("Read policy does not imply write policy");
+        Panic("Read policy does not imply write policy");
       }
     }
   }

@@ -482,6 +482,25 @@ void Client::Write(std::string &write_statement, write_callback wcb,
         bclient[point_target_group]->Begin(client_seq_num);
       }  
 
+      if(bclient[point_target_group]->GetPolicyShardClient()) {
+        // make copy of keys in keys_written
+        for(auto key : *keys_written) {
+          if (Message_DebugEnabled(__FILE__)) {
+            Debug("PULL[%lu:%lu] POLICY FOR key %s in WRITE QUERY",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+          }
+          get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
+              Debug("get policy callback done");
+              get_policy_done -= 1;
+          };
+          get_timeout_callback tgcb = [](int, const std::string &){
+            Panic("TIMEOUT FOR GETTING POLICY VALUE FROM WRITE");
+          };
+          Get(key, gcb, tgcb, timeout);
+          get_policy_done += 1;
+          Debug("get sent for policy from write");
+        }
+      }
+
       write_cont_update_policy(REPLY_OK, write_result);
     }
     else{
@@ -675,7 +694,8 @@ void Client::Query(const std::string &query, query_callback qcb,
     else{
       rcb = std::bind(&Client::QueryResultCallback, this, pendingQuery,
                      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, 
-                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7);
+                     std::placeholders::_4, std::placeholders::_5, std::placeholders::_6, std::placeholders::_7,
+                     std::placeholders::_8);
       stats.Increment("QueryAttempts", 1);
       if(warmup_done) stats.Increment("QueryAttempts_postwarmup", 1);
     }
@@ -789,7 +809,8 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 
 void Client::QueryResultCallback(PendingQuery *pendingQuery,  
                                   int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
-                                  const std::vector<proto::SignedMessage> &query_sigs) 
+                                  const std::vector<proto::SignedMessage> &query_sigs,
+                                  const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap) 
 { 
 
   if(PROFILING_LAT){
@@ -905,6 +926,17 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
       }
     }
     pendingQuery->group_read_sets.clear(); //Note: Clearing here early to avoid double deletions on read sets whose allocated memory was moved.
+  }
+
+  for (const auto &policyEntry : queryPolicyMap) {
+    uint64_t id = policyEntry.first;
+    const proto::EndorsementPolicyMessage &policyMsg = policyEntry.second.first;
+    UW_ASSERT(id == policyMsg.policy_id());
+    if (policyMsg.IsInitialized()) {
+      Debug("PULL[%lu:%lu] POLICY FOR policy ID %lu in QUERY",client_id, client_seq_num, id);
+      Policy *policy = policyParseClient->Parse(policyMsg.policy());
+      endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
+    }
   }
 
   // forward to validating clients

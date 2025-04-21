@@ -220,7 +220,8 @@ class Client : public ::Client {
                             const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
-                            const std::vector<proto::SignedMessage> &query_sigs);  //free parameters
+                            const std::vector<proto::SignedMessage> &query_sigs,
+                            const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap);  //free parameters
   void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
