@@ -355,16 +355,6 @@ void Client::Put(const std::string &key, const std::string &value,
     //std::cerr << "value size: " << value.size() << "; key " << BytesToHex(key,16).c_str() << std::endl;
     Debug("PUT[%lu:%lu] for key %s", client_id, client_seq_num, BytesToHex(key, 16).c_str());
 
-    // Contact the appropriate shard to set the value.
-    std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
-    int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
-
-    // If needed, add this shard to set of participants and send BEGIN.
-    if (!IsParticipant(i)) {
-      txn.add_involved_groups(i);
-      bclient[i]->Begin(client_seq_num);
-    }
-
     WriteMessage *write = txn.add_write_set();
     write->set_key(key);
     write->set_value(value);
@@ -378,27 +368,61 @@ void Client::Put(const std::string &key, const std::string &value,
       endorseClient->GetPolicyFromCache(policyId, policy);
     }
     c2client->HandlePolicyUpdate(policy);
-    
-    if(bclient[i]->GetPolicyShardClient()) {
-      // empty callback functions
-      // This is a hack, but the downside is that it will add the key to the readset, 
-      // which shouldn't happen during a blind write. It may also introduce unnecessary dependencies. 
-      // Fortunately, this should occur very rarely.
-      if (Message_DebugEnabled(__FILE__)) {
-        Debug("PULL[%lu:%lu] POLICY FOR key %s in PUT",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+    // Contact the appropriate shard to set the value.
+    if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+      // contact all shards to update policy
+      Debug("Contacting all shards for policy update");
+      for (int i = 0; i < bclient.size(); i++) {
+        if (!IsParticipant(i)) {
+          txn.add_involved_groups(i);
+          bclient[i]->Begin(client_seq_num);
+        } 
+        if(bclient[i]->GetPolicyShardClient()) {
+          if (Message_DebugEnabled(__FILE__)) {
+            Debug("PULL[%lu:%lu] POLICY FOR key %s in PUT",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+          }
+          get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
+              Debug("get policy callback done");
+              get_policy_done -= 1;
+          };
+          get_timeout_callback tgcb = [](int, const std::string &){
+            Panic("TIMEOUT FOR GETTING POLICY VALUE");
+          };
+          Get(key, gcb, tgcb, timeout);
+          get_policy_done += 1;
+          Debug("get sent for policy");
+        }
+        bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
       }
-      get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
-          Debug("get policy callback done");
-          get_policy_done -= 1;
-      };
-      get_timeout_callback tgcb = [](int, const std::string &){
-        Panic("TIMEOUT FOR GETTING POLICY VALUE");
-      };
-      Get(key, gcb, tgcb, timeout);
-      get_policy_done += 1;
-      Debug("get sent for policy");
+    } else {
+      std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
+      int i = (*part)(key, nshards, -1, txnGroups) % ngroups; 
+      // If needed, add this shard to set of participants and send BEGIN.
+      if (!IsParticipant(i)) {
+        txn.add_involved_groups(i);
+        bclient[i]->Begin(client_seq_num);
+      } 
+      if(bclient[i]->GetPolicyShardClient()) {
+        // empty callback functions
+        // This is a hack, but the downside is that it will add the key to the readset, 
+        // which shouldn't happen during a blind write. It may also introduce unnecessary dependencies. 
+        // Fortunately, this should occur very rarely.
+        if (Message_DebugEnabled(__FILE__)) {
+          Debug("PULL[%lu:%lu] POLICY FOR key %s in PUT",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+        }
+        get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
+            Debug("get policy callback done");
+            get_policy_done -= 1;
+        };
+        get_timeout_callback tgcb = [](int, const std::string &){
+          Panic("TIMEOUT FOR GETTING POLICY VALUE");
+        };
+        Get(key, gcb, tgcb, timeout);
+        get_policy_done += 1;
+        Debug("get sent for policy");
+      }
+      bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
     }
-    bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
   });
 }
 

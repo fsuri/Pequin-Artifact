@@ -57,10 +57,17 @@ void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
   GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
 
+  TxnState protoTxnState;
+  protoTxnState.ParseFromString(txnState);
+
   allValTxnStatesMap::accessor a;
   if (!allValTxnStates.find(a, txn_id)) {
     // Begin should always happen after SetTxnTimestamp, which inserts at txn_id
     Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
+  }
+
+  if(protoTxnState.txn_name().find("policy") != std::string::npos) {
+    a->second->txn->set_policy_type(proto::Transaction::POLICY_ID_POLICY);
   }
   a.release();
   bcb(txn_client_seq_num);
@@ -181,10 +188,19 @@ void ValidationClient::Put(const std::string &key, const std::string &value,
   write->set_key(key);
   write->set_value(value);
 
-  std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
-  int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
-  if (!IsTxnParticipant(txn, i)) {
-    txn->add_involved_groups(i);
+  if(txn->policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+    // add all shards as involved groups (since we are contacting all shards on a put to update policy)
+    for(int i = 0; i < ngroups; i++) {
+      if (!IsTxnParticipant(txn, i)) {
+        txn->add_involved_groups(i);
+      }
+    }
+  } else {
+    std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
+    int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
+    if (!IsTxnParticipant(txn, i)) {
+      txn->add_involved_groups(i);
+    }
   }
 
   a.release();
