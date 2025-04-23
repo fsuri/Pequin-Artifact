@@ -65,7 +65,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     query_seq_num(0UL), client_seq_num(0UL), lastReqId(0UL), getIdx(0UL),
     failureEnabled(false), failureActive(false), faulty_counter(0UL),
     consecutiveMax(consecutiveMax),
-    sql_interpreter(&params.query_params), clients_config(clients_config), keys(keys) {
+    sql_interpreter(&params.query_params), clients_config(clients_config), keys(keys), target_group_for_get(-1) {
 
   Notice("Sintrstore currently does not support Read-your-own-Write semantics for Queries. Adjust application accordingly!!");
 
@@ -281,16 +281,6 @@ void Client::Get(const std::string &key, get_callback gcb,
     Debug("GET[%lu:%lu] for key %s", client_id, client_seq_num,
         BytesToHex(key, 16).c_str());
 
-    // Contact the appropriate shard to get the value.
-    std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
-    int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
-
-    // If needed, add this shard to set of participants and send BEGIN.
-    if (!IsParticipant(i)) {
-      txn.add_involved_groups(i);
-      bclient[i]->Begin(client_seq_num);
-    }
-
     read_callback rcb = [gcb, this](int status, const std::string &key,
         const std::string &val, const Timestamp &ts, const proto::Dependency &dep,
         bool hasDep, bool addReadSet,
@@ -340,11 +330,26 @@ void Client::Get(const std::string &key, get_callback gcb,
       gcb(status, key, val, ts);
     };
     read_timeout_callback rtcb = gtcb;
+    // Contact the appropriate shard to get the value.
+    if(target_group_for_get != -1) {
+      // if we are calling get when sql mode is true, then contact shard that holds the key that we are writing to
+      // make sure get_from_put is true
+      bclient[target_group_for_get]->Get(client_seq_num, key, txn.timestamp(), readMessages,
+          readQuorumSize, params.readDepSize, rcb, rtcb, timeout, true);
+      target_group_for_get = -1;
+    } else {
+      std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
+      int i = (*part)(key, nshards, -1, txnGroups) % ngroups;  
+      // If needed, add this shard to set of participants and send BEGIN.
+      if (!IsParticipant(i)) {
+        txn.add_involved_groups(i);
+        bclient[i]->Begin(client_seq_num);
+      }
 
-  
-    // Send the GET operation to appropriate shard.
-    bclient[i]->Get(client_seq_num, key, txn.timestamp(), readMessages,
-        readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
+      // Send the GET operation to appropriate shard.
+      bclient[i]->Get(client_seq_num, key, txn.timestamp(), readMessages,
+          readQuorumSize, params.readDepSize, rcb, rtcb, timeout);
+    }
   });
 }
 
@@ -388,6 +393,7 @@ void Client::Put(const std::string &key, const std::string &value,
           get_timeout_callback tgcb = [](int, const std::string &){
             Panic("TIMEOUT FOR GETTING POLICY VALUE");
           };
+          target_group_for_get = i;
           Get(key, gcb, tgcb, timeout);
           get_policy_done += 1;
           Debug("get sent for policy");
@@ -519,6 +525,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
           get_timeout_callback tgcb = [](int, const std::string &){
             Panic("TIMEOUT FOR GETTING POLICY VALUE FROM WRITE");
           };
+          target_group_for_get = point_target_group;
           Get(key, gcb, tgcb, timeout);
           get_policy_done += 1;
           Debug("get sent for policy from write");
@@ -1192,7 +1199,7 @@ void Client::RetryQuery(PendingQuery *pendingQuery){
 //                                                                           // Find mismatched keys, or keys with different versions. Send to replicas request for tx for (key, version) --> replica replies with txn-digest.
 // }
 void Client::AddWriteSetIdx(proto::Transaction &txn){
-  if(!params.query_params.sql_mode) return; //only for sql_mode. NOT correct behavior for non-sql mode (in that mode there are no TableWrites)
+  if(!params.query_params.sql_mode || txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) return; //only for sql_mode. NOT correct behavior for non-sql mode (in that mode there are no TableWrites)
 
   ::sintrstore::AddWriteSetIdx(txn);
 }
@@ -1270,7 +1277,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
-        if(params.query_params.sql_mode) AddWriteSetIdx(txn);
+        if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) AddWriteSetIdx(txn);
         //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
 
         //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 
@@ -1293,7 +1300,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         return;
       }
     }
-    else if(params.query_params.sql_mode) {
+    else if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
       // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
       std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
       AddWriteSetIdx(txn);
@@ -1323,7 +1330,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     req->timeout = timeout; //20000UL; //timeout;
     stats.IncrementList("txn_groups", txn.involved_groups().size());
 
-    Debug("TRY COMMIT[%s]", BytesToHex(req->txnDigest, 16).c_str());
+    Debug("TRY COMMIT[%s] for client %d seq num %d", BytesToHex(req->txnDigest, 16).c_str(), client_id, client_seq_num);
    
     //Notice("Try Commit. Txn[%s][%lu:%lu].", BytesToHex(req->txnDigest, 16).c_str(), txn.timestamp().timestamp(), txn.timestamp().id()); //FIXME: REMOVE THIS. JUST FOR TESTING
     if(false){
@@ -1935,7 +1942,7 @@ void Client::Abort(abort_callback acb, abort_timeout_callback atcb,
 
     uint64_t ns = Latency_End(&executeLatency);
 
-    Debug("ABORT[%lu:%lu]", client_id, client_seq_num);
+    Debug("Execution ABORT[%lu:%lu]", client_id, client_seq_num);
 
     for (auto group : txn.involved_groups()) {
       bclient[group]->Abort(client_seq_num, txn.timestamp(), txn); 

@@ -461,6 +461,9 @@ class Client : public ::Client {
   mean_tracker exec_time_us;
   mean_tracker endorsement_wait_us;
   mean_tracker phase1_time_us;
+
+  // tracking target group for get triggered from an sql write
+  int target_group_for_get;
 };
 
 } // namespace sintrstore

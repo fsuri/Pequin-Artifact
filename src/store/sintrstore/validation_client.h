@@ -99,7 +99,7 @@ class ValidationClient : public ::Client {
   // Set the timestamp for the txn
   // timestamp was chosen by initiating client
   // this is expected to be called before the validation transaction begins
-  void SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_client_seq_num, const Timestamp &ts);
+  void SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_client_seq_num, const Timestamp &ts, bool isPolicyTransaction);
 
   // either fill one of the pending validation gets or put into readset for future validation get
   void ProcessForwardReadResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 

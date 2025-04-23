@@ -968,7 +968,7 @@ void ShardClient::HandleReadReplyCB2(proto::ReadReply* reply, proto::Write *writ
     req->maxTs.serialize(read->mutable_readtime());
     readValues[req->key] = req->maxValue;
     req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,
-        req->hasDep, !req->get_from_put,
+        req->hasDep && !req->get_from_put, !req->get_from_put,
         req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy,
         proto::Dependency(), false); // deprecated so just add dummy params here
     delete req; //XXX VERY IMPORTANT: dont delete while something is still dispatched for this reqId
@@ -1239,7 +1239,7 @@ void ShardClient::HandleReadReply(const proto::ReadReply &reply) {
       *read->mutable_key() = req->key;
       req->maxTs.serialize(read->mutable_readtime());
       
-      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep, !req->get_from_put,
+      req->gcb(REPLY_OK, req->key, req->maxValue, req->maxTs, req->dep,req->hasDep && !req->get_from_put, !req->get_from_put,
         req->maxCommittedProof, req->maxSerializedWrite, req->maxSerializedWriteTypeName, req->maxPolicy,
         req->policyDep, req->hasPolicyDep);
     }

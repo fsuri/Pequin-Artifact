@@ -57,18 +57,12 @@ void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
   GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
 
-  TxnState protoTxnState;
-  protoTxnState.ParseFromString(txnState);
-
   allValTxnStatesMap::accessor a;
   if (!allValTxnStates.find(a, txn_id)) {
     // Begin should always happen after SetTxnTimestamp, which inserts at txn_id
     Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
   }
 
-  if(protoTxnState.txn_name().find("policy") != std::string::npos) {
-    a->second->txn->set_policy_type(proto::Transaction::POLICY_ID_POLICY);
-  }
   a.release();
   bcb(txn_client_seq_num);
 }
@@ -190,6 +184,7 @@ void ValidationClient::Put(const std::string &key, const std::string &value,
 
   if(txn->policy_type() == proto::Transaction::POLICY_ID_POLICY) {
     // add all shards as involved groups (since we are contacting all shards on a put to update policy)
+    Debug("adding all involved shards in validation client");
     for(int i = 0; i < ngroups; i++) {
       if (!IsTxnParticipant(txn, i)) {
         txn->add_involved_groups(i);
@@ -197,6 +192,7 @@ void ValidationClient::Put(const std::string &key, const std::string &value,
     }
   } else {
     std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());
+    Debug("using non policy ID partitioner");
     int i = (*part)(key, nshards, -1, txnGroups) % ngroups;
     if (!IsTxnParticipant(txn, i)) {
       txn->add_involved_groups(i);
@@ -525,7 +521,7 @@ void ValidationClient::SetThreadValSQLInterpreter() {
   }
 }
 
-void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_client_seq_num, const Timestamp &ts) {
+void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_client_seq_num, const Timestamp &ts, bool isPolicyTransaction) {
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
   allValTxnStatesMap::accessor a;
   const bool isNewKey = allValTxnStates.insert(a, txn_id);
@@ -540,8 +536,11 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
     txn = a->second->txn;
   }
   ts.serialize(txn->mutable_timestamp());
+  if(isPolicyTransaction) {
+    txn->set_policy_type(proto::Transaction::POLICY_ID_POLICY);
+  }
   
-  if(query_params->sql_mode) {
+  if(query_params->sql_mode && txn->policy_type() != proto::Transaction::POLICY_ID_POLICY) {
     if (threadValtoSQL.find(std::this_thread::get_id()) == threadValtoSQL.end()) {
       std::ostringstream oss;
       oss << std::this_thread::get_id() << std::endl;

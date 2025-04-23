@@ -693,6 +693,7 @@ void Client2Client::HandleBeginValidateTxnMessage(const TransportAddress &remote
   ValidationTransaction *valTxn = valParseClient->Parse(txnState);
   TransportAddress *remoteCopy = remote.clone();
   ValidationInfo *valInfo = new ValidationInfo(curr_client_id, curr_client_seq_num, ts, std::move(valTxn), std::move(remoteCopy));
+  valInfo->isPolicyTransaction = (txnState.txn_name().find("policy") != std::string::npos);
   validationQueue.push(valInfo);
 }
 
@@ -1418,7 +1419,7 @@ void Client2Client::ValidationThreadFunction() {
     );
 
     valClient->SetThreadValTxnId(curr_client_id, curr_client_seq_num);
-    valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts);
+    valClient->SetTxnTimestamp(curr_client_id, curr_client_seq_num, curr_ts, valInfo->isPolicyTransaction);
 
     struct timespec ts_start;
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
@@ -1439,11 +1440,11 @@ void Client2Client::ValidationThreadFunction() {
       if (params.parallel_CCC) {
         std::sort(txn->mutable_read_set()->begin(), txn->mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
-        if (params.query_params.sql_mode) {
+        if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
           AddWriteSetIdx(*txn);
         }
       }
-      else if (params.query_params.sql_mode) {
+      else if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
         // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
         AddWriteSetIdx(*txn);

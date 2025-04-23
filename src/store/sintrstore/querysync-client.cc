@@ -1260,8 +1260,6 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
         // if write has a committed policy, verify it
         if (write->has_committed_policy()) {
-            // we should only get committed policy back if we requested it
-            UW_ASSERT((params.sintr_params.readIncludePolicy > 0 && reply.req_id() % params.sintr_params.readIncludePolicy == 0) || get_policy_shard_client);
     
             if (params.validateProofs) {
                 if (!reply.has_policy_proof()) {
