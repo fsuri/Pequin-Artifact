@@ -467,9 +467,6 @@ class Client : public ::Client {
   mean_tracker query_time_us;
 };
 
-} // namespace s
-
-
-rstore
+} // namespace sintrstore
 
 #endif /* _SINTR_CLIENT_H_ */
