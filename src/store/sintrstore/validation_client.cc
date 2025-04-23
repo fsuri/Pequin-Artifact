@@ -53,6 +53,13 @@ ValidationClient::~ValidationClient() {
 
 void ValidationClient::Begin(begin_callback bcb, begin_timeout_callback btcb,
     uint32_t timeout, bool retry, const std::string &txnState) {
+  // if (query_to_commit_us.count > 0 && query_to_commit_us.count % 2000 == 0) {
+  //   std::cerr << "Mean query to commit latency: " << query_to_commit_us.mean() << std::endl;
+  // }
+  // if (get_to_commit_us.count > 0 && get_to_commit_us.count % 2000 == 0) {
+  //   std::cerr << "Mean get to commit latency: " << get_to_commit_us.mean() << std::endl;
+  // }
+
   uint64_t txn_client_id, txn_client_seq_num;
   GetThreadValTxnId(&txn_client_id, &txn_client_seq_num);
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
@@ -423,6 +430,12 @@ void ValidationClient::Query(const std::string &query, query_callback qcb,
   });
   
   pendingQuery->timeout->Reset();
+
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = end - pendingQuery->start_time;
+  // pending_query_init_us.add(duration);
 }
 
 void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
@@ -469,6 +482,14 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       table_ver->mutable_rowupdates()->set_row_idx(-1); 
     }
   }
+
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // auto duration = end - query_fin_us;
+  // query_to_commit_us.add(duration);
+  // auto duration = end - get_fin_us;
+  // get_to_commit_us.add(duration);
 
   ccb(COMMITTED);
 }
@@ -619,6 +640,8 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
   uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
   auto duration = end - req->start_time;
   // Warning("PendingValidationGet took %lu us", duration);
+  // pending_get_us.add(duration);
+  // get_fin_us = end;
 
   req->ts = curr_ts;
   editTxnStateCB(a->second);
@@ -632,6 +655,10 @@ void ValidationClient::ProcessForwardReadResult(uint64_t txn_client_id, uint64_t
 
 void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
     const proto::ForwardReadResult &fwdReadResult, const proto::Dependency &dep, bool hasDep, bool addReadset) {
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   std::string curr_key = fwdReadResult.key();
   std::string curr_value = fwdReadResult.value();
   Timestamp curr_ts = Timestamp(fwdReadResult.timestamp());
@@ -703,6 +730,10 @@ void ValidationClient::ProcessForwardPointQueryResult(uint64_t txn_client_id, ui
   // callback
   PendingValidationQuery *req = *reqs_itr;
 
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // query_fin_us = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  
   req->ts = curr_ts;
   editTxnStateCB(a->second, req->query_cmd);
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_value);

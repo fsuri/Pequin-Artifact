@@ -115,7 +115,11 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     ValidationInfo(uint64_t txn_client_id, uint64_t txn_client_seq_num, Timestamp txn_ts,
         ValidationTransaction *valTxn, TransportAddress *remote) : 
         txn_client_id(txn_client_id), txn_client_seq_num(txn_client_seq_num), txn_ts(txn_ts),
-        valTxn(valTxn), remote(remote) {}
+        valTxn(valTxn), remote(remote) {
+      struct timespec ts_start;
+      clock_gettime(CLOCK_MONOTONIC, &ts_start);
+      start_time_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    }
     ~ValidationInfo() {
       delete valTxn;
       delete remote;
@@ -130,6 +134,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     ValidationTransaction *valTxn;
     // address of initiating client
     TransportAddress *remote;
+    // start time in microseconds
+    uint64_t start_time_us;
   };
 
   // for sending/receiving messages from other clients
@@ -304,11 +310,19 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   proto::FinishValidateTxnMessage finishValTxnMsg;
   PingMessage ping;
 
+  uint64_t send_begin_time_us;
+  uint64_t send_fwd_read_time_us;
+  uint64_t send_fwd_point_query_time_us;
+
   mean_tracker create_hmac_us;
   mean_tracker verify_hmac_us;
   mean_tracker check_committed_prepared_us;
   mean_tracker send_finish_val_us;
   mean_tracker verify_endorse_us;
+  mean_tracker validation_time_us;
+  mean_tracker validation_queue_time_us;
+  mean_tracker fwd_read_to_receive_endorse_us;
+  mean_tracker fwd_point_query_to_receive_endorse_us;
 };
 
 } // namespace sintrstore

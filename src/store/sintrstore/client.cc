@@ -173,6 +173,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
   //   std::cerr << "Mean execution latency: " << exec_time_us.mean() << std::endl;
   //   std::cerr << "Mean endorsement wait latency: " << endorsement_wait_us.mean() << std::endl;
   //   std::cerr << "Mean phase1 latency: " << phase1_time_us.mean() << std::endl;
+  //   std::cerr << "Mean query latency: " << query_time_us.mean() << std::endl;
   // }
 
   // fail the current txn iff failuer timer is up and
@@ -718,6 +719,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
     auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()];    //TODO: Store query_start_ms in some map.Look it up via query seq num!.
     // Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
     // if(duration > 20000) Warning("PointQuery exec exceeded 20ms");
+    // query_time_us.add(duration);
   }
 
   if (addReadSet) { 
