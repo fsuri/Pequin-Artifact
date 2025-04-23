@@ -274,8 +274,12 @@ void Client::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *poli
 
 void Client::Get(const std::string &key, get_callback gcb,
     get_timeout_callback gtcb, uint32_t timeout) {
+  int target_group_for_put = target_group_for_get; 
+  // we save this in the lambda's context so it doesn't change for other policies
+  // we can't just rely on checking sql_mode because for the normal workload we need to be able to differentiate
+  // between the gets caused by puts and gets caused by the transaction
 
-  transport->Timer(0, [this, key, gcb, gtcb, timeout]() {
+  transport->Timer(0, [this, key, gcb, gtcb, timeout, target_group_for_put]() {
     // Latency_Start(&getLatency);
 
     Debug("GET[%lu:%lu] for key %s", client_id, client_seq_num,
@@ -309,7 +313,7 @@ void Client::Get(const std::string &key, get_callback gcb,
       // new policy can only come from server, which must correspond to addReadSet
       if (policyMsg.IsInitialized()) {
         if (Message_DebugEnabled(__FILE__)) {
-          Debug("PULL[%lu:%lu] POLICY FOR key %s in GET",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+          Debug("PULL[%lu:%lu] POLICY FOR key %s in GET for policy ID %lu",client_id, client_seq_num, BytesToHex(key, 16).c_str(), policyMsg.policy_id());
         }
         Policy *policy = policyParseClient->Parse(policyMsg.policy());
         endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
@@ -331,12 +335,11 @@ void Client::Get(const std::string &key, get_callback gcb,
     };
     read_timeout_callback rtcb = gtcb;
     // Contact the appropriate shard to get the value.
-    if(target_group_for_get != -1) {
+    if(target_group_for_put != -1) {
       // if we are calling get when sql mode is true, then contact shard that holds the key that we are writing to
       // make sure get_from_put is true
-      bclient[target_group_for_get]->Get(client_seq_num, key, txn.timestamp(), readMessages,
+      bclient[target_group_for_put]->Get(client_seq_num, key, txn.timestamp(), readMessages,
           readQuorumSize, params.readDepSize, rcb, rtcb, timeout, true);
-      target_group_for_get = -1;
     } else {
       std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
       int i = (*part)(key, nshards, -1, txnGroups) % ngroups;  
@@ -363,18 +366,16 @@ void Client::Put(const std::string &key, const std::string &value,
     WriteMessage *write = txn.add_write_set();
     write->set_key(key);
     write->set_value(value);
-
-    // look in cache for policy
     const Policy *policy;
-    bool exists = endorseClient->GetPolicyFromCache(key, policy);
-    if (!exists) {
-      // if not found, use default policy for now
-      uint64_t policyId = policyIdFunction(key, value);
-      endorseClient->GetPolicyFromCache(policyId, policy);
-    }
-    c2client->HandlePolicyUpdate(policy);
     // Contact the appropriate shard to set the value.
     if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
+      // look in cache for policy
+      bool exists = endorseClient->GetPolicyFromCache(std::stoull(key), policy);
+      if (!exists) {
+        // if not found, that means we are trying to write to a policy that doesn't exist
+        Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", std::stoull(key));
+      }
+      c2client->HandlePolicyUpdate(policy);
       // contact all shards to update policy
       Debug("Contacting all shards for policy update");
       for (int i = 0; i < bclient.size(); i++) {
@@ -393,14 +394,23 @@ void Client::Put(const std::string &key, const std::string &value,
           get_timeout_callback tgcb = [](int, const std::string &){
             Panic("TIMEOUT FOR GETTING POLICY VALUE");
           };
+          Debug("get sent for policy in put");
           target_group_for_get = i;
           Get(key, gcb, tgcb, timeout);
           get_policy_done += 1;
-          Debug("get sent for policy");
         }
         bclient[i]->Put(client_seq_num, key, value, pcb, ptcb, timeout);
       }
+      target_group_for_get = -1;
     } else {
+      // look in cache for policy
+      bool exists = endorseClient->GetPolicyFromCache(key, policy);
+      if (!exists) {
+        // if not found, use default policy for now
+        uint64_t policyId = policyIdFunction(key, value);
+        endorseClient->GetPolicyFromCache(policyId, policy);
+      }
+      c2client->HandlePolicyUpdate(policy);
       std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
       int i = (*part)(key, nshards, -1, txnGroups) % ngroups; 
       // If needed, add this shard to set of participants and send BEGIN.
@@ -533,9 +543,10 @@ void Client::Write(std::string &write_statement, write_callback wcb,
             Panic("TIMEOUT FOR GETTING POLICY VALUE FROM WRITE");
           };
           target_group_for_get = point_target_group;
+          Debug("sending get for policy from write");
           Get(key, gcb, tgcb, timeout);
           get_policy_done += 1;
-          Debug("get sent for policy from write");
+          target_group_for_get = -1;
         }
       }
 
