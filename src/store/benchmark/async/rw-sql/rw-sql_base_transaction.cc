@@ -215,7 +215,7 @@ void RWSQLBaseTransaction::ExecutePointStatements(SyncClient &client, uint32_t t
   std::vector<int> idxs;
 
   auto idx = left_bound;
-  while(idx != right_bound){
+  while(idx != ((right_bound + 1) % numKeys)){
     idxs.push_back(idx);
 
     statement = fmt::format("SELECT * FROM {0} WHERE key = {1}", table_name, idx);

@@ -257,6 +257,14 @@ class ValidationClient : public ::Client {
   allValTxnStatesMap allValTxnStates;
   // map from thread id to (SQL Transformer) that stores a sql interpreter for each validation thread
   std::map<std::thread::id, SQLTransformer*> threadValtoSQL;
+
+  uint64_t query_fin_us;
+  uint64_t get_fin_us;
+
+  mean_tracker pending_get_us;
+  mean_tracker pending_query_init_us;
+  mean_tracker query_to_commit_us;
+  mean_tracker get_to_commit_us;
 };
 
 } // namespace sintrstore
