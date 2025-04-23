@@ -40,6 +40,7 @@ ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, uint32_t w_id) 
 ValidationPolicyChange::ValidationPolicyChange(uint32_t timeout, const validation::proto::PolicyChange &valPolicyChangeMsg) : 
     ValidationTPCCTransaction(timeout) {
   w_id = valPolicyChangeMsg.w_id();
+  randWeight = valPolicyChangeMsg.random_weight();
 }
 
 ValidationPolicyChange::~ValidationPolicyChange() {
@@ -51,11 +52,11 @@ transaction_status_t ValidationPolicyChange::Validate(::SyncClient &client) {
 
   client.Begin(timeout);
 
-  // distict table has policy id 1, change it to be policy of weight 3
+  // distict table has policy id 1, change it to be policy of random weight
   ::sintrstore::proto::PolicyObject policy;
   policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
   ::sintrstore::proto::WeightPolicyMessage weight_policy;
-  weight_policy.set_weight(3);
+  weight_policy.set_weight(randWeight);
   weight_policy.SerializeToString(policy.mutable_policy_data());
   
   std::string policy_str;

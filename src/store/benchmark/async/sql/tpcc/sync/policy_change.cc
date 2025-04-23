@@ -33,7 +33,8 @@
 namespace tpcc_sql {
 
 SyncSQLPolicyChange::SyncSQLPolicyChange(uint32_t timeout, uint32_t w_id) : SyncTPCCSQLTransaction(timeout),
-    PolicyChange(w_id) {}
+    PolicyChange(w_id) {
+    }
 
 SyncSQLPolicyChange::~SyncSQLPolicyChange() {
 }
@@ -51,13 +52,12 @@ transaction_status_t SyncSQLPolicyChange::Execute(SyncClient &client) {
   ::sintrstore::proto::PolicyObject policy;
   policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
   ::sintrstore::proto::WeightPolicyMessage weight_policy;
-  uint32_t randWeight = std::uniform_int_distribution<uint32_t>(1, 3)(GetRand());
   weight_policy.set_weight(randWeight);
   weight_policy.SerializeToString(policy.mutable_policy_data());
   
   std::string policy_str;
   policy.SerializeToString(&policy_str);
-  client.Put("1", policy_str, timeout);
+  client.Put("0", policy_str, timeout);
 
   return client.Commit(timeout);
 }

@@ -34,6 +34,7 @@
 namespace tpcc_sql {
 
 PolicyChange::PolicyChange(uint32_t w_id) : w_id(w_id) {
+  randWeight = std::uniform_int_distribution<uint32_t>(1, 3)(GetRand());
 }
 
 PolicyChange::~PolicyChange() {
@@ -49,6 +50,7 @@ void PolicyChange::SerializeTxnState(std::string &txnState) {
 
   validation::proto::PolicyChange curr_txn = validation::proto::PolicyChange();
   curr_txn.set_w_id(w_id);
+  curr_txn.set_random_weight(randWeight);
   std::string txn_data;
   curr_txn.SerializeToString(&txn_data);
   currTxnState.set_txn_data(txn_data);
