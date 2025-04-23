@@ -482,7 +482,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
   // call write_continuation and then update policy accordingly
   auto write_cont_update_policy = [this, write_continuation, keys_written](int status, query_result::QueryResult *result){
     //Debug("execution write cont for client %lu with seq num %lu with write statement %s", client_id, client_seq_num, write_statement.c_str());
-    // add write statement if necessary to brackets
+    // add write statement if necessary to brackets and then uncomment debugs
     write_continuation(status, result);
 
     // update policy for current transaction, make sure if policy is the same don't handle policy update
@@ -490,7 +490,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
     for (const auto &key : *keys_written) {
       uint64_t policyId = policyIdFunction(key, "");
       if(prev_policies.find(policyId) == prev_policies.end()) {
-        Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
+        //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
         const Policy *policy;
         endorseClient->GetPolicyFromCache(key, policy);  
         c2client->HandlePolicyUpdate(policy);
