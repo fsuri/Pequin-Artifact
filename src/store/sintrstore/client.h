@@ -410,6 +410,9 @@ class Client : public ::Client {
   // for keySelector based benchmark validation, need copy of keys for validator as well
   const std::vector<std::string> &keys;
 
+  // for tracking previous policies per txn:
+  std::set<uint64_t> prev_policies;
+
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;
   // true when client attempts to fail the CURRENT txn
