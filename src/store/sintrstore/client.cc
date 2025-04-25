@@ -172,7 +172,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
   // if (exec_time_us.count > 0 && exec_time_us.count % 2000 == 0) {
   //   std::cerr << "Mean execution latency: " << exec_time_us.mean() << std::endl;
   //   std::cerr << "Mean endorsement wait latency: " << endorsement_wait_us.mean() << std::endl;
-  //   std::cerr << "Mean phase1 latency: " << phase1_time_us.mean() << std::endl;
+  //   std::cerr << "Mean commit latency: " << commit_time_us.mean() << std::endl;
   //   std::cerr << "Mean query latency: " << query_time_us.mean() << std::endl;
   // }
 
@@ -1776,7 +1776,7 @@ void Client::Writeback(PendingRequest *req) {
     //Warning("     Transaction commit latency in us [%d]", duration);
 
     auto duration = commit_end_ms - endorsements_received_us;
-    phase1_time_us.add(duration);
+    // commit_time_us.add(duration);
   }
 
   //total_writebacks++;

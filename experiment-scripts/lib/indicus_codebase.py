@@ -805,6 +805,10 @@ class IndicusCodebase(ExperimentCodebase):
                 for i in range(len(config['server_names'])):
                     for j in range(config['client_nodes_per_server']):
                         for k in range(config['client_processes_per_client_node']):
+                            # don't exceed client total
+                            if 'client_total' in config and port_counter >= config['client_total']:
+                                break
+
                             if 'run_locally' in config and config['run_locally']:
                                 print('replica %s:%d' % ('localhost',
                                     config['sintr_protocol_settings']['client_port'] + port_counter), file=f)

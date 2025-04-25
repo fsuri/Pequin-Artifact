@@ -178,6 +178,10 @@ void Client2Client::SendBeginValidateTxnMessage(uint64_t client_seq_num, const T
   // if (fwd_point_query_to_receive_endorse_us.count > 0 && fwd_point_query_to_receive_endorse_us.count % 2000 == 0) {
   //   std::cerr << "Mean fwd point query to receive endorsement latency: " << fwd_point_query_to_receive_endorse_us.mean() << std::endl;
   // }
+  // if (send_begin_to_receive_endorse_us.count > 0 && send_begin_to_receive_endorse_us.count % 1000 == 0) {
+  //   std::cerr << "Mean send begin to receive endorsement latency: " << send_begin_to_receive_endorse_us.mean() << std::endl;
+  // }
+
   this->client_seq_num = client_seq_num;
 
   sentBeginValTxnMsg.Clear();
@@ -993,6 +997,7 @@ void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTx
   // clock_gettime(CLOCK_MONOTONIC, &ts_start);
   // uint64_t finish = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
   // auto duration = finish - send_begin_time_us;
+  // send_begin_to_receive_endorse_us.add(duration);
   // auto duration = finish - send_fwd_read_time_us;
   // fwd_read_to_receive_endorse_us.add(duration);
   // auto duration = finish - send_fwd_point_query_time_us;

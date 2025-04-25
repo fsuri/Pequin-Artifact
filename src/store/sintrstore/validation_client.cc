@@ -826,6 +826,10 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
   // callback
   PendingValidationQuery *req = *reqs_itr;
 
+  // struct timespec ts_end;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+  // query_fin_us = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(curr_query_result);
   editTxnStateCB(a->second, req->query_cmd, q_result, req->cache_result);
   req->vqcb(REPLY_OK, q_result);

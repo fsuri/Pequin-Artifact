@@ -321,6 +321,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   mean_tracker verify_endorse_us;
   mean_tracker validation_time_us;
   mean_tracker validation_queue_time_us;
+  mean_tracker send_begin_to_receive_endorse_us;
   mean_tracker fwd_read_to_receive_endorse_us;
   mean_tracker fwd_point_query_to_receive_endorse_us;
 };

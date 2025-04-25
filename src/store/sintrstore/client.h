@@ -459,7 +459,7 @@ class Client : public ::Client {
   uint64_t phase1_ready_us;
   mean_tracker exec_time_us;
   mean_tracker endorsement_wait_us;
-  mean_tracker phase1_time_us;
+  mean_tracker commit_time_us;
   mean_tracker query_time_us;
 };
 
