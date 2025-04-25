@@ -45,7 +45,7 @@ RWSQLBaseTransaction::RWSQLBaseTransaction(QuerySelector *querySelector, uint64_
   // not used in the code
   max_random_size = value_categories < 0? UINT64_MAX : log(value_categories) / log(alpha_numeric_size);
 
-  Notice("New TX with %d ops. Read only? %d", numOps, readOnly);
+  Debug("New TX with %d ops. Read only? %d", numOps, readOnly);
   std::vector<std::pair<int, int>> past_ranges;
   for (int i = 0; i < numOps; ++i) { //Issue at least numOps many Queries
     uint64_t table = querySelector->tableSelector->GetKey(rand);  //Choose which table to read from for query i
@@ -292,8 +292,11 @@ void RWSQLBaseTransaction::Update(SyncClient &client, uint32_t timeout,
       val+=1;
     }
     else{
-      srand(val);
-      val = std::rand() % value_categories;
+      // srand(val);
+      // val = std::rand() % value_categories;
+      // use std::minstd_rand to ensure thread safety of local random number generation
+      std::minstd_rand valRand(val);
+      val = valRand() % value_categories;
     }
     statement = fmt::format("INSERT INTO {0} VALUES ({1}, {2})", table_name, key, val);
   }
@@ -304,11 +307,13 @@ void RWSQLBaseTransaction::Update(SyncClient &client, uint32_t timeout,
     Debug("Read key: %d. val: %s", key, val.c_str());
     std::hash<std::string> hasher;
     size_t hashValue = hasher(val);
-    srand(hashValue);
+    // srand(hashValue);
+    std::minstd_rand valRand(hashValue);
 
     val.clear();
     val = std::string(value_size, '0');
-    uint64_t cat = std::rand();
+    // uint64_t cat = std::rand();
+    uint64_t cat = valRand();
     if(value_categories >= 0) cat = cat % value_categories;
     val = std::to_string(cat) + val;
     val.resize(value_size);
