@@ -151,7 +151,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if(msg.is_point() && !msg.eager_exec()){ 
         q.release(); //Release if hold
         //Note: If Point uses Eager Exec --> Just use normal protocol path in order to possibly cache read set etc. //FIXME: Make sure is_designated_For_reply
-        ProcessPointQuery(msg.req_id(), query, remote);
+        ProcessPointQuery(msg.req_id(), query, remote, msg.include_policy());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
         return;
     }
@@ -175,6 +175,8 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     }
     
     QueryMetaData *query_md = q->second;
+    // for the sync callbacks
+    query_md->get_policy = msg.include_policy();
 
     if(!query->query_cmd().empty()){ //If queryMetaData was inserted by Sync first, or we received retry first (i.e. query has not been processed yet), set query.
         //UW_ASSERT(query->has_query_cmd()); 
@@ -281,7 +283,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
     if((query_md->designated_for_reply || params.query_params.cacheReadSet) && msg.has_eager_exec() && msg.eager_exec() && !query_md->waiting_sync){  //If waiting_sync => ProcessSync. (must be on eagerPlusSnapshot)
         //Note: If eager exec on && caching read set --> all must execute.
         Debug("ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
-        ExecQueryEagerly(q, query_md, queryId);
+        ExecQueryEagerly(q, query_md, queryId, msg.include_policy());
 
         Debug("Finish ExecQueryEagerly. QueryId[%s]. Designated for reply? %d", BytesToHex(queryId, 16).c_str(), msg.designated_for_reply());
         if(params.mainThreadDispatching && (!params.dispatchMessageReceive || params.query_params.parallel_queries)) FreeQueryRequestMessage(&msg);
@@ -306,7 +308,7 @@ void Server::HandleQuery(const TransportAddress &remote, proto::QueryRequest &ms
 }
 
 
-void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote){
+void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote, bool include_policy){
 
     Timestamp ts(query->timestamp()); 
 
@@ -375,6 +377,49 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
             UW_ASSERT(committedProof); //proof must exist
             *pointQueryReply->mutable_proof() = *committedProof; //FIXME: Debug Seg here
         } 
+    }
+
+    if(include_policy && write->has_committed_value()) {
+        std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+        uint64_t policyId = policyIdFunction(query->primary_enc_key(), "");
+        GetPolicy(policyId, ts, tsPolicy, false);
+        tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_committed_policy_timestamp());
+        pointQueryReply->mutable_write()->mutable_committed_policy()->set_policy_id(policyId);
+        tsPolicy.second.policy->SerializeToProtoMessage(pointQueryReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+        if (params.validateProofs) {
+          *pointQueryReply->mutable_policy_proof() = *tsPolicy.second.proof;
+        }
+    } else if(include_policy && !write->has_committed_value()) {
+        const proto::Transaction *mostRecentPolicyTxn;
+        uint64_t preparedPolicyId = policyIdFunction(query->primary_enc_key(), "");
+        std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+        if(params.sintr_params.useOCCForPolicies) {
+          GetPolicy(preparedPolicyId, ts, tsPolicy, false);
+        } else {
+          GetPolicy(preparedPolicyId, ts, tsPolicy, true, &mostRecentPolicyTxn);
+        }
+        // if GetPolicy returns a prepared policy then it has no proof
+        if (tsPolicy.second.proof == nullptr) {
+            // this shouldn't trigger if useOCCForPolicies is true
+            UW_ASSERT(!params.sintr_params.useOCCForPolicies);
+            Debug("Prepared policy id write with most recent ts %lu.%lu.",
+                    tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+            tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_prepared_policy_timestamp());
+            pointQueryReply->mutable_write()->mutable_prepared_policy()->set_policy_id(preparedPolicyId);
+            tsPolicy.second.policy->SerializeToProtoMessage(pointQueryReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
+            std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+            if(params.sintr_params.hashEndorsements) {
+                tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
+            }
+            *pointQueryReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
+        } else {
+            tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_committed_policy_timestamp());
+            pointQueryReply->mutable_write()->mutable_committed_policy()->set_policy_id(preparedPolicyId);
+            tsPolicy.second.policy->SerializeToProtoMessage(pointQueryReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+            if (params.validateProofs) {
+                *pointQueryReply->mutable_policy_proof() = *tsPolicy.second.proof;
+            }
+        }
     }
 
     // Notice("Query[%lu:%lu] read set. committed[%lu:%lu], prepared[%lu][%lu]", ts.getTimestamp(), ts.getID(), 
@@ -708,7 +753,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
     //Note: fullyMaterialized == missing_txns.empty() && missing_ts.empty()
     if(fullyMaterialized){
         query_md->is_waiting = false;
-        return HandleSyncCallback(q, query_md, *queryId);
+        return HandleSyncCallback(q, query_md, *queryId, query_md->get_policy);
     }
 
 
@@ -724,7 +769,7 @@ void Server::ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &
 }
 
 //Note: WARNING: must be called while holding a lock on query_md. 
-void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId){
+void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId, bool include_policy){
 
     Debug("Sync complete for Query[%lu:%lu]. Starting Execution", query_md->query_seq_num, query_md->client_id);
     query_md->is_waiting = false;
@@ -755,7 +800,10 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 
     //Clear set snapshot. Could've been set by EagerPlusSnapshot path.
     query_md->queryResultReply->mutable_result()->clear_local_ss();
-
+    
+    if(include_policy) {
+        GetQueryPolicies(queryReadSetMgr, query_md);
+    }
    
     if(TEST_FAIL_QUERY && query_md->retry_version == 0){ //Test to simulate a retry once.
         FailQuery(query_md);
@@ -778,6 +826,52 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
     if(params.query_params.cacheReadSet) wakeSubscribedTx(queryId, retry_version); //TODO: Instead of passing it along, just store the queryId...
 }
 
+
+void Server::GetQueryPolicies(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md) {
+
+    std::set<uint64_t> prev_policies;
+    // will not update policy if a new policy with a newer timestamp before query ts is committed but policy ID is already in prev_policies
+    proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
+    for (const auto &read : queryReadSetMgr.read_set->read_set()) {
+        // get the policies associated with the readset keys in the query
+        uint64_t policyId = policyIdFunction(read.key(), "");
+        if (prev_policies.find(policyId) == prev_policies.end()) {
+            std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+            const proto::Transaction *mostRecentPolicyTxn;
+            if (params.sintr_params.useOCCForPolicies) {
+                GetPolicy(policyId, query_md->ts, tsPolicy, false);
+            }
+            else {
+                GetPolicy(policyId, query_md->ts, tsPolicy, true, &mostRecentPolicyTxn);
+            }
+            // garbage collection is handled by google protobuf
+            proto::QueryPolicy *query_policy = queryResultReply->add_query_policy();
+            tsPolicy.first.serialize(query_policy->mutable_policy_timestamp());
+            query_policy->mutable_endorsement_policy()->set_policy_id(policyId);
+            tsPolicy.second.policy->SerializeToProtoMessage(query_policy->mutable_endorsement_policy()->mutable_policy());
+            // if GetPolicy returns a prepared policy then it has no proof
+            if (tsPolicy.second.proof == nullptr) {
+                // this shouldn't trigger if useOCCForPolicies is true
+                UW_ASSERT(!params.sintr_params.useOCCForPolicies);
+                Debug("Prepared policy id write with most recent ts %lu.%lu.",
+                      tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+                std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+                if (params.sintr_params.hashEndorsements) {
+                    tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
+                }
+                *query_policy->mutable_prepared_policy_txn_digest() = tempDigest;
+            }
+            else {
+                Debug("Committed policy id write with most recent ts %lu.%lu.",
+                      tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+                if (params.validateProofs) {
+                    *query_policy->mutable_policy_proof() = *tsPolicy.second.proof;
+                }
+            }
+            prev_policies.insert(policyId);
+        }
+    }
+}
 
 
 void Server::SendQueryReply(QueryMetaData *query_md){ 

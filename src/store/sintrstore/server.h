@@ -297,7 +297,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
                     const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params, const uint64_t &retry_version): 
          failure(false), retry_version(retry_version), waiting_sync(false), started_sync(false), has_result(false), 
          query_cmd(_query_cmd), ts(timestamp), original_client(remote.clone()), req_id(req_id), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false),
-         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr), designated_for_reply(false)
+         snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), merged_ss_msg(nullptr), designated_for_reply(false), get_policy(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -307,7 +307,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
        QueryMetaData(const uint64_t &query_seq_num, const uint64_t &client_id, const QueryParameters *query_params): 
           failure(false), retry_version(0UL), has_query(false), waiting_sync(false), started_sync(false), 
           has_result(false), query_seq_num(query_seq_num), client_id(client_id), is_waiting(false) ,
-          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr), designated_for_reply(false)
+          snapshot_mgr(query_params), useOptimisticTxId(false), executed_query(false), original_client(nullptr), merged_ss_msg(nullptr), designated_for_reply(false),
+          get_policy(false)
       {
           //queryResult = new proto::QueryResult();
           queryResultReply = new proto::QueryResultReply(); //TODO: Replace with GetUnused.
@@ -358,6 +359,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
        Timestamp ts;
       bool has_query;
+      bool get_policy;
       std::string query_cmd; //query to execute
 
       uint64_t retry_version;            //query retry version (0 for original)
@@ -493,7 +495,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     const proto::Transaction* FindPreparedVersion(const std::string &key, const Timestamp &ts, bool committed_exists, std::pair<Timestamp, V> const &tsVal,
       const proto::Transaction::TxnPolicyType txnPolicyType = proto::Transaction::NONE);
 
-    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote);
+    void ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const TransportAddress &remote, bool include_policy = false);
     void ProcessQuery(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::Query *query, QueryMetaData *query_md);
     void FindSnapshot(QueryMetaData *query_md, proto::Query *query);
     void ProcessSync(queryMetaDataMap::accessor &q, const TransportAddress &remote, proto::MergedSnapshot *merged_ss, const std::string *queryId, QueryMetaData *query_md);
@@ -516,8 +518,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       //void CheckLocalAvailability(const std::string &txn_id, proto::SupplyMissingTxnsMessage &supply_txn, bool sync_on_ts = false);
 
     std::string ExecQuery(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md, bool read_materialized = false, bool eager = false);
-    void ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
-    void HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId);
+    void ExecQueryEagerly(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId, bool include_policy = false );
+    void HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *query_md, const std::string &queryId, bool include_policy = false);
+    void GetQueryPolicies(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md);
     void SendQueryReply(QueryMetaData *query_md);
     void CacheReadSet(QueryMetaData *query_md, proto::QueryResult *&result, proto::ReadSet *&query_read_set);
     void ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_info, bool &stop);

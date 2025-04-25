@@ -220,7 +220,8 @@ class Client : public ::Client {
                             const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
-                            const std::vector<proto::SignedMessage> &query_sigs);  //free parameters
+                            const std::vector<proto::SignedMessage> &query_sigs,
+                            const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap);  //free parameters
   void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
@@ -409,6 +410,9 @@ class Client : public ::Client {
   // for keySelector based benchmark validation, need copy of keys for validator as well
   const std::vector<std::string> &keys;
 
+  // for tracking previous policies per txn:
+  std::set<uint64_t> prev_policies;
+
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;
   // true when client attempts to fail the CURRENT txn
@@ -439,6 +443,8 @@ class Client : public ::Client {
 
   std::unordered_map<uint64_t, uint64_t> pendingReqs_starttime;
 
+  // tracking target group for get triggered from an sql write
+  int target_group_for_get;
 
   /* Debug State */
   std::unordered_map<std::string, uint32_t> statInts;
