@@ -40,6 +40,7 @@ ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, uint32_t 
 ValidationSQLPolicyChange::ValidationSQLPolicyChange(uint32_t timeout, const validation::proto::PolicyChange &valPolicyChangeMsg) : 
   ValidationTPCCSQLTransaction(timeout) {
   w_id = valPolicyChangeMsg.w_id();
+  randWeight = valPolicyChangeMsg.random_weight();
 }
 
 ValidationSQLPolicyChange::~ValidationSQLPolicyChange() {
@@ -55,12 +56,12 @@ transaction_status_t ValidationSQLPolicyChange::Validate(::SyncClient &client) {
   ::sintrstore::proto::PolicyObject policy;
   policy.set_policy_type(::sintrstore::proto::PolicyObject::WEIGHT_POLICY);
   ::sintrstore::proto::WeightPolicyMessage weight_policy;
-  weight_policy.set_weight(3);
+  weight_policy.set_weight(randWeight);
   weight_policy.SerializeToString(policy.mutable_policy_data());
   
   std::string policy_str;
   policy.SerializeToString(&policy_str);
-  client.Put("1", policy_str, timeout);
+  client.Put("0", policy_str, timeout);
 
   return client.Commit(timeout);
 }

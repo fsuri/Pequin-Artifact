@@ -220,7 +220,8 @@ class Client : public ::Client {
                             const std::string &serializedWriteTypeName, const proto::EndorsementPolicyMessage &policyMsg); 
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
-                            const std::vector<proto::SignedMessage> &query_sigs);  //free parameters
+                            const std::vector<proto::SignedMessage> &query_sigs,
+                            const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap);  //free parameters
   void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
@@ -409,6 +410,9 @@ class Client : public ::Client {
   // for keySelector based benchmark validation, need copy of keys for validator as well
   const std::vector<std::string> &keys;
 
+  // for tracking previous policies per txn:
+  std::set<uint64_t> prev_policies;
+
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;
   // true when client attempts to fail the CURRENT txn
@@ -460,6 +464,9 @@ class Client : public ::Client {
   mean_tracker exec_time_us;
   mean_tracker endorsement_wait_us;
   mean_tracker phase1_time_us;
+  int target_group_for_get;
+
+  // tracking target group for get triggered from an sql write
   mean_tracker query_time_us;
 };
 

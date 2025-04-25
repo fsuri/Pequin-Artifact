@@ -76,7 +76,8 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 ////////// Queries
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool,
-  const std::vector<proto::SignedMessage> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
+  const std::vector<proto::SignedMessage> &,
+  const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
 typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const std::string &,
   const proto::Dependency &, bool, bool,
   const proto::CommittedProof &, const std::string &, const std::string &,
@@ -139,7 +140,7 @@ class ShardClient : public TransportReceiver, public PingInitiator, public PingT
   // Get the value corresponding to key.
   virtual void Get(uint64_t id, const std::string &key, const TimestampMessage &ts,
       uint64_t readMessages, uint64_t rqs, uint64_t rds, read_callback &gcb,
-      read_timeout_callback &gtcb, uint32_t timeout);
+      read_timeout_callback &gtcb, uint32_t timeout, bool get_from_put = false);
 
   // Set the value for the given key.
   virtual void Put(uint64_t id, const std::string &key,
@@ -245,6 +246,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     read_callback gcb;
     read_timeout_callback gtcb;
     bool firstCommittedReply;
+    bool get_from_put;
 
     //std::map<Timestamp, std::map<std::pair<std::string, std::string>, proto::Signatures>> prepared_new;
     std::map<std::tuple<Timestamp, std::string, std::string>, std::pair<uint64_t, proto::Signatures>> prepared_new; //Tuple (Timestamp, TxnDigest, Value)
@@ -358,6 +360,9 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
 
     std::string *key;
     std::string *table_name;
+    
+    // max policy and timestamp for this query
+    std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> queryPolicyMap;
   };
 
 
@@ -629,7 +634,7 @@ SQLTransformer *sql_interpreter;
   const uint64_t phase1DecisionTimeout;
   std::vector<int> closestReplicas;
   bool failureActive;
-  bool get_policy_shard_client;
+  bool get_policy_shard_client; // TODO: Add multithread support for this var
 
   uint64_t lastReqId;
   proto::Transaction txn;

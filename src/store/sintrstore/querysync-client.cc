@@ -195,6 +195,10 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
 
   queryReq.set_is_point(pendingQuery->is_point);
 
+  if ((params.sintr_params.readIncludePolicy > 0 && pendingQuery->reqId % params.sintr_params.readIncludePolicy == 0) ||
+        get_policy_shard_client) {
+    queryReq.set_include_policy(true);
+  }
 //   //queryReq.set_eager_exec(true);
 //   Notice("SET EAGER TO TRUE ALWAYS -- FOR REAL RUN UNCOMMENT CORRECT EAGER EXEC LINE");
   bool use_eager_exec = !pendingQuery->retry_version && (pendingQuery->is_point? params.query_params.eagerPointExec : params.query_params.eagerExec);
@@ -894,9 +898,41 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         else stats->Increment("Sync_successes");
 
         pendingQuery->done = true;
+        // since the query is done, check if it has any policies
+        // TODO: Add support for prepared policies (when params.sintr_params.useOCCForPolicies is false)
+        if(queryResult.query_policy_size() > 0) {
+            for(const auto &policy : queryResult.query_policy()) {
+                // since useOCCForPolicies is true policy should have a policy proof
+                uint64_t policyId = policy.endorsement_policy().policy_id();
+                if(params.sintr_params.useOCCForPolicies || policy.has_policy_proof()) {
+                    if (params.validateProofs) {
+                        std::string committedPolicyTxnDigest = TransactionDigest(policy.policy_proof().txn(), params.hashDigest);
+                        if(params.sintr_params.hashEndorsements) {
+                            Debug("USING TXN DIGEST IN POLICY PROOF READ REPLY");
+                            committedPolicyTxnDigest = EndorsedTxnDigest(committedPolicyTxnDigest, policy.policy_proof().txn(), params.hashDigest);
+                        }
+                        std::string policyObjectStr;
+                        policy.endorsement_policy().policy().SerializeToString(&policyObjectStr);
+                        if (!ValidateTransactionWrite(policy.policy_proof(), &committedPolicyTxnDigest,
+                            std::to_string(policyId), policyObjectStr, policy.policy_timestamp(),
+                            config, params.signedMessages, keyManager, verifier)) {
+                            Debug("[group %i] Failed to validate committed policy for query %s.",
+                                group, queryResult.result().query_gen_id().c_str());
+                            return;
+                        }
+                        Debug("[group %i] QueryReply for %lu with committed policy id %lu.", group, queryResult.req_id(),policyId);
+                        Timestamp policyTs(policy.policy_timestamp());
+                        if(pendingQuery->queryPolicyMap.find(policyId) == pendingQuery->queryPolicyMap.end() || 
+                            pendingQuery->queryPolicyMap[policyId].second < policyTs) {
+                            pendingQuery->queryPolicyMap[policyId] = std::make_pair(policy.endorsement_policy(), policyTs);
+                        }
+                    }
+                }
+            }
+        }
         //pendingQuery->rcb(REPLY_OK, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true);
         pendingQuery->rcb(REPLY_OK, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), true,
-            pendingQuery->query_sigs);
+            pendingQuery->query_sigs, pendingQuery->queryPolicyMap);
         // Remove/Deltete pendingQuery happens in upcall
         return;
     }
@@ -941,7 +977,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
             Notice("[group %i] Received sufficient inconsistent replies to determine Failure for QueryResult %lu", group, queryResult.req_id());
             //pendingQuery->rcb(REPLY_FAIL, group, read_set, *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false);
             pendingQuery->rcb(REPLY_FAIL, group, replica_result->release_query_read_set(), *replica_result->mutable_query_result_hash(), *replica_result->mutable_query_result(), false,
-                pendingQuery->query_sigs);
+                pendingQuery->query_sigs, pendingQuery->queryPolicyMap);
                 //Remove/Delete pendingQuery happens in upcall
             return;
         }
@@ -1043,7 +1079,7 @@ void ShardClient::HandleFailQuery(proto::FailQuery &queryFail){
         //std::map<std::string, TimestampMessage> dummy_read_set;
         proto::ReadSet *dummy_read_set = nullptr;
         std::string dummy("");
-        pendingQuery->rcb(REPLY_FAIL, group, dummy_read_set, dummy, dummy, false, pendingQuery->query_sigs);
+        pendingQuery->rcb(REPLY_FAIL, group, dummy_read_set, dummy, dummy, false, pendingQuery->query_sigs, pendingQuery->queryPolicyMap);
     }
     return;
 }
@@ -1224,8 +1260,6 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
 
         // if write has a committed policy, verify it
         if (write->has_committed_policy()) {
-            // we should only get committed policy back if we requested it
-            UW_ASSERT((params.sintr_params.readIncludePolicy > 0 && reply.req_id() % params.sintr_params.readIncludePolicy == 0) || get_policy_shard_client);
     
             if (params.validateProofs) {
                 if (!reply.has_policy_proof()) {

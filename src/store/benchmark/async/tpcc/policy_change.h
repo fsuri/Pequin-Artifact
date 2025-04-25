@@ -28,7 +28,7 @@
 #define TPCC_POLICY_CHANGE_H
 
 #include "store/benchmark/async/tpcc/tpcc_transaction.h"
-
+#include <random>
 
 namespace tpcc {
 
@@ -42,6 +42,9 @@ class PolicyChange : public TPCCTransaction {
 
  protected:
   uint32_t w_id;
+  uint32_t randWeight;
+  std::mt19937 rand;
+  inline std::mt19937 &GetRand() { return rand; }
 };
 
 } // namespace tpcc

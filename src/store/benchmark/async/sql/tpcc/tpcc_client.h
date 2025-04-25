@@ -85,7 +85,8 @@ class TPCCSQLClient : public SyncTransactionBenchClient {
   bool delivery;
   uint32_t deliveryWId;
   uint32_t deliveryDId;
-
+  int count;
+  uint64_t id;
 };
 
 } //namespace tpcc_sql

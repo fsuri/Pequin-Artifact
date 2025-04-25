@@ -33,6 +33,7 @@
 #include "store/benchmark/async/sql/tpcc/sync/payment.h"
 #include "store/benchmark/async/sql/tpcc/sync/order_status.h"
 #include "store/benchmark/async/sql/tpcc/sync/stock_level.h"
+#include "store/benchmark/async/sql/tpcc/sync/policy_change.h"
 #include "store/benchmark/async/sql/tpcc/sync/delivery.h"
 
 namespace tpcc_sql {
@@ -53,7 +54,7 @@ TPCCSQLClient::TPCCSQLClient(bool run_sequential, SyncClient &client, Transport 
       C_c_last(C_c_last), new_order_ratio(new_order_ratio),
       delivery_ratio(delivery_ratio), payment_ratio(payment_ratio),
       order_status_ratio(order_status_ratio), stock_level_ratio(stock_level_ratio),
-      static_w_id(static_w_id), delivery(false) {
+      static_w_id(static_w_id), delivery(false), count(0), id(seed) {
   stockLevelDId = std::uniform_int_distribution<uint32_t>(1, 10)(GetRand());
 }
 
@@ -61,6 +62,10 @@ TPCCSQLClient::~TPCCSQLClient() {
 }
 
 SyncTransaction* TPCCSQLClient::GetNextTransaction() {
+  count++;
+  // if (id == 0 && count >= 100 && (count % 100) == 0 && count < 300) {
+  //  return new SyncSQLPolicyChange(GetTimeout(), 1);
+  //}
   uint32_t wid, did;
   std::mt19937 &gen = GetRand();
   if (delivery && deliveryDId < 10) {

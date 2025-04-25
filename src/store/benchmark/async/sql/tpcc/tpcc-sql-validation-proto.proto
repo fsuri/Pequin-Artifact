@@ -60,4 +60,5 @@ message StockLevel {
 
 message PolicyChange {
   required uint32 w_id = 1;
+  required uint32 random_weight = 2;
 }

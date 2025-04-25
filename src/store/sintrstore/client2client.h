@@ -134,6 +134,8 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     ValidationTransaction *valTxn;
     // address of initiating client
     TransportAddress *remote;
+    // boolean whether or not this is a policy transaction
+    bool isPolicyTransaction;
     // start time in microseconds
     uint64_t start_time_us;
   };
