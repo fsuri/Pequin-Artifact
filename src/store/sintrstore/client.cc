@@ -174,6 +174,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
   //   std::cerr << "Mean endorsement wait latency: " << endorsement_wait_us.mean() << std::endl;
   //   std::cerr << "Mean commit latency: " << commit_time_us.mean() << std::endl;
   //   std::cerr << "Mean query latency: " << query_time_us.mean() << std::endl;
+  //   std::cerr << "Mean query to commit latency: " << query_to_commit_us.mean() << std::endl;
   // }
 
   // fail the current txn iff failuer timer is up and
@@ -824,6 +825,10 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
       
   Debug("Upcall with Point Query result");
 
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // query_fin_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   //Note: result = empty ==>default case: no replica reported valid result (== all honest replicas send empty)
   // ==> QueryResultWrapper constructor will create empty result.
 
@@ -1290,6 +1295,12 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         Debug("key: %s. TS[%lu:%lu], is_table_v? %d", read.key().c_str(), read.readtime().timestamp(), read.readtime().id(), read.is_table_col_version());
       }
     }
+
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t end = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    // auto duration = end - query_fin_us;
+    // query_to_commit_us.add(duration);
 
     //TODO: Remove duplicate Writes and TableWrites 
     //sort over TableWrite vector (by primary key), and erase duplicates (same primary key) (try to keep the latter.)

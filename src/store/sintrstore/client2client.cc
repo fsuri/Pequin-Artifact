@@ -478,7 +478,7 @@ void Client2Client::SendForwardPointQueryResultMessageHelper(const uint64_t clie
 
   // struct timespec ts_end;
   // clock_gettime(CLOCK_MONOTONIC, &ts_end);
-  // uint64_t send_fwd_point_query_time_us = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+  // send_fwd_point_query_time_us = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
     
   for (const auto &i : beginValSent) {
     // do not send to self

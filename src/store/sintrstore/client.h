@@ -461,12 +461,15 @@ class Client : public ::Client {
   uint64_t commit_start_ms;
   uint64_t commit_end_ms;
 
+  uint64_t query_fin_us;
+
   uint64_t endorsements_received_us;
   uint64_t phase1_ready_us;
   mean_tracker exec_time_us;
   mean_tracker endorsement_wait_us;
   mean_tracker commit_time_us;
   mean_tracker query_time_us;
+  mean_tracker query_to_commit_us;
 };
 
 } // namespace sintrstore
