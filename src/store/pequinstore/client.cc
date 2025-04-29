@@ -361,7 +361,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       else{
         Debug("Issuing re-con Query");
         stats.Increment("total_recon_reads");
-        Query(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+        QueryInternal(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
         //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
         //TODO: add a field for "is_point" (for Inserts we already know!)
       }
@@ -415,16 +415,24 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 //NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
 // (Could edit query to include "previoudReads" + writes and use it for materialization)
 
+void Client::Query(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
+
+  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
+    QueryInternal(query, qcb, qtcb, timeout, cache_result, skip_query_interpretation);
+ });
+}
+
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
-void Client::Query(const std::string &query, query_callback qcb,
+void Client::QueryInternal(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
   stats.Increment("total_reads");
   
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
-  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
+  //transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
     // Latency_Start(&getLatency);
 
     query_seq_num++;
@@ -555,7 +563,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
 
-  });
+  //});
 }
 
 

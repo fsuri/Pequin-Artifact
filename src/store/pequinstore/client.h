@@ -110,6 +110,9 @@ class Client : public ::Client {
   virtual void Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false) override; //TODO: ::Client client class needs to expose Query interface too.. --> All other clients need to support the interface.
 
+    void QueryInternal(const std::string &query, query_callback qcb,
+    query_timeout_callback qtcb, uint32_t timeout, bool cache_result = false, bool skip_query_interpretation = false);
+
   // Commit all Get(s) and Put(s) since Begin().
   virtual void Commit(commit_callback ccb, commit_timeout_callback ctcb,
       uint32_t timeout) override;
