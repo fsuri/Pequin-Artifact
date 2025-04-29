@@ -16,7 +16,7 @@
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "seats-sql",
-  "benchmark_schema_file_path": "/mnt/extra/benchmark_data/sql-seats-tables-schema.json",
+  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-seats-tables-schema.json",
   
    "server_load_time": 60,
   

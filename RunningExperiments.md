@@ -42,6 +42,8 @@ Simply specify which benchmark you are uploading, and to how many shards (1, 2 o
 - E.g. use `./upload_data_remote -b 'tpcc' -s 2 -u `fs435`` to upload TPC-C data to 2 shards, with cloudlab user `fs435`
 - TPC-C and 1 shard are default parameters. Check our the script for exact usage!
 
+Note: Benchmark data, by default, is uploaded to `/users/<cloudlab-user>/benchmark_data/`. 
+
 ## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
 
 When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete the following pre-configuration steps before running an experiment script:
@@ -593,7 +595,7 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
 
         | #Clients    |   1   |    5   |   10   |   20   |   30   |   40   |   50   |   60   |   70   |
         |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
-        | Tput (tx/s) | 190   |  1022  |  2187  |  4529  |  5720  |  6012  |  6084  |  6059  |  6014  |
+        | Tput (tx/s) |  190  |  1022  |  2187  |  4529  |  5720  |  6012  |  6084  |  6059  |  6014  |
         | Lat (ms)    |  5.4  |  5     |  4.7   |  4.5   |  5.3   |  6.8   |  8.4   |  10.2  |  11.9  |
 
 
@@ -605,6 +607,43 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|
         | Tput (tx/s) |  233  |  1182 |  2499  |  5447  |  6911  |  7471  |  7695  |  7612  |  7617  |
         | Lat (ms)    |  4.4  |  4.3  |  4.1   |  3.7   |  4.4   |  5.5   |  6.7   |  8.1   |  9.7   |
+
+
+#### 8. **CockroachDB (CRDB)**: 
+
+
+> **NOTE**: CRDB incurs higher query processing overhead compared to Peloton and Postgres. To alleviate it's CPU bottleneck, we allow CRDB to scale horizontally across 6 shards. Shard management in CRDB (i.e. how data is partitioned and where it is placed) is mostly automatic, and may reconfigure itself throughout an experiment. To account for this, we run CRDB experiments with a high warmup time (long enough for the performance to converge). We note, however, that regardless CRDB exhibits fairly volatile performance. We further find, that for low load (few clients) latency is noticeably higher than under load; we thus opted omit results for low load configurations.
+
+> **NOTE**: Client's issuing transactions against CRDB must issue their operations sequentially. This, alongside CRDB's innately slow processing results in high latency for long transactions (e.g. in TPC-C). On a contentded workload such as TPC-C, this in turn results in limited throughput. On the less contended workloads (Auctionmark and SEATS) the effects are less pronounced, and thus CRDB is able to scale to throughput comparable to Peloton and Postgres.
+
+    - TPCC: Peak Throughput: 1333 tx/s, Ankle Latency: ~48ms
+    
+         Config file: `/experiment-configs/CRDB/TODO` //FIXME: 
+
+        | #Clients    |  25   |  30   |   35   |   40   |   45   |   50   |   60   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) |  566  |  694  |  806   |  898   |  954   |  972   |  1033  |
+        | Lat (ms)    |  44.4 |  43.4 |  43.6  |  44.7  |  47.4  |  51.8  |  58.4  |
+
+
+    - Auctionmark: Peak Throughput: 5289 tx/s, Ankle Latency: ~13ms
+
+         Config file: `/experiment-configs/CRDB/TODO` //FIXME: 
+
+        | #Clients    |  25   |   30   |   35   |   40   |   45   |   55   |   65   |   80   |   90   |
+        |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
+        | Tput (tx/s) | 2567  |  3255  |  3778  |  4191  |  4466  |  4863  |  5089  |  5277  |  5289  |
+        | Lat (ms)    | 9.5   |  9     |  9     |  9.3   |  9.8   |  11    |  12.4  |  13.8  |  16.4  |
+
+
+    - Seats: Peak Throughput: 5697 tx/s, Ankle Latency ~13ms
+
+        Config file: `/experiment-configs/CRDB/TODO' //FIXME:
+
+        | #Clients    |   20  |   25  |   30   |   35   |   40   |   45   |   50   |   60   |   70   |   85  |  100   |  110   |
+        |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|-------|--------|--------|
+        | Tput (tx/s) |  1884 |  2670 |  3289  |  3806  |  4094  |  4627  |  4934  |  5124  |  5275  |  5472 |  5697  |  5689  |
+        | Lat (ms)    |  10.6 |  9.4  |  9.1   |  9.2   |  9.7   |  9.7   |  11.7  |  11.7  |  13.3  |  15.6 |  17.6  |  19.4  |
 
 
 ### **2 - Sharding**:
@@ -646,14 +685,14 @@ No additional setup should be necessary to run CRDB. If you run into troubles, p
 
     Use the following three configs:
     - 1 shard: `experiment-configs/Cockroach/CRDB-TPCC-SQL-1.json` 
-    - 5 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-5.json` 
+    - 5 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-6.json` 
     - 9 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-9.json`. NOTE: You will need 9 server machines for this. Change your CloudLab expeirment according to the `server_names` in the config.
 
     Peak results reported were:
 
     | #Shards     |   1   |   5   |   9   |  
     |-------------|-------|-------|-------|
-    | Tput (tx/s) |  400  | 1095  | 1357  |
+    | Tput (tx/s) |  400  | 1033  | 1357  |
 
  > **[NOTE]** CockroachDB is (according to contacts we spoke to) not very optimized for single server performance, and needs to be sharded to be performant.
 

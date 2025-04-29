@@ -16,7 +16,7 @@
   "benchmark_type": "sql_bench",  
   
   "benchmark_name": "auctionmark-sql",
-  "benchmark_schema_file_path": "/mnt/extra/benchmark_data/sql-auctionmark-tables-schema.json",
+  "benchmark_schema_file_path": "/users/fs435/benchmark_data/sql-auctionmark-tables-schema.json",
   
   "server_load_time": 80,
   
