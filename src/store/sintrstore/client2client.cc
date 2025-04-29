@@ -1492,12 +1492,20 @@ void Client2Client::ValidationThreadFunction() {
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
         if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
           AddWriteSetIdx(*txn);
+          // also sort row updates
+          for (auto &[table, table_write]: *txn->mutable_table_writes()) {
+            std::sort(table_write.mutable_rows()->begin(), table_write.mutable_rows()->end(), sortRowUpdates);
+          }
         }
       }
       else if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
         // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
         AddWriteSetIdx(*txn);
+        // also sort row updates
+        for (auto &[table, table_write]: *txn->mutable_table_writes()) {
+          std::sort(table_write.mutable_rows()->begin(), table_write.mutable_rows()->end(), sortRowUpdates);
+        }
       }
 
       std::sort(txn->mutable_involved_groups()->begin(), txn->mutable_involved_groups()->end());

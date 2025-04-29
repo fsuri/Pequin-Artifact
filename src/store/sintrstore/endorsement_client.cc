@@ -122,10 +122,10 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
     if (!google::protobuf::util::MessageDifferencer::Equals(txn.read_set(i), expectedTxn.read_set(i))) {
       Debug(
         "read set mismatch: received key %s, ts %lu.%lu, expected key %s, ts %lu.%lu",
-        BytesToHex(txn.read_set(i).key(), 16).c_str(),
+        txn.read_set(i).key().c_str(),
         txn.read_set(i).readtime().timestamp(),
         txn.read_set(i).readtime().id(),
-        BytesToHex(expectedTxn.read_set(i).key(), 16).c_str(),
+        expectedTxn.read_set(i).key().c_str(),
         expectedTxn.read_set(i).readtime().timestamp(),
         expectedTxn.read_set(i).readtime().id()
       );
@@ -140,8 +140,8 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
       Debug(
         "write set mismatch[%d]: received key %s, expected key %s",
         i,
-        BytesToHex(txn.write_set(i).key(), 16).c_str(),
-        BytesToHex(expectedTxn.write_set(i).key(), 16).c_str()
+        txn.write_set(i).key().c_str(),
+        expectedTxn.write_set(i).key().c_str()
       );
     }
     if (txn.write_set(i).value() != expectedTxn.write_set(i).value()) {
@@ -239,18 +239,16 @@ void EndorsementClient::DebugCheck(const proto::Transaction &txn) {
         expectedTt[i].second->rows_size()
       );
     }
-    // need to sort rowUpdates first
+
     std::vector<const RowUpdates*> rows;
     for (int j = 0; j < tt[i].second->rows_size(); j++) {
       rows.push_back(&tt[i].second->rows(j));
     }
-    std::sort(rows.begin(), rows.end(), sortRowUpdates);
 
     std::vector<const RowUpdates*> expectedRows;
     for (int j = 0; j < expectedTt[i].second->rows_size(); j++) {
       expectedRows.push_back(&expectedTt[i].second->rows(j));
     }
-    std::sort(expectedRows.begin(), expectedRows.end(), sortRowUpdates);
 
     for (int j = 0; j < expectedRows.size(); j++) {
       if (rows[j]->has_deletion() != expectedRows[j]->has_deletion()) {

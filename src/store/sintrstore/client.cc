@@ -1326,7 +1326,13 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
-        if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) AddWriteSetIdx(txn);
+        if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
+          AddWriteSetIdx(txn);
+          // also sort row updates
+          for (auto &[table, table_write]: *txn.mutable_table_writes()) {
+            std::sort(table_write.mutable_rows()->begin(), table_write.mutable_rows()->end(), sortRowUpdates);
+          }
+        }
         //Note: Use stable_sort to guarantee order respects duplicates; Altnernatively: Can try to delete from write sets to save redundant size.
 
         //If write set can contain duplicates use the following: Reverse + sort --> "latest" put is first. Erase all but first entry. 
@@ -1353,6 +1359,10 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
       std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
       AddWriteSetIdx(txn);
+      // also sort row updates
+      for (auto &[table, table_write]: *txn.mutable_table_writes()) {
+        std::sort(table_write.mutable_rows()->begin(), table_write.mutable_rows()->end(), sortRowUpdates);
+      }
     }
 
     //TEST: Set TS only at the end.
