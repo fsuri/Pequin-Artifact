@@ -469,105 +469,108 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       write_timeout_callback wtcb, uint32_t timeout, bool blind_write){ //blind_write: default false, must be explicit application choice to skip.
 
     stats.Increment("total_writes");
-    //////////////////
-    // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
-    //TODO: parse write statement into table, column list, values_list, and read condition
+
+    transport->Timer(0, [this, write_statement, wcb, wtcb, timeout, blind_write]() mutable {
+      //////////////////
+      // Write Statement parser/interpreter:   //For now design to supports only individual Insert/Update/Delete statements. No nesting, no concatenation
+      //TODO: parse write statement into table, column list, values_list, and read condition
+      
+      Debug("Processing Write Statement: %s", write_statement.c_str());
+      std::string read_statement;
+      std::function<void(int, query_result::QueryResult*)>  write_continuation;
+      bool skip_query_interpretation = false;
+      uint64_t point_target_group = 0;
+      std::vector<std::string> *keys_written = new std::vector<std::string>();
+
+      //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
+      pendingWriteStatements.push_back(write_statement);
+
+      try{
+        sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write, keys_written);
+      }
+      catch(...){
+        Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
+      }
+
+      Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
     
-    Debug("Processing Write Statement: %s", write_statement.c_str());
-    std::string read_statement;
-    std::function<void(int, query_result::QueryResult*)>  write_continuation;
-    bool skip_query_interpretation = false;
-    uint64_t point_target_group = 0;
-    std::vector<std::string> *keys_written = new std::vector<std::string>();
+      //Testing/Debug only
+      //  Debug("Current read set: Before next write.");
+      //  for(auto read: txn.read_set()){
+      //     Debug("Read set already contains: %s", read.key().c_str());
+      //   }
 
-    //Write must stay in scope until the TX is done (because the Transformation creates String Views on it that it needs). Discard upon finishing TX
-    pendingWriteStatements.push_back(write_statement);
+      // call write_continuation and then update policy accordingly
+      auto write_cont_update_policy = [this, write_continuation, keys_written](int status, query_result::QueryResult *result){
+        //Debug("execution write cont for client %lu with seq num %lu with write statement %s", client_id, client_seq_num, write_statement.c_str());
+        // add write statement if necessary to brackets and then uncomment debugs
+        write_continuation(status, result);
 
-    try{
-      sql_interpreter.TransformWriteStatement(pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write, keys_written);
-    }
-    catch(...){
-      Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
-    }
-
-   Debug("Transformed Write into re-con read_statement: %s", read_statement.c_str());
-   
-   //Testing/Debug only
-  //  Debug("Current read set: Before next write.");
-  //  for(auto read: txn.read_set()){
-  //     Debug("Read set already contains: %s", read.key().c_str());
-  //   }
-
-  // call write_continuation and then update policy accordingly
-  auto write_cont_update_policy = [this, write_continuation, keys_written](int status, query_result::QueryResult *result){
-    //Debug("execution write cont for client %lu with seq num %lu with write statement %s", client_id, client_seq_num, write_statement.c_str());
-    // add write statement if necessary to brackets and then uncomment debugs
-    write_continuation(status, result);
-
-    // update policy for current transaction, make sure if policy is the same don't handle policy update
-    for (const auto &key : *keys_written) {
-      uint64_t policyId = policyIdFunction(key, "");
-      if(prev_policies.find(policyId) == prev_policies.end()) {
-        //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
-        const Policy *policy;
-        endorseClient->GetPolicyFromCache(key, policy);  
-        Debug("handle policy update for policy id %lu in write", policyId);
-        c2client->HandlePolicyUpdate(policy);
-        prev_policies.insert(policyId);
-      }
-    }
-
-    delete keys_written;
-  };
-
-    if(read_statement.empty()){ //Must be point operation (Insert/Delete)
-      //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
-      //NOTE: must return a QueryResult... 
-      Debug("No read statement, immediately writing");
-      sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
-
-      //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
-        //     //Cache point read results. This can help optimize common point Select + point Update patterns.
-        // if(!result.empty()){ //only cache if we did find a row.
-        //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
-        //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
-        // } 
-
-      if (!IsParticipant(point_target_group)) {
-        txn.add_involved_groups(point_target_group);
-        bclient[point_target_group]->Begin(client_seq_num);
-      }  
-
-      if(bclient[point_target_group]->GetPolicyShardClient()) {
-        // make copy of keys in keys_written
-        for(auto key : *keys_written) {
-          if (Message_DebugEnabled(__FILE__)) {
-            Debug("PULL[%lu:%lu] POLICY FOR key %s in WRITE QUERY",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+        // update policy for current transaction, make sure if policy is the same don't handle policy update
+        for (const auto &key : *keys_written) {
+          uint64_t policyId = policyIdFunction(key, "");
+          if(prev_policies.find(policyId) == prev_policies.end()) {
+            //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
+            const Policy *policy;
+            endorseClient->GetPolicyFromCache(key, policy);  
+            Debug("handle policy update for policy id %lu in write", policyId);
+            c2client->HandlePolicyUpdate(policy);
+            prev_policies.insert(policyId);
           }
-          get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
-              Debug("get policy callback done");
-              get_policy_done -= 1;
-          };
-          get_timeout_callback tgcb = [](int, const std::string &){
-            Panic("TIMEOUT FOR GETTING POLICY VALUE FROM WRITE");
-          };
-          target_group_for_get = point_target_group;
-          Debug("sending get for policy from write");
-          Get(key, gcb, tgcb, timeout);
-          get_policy_done += 1;
-          target_group_for_get = -1;
         }
-      }
 
-      write_cont_update_policy(REPLY_OK, write_result);
-    }
-    else{
-      Debug("Issuing re-con Query");
-      stats.Increment("total_recon_reads");
-      Query(read_statement, std::move(write_cont_update_policy), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
-      //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
-      //TODO: add a field for "is_point" (for Inserts we already know!)
-    }
+        delete keys_written;
+      };
+
+      if(read_statement.empty()){ //Must be point operation (Insert/Delete)
+        //Add to writes directly.  //Call write_continuation for Insert ; for Point Delete -- > OR: Call them inside Transform.
+        //NOTE: must return a QueryResult... 
+        Debug("No read statement, immediately writing");
+        sql::QueryResultProtoWrapper *write_result = new sql::QueryResultProtoWrapper(""); //TODO: replace with real result.
+
+        //TODO: Write a real result that we can cache => this will allow for read your own write semantics.
+          //     //Cache point read results. This can help optimize common point Select + point Update patterns.
+          // if(!result.empty()){ //only cache if we did find a row.
+          //   //Only cache if we did a Select *, i.e. we have the full row, and thus it can be used by Update.
+          //   if(size_t pos = pendingQuery->queryMsg.query_cmd().find("SELECT *"); pos != std::string::npos) point_read_cache[key] = result;
+          // } 
+
+        if (!IsParticipant(point_target_group)) {
+          txn.add_involved_groups(point_target_group);
+          bclient[point_target_group]->Begin(client_seq_num);
+        }  
+
+        if(bclient[point_target_group]->GetPolicyShardClient()) {
+          // make copy of keys in keys_written
+          for(auto key : *keys_written) {
+            if (Message_DebugEnabled(__FILE__)) {
+              Debug("PULL[%lu:%lu] POLICY FOR key %s in WRITE QUERY",client_id, client_seq_num, BytesToHex(key, 16).c_str());
+            }
+            get_callback gcb = [this](int, const std::string &, const std::string &, Timestamp){
+                Debug("get policy callback done");
+                get_policy_done -= 1;
+            };
+            get_timeout_callback tgcb = [](int, const std::string &){
+              Panic("TIMEOUT FOR GETTING POLICY VALUE FROM WRITE");
+            };
+            target_group_for_get = point_target_group;
+            Debug("sending get for policy from write");
+            Get(key, gcb, tgcb, timeout);
+            get_policy_done += 1;
+            target_group_for_get = -1;
+          }
+        }
+
+        write_cont_update_policy(REPLY_OK, write_result);
+      }
+      else{
+        Debug("Issuing re-con Query");
+        stats.Increment("total_recon_reads");
+        Query(read_statement, std::move(write_cont_update_policy), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+        //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
+        //TODO: add a field for "is_point" (for Inserts we already know!)
+      }
+    });
     return;
   }
 
@@ -617,16 +620,24 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 //NOTE: Unlike Get, Query currently cannot read own write, or previous reads -> consequently, different queries may read the same key differently
 // (Could edit query to include "previoudReads" + writes and use it for materialization)
 
-//Simulate Select * for now
-// TODO: --> Return all rows in the store.
 void Client::Query(const std::string &query, query_callback qcb,
     query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
+  
+  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
+    QueryInternal(query, qcb, qtcb, timeout, cache_result, skip_query_interpretation);
+  });
+}
+
+//Simulate Select * for now
+// TODO: --> Return all rows in the store.
+void Client::QueryInternal(const std::string &query, const query_callback &qcb,
+    const query_timeout_callback &qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
   stats.Increment("total_reads");
   
   UW_ASSERT(query.length() < ((uint64_t)1<<32)); //Protobuf cannot handle strings longer than 2^32 bytes --> cannot handle "arbitrarily" complex queries: If this is the case, we need to break down the query command.
 
-  transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
+  //transport->Timer(0, [this, query, qcb, qtcb, timeout, cache_result, skip_query_interpretation]() mutable {
     // Latency_Start(&getLatency);
 
     query_seq_num++;
@@ -775,7 +786,7 @@ void Client::Query(const std::string &query, query_callback qcb,
 
     //queryBuffer[query_seq_num] = std::move(queryMsg);  //Buffering only after sending, so we can move contents for free.
 
-  });
+  //});
 }
 
 
