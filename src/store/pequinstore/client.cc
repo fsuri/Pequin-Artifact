@@ -361,7 +361,7 @@ void Client::Write(std::string &write_statement, write_callback wcb,
       else{
         Debug("Issuing re-con Query");
         stats.Increment("total_recon_reads");
-        QueryInternal(read_statement, std::move(write_continuation), wtcb, timeout, false, skip_query_interpretation); //cache_result = false
+        QueryInternal(read_statement, write_continuation, wtcb, timeout, false, skip_query_interpretation); //cache_result = false
         //Note: don't to cache results of intermediary queries: otherwise we will not be able to read our own updated version //TODO: Eventually add a cache containing own writes (to support read your own writes)
         //TODO: add a field for "is_point" (for Inserts we already know!)
       }
@@ -425,8 +425,8 @@ void Client::Query(const std::string &query, query_callback qcb,
 
 //Simulate Select * for now
 // TODO: --> Return all rows in the store.
-void Client::QueryInternal(const std::string &query, query_callback qcb,
-    query_timeout_callback qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
+void Client::QueryInternal(const std::string &query, const query_callback &qcb,
+    const query_timeout_callback &qtcb, uint32_t timeout, bool cache_result, bool skip_query_interpretation) {
 
   stats.Increment("total_reads");
   
