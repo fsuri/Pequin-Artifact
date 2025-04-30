@@ -561,6 +561,10 @@ void Client::Write(std::string &write_statement, write_callback wcb,
           }
         }
 
+        if (params.sintr_params.blindWriteMessage) {
+          c2client->SendBlindWriteMessage();
+        }
+
         write_cont_update_policy(REPLY_OK, write_result);
       }
       else{

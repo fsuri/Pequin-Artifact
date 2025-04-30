@@ -35,8 +35,8 @@
 namespace sintrstore {
 
 ValidationClient::ValidationClient(Transport *transport, uint64_t client_id, uint64_t nclients, uint64_t nshards, uint64_t ngroups, 
-    Partitioner *part, std::string &table_registry, const QueryParameters* query_params) : 
-    transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), query_params(query_params),
+    Partitioner *part, std::string &table_registry, Parameters params) : 
+    transport(transport), client_id(client_id), nshards(nshards), ngroups(ngroups), part(part), params(params),
     table_registry(table_registry) {}
 
 ValidationClient::~ValidationClient() {
@@ -251,8 +251,22 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
 
   a->second->pendingWriteStatements.push_back(write_statement);
 
+  std::function<void(void)> *delayed_blind_write_cb = nullptr;
   try{
-    sql_interpreter->TransformWriteStatement(a->second->pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write);
+    // tmp_ptr = nullptr means we don't need to wait
+    auto tmp_ptr = &delayed_blind_write_cb;
+    if (!params.sintr_params.blindWriteMessage) {
+      tmp_ptr = nullptr;
+    }
+    else {
+      // invariant - if there are pending blind writes, then blind write message count should be 0
+      UW_ASSERT(a->second->pendingBlindWrites.size() == 0 || a->second->blind_write_message_count == 0);
+      if (a->second->blind_write_message_count > 0) {
+        tmp_ptr = nullptr;
+      }
+    }
+    sql_interpreter->TransformWriteStatement(a->second->pendingWriteStatements.back(), read_statement, write_continuation, wcb, point_target_group, skip_query_interpretation, blind_write,
+      nullptr, tmp_ptr);
   }
   catch(...){
     Panic("bug in transformer: %s -> %s", write_statement.c_str(), read_statement.c_str());
@@ -286,6 +300,20 @@ void ValidationClient::Write(std::string &write_statement, write_callback wcb,
     if (!IsTxnParticipant(txn, point_target_group)) {
       txn->add_involved_groups(point_target_group);
     }
+
+    if (params.sintr_params.blindWriteMessage && a->second->blind_write_message_count > 0) {
+      UW_ASSERT(delayed_blind_write_cb == nullptr);
+      Debug("Blind write message already received, already edited txn");
+      a->second->blind_write_message_count--;
+    }
+
+    if (delayed_blind_write_cb != nullptr) {
+      UW_ASSERT(params.sintr_params.blindWriteMessage && a->second->blind_write_message_count == 0);
+
+      Debug("Adding delayed blind write callback");
+      a->second->pendingBlindWrites.push_back(delayed_blind_write_cb);
+    }
+
     a.release();
 
     write_continuation(REPLY_OK, write_result);
@@ -463,6 +491,15 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
     Panic("cannot find transaction %s in allValTxnStates", txn_id.c_str());
   }
 
+  bool pendingBlindWriteRemaining = a->second->pendingBlindWrites.size() > 0;
+  while (params.sintr_params.blindWriteMessage && pendingBlindWriteRemaining) {
+    // still need to wait for blind write message
+    a.release();
+    std::this_thread::yield();
+    allValTxnStates.find(a, txn_id);
+    pendingBlindWriteRemaining = a->second->pendingBlindWrites.size() > 0;
+  }
+
   proto::Transaction *txn = a->second->txn;
 
   if (!a->second->pendingForwardedPointQuery.empty() || !a->second->pendingForwardedQuery.empty() ||
@@ -479,7 +516,7 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       BytesToHex(TransactionDigest(*txn, true), 16).c_str());
   // if has queries, and query deps are meant to be reported by client:
   // Sort and erase all duplicate dependencies. (equality = same txn_id and same involved group.)
-  if(!txn->query_set().empty() && !query_params->cacheReadSet && query_params->mergeActiveAtClient){
+  if(!txn->query_set().empty() && !params.query_params.cacheReadSet && params.query_params.mergeActiveAtClient){
     std::sort(txn->mutable_deps()->begin(), txn->mutable_deps()->end(), sortDepSet);
     // erases all but last appearance
     txn->mutable_deps()->erase(std::unique(txn->mutable_deps()->begin(), txn->mutable_deps()->end(), equalDep), txn->mutable_deps()->end());
@@ -536,7 +573,7 @@ void ValidationClient::SetThreadValTxnId(uint64_t txn_client_id, uint64_t txn_cl
 void ValidationClient::SetThreadValSQLInterpreter() {
   if(threadValtoSQL.find(std::this_thread::get_id()) == threadValtoSQL.end()) {
     Debug("Setting new sql transformer");
-    threadValtoSQL[std::this_thread::get_id()] = new SQLTransformer(query_params);
+    threadValtoSQL[std::this_thread::get_id()] = new SQLTransformer(&params.query_params);
     threadValtoSQL[std::this_thread::get_id()]->RegisterTables(table_registry);
     threadValtoSQL[std::this_thread::get_id()]->RegisterPartitioner(part, nshards, ngroups, -1);
   }
@@ -561,7 +598,7 @@ void ValidationClient::SetTxnTimestamp(uint64_t txn_client_id, uint64_t txn_clie
     txn->set_policy_type(proto::Transaction::POLICY_ID_POLICY);
   }
   
-  if(query_params->sql_mode && txn->policy_type() != proto::Transaction::POLICY_ID_POLICY) {
+  if(params.query_params.sql_mode && txn->policy_type() != proto::Transaction::POLICY_ID_POLICY) {
     if (threadValtoSQL.find(std::this_thread::get_id()) == threadValtoSQL.end()) {
       std::ostringstream oss;
       oss << std::this_thread::get_id() << std::endl;
@@ -856,6 +893,48 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
   delete req;
 }
 
+void ValidationClient::ProcessBlindWrite(uint64_t txn_client_id, uint64_t txn_client_seq_num) {
+  std::string curr_txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
+  
+  allValTxnStatesMap::accessor a;
+  const bool isNewKey = allValTxnStates.insert(a, curr_txn_id);
+  if (isNewKey) {
+    Debug(
+      "ProcessBlindWrite from client id %lu, seq num %lu, before txn_id in allValTxnStates registered",
+      txn_client_id,
+      txn_client_seq_num
+    );
+    proto::Transaction *txn = new proto::Transaction();
+    txn->set_client_id(txn_client_id);
+    txn->set_client_seq_num(txn_client_seq_num);
+    a->second = new AllValidationTxnState(txn_client_id, txn_client_seq_num, txn);
+    a->second->blind_write_message_count++;
+    return;
+  }
+
+  if (a->second->pendingBlindWrites.size() == 0) {
+    Debug(
+      "ProcessBlindWrite from client id %lu, seq num %lu, before PendingBlindWrite registered",
+      txn_client_id,
+      txn_client_seq_num
+    );
+    a->second->blind_write_message_count++;
+    return;
+  }
+
+  Debug(
+    "ProcessBlindWrite from client id %lu, seq num %lu, executing pending blind write",
+    txn_client_id,
+    txn_client_seq_num
+  );
+
+  // there exists a pending blind write that can now be executed
+  std::function<void(void)> *delayed_blind_write_cb = a->second->pendingBlindWrites.front();
+  (*delayed_blind_write_cb)();
+  a->second->pendingBlindWrites.pop_front();
+  delete delayed_blind_write_cb;
+}
+
 proto::Transaction *ValidationClient::GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num) {
   std::string txn_id = ToTxnId(txn_client_id, txn_client_seq_num);
   allValTxnStatesMap::accessor a;
@@ -927,12 +1006,12 @@ void ValidationClient::AddQueryReadset(AllValidationTxnState *allValTxnState,
   queryRep->set_retry_version(fwdQueryResult.query_res_meta().retry_version());
 
   for (const auto &[group, queryMeta] : fwdQueryResult.query_res_meta().group_meta()) {
-    if (query_params->cacheReadSet) {
+    if (params.query_params.cacheReadSet) {
       proto::QueryGroupMeta &queryMD = (*queryRep->mutable_group_meta())[group]; 
       queryMD.set_read_set_hash(queryMeta.read_set_hash());
     }
     else {
-      if (query_params->mergeActiveAtClient) {
+      if (params.query_params.mergeActiveAtClient) {
         for (const auto &read : queryMeta.query_read_set().read_set()) {
           *txn->add_read_set() = read;
         }

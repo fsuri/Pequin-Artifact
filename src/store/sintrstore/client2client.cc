@@ -58,7 +58,7 @@ Client2Client::Client2Client(transport::Configuration *config, transport::Config
   // separate verifier from main client instance
   clients_verifier = new BasicVerifier(transport);
   
-  valClient = new ValidationClient(transport, client_id, clients_config->n, nshards, ngroups, part, table_registry, &this->params.query_params); 
+  valClient = new ValidationClient(transport, client_id, clients_config->n, nshards, ngroups, part, table_registry, params); 
   valParseClient = new ValidationParseClient(10000, keys); // TODO: pass arg for timeout length
   transport->Register(this, *clients_config, group, client_id); 
 
@@ -149,6 +149,9 @@ void Client2Client::ReceiveMessage(const TransportAddress &remote,
   else if (type == fwdQueryResultMsg.GetTypeName()) {
     ManageDispatchForwardQueryResultMessage(remote, data);
   }
+  else if (type == blindWriteMsg.GetTypeName()) {
+    ManageDispatchBlindWriteMessage(remote, data);
+  }  
   else if (type == finishValTxnMsg.GetTypeName()) {
     ManageDispatchFinishValidateTxnMessage(remote, data);
   }
@@ -574,6 +577,59 @@ void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_se
   }
 }
 
+void Client2Client::SendBlindWriteMessage() {
+  uint64_t client_seq_num = this->client_seq_num;
+  if (!params.sintr_params.client2clientMultiThreading) {
+    SendBlindWriteMessageHelper(client_seq_num);
+  }
+  else {
+    auto f = [=]() {
+      this->SendBlindWriteMessageHelper(client_seq_num);
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::SendBlindWriteMessageHelper(const uint64_t client_seq_num) {
+  proto::BlindWriteMessage *blindWriteMsgToSend = new proto::BlindWriteMessage();
+  proto::BlindWrite blindWrite;
+  blindWrite.set_client_id(client_id);
+  blindWrite.set_client_seq_num(client_seq_num);
+
+  if (params.sintr_params.signFwdReadResults) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+    CreateHMACedMessage(blindWrite, *blindWriteMsgToSend->mutable_signed_blind_write());
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // create_hmac_us.add(duration);
+  }
+  else {
+    *blindWriteMsgToSend->mutable_blind_write() = std::move(blindWrite);
+  }
+
+  std::unique_lock lock(sentFwdResultsMutex);
+  sentFwdResults.insert(blindWriteMsgToSend);
+
+  Debug(
+    "SendBlindWrite: client id %lu, seq num %lu",
+    client_id,
+    client_seq_num
+  );
+  for (const auto &i : beginValSent) {
+    // do not send to self
+    if (i == client_id) {
+      continue;
+    }
+    transport->SendMessageToReplica(this, i, *blindWriteMsgToSend);
+  }
+}
+
 void Client2Client::HandlePolicyUpdate(const Policy *policy) {
   UW_ASSERT(policy != nullptr);
   endorseClient->UpdateRequirement(policy);
@@ -665,6 +721,24 @@ void Client2Client::ManageDispatchForwardQueryResultMessage(const TransportAddre
     auto f = [this, fwdQueryResultMsg](){
       this->HandleForwardQueryResultMessage(*fwdQueryResultMsg);
       delete fwdQueryResultMsg;
+      return (void*) true;
+    };
+    Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
+    c2cQueue.push(executor);
+  }
+}
+
+void Client2Client::ManageDispatchBlindWriteMessage(const TransportAddress &remote, const std::string &data) {
+  if (!params.sintr_params.client2clientMultiThreading) {
+    blindWriteMsg.ParseFromString(data);
+    HandleBlindWriteMessage(blindWriteMsg);
+  }
+  else {
+    proto::BlindWriteMessage *blindWriteMsg = new proto::BlindWriteMessage();
+    blindWriteMsg->ParseFromString(data);
+    auto f = [this, blindWriteMsg](){
+      this->HandleBlindWriteMessage(*blindWriteMsg);
+      delete blindWriteMsg;
       return (void*) true;
     };
     Client2ClientMessageExecutor *executor = new Client2ClientMessageExecutor(std::move(f));
@@ -991,6 +1065,47 @@ void Client2Client::HandleForwardQueryResultMessage(const proto::ForwardQueryRes
   );
   // tell valClient about this forwardedReadResult
   valClient->ProcessForwardQueryResult(curr_client_id, curr_client_seq_num, fwdQueryResult, addReadset);
+}
+
+void Client2Client::HandleBlindWriteMessage(const proto::BlindWriteMessage &blindWriteMsg) {
+  proto::BlindWrite blindWrite;
+  if (params.sintr_params.signFwdReadResults) {
+    // struct timespec ts_start;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
+    // first check client signature
+    if (!blindWriteMsg.has_signed_blind_write()) {
+      Debug("Missing client signature on blind write");
+      return;
+    }
+    std::string data;
+    if (!ValidateHMACedMessage(blindWriteMsg.signed_blind_write(), data)) {
+      Debug("Invalid client signature on blind write");
+      return;
+    }
+
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // verify_hmac_us.add(duration);
+
+    blindWrite.ParseFromString(data);
+  }
+  else {
+    blindWrite = blindWriteMsg.blind_write();
+  }
+
+  uint64_t curr_client_id = blindWrite.client_id();
+  uint64_t curr_client_seq_num = blindWrite.client_seq_num();
+  Debug(
+    "HandleBlindWrite: from client id %lu, seq num %lu", 
+    curr_client_id, 
+    curr_client_seq_num
+  );
+  // tell valClient about this blindWrite
+  valClient->ProcessBlindWrite(curr_client_id, curr_client_seq_num);
 }
 
 void Client2Client::HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg) {

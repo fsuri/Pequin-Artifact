@@ -185,7 +185,8 @@ bool SQLTransformer::InterpretQueryRange(const std::string &_query, std::string 
 
 void SQLTransformer::TransformWriteStatement(std::string &_write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool &skip_query_interpretation, bool blind_write, std::vector<std::string> *keys_written){
+    uint64_t &target_group, bool &skip_query_interpretation, bool blind_write, std::vector<std::string> *keys_written,
+    std::function<void(void)> **delayed_blind_write_cb){
 
     //match on write type:
     size_t pos = 0;
@@ -201,7 +202,8 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 
     //Case 1) INSERT INTO <table_name> (<column_list>) VALUES (<value_list>)
     if( (pos = write_statement.find(insert_hook) != string::npos)){   //  if(write_statement.rfind("INSERT", 0) == 0){
-        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group, blind_write, keys_written);
+        TransformInsert(pos, write_statement, read_statement, write_continuation, wcb, target_group, blind_write, keys_written,
+            delayed_blind_write_cb);
     }
     //Case 2) UPDATE <table_name> SET {(column = value)} WHERE <condition>
     else if( (pos = write_statement.find(update_hook) != string::npos)){  //  else if(write_statement.rfind("UPDATE", 0) == 0){
@@ -209,7 +211,8 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
     }
     //Case 3) DELETE FROM <table_name> WHERE <condition>
     else if( (pos = write_statement.find(delete_hook) != string::npos)){  //   else if(write_statement.rfind("DELETE", 0) == 0){
-        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation, keys_written);
+        TransformDelete(pos, write_statement, read_statement, write_continuation, wcb, target_group, skip_query_interpretation, keys_written,
+            delayed_blind_write_cb);
     }
     else{
         Panic("Currently only support the following Write statement operations: INSERT, DELETE, UPDATE");
@@ -221,7 +224,7 @@ void SQLTransformer::TransformWriteStatement(std::string &_write_statement,
 //TODO: Modify to support multi-row insert -> create row in TableWrite for each parsed result.
 void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_statement,
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write,
-    std::vector<std::string> *keys_written){
+    std::vector<std::string> *keys_written, std::function<void(void)> **delayed_blind_write_cb){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert/ 
     // https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-insert-multiple-rows/ https://www.digitalocean.com/community/tutorials/sql-insert-multiple-rows (TODO: Not yet implemented)
 
@@ -348,24 +351,44 @@ void SQLTransformer::TransformInsert(size_t pos, std::string_view &write_stateme
         //Don't need to read. Just create write set and Table write. No read set needed.
 
         //Create Table Write for key. Note: Enc_key encodes table_name + primary key column values.
-        WriteMessage *write = txn->add_write_set();
+        // WriteMessage *write = txn->add_write_set();
+        WriteMessage *write = new WriteMessage();
         write->set_key(enc_key);
         if (keys_written != nullptr) {
             keys_written->push_back(enc_key);
         }
        
         //New version: 
-        TableWrite *table_write = AddTableWrite(table_name, col_registry);
-        table_write->set_changed_table(true); //Add Table Version.
-        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+        // TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        // table_write->set_changed_table(true); //Add Table Version.
+        // write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
-        RowUpdates *row_update = table_write->add_rows();
+        // RowUpdates *row_update = table_write->add_rows();
+        RowUpdates *row_update = new RowUpdates();
         *row_update->mutable_column_values() = {value_list.begin(), value_list.end()};
-        row_update->set_write_set_idx(txn->write_set_size()-1);
+        // row_update->set_write_set_idx(txn->write_set_size()-1);
         
         //Invoke partitioner function to figure out which group/shard we want to send to.
         std::vector<int> txnGroups(txn->involved_groups().begin(), txn->involved_groups().end());   
         target_group = (*part)(table_name, row_update->column_values(), num_shards, -1, txnGroups) % num_groups;
+
+        auto edit_txn_state_cb = [this, write, table_name, row_update](){
+            *txn->add_write_set() = std::move(*write);
+
+            TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
+            table_write.set_changed_table(true); //Add Table Version.
+            write->mutable_rowupdates()->set_row_idx(table_write.rows().size()); //set row_idx for proof reference
+
+            row_update->set_write_set_idx(txn->write_set_size()-1);
+            *table_write.add_rows() = std::move(*row_update);
+        };
+
+        if (delayed_blind_write_cb != nullptr) {
+            *delayed_blind_write_cb = new std::function<void(void)>(edit_txn_state_cb);
+        }
+        else {
+            edit_txn_state_cb();
+        }
 
         //dummy write_cont, will be supplied with empty result.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){            
@@ -750,7 +773,8 @@ void SQLTransformer::TransformUpdate(size_t pos, std::string_view &write_stateme
 
 void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_statement, 
     std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, 
-    uint64_t &target_group, bool &skip_query_interpretation, std::vector<std::string> *keys_written){
+    uint64_t &target_group, bool &skip_query_interpretation, std::vector<std::string> *keys_written,
+    std::function<void(void)> **delayed_blind_write_cb){
     //Based on Syntax from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-delete/ 
     
      //Case 3) DELETE FROM <table_name> WHERE <condition>
@@ -802,14 +826,19 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         //Note: Do not add to read set. Don't care if deletion doesn't work.
 
         //Add Delete also to Table Write : 
-        TableWrite *table_write = AddTableWrite(table_name, col_registry);
-        table_write->set_changed_table(true); //Add Table Version.
+        // TableWrite *table_write = AddTableWrite(table_name, col_registry);
+        // table_write->set_changed_table(true); //Add Table Version.
 
-        WriteMessage *write = txn->add_write_set();
-        write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
+        // WriteMessage *write = txn->add_write_set();
+        WriteMessage *write = new WriteMessage();
+        // write->mutable_rowupdates()->set_row_idx(table_write->rows().size()); //set row_idx for proof reference
 
-        RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //Note: This reserves value entries for the entire row
-        row_update->set_write_set_idx(txn->write_set_size()-1);
+        // RowUpdates *row_update = AddTableWriteRow(table_write, col_registry); //Note: This reserves value entries for the entire row
+        RowUpdates *row_update = new RowUpdates();
+        for(int q=0; q<col_registry.col_names.size(); ++q){
+            row_update->add_column_values();
+        }
+        // row_update->set_write_set_idx(txn->write_set_size()-1);
         row_update->set_deletion(true);
 
         std::string enc_key = EncodeTableRow(table_name, p_col_values);
@@ -836,6 +865,24 @@ void SQLTransformer::TransformDelete(size_t pos, std::string_view &write_stateme
         // std::string test_purge_statement;
         // GenerateTablePurgeStatement(test_purge_statement, table_name, *table_write);
         // std::cerr << "test purge dummy statement: " << test_purge_statement << std::endl;
+        
+        auto edit_txn_state_cb = [this, write, table_name, row_update](){
+            TableWrite &table_write = (*txn->mutable_table_writes())[table_name];
+            table_write.set_changed_table(true); //Add Table Version.
+
+            *txn->add_write_set() = std::move(*write);
+            write->mutable_rowupdates()->set_row_idx(table_write.rows().size()); //set row_idx for proof reference
+
+            *table_write.add_rows() = std::move(*row_update);
+            row_update->set_write_set_idx(txn->write_set_size()-1);
+        };
+
+        if (delayed_blind_write_cb != nullptr) {
+            *delayed_blind_write_cb = new std::function<void(void)>(edit_txn_state_cb);           
+        }
+        else {
+            edit_txn_state_cb();
+        }
       
         //Create a QueryResult -- set rows affected to 1.
         write_continuation = [this, wcb](int status, query_result::QueryResult* result){
