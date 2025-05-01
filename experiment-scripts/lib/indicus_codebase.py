@@ -181,6 +181,10 @@ class IndicusCodebase(ExperimentCodebase):
                 client_command += ' --sintr_parallel_endorsement_check=%s' % str(config['sintr_protocol_settings']['sintr_parallel_endorsement_check']).lower()
             if 'sintr_parallel_query_sigs_check' in config['sintr_protocol_settings']:
                 client_command += ' --sintr_parallel_query_sigs_check=%s' % str(config['sintr_protocol_settings']['sintr_parallel_query_sigs_check']).lower()
+            if 'sintr_blind_write_message' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_blind_write_message=%s' % str(config['sintr_protocol_settings']['sintr_blind_write_message']).lower()
+            if 'sintr_sort_writeset' in config['sintr_protocol_settings']:
+                client_command += ' --sintr_sort_writeset=%s' % str(config['sintr_protocol_settings']['sintr_sort_writeset']).lower()
 
         if config['replication_protocol'] == 'pequin':
             ##Sync protocol settings

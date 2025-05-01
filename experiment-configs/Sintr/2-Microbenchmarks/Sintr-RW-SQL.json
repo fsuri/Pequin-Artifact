@@ -174,7 +174,9 @@
     "sintr_parallel_endorsement_check": false,
     "sintr_parallel_query_sigs_check": false,
     "sintr_hash_endorsements": true,
-    "sintr_use_occ_for_policies": true
+    "sintr_use_occ_for_policies": true,
+    "sintr_blind_write_message": true,
+    "sintr_sort_writeset": false
   },
 
   "experiment_name": "sintr",

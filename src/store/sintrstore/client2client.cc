@@ -1605,7 +1605,7 @@ void Client2Client::ValidationThreadFunction() {
       if (params.parallel_CCC) {
         std::sort(txn->mutable_read_set()->begin(), txn->mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
-        if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
+        if (params.sintr_params.sortWriteset && params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
           AddWriteSetIdx(*txn);
           // also sort row updates
           for (auto &[table, table_write]: *txn->mutable_table_writes()) {
@@ -1613,7 +1613,7 @@ void Client2Client::ValidationThreadFunction() {
           }
         }
       }
-      else if (params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
+      else if (params.sintr_params.sortWriteset && params.query_params.sql_mode && !valInfo->isPolicyTransaction) {
         // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
         std::sort(txn->mutable_write_set()->begin(), txn->mutable_write_set()->end(), sortWriteSetByKey);
         AddWriteSetIdx(*txn);

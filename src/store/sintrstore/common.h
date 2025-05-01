@@ -866,13 +866,14 @@ typedef struct SintrParameters {
   const bool hashEndorsements; // hash endorsements with txn digest to get updated txn digest
   const bool parallelQuerySigsCheck; // parallel query signature check on forwarded query results
   const bool blindWriteMessage; // send a blind write message to validating clients
+  const bool sortWriteset; // sort write set in order to get endorsement matches
 
   SintrParameters(uint64_t maxValThreads, bool signFwdReadResults, bool signFinishValidation,
     bool debugEndorseCheck, bool clientCheckEvidence, std::string policyFunctionName,
     std::string policyConfigPath, uint32_t readIncludePolicy, CLIENT_VALIDATION_HEURISTIC clientValidationHeuristic,
     bool checkPolicyLeak, bool clientPinCores, uint64_t minEnablePullPolicies, bool client2clientMultiThreading,
     bool parallelEndorsementCheck, bool useOCCForPolicies, bool hashEndorsements, bool parallelQuerySigsCheck,
-    bool blindWriteMessage) :
+    bool blindWriteMessage, bool sortWriteset) :
     maxValThreads(maxValThreads), 
     signFwdReadResults(signFwdReadResults), 
     signFinishValidation(signFinishValidation),
@@ -890,7 +891,13 @@ typedef struct SintrParameters {
     useOCCForPolicies(useOCCForPolicies),
     hashEndorsements(hashEndorsements),
     parallelQuerySigsCheck(parallelQuerySigsCheck),
-    blindWriteMessage(blindWriteMessage) {}
+    blindWriteMessage(blindWriteMessage),
+    sortWriteset(sortWriteset) {
+        // either sort write set or send blind write message to get endorsement matches
+        // doing neither will result in potential endorsement mismatch from nondeterministic write set ordering
+        // doing both is redundant
+        UW_ASSERT((sortWriteset && !blindWriteMessage) || (!sortWriteset && blindWriteMessage));
+    }
 
 } SintrParameters;
 

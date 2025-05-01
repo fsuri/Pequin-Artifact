@@ -511,6 +511,7 @@ DEFINE_bool(sintr_client2client_multi_threading, false, "sintr enable multi-thre
 DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement check");
 DEFINE_bool(sintr_parallel_query_sigs_check, false, "parallelize query signature check on forwarded query result");
 DEFINE_bool(sintr_blind_write_message, false, "send a blind write message to validating clients");
+DEFINE_bool(sintr_sort_writeset, true, "sort write set in order to get endorsement matches");
 
 ///////////////////////////////////////////////////////////
 
@@ -1652,7 +1653,8 @@ int main(int argc, char **argv) {
         false,
         FLAGS_sintr_hash_endorsements,
         FLAGS_sintr_parallel_query_sigs_check,
-        FLAGS_sintr_blind_write_message
+        FLAGS_sintr_blind_write_message,
+        FLAGS_sintr_sort_writeset
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

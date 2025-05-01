@@ -1330,7 +1330,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       try {
         std::sort(txn.mutable_read_set()->begin(), txn.mutable_read_set()->end(), sortReadSetByKey);
         std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
-        if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
+        if(params.sintr_params.sortWriteset && params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
           AddWriteSetIdx(txn);
           // also sort row updates
           for (auto &[table, table_write]: *txn.mutable_table_writes()) {
@@ -1359,7 +1359,7 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb,
         return;
       }
     }
-    else if(params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
+    else if(params.sintr_params.sortWriteset && params.query_params.sql_mode && txn.policy_type() != proto::Transaction::POLICY_ID_POLICY) {
       // must sort writeset always, because validation client writeset ordering is not guaranteed in query mode
       std::sort(txn.mutable_write_set()->begin(), txn.mutable_write_set()->end(), sortWriteSetByKey);
       AddWriteSetIdx(txn);
