@@ -623,6 +623,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet, const DepSet &depSet, const PredSet &predSet,
     const proto::CommittedProof* &conflict, const proto::Transaction* &abstain_conflict,
     bool fallback_flow, bool isGossip) {
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // uint64_t start = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+  
   Debug("DoMVTSOCheck[%lu:%lu][%s] with ts %lu.%lu.",
       txn.client_id(), txn.client_seq_num(),
       BytesToHex(txnDigest, 16).c_str(),
@@ -1031,6 +1036,11 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
       }
     }
 
+    // struct timespec ts_end;
+    // clock_gettime(CLOCK_MONOTONIC, &ts_end);
+    // uint64_t end = ts_end.tv_sec * 1000 * 1000 + ts_end.tv_nsec / 1000;
+    // auto duration = end - start;
+    // ccc_us.add(duration);
 
     //6) Prepare Transaction: No conflicts, No dependencies aborted --> Make writes visible.
     Prepare(txnDigest, txn, readSet, implicitPolicyReads); 

@@ -899,6 +899,7 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
     //Should not take more than 1 ms (already generous) to parse and prepare.
     auto duration = query_end_ms - query_start_times[pendingQuery->queryMsg.query_seq_num()]; ;
     //Warning("Query[%d] exec latency in ms [%d]. in us [%d]", pendingQuery->queryMsg.query_seq_num(), duration/1000, duration);
+    // query_time_us.add(duration);
   }
       //FIXME: If success: add readset/result hash to datastructure. If group==query manager, record result. If all shards received ==> upcall. 
       //If failure: re-set datastructure and try again. (any shard can report failure to sync)
@@ -1024,6 +1025,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   );
 
   Debug("Upcall with Query result");
+
+  // struct timespec ts_start;
+  // clock_gettime(CLOCK_MONOTONIC, &ts_start);
+  // query_fin_us = ts_start.tv_sec * 1000 * 1000 + ts_start.tv_nsec / 1000;
+
   sql::QueryResultProtoWrapper *q_result = new sql::QueryResultProtoWrapper(pendingQuery->result);
 
   stats.Increment("QuerySuccess", 1);
