@@ -175,8 +175,8 @@
     "sintr_parallel_query_sigs_check": false,
     "sintr_hash_endorsements": true,
     "sintr_use_occ_for_policies": true,
-    "sintr_blind_write_message": true,
-    "sintr_sort_writeset": false
+    "sintr_blind_write_message": false,
+    "sintr_sort_writeset": true
   },
 
   "experiment_name": "sintr",

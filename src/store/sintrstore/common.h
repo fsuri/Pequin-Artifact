@@ -895,8 +895,8 @@ typedef struct SintrParameters {
     sortWriteset(sortWriteset) {
         // either sort write set or send blind write message to get endorsement matches
         // doing neither will result in potential endorsement mismatch from nondeterministic write set ordering
-        // doing both is redundant
-        UW_ASSERT((sortWriteset && !blindWriteMessage) || (!sortWriteset && blindWriteMessage));
+        // potential optimization: don't sort writeset unless there is a blind write message
+        UW_ASSERT(sortWriteset || blindWriteMessage);
     }
 
 } SintrParameters;
