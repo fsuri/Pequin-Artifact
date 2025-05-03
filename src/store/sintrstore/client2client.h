@@ -100,6 +100,10 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const proto::QueryResultMetaData &query_res_meta,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
 
+  // send a blind write message to other clients
+  // indicates that blind writes can now be written locally
+  void SendBlindWriteMessage();
+
   // given a new policy, update the endorsement policy for this client 
   // also contact additional peers as necessary
   void HandlePolicyUpdate(const Policy *policy);
@@ -214,17 +218,21 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
     const std::string &query_gen_id, const std::string &query_result,
     const proto::QueryResultMetaData &query_res_meta,
     const std::map<uint64_t, std::vector<proto::SignedMessage>> &group_sigs, bool addReadset);
+  
+  void SendBlindWriteMessageHelper(const uint64_t client_seq_num);
 
   void ManageDispatchBeginValidateTxnMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchForwardReadResultMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchForwardPointQueryResultMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchForwardQueryResultMessage(const TransportAddress &remote, const std::string &data);
+  void ManageDispatchBlindWriteMessage(const TransportAddress &remote, const std::string &data);
   void ManageDispatchFinishValidateTxnMessage(const TransportAddress &remote, const std::string &data);
 
   void HandleBeginValidateTxnMessage(const TransportAddress &remote, const proto::BeginValidateTxnMessage &beginValTxnMsg);
   void HandleForwardReadResultMessage(const proto::ForwardReadResultMessage &fwdReadResultMsg);
   void HandleForwardPointQueryResultMessage(const proto::ForwardPointQueryResultMessage &fwdPointQueryResultMsg);
   void HandleForwardQueryResultMessage(const proto::ForwardQueryResultMessage &fwdQueryResultMsg);
+  void HandleBlindWriteMessage(const proto::BlindWriteMessage &blindWriteMsg);
   void HandleFinishValidateTxnMessage(const proto::FinishValidateTxnMessage &finishValTxnMsg);
 
   // check if fwdReadResultMsg is valid based on either prepared dependency or committed proof
@@ -309,6 +317,7 @@ class Client2Client : public TransportReceiver, public PingInitiator, public Pin
   proto::ForwardReadResultMessage fwdReadResultMsg;
   proto::ForwardPointQueryResultMessage fwdPointQueryResultMsg;
   proto::ForwardQueryResultMessage fwdQueryResultMsg;
+  proto::BlindWriteMessage blindWriteMsg;
   proto::FinishValidateTxnMessage finishValTxnMsg;
   PingMessage ping;
 

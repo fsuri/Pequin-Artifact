@@ -1320,6 +1320,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   mean_tracker extract_policy_us;
   mean_tracker validate_endorsements_us;
   mean_tracker new_digest_us;
+  mean_tracker ccc_us;
 };
 
 } // namespace sintrstore

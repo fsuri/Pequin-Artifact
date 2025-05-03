@@ -845,7 +845,7 @@ int main(int argc, char **argv) {
         FLAGS_sintr_check_policy_leak, false, 0, false,
         FLAGS_sintr_parallel_endorsement_check,
         FLAGS_sintr_use_occ_for_policies,
-        FLAGS_sintr_hash_endorsements, false
+        FLAGS_sintr_hash_endorsements, false, false, true
       );
 
       sintrstore::QueryParameters query_params(FLAGS_store_mode,

@@ -534,6 +534,19 @@ message ForwardQueryResultMessage {
   optional bool add_readset = 6;
 }
 
+// blind write message to other clients
+// indicates that blind writes can now be written locally
+message BlindWrite {
+  required uint64 client_id = 1;
+  required uint64 client_seq_num = 2;
+}
+message BlindWriteMessage {
+  oneof blind_one_of {
+    BlindWrite blind_write = 1;
+    SignedMessage signed_blind_write = 2;
+  }
+}
+
 message FinishValidateTxnMessage {
   // client_id is the client that is sending this message
   required uint64 client_id = 1;

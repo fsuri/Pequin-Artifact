@@ -3113,6 +3113,7 @@ bool Server::EndorsementCheck(const proto::SignedMessages *endorsements, const s
   //   std::cerr << "Mean extract policy latency: " << extract_policy_us.mean() << std::endl;
   //   std::cerr << "Mean validate endorsements latency: " << validate_endorsements_us.mean() << std::endl;
   //   std::cerr << "Mean new digest latency: " << new_digest_us.mean() << std::endl;
+  //   std::cerr << "Mean ccc latency: " << ccc_us.mean() << std::endl;
   // }
 
   PolicyClient policyClient;

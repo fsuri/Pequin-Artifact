@@ -184,9 +184,11 @@ class SQLTransformer {
         }
 
         // keys_written is used to store the primary keys of the rows written by the transformed write
+        // delayed_blind_write_cb is a callback to actually update txn state for blind writes after
         void TransformWriteStatement(std::string &_write_statement, //std::vector<std::vector<uint32_t>> primary_key_encoding_support,
              std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, 
-            bool &skip_query_interpretation, bool check_duplicate = false, std::vector<std::string> *keys_written = nullptr);
+            bool &skip_query_interpretation, bool check_duplicate = false, std::vector<std::string> *keys_written = nullptr,
+            std::function<void(void)> **delayed_blind_write_cb = nullptr);
 
         bool InterpretQueryRange(const std::string &_query, std::string &table_name, std::vector<std::string> &p_col_values, bool relax = false);
         bool IsPoint(const std::string &_query, const std::string &table_name, bool relax = false) const; //Use this if we don't need the p_col_values.
@@ -217,7 +219,7 @@ class SQLTransformer {
        
         void TransformInsert(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool blind_write = false,
-            std::vector<std::string> *keys_written = nullptr);
+            std::vector<std::string> *keys_written = nullptr, std::function<void(void)> **delayed_blind_write_cb = nullptr);
             void TransformInsertOLD(size_t pos, std::string_view &write_statement, 
                 std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, 
                 bool check_duplicate = false, bool skip_query_interpretation = false);
@@ -227,7 +229,7 @@ class SQLTransformer {
              std::vector<std::string> *keys_written = nullptr);
         void TransformDelete(size_t pos, std::string_view &write_statement, 
             std::string &read_statement, std::function<void(int, query_result::QueryResult*)>  &write_continuation, write_callback &wcb, uint64_t &target_group, bool &skip_query_interpretation,
-            std::vector<std::string> *keys_written = nullptr);
+            std::vector<std::string> *keys_written = nullptr, std::function<void(void)> **delayed_blind_write_cb = nullptr);
 
         //Helper Functions
         typedef struct Col_Update {

@@ -40,6 +40,7 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <deque>
 
 #include "tbb/concurrent_hash_map.h"
 
@@ -59,7 +60,7 @@ typedef std::function<void(int, const std::string &)> validation_read_timeout_ca
 class ValidationClient : public ::Client {
  public:
   ValidationClient(Transport *transport, uint64_t client_id, uint64_t nclients, uint64_t nshards, uint64_t ngroups, Partitioner *part,
-    std::string &table_registry, const QueryParameters* query_params);
+    std::string &table_registry, Parameters params);
   virtual ~ValidationClient();
 
   // Begin a transaction.
@@ -111,6 +112,8 @@ class ValidationClient : public ::Client {
     const proto::ForwardReadResult &fwdPointQueryResult, const proto::Dependency &dep, bool hasDep, bool addReadset);
   void ProcessForwardQueryResult(uint64_t txn_client_id, uint64_t txn_client_seq_num, 
     const proto::ForwardQueryResult &fwdQueryResult, bool addReadset);
+
+  void ProcessBlindWrite(uint64_t txn_client_id, uint64_t txn_client_seq_num);
 
   // return completed transaction for requested id
   proto::Transaction *GetCompletedTxn(uint64_t txn_client_id, uint64_t txn_client_seq_num);
@@ -192,6 +195,10 @@ class ValidationClient : public ::Client {
         delete pendingQuery;
       }
       pendingQueries.clear();
+
+      for(auto &pendingWrite: pendingBlindWrites){
+        delete pendingWrite;
+      }
     }
     uint64_t txn_client_id;
     uint64_t txn_client_seq_num;
@@ -214,6 +221,11 @@ class ValidationClient : public ::Client {
     std::vector<std::pair<std::string, std::string>> pendingForwardedPointQuery;
     // vector of query IDs to ensure that only readset keys from query in transaction are added
     std::vector<std::pair<std::string, std::string>> pendingForwardedQuery;
+
+    // track pending buffered blind writes
+    std::deque<std::function<void(void)>*> pendingBlindWrites;
+    // for tracking blind write messages that arrive before registering pending blind writes
+    uint64_t blind_write_message_count = 0;
   };
   
   bool BufferGet(const AllValidationTxnState *allValTxnState, const std::string &key, 
@@ -243,8 +255,7 @@ class ValidationClient : public ::Client {
   uint64_t ngroups;
   // for computing txn involved groups
   Partitioner *part;
-  // for sql query interpreter
-  const QueryParameters* query_params;
+  Parameters params;
 
   std::string table_registry;
 
