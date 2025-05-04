@@ -512,6 +512,7 @@ DEFINE_bool(sintr_parallel_endorsement_check, false, "parallelize endorsement ch
 DEFINE_bool(sintr_parallel_query_sigs_check, false, "parallelize query signature check on forwarded query result");
 DEFINE_bool(sintr_blind_write_message, false, "send a blind write message to validating clients");
 DEFINE_bool(sintr_sort_writeset, true, "sort write set in order to get endorsement matches");
+DEFINE_bool(sintr_profile_one_client_load, false, "profiling with only one client load (other clients are validating only)");
 
 ///////////////////////////////////////////////////////////
 
@@ -2129,7 +2130,7 @@ int main(int argc, char **argv) {
         SyncTransactionBenchClient *syncBench = dynamic_cast<SyncTransactionBenchClient *>(bench);
         UW_ASSERT(syncBench != nullptr);
         // for profiling sintr isolate one client as executing and other as validating only
-        bool skip = false; // (mode == PROTO_SINTR) && (clientId > 0);
+        bool skip = FLAGS_sintr_profile_one_client_load && (mode == PROTO_SINTR) && (clientId > 0);
         threads.push_back(new std::thread([syncBench, bdcb, skip](){
             syncBench->Start([](){});
             while (!syncBench->IsFullyDone()) {
