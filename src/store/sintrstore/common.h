@@ -862,7 +862,7 @@ typedef struct SintrParameters {
   const bool clientPinCores; // pin client cores for validation
   const bool client2clientMultiThreading; // enable multi-threading for client-to-client communication
   const bool parallelEndorsementCheck; // parallel endorsement check
-  const bool useOCCForPolicies; // use OCC for policies
+  const bool useOCCForPolicies; // use OCC for policies, changing policies in sql means this flag must be enabled
   const bool hashEndorsements; // hash endorsements with txn digest to get updated txn digest
   const bool parallelQuerySigsCheck; // parallel query signature check on forwarded query results
   const bool blindWriteMessage; // send a blind write message to validating clients

@@ -2337,7 +2337,7 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
       //Notice("ab key: %s ", rb.key().c_str());
       for (const auto &wa : a.write_set()) {
         uint64_t policyId = policyIdFunction(wa.key(), wa.value());
-        if (policyId == std::stoull(wb.key())) {
+        if (policyId == std::stoull(wb.key().substr(7))) {
           return true;
         }
       }
@@ -2349,7 +2349,7 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
       uint64_t policyId = policyIdFunction(wb.key(), wb.value());
       //Notice("ab key: %s ", rb.key().c_str());
       for (const auto &wa : a.write_set()) {
-        if (policyId == std::stoull(wa.key())) {
+        if (policyId == std::stoull(wa.key().substr(7))) {
           return true;
         }
       }

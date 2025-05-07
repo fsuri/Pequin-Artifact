@@ -1140,7 +1140,7 @@ proto::ConcurrencyControl::Result Server::policyCheckHelper(proto::Transaction &
     std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads) {
   uint64_t policyId = 0;
   if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
-    policyId = std::stoull(write.key());
+    policyId = std::stoull(write.key().substr(7));
   } else {
     policyId = policyIdFunction(write.key(), write.value());
   }

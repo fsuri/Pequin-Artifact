@@ -373,12 +373,13 @@ void Client::Put(const std::string &key, const std::string &value,
     // Contact the appropriate shard to set the value.
     if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
       // look in cache for policy
-      bool exists = endorseClient->GetPolicyFromCache(std::stoull(key), policy);
+      // start from 7th character (after "policy_")
+      bool exists = endorseClient->GetPolicyFromCache(std::stoull(key.substr(7)), policy);
       if (!exists) {
         // if not found, that means we are trying to write to a policy that doesn't exist
-        Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", std::stoull(key));
+        Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", std::stoull(key.substr(7)));
       }
-      if(prev_policies.find(std::stoull(key)) == prev_policies.end()) {
+      if(prev_policies.find(std::stoull(key.substr(7))) == prev_policies.end()) {
         Debug("Sending policy update for put using c2client in policy transaction");
         c2client->HandlePolicyUpdate(policy);
       }

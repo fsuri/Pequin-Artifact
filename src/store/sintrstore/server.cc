@@ -1099,7 +1099,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
-  bool committed_exists = store.get(msg.key(), ts, tsVal);
+  bool committed_exists = store.get(msg.key(), ts, tsVal) && msg.key().find("policy_") == std::string::npos;
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
@@ -1142,7 +1142,8 @@ void Server::HandleRead(const TransportAddress &remote,
   };
 
   //If MVTSO: Read prepared, Set RTS
-  if (occType == MVTSO) {
+  // if key is not a policy ID
+  if (occType == MVTSO && msg.key().find("policy_") == std::string::npos) {
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
@@ -1246,6 +1247,62 @@ void Server::HandleRead(const TransportAddress &remote,
             *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
           }
         }
+      }
+    }
+  } else if(msg.key().find("policy_") != std::string::npos) {
+    Debug("Getting policy for %s", msg.key().c_str());
+    const proto::Transaction *mostRecentPolicyTxn;
+    std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+    if(params.sintr_params.useOCCForPolicies) {
+      GetPolicy(std::stoull(msg.key().substr(7)), ts, tsPolicy, false);
+    } else {
+      GetPolicy(std::stoull(msg.key().substr(7)), ts, tsPolicy, true, &mostRecentPolicyTxn);
+    }
+    if (tsPolicy.second.proof == nullptr) {
+      // this shouldn't trigger if useOCCForPolicies is true
+      UW_ASSERT(!params.sintr_params.useOCCForPolicies);
+
+      std::string preparedPolicyVal = "";
+      for(const auto &write : mostRecentPolicyTxn->write_set()) {
+        if(write.key() == msg.key()) {
+          preparedPolicyVal = write.value();
+          break;
+        }
+      }
+      // make sure policy value exists
+      UW_ASSERT(preparedPolicyVal != "");
+      readReply->mutable_write()->set_prepared_value(preparedPolicyVal);
+      *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecentPolicyTxn->timestamp();
+      Debug("Prepared policy id write with most recent ts %lu.%lu.",
+              tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
+      readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(std::stoull(msg.key().substr(7)));
+      tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
+      std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+      if(params.sintr_params.hashEndorsements) {
+        tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
+      }
+      *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
+      *readReply->mutable_write()->mutable_prepared_txn_digest() = tempDigest;
+    } else {
+      std::string policyVal = "";
+      for(const auto &write : tsPolicy.second.proof->txn().write_set()) {
+        if(write.key() == msg.key()) {
+          policyVal = write.value();
+          break;
+        }
+      }
+      // make sure policy value exists
+      UW_ASSERT(policyVal != "");
+      readReply->mutable_write()->set_committed_value(policyVal);
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_timestamp());
+      // using a committed policy for a prepared write
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
+      readReply->mutable_write()->mutable_committed_policy()->set_policy_id(std::stoull(msg.key().substr(7)));
+      tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+      if (params.validateProofs) {
+        *readReply->mutable_proof() = *tsPolicy.second.proof;
+        *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
       }
     }
   }
@@ -2433,13 +2490,13 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       policyRead.second.getTimestamp(),
       policyRead.second.getID()
     );
-    std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[std::to_string(policyRead.first)];
+    std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads["policy_" + std::to_string(policyRead.first)];
     std::unique_lock lock(y.first);
     y.second.insert(a->second.second);
 
     // hack to store the implicit policy reads in the transaction
     ReadMessage *read = ongoingTxn->add_implicit_policy_reads();
-    read->set_key(std::to_string(policyRead.first));
+    read->set_key("policy_" + std::to_string(policyRead.first));
     policyRead.second.serialize(read->mutable_readtime());
   }
 
@@ -2776,7 +2833,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       // parse allocates a new policy so need to free it at end
       policiesToFree.push_back(policyVal.policy);
       policyVal.proof = proof;
-      policyStore.put(std::stoull(write.key()), policyVal, ts);
+      policyStore.put(std::stoull(write.key().substr(7)), policyVal, ts);
       return;
     }
     else {
@@ -3078,11 +3135,11 @@ void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts,
 
   const proto::Transaction *mostRecentPrepared = nullptr;
   if (checkPrepared && params.maxDepDepth > -2) {
-    mostRecentPrepared = FindPreparedVersion(std::to_string(policyId), ts, exists, tsPolicy, proto::Transaction::POLICY_ID_POLICY);
+    mostRecentPrepared = FindPreparedVersion("policy_" + std::to_string(policyId), ts, exists, tsPolicy, proto::Transaction::POLICY_ID_POLICY);
   }
   if (mostRecentPrepared != nullptr) {
     for (const auto &w : mostRecentPrepared->write_set()) {
-      if (w.key() == std::to_string(policyId)) {
+      if (w.key() == "policy_" + std::to_string(policyId)) {
         // policy change transaction writeset value is a new policy
         proto::PolicyObject policyMsg;
         policyMsg.ParseFromString(w.value());
@@ -3147,7 +3204,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     }
     else {
       // if txn is POLICY_ID_POLICY, then writeset keys are policy ids
-      policyId = std::stoull(write.key());
+      policyId = std::stoull(write.key().substr(7));
     }
 
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());

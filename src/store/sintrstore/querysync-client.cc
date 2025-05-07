@@ -914,7 +914,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                         std::string policyObjectStr;
                         policy.endorsement_policy().policy().SerializeToString(&policyObjectStr);
                         if (!ValidateTransactionWrite(policy.policy_proof(), &committedPolicyTxnDigest,
-                            std::to_string(policyId), policyObjectStr, policy.policy_timestamp(),
+                            "policy_" + std::to_string(policyId), policyObjectStr, policy.policy_timestamp(),
                             config, params.signedMessages, keyManager, verifier)) {
                             Debug("[group %i] Failed to validate committed policy for query %s.",
                                 group, queryResult.result().query_gen_id().c_str());
@@ -1275,7 +1275,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                 std::string policyObjectStr;
                 write->committed_policy().policy().SerializeToString(&policyObjectStr);
                 if (!ValidateTransactionWrite(reply.policy_proof(), &committedPolicyTxnDigest,
-                    std::to_string(write->committed_policy().policy_id()), policyObjectStr, write->committed_policy_timestamp(),
+                    "policy_" + std::to_string(write->committed_policy().policy_id()), policyObjectStr, write->committed_policy_timestamp(),
                     config, params.signedMessages, keyManager, verifier)) {
                     Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
                     return false;
