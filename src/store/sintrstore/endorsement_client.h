@@ -66,12 +66,11 @@ class EndorsementClient {
   // return true if policy exists for key, false otherwise
   // given a reference to a policy pointer, update it with the policy in the cache
   // does not allocate a new policy object
-  bool GetPolicyFromCache(const std::string &key, const Policy *&policy) const;
-  bool GetPolicyFromCache(uint64_t policyId, const Policy *&policy) const;
+  bool GetPolicyFromCache(const std::string &policyId, const Policy *&policy) const;
   // update the mapping from policy id to policy; takes ownership of policy (policy should be allocated on heap)
-  void UpdatePolicyCache(uint64_t policyId, Policy *policy);
+  void UpdatePolicyCache(std::string policyId, Policy *policy);
   // initialize the policy cache with the given map; takes ownership of policies (policies should be allocated on heap)
-  void InitializePolicyCache(const std::map<uint64_t, Policy *> &policyCache);
+  void InitializePolicyCache(const std::map<std::string, Policy *> &policies);
 
  private:
   // this client information
@@ -82,7 +81,7 @@ class EndorsementClient {
   policy_id_function policyIdFunction;
 
   // client side cache of policy store
-  std::map<uint64_t, Policy *> policyCache;
+  std::map<std::string, Policy *> policyCache;
   
   // transaction specific
   uint64_t client_seq_num;

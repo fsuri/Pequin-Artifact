@@ -57,7 +57,7 @@ transaction_status_t SyncSQLPolicyChange::Execute(SyncClient &client) {
   
   std::string policy_str;
   policy.SerializeToString(&policy_str);
-  client.Put("policy_0", policy_str, timeout);
+  client.Put("p0", policy_str, timeout);
 
   return client.Commit(timeout);
 }

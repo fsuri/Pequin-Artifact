@@ -570,6 +570,6 @@ message PolicyObject {
 }
 
 message EndorsementPolicyMessage {
-  required uint64 policy_id = 1;
+  required string policy_id = 1;
   required PolicyObject policy = 2;
 }

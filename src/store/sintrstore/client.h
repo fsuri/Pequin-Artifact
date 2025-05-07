@@ -225,7 +225,7 @@ class Client : public ::Client {
   void QueryResultCallback(PendingQuery *pendingQuery,      //bound parameters
                             int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
                             const std::vector<proto::SignedMessage> &query_sigs,
-                            const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap);  //free parameters
+                            const std::map<std::string, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap);  //free parameters
   void ClearTxnQueries();
   void ClearQuery(PendingQuery *pendingQuery);
   void RetryQuery(PendingQuery *pendingQuery);
@@ -415,7 +415,7 @@ class Client : public ::Client {
   const std::vector<std::string> &keys;
 
   // for tracking previous policies per txn:
-  std::set<uint64_t> prev_policies;
+  std::set<std::string> prev_policies;
 
   // true after client waits params.injectFailure.timeMs
   bool failureEnabled;

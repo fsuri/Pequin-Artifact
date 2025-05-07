@@ -61,9 +61,9 @@ SyncTPCCClient::~SyncTPCCClient() {
 SyncTransaction* SyncTPCCClient::GetNextTransaction() {
   count++;
 
-  // if (id == 0 && count >= 100 && (count % 100) == 0 && count < 300) {
-  //   return new SyncPolicyChange(GetTimeout(), 1);
-  // }
+  if (id == 0 && count >= 100 && (count % 100) == 0 && count < 300) {
+     return new SyncPolicyChange(GetTimeout(), 1);
+  }
 
   uint32_t wid, did;
   TPCCTransactionType ttype = TPCCClient::GetNextTransaction(&wid, &did, GetRand());

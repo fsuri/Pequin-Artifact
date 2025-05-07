@@ -903,7 +903,7 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
         if(queryResult.query_policy_size() > 0) {
             for(const auto &policy : queryResult.query_policy()) {
                 // since useOCCForPolicies is true policy should have a policy proof
-                uint64_t policyId = policy.endorsement_policy().policy_id();
+                std::string policyId = policy.endorsement_policy().policy_id();
                 if(params.sintr_params.useOCCForPolicies || policy.has_policy_proof()) {
                     if (params.validateProofs) {
                         std::string committedPolicyTxnDigest = TransactionDigest(policy.policy_proof().txn(), params.hashDigest);
@@ -914,13 +914,13 @@ void ShardClient::HandleQueryResult(proto::QueryResultReply &queryResult){
                         std::string policyObjectStr;
                         policy.endorsement_policy().policy().SerializeToString(&policyObjectStr);
                         if (!ValidateTransactionWrite(policy.policy_proof(), &committedPolicyTxnDigest,
-                            "policy_" + std::to_string(policyId), policyObjectStr, policy.policy_timestamp(),
+                            policyId, policyObjectStr, policy.policy_timestamp(),
                             config, params.signedMessages, keyManager, verifier)) {
                             Debug("[group %i] Failed to validate committed policy for query %s.",
                                 group, queryResult.result().query_gen_id().c_str());
                             return;
                         }
-                        Debug("[group %i] QueryReply for %lu with committed policy id %lu.", group, queryResult.req_id(),policyId);
+                        Debug("[group %i] QueryReply for %lu with committed policy id %s.", group, queryResult.req_id(),policyId);
                         Timestamp policyTs(policy.policy_timestamp());
                         if(pendingQuery->queryPolicyMap.find(policyId) == pendingQuery->queryPolicyMap.end() || 
                             pendingQuery->queryPolicyMap[policyId].second < policyTs) {
@@ -1275,7 +1275,7 @@ bool ShardClient::ProcessRead(const uint64_t &reqId, PendingQuorumGet *req, read
                 std::string policyObjectStr;
                 write->committed_policy().policy().SerializeToString(&policyObjectStr);
                 if (!ValidateTransactionWrite(reply.policy_proof(), &committedPolicyTxnDigest,
-                    "policy_" + std::to_string(write->committed_policy().policy_id()), policyObjectStr, write->committed_policy_timestamp(),
+                    write->committed_policy().policy_id(), policyObjectStr, write->committed_policy_timestamp(),
                     config, params.signedMessages, keyManager, verifier)) {
                     Debug("[group %i] Failed to validate committed policy for read %lu.",group, reply.req_id());
                     return false;

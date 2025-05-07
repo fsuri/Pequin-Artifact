@@ -37,7 +37,7 @@
 //#include "../../query-engine/type/value.h"
 #include <utility>
 #include "store/sintrstore/policy/policy_function.h"
-
+#include <regex>
 
 #include "lib/batched_sigs.h"
 
@@ -1732,10 +1732,10 @@ void asyncValidateTransactionWriteCB(const proto::CommittedProof &proof,
    mcb(result);
 }
 
-
-
-
-
+bool isPolicyKey(const std::string& s) {
+  std::regex pattern("^p\\d+$");
+  return std::regex_match(s, pattern);
+}
 
 bool ValidateTransactionWrite(const proto::CommittedProof &proof,
     const std::string *txnDigest,
@@ -2336,8 +2336,8 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
     for (const auto &wb : b.write_set()) {
       //Notice("ab key: %s ", rb.key().c_str());
       for (const auto &wa : a.write_set()) {
-        uint64_t policyId = policyIdFunction(wa.key(), wa.value());
-        if (policyId == std::stoull(wb.key().substr(7))) {
+        std::string policyId = policyIdFunction(wa.key(), wa.value());
+        if (policyId == wb.key()) {
           return true;
         }
       }
@@ -2346,10 +2346,10 @@ bool TransactionsConflict(const proto::Transaction &a, const proto::Transaction 
     // regular txn conflicts with prepared governance txn
     policy_id_function policyIdFunction = GetPolicyIdFunction(policyFunctionName);
     for (const auto &wb : b.write_set()) {
-      uint64_t policyId = policyIdFunction(wb.key(), wb.value());
+      std::string policyId = policyIdFunction(wb.key(), wb.value());
       //Notice("ab key: %s ", rb.key().c_str());
       for (const auto &wa : a.write_set()) {
-        if (policyId == std::stoull(wa.key().substr(7))) {
+        if (policyId == wa.key()) {
           return true;
         }
       }

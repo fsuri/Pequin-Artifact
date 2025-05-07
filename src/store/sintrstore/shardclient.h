@@ -77,7 +77,7 @@ typedef std::function<void(int, const std::string &)> read_timeout_callback;
 //typedef std::function<void(int, int, std::map<std::string, TimestampMessage> &, std::string &, std::string &, bool)> result_callback; //status, group, read_set, result_hash, result, success
 typedef std::function<void(int, int, proto::ReadSet*, std::string &, std::string &, bool,
   const std::vector<proto::SignedMessage> &,
-  const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
+  const std::map<std::string, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &)> result_callback; //status, group, read_set, result_hash, result, success, signatures
 typedef std::function<void(int, const std::string &, const std::string &, const Timestamp &, const std::string &,
   const proto::Dependency &, bool, bool,
   const proto::CommittedProof &, const std::string &, const std::string &,
@@ -362,7 +362,7 @@ virtual void Phase2Equivocate_Simulate(uint64_t id, const proto::Transaction &tx
     std::string *table_name;
     
     // max policy and timestamp for this query
-    std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> queryPolicyMap;
+    std::map<std::string, std::pair<proto::EndorsementPolicyMessage, Timestamp>> queryPolicyMap;
   };
 
 

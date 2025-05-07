@@ -35,8 +35,8 @@
 
 namespace sintrstore {
 
-std::map<uint64_t, Policy *> PolicyParseClient::ParseConfigFile(const std::string &configFilePath) {
-  std::map<uint64_t, Policy *> policies;
+std::map<std::string, Policy *> PolicyParseClient::ParseConfigFile(const std::string &configFilePath) {
+  std::map<std::string, Policy *> policies;
 
   std::ifstream policyStoreFile(configFilePath);
   if (policyStoreFile.fail()) {
@@ -46,7 +46,7 @@ std::map<uint64_t, Policy *> PolicyParseClient::ParseConfigFile(const std::strin
   std::string line;
   while (std::getline(policyStoreFile, line)) {
     // expected format is "policyId policyType args..."
-    uint64_t policyId;
+    std::string policyId;
     std::string policyType;
     std::vector<std::string> args;
 
@@ -56,7 +56,7 @@ std::map<uint64_t, Policy *> PolicyParseClient::ParseConfigFile(const std::strin
     int i = 0;
     while (std::getline(iss, temp, ' ')) {
       if (i == 0) {
-        policyId = std::stoull(temp);
+        policyId = temp;
       } else if (i == 1) {
         policyType = temp;
       } else {
@@ -71,7 +71,7 @@ std::map<uint64_t, Policy *> PolicyParseClient::ParseConfigFile(const std::strin
     // add to policies
     auto result = policies.insert(std::make_pair(policyId, policy));
     if (!result.second) {
-      Panic("Policy id %lu occurs twice in config file", policyId);
+      Panic("Policy id %s occurs twice in config file", policyId);
     }
   }
 

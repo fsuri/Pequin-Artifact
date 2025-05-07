@@ -334,28 +334,17 @@ void EndorsementClient::Reset() {
   pendingEndorsements.clear();
 }
 
-bool EndorsementClient::GetPolicyFromCache(const std::string &key, const Policy *&policy) const {
-  uint64_t policyId = policyIdFunction(key, "");
+bool EndorsementClient::GetPolicyFromCache(const std::string &policyId, const Policy *&policy) const {
   auto it = policyCache.find(policyId);
   if (it == policyCache.end()) {
-    Panic("Policy cache is missing policy with id %lu", policyId);
+    Panic("Policy cache is missing policy with id %s", policyId.c_str());
   }
 
   policy = it->second;
   return true;
 }
 
-bool EndorsementClient::GetPolicyFromCache(uint64_t policyId, const Policy *&policy) const {
-  auto it = policyCache.find(policyId);
-  if (it == policyCache.end()) {
-    Panic("Policy cache is missing policy with id %lu", policyId);
-  }
-
-  policy = it->second;
-  return true;
-}
-
-void EndorsementClient::UpdatePolicyCache(uint64_t policyId, Policy *policy) {
+void EndorsementClient::UpdatePolicyCache(std::string policyId, Policy *policy) {
   UW_ASSERT(policy != nullptr);
   if (policyCache.find(policyId) != policyCache.end()) {
     delete policyCache[policyId];
@@ -363,7 +352,7 @@ void EndorsementClient::UpdatePolicyCache(uint64_t policyId, Policy *policy) {
   policyCache[policyId] = policy;
 }
 
-void EndorsementClient::InitializePolicyCache(const std::map<uint64_t, Policy *> &policies) {
+void EndorsementClient::InitializePolicyCache(const std::map<std::string, Policy *> &policies) {
   UW_ASSERT(this->policyCache.empty());
   for (const auto &p : policies) {
     policyCache[p.first] = p.second;
