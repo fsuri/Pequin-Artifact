@@ -1276,7 +1276,7 @@ int main(int argc, char **argv) {
     }
       
     //Create a Peloton cache...
-    if(proto == PROTO_PEQUIN){
+    if(proto == PROTO_PEQUIN || proto == PROTO_SINTR){
       for(auto &[table_name, table_args]: tables_to_load.items()){ 
         const std::vector<std::pair<std::string, std::string>> &column_names_and_types = table_args["column_names_and_types"];
         const std::vector<uint32_t> &primary_key_col_idx = table_args["primary_key_col_idx"];
