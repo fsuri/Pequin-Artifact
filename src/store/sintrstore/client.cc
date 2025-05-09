@@ -80,6 +80,12 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
     verifier = new LocalBatchVerifier(params.merkleBranchFactor, dummyStats, transport);
   }
 
+  if(sql_bench){
+    Debug("Register tables from: %s", table_registry.c_str());
+    sql_interpreter.RegisterTables(table_registry);
+    sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
+ }
+
   /* Start a client for each shard. */
   for (uint64_t i = 0; i < ngroups; i++) {
     bclient.push_back(new ShardClient(config, transport, client_id, i,
@@ -123,11 +129,6 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
   // transport->Timer(9500, [this](){
   //   std::cerr<< "experiment about to elapse 10 seconds";
   // });
-  if(sql_bench){
-     Debug("Register tables from: %s", table_registry.c_str());
-     sql_interpreter.RegisterTables(table_registry);
-     sql_interpreter.RegisterPartitioner(part, nShards, nGroups, -1);
-  }
 
   Notice("Start Timer for %d warmup secs", warmup_secs);
   transport->Timer(warmup_secs * 1000, [this](){
