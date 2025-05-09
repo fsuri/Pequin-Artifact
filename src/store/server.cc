@@ -1247,7 +1247,7 @@ int main(int argc, char **argv) {
   //SQL Benchmarks -- they all require a schema file!
   else if(FLAGS_sql_bench && FLAGS_data_file_path.length() > 0 && FLAGS_keys_path.empty()) {
 
-    UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN); // Currently only Pequin supports more than 1 shard.
+    UW_ASSERT(FLAGS_num_shards == 1 || proto == PROTO_PEQUIN || proto == PROTO_SINTR); // Currently only Pequin supports more than 1 shard.
     Notice("Benchmark: SQL with Loaded Table Registry. File path: %s", FLAGS_data_file_path.c_str());
     
     std::ifstream generated_tables(FLAGS_data_file_path);
