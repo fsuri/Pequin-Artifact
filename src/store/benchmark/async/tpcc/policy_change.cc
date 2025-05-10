@@ -35,6 +35,7 @@ namespace tpcc {
 
 PolicyChange::PolicyChange(uint32_t w_id) : w_id(w_id) {
   randWeight = std::uniform_int_distribution<uint32_t>(1, 3)(GetRand());
+  std::cerr << "Changing policy p0 to weight " << randWeight << " for warehouse " << w_id << std::endl;
 }
 
 PolicyChange::~PolicyChange() {

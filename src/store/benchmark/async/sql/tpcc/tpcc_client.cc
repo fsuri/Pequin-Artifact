@@ -64,7 +64,8 @@ TPCCSQLClient::~TPCCSQLClient() {
 SyncTransaction* TPCCSQLClient::GetNextTransaction() {
   count++;
   //if (id == 0 && count >= 100 && (count % 100) == 0 && count < 300) {
-  //  return new SyncSQLPolicyChange(GetTimeout(), 1);
+  //  std::cerr << "RUNNING POLICY CHANGE" << std::endl;
+  //  return new SyncSQLPolicyChange(GetTimeout(), 1, (count/100)+1);
   //}
   uint32_t wid, did;
   std::mt19937 &gen = GetRand();

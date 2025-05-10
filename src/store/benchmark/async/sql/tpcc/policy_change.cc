@@ -24,6 +24,8 @@
  *
  **********************************************************************/
 
+#include <fmt/core.h>
+
 #include "store/benchmark/async/sql/tpcc/policy_change.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_utils.h"
 #include "store/benchmark/async/sql/tpcc/tpcc_common.h"
@@ -35,6 +37,11 @@ namespace tpcc_sql {
 
 PolicyChange::PolicyChange(uint32_t w_id) : w_id(w_id) {
   randWeight = std::uniform_int_distribution<uint32_t>(1, 3)(GetRand());
+  std::cerr << "Changing policy p0 to weight " << randWeight << " for warehouse " << w_id << std::endl;
+}
+
+PolicyChange::PolicyChange(uint32_t w_id, uint32_t policy_weight) : w_id(w_id), randWeight(policy_weight) {
+  std::cerr << "Changing policy p0 to weight " << randWeight << " for warehouse " << w_id << std::endl;
 }
 
 PolicyChange::~PolicyChange() {

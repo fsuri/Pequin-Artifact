@@ -243,6 +243,7 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
 
     pendingWriteStatements.clear();
     point_read_cache.clear();
+    scan_read_cache.clear();
 
     ClearTxnQueries();
     //pendingQueries.clear(); //shouldn't be necessary to call, should be empty anyways

@@ -563,16 +563,20 @@ void Client2Client::SendForwardQueryResultMessageHelper(const uint64_t client_se
   sentFwdResults.insert(fwdQueryResultMsgToSend);
 
   Debug(
-    "ForwardQueryResult: client id %lu, seq num %lu, query gen id %s",
+    "ForwardQueryResult: client id %lu, seq num %lu, query gen id %s add readset %d",
     client_id,
     client_seq_num,
-    BytesToHex(query_gen_id, 16).c_str()
+    BytesToHex(query_gen_id, 16).c_str(),
+    addReadset
   );
   for (const auto &i : beginValSent) {
     // do not send to self
     if (i == client_id) {
       continue;
     }
+    Debug("Sending to client %lu from client %lu seq num %lu query gen id %s", i, client_id,
+      client_seq_num,
+      BytesToHex(query_gen_id, 16).c_str());
     transport->SendMessageToReplica(this, i, *fwdQueryResultMsgToSend);
   }
 }
@@ -650,6 +654,8 @@ void Client2Client::HandlePolicyUpdate(const Policy *policy) {
       UW_ASSERT(ret.second);
       transport->SendMessageToReplica(this, i, sentBeginValTxnMsg);
       for (const auto &fwdReadResultMsg : sentFwdResults) {
+        Debug("Sending to client %lu from client %lu seq num %lu in handle policy update", i, client_id,
+          client_seq_num); 
         transport->SendMessageToReplica(this, i, *fwdReadResultMsg);
       }
     }
