@@ -35,6 +35,7 @@ namespace tpcc {
 class PolicyChange : public TPCCTransaction {
  public:
   PolicyChange(uint32_t w_id);
+  PolicyChange(uint32_t w_id, uint32_t policy_change);
   PolicyChange() {};
   virtual ~PolicyChange();
 

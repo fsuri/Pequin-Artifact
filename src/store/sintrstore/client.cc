@@ -218,7 +218,6 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->SetClientSeqNum(client_seq_num);
     // using policy client with default policy set to weight 0 policy
     // TODO: Default should be either ACL or Weight Policy depending on parameter
-    prev_policies.clear();
     PolicyClient *policyClient = new PolicyClient();
     EstimateTxnPolicy(protoTxnState, policyClient);
     c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policyClient);
@@ -380,10 +379,8 @@ void Client::Put(const std::string &key, const std::string &value,
         // if not found, that means we are trying to write to a policy that doesn't exist
         Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", key);
       }
-      if(prev_policies.find(key) == prev_policies.end()) {
-        Debug("Sending policy update for put using c2client in policy transaction");
-        c2client->HandlePolicyUpdate(policy);
-      }
+      Debug("Sending policy update for put using c2client in policy transaction");
+      c2client->HandlePolicyUpdate(policy);
       // contact all shards to update policy
       Debug("Contacting all shards for policy update");
       for (int i = 0; i < bclient.size(); i++) {
@@ -417,10 +414,8 @@ void Client::Put(const std::string &key, const std::string &value,
         // if not found, use default policy for now
         endorseClient->GetPolicyFromCache("p0", policy);
       }
-      if(prev_policies.find(policyIdFunction(key, value)) == prev_policies.end()) {
-        Debug("Sending policy update for put using c2client in regular transaction");
-        c2client->HandlePolicyUpdate(policy);
-      }
+      Debug("Sending policy update for put using c2client in regular transaction");
+      c2client->HandlePolicyUpdate(policy);
       std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
       int i = (*part)(key, nshards, -1, txnGroups) % ngroups; 
       // If needed, add this shard to set of participants and send BEGIN.
@@ -510,14 +505,11 @@ void Client::Write(std::string &write_statement, write_callback wcb,
         // update policy for current transaction, make sure if policy is the same don't handle policy update
         for (const auto &key : *keys_written) {
           std::string policyId = policyIdFunction(key, "");
-          if(prev_policies.find(policyId) == prev_policies.end()) {
-            //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
-            const Policy *policy;
-            endorseClient->GetPolicyFromCache(policyId, policy);  
-            Debug("handle policy update for policy id %lu in write", policyId);
-            c2client->HandlePolicyUpdate(policy);
-            prev_policies.insert(policyId);
-          }
+          //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
+          const Policy *policy;
+          endorseClient->GetPolicyFromCache(policyId, policy);  
+          Debug("handle policy update for policy id %lu in write", policyId);
+          c2client->HandlePolicyUpdate(policy);
         }
 
         delete keys_written;

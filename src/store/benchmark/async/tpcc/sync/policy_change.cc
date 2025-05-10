@@ -35,6 +35,9 @@ namespace tpcc {
 SyncPolicyChange::SyncPolicyChange(uint32_t timeout, uint32_t w_id) : SyncTPCCTransaction(timeout),
     PolicyChange(w_id) {}
 
+SyncPolicyChange::SyncPolicyChange(uint32_t timeout, uint32_t w_id, uint32_t policy_change) : SyncTPCCTransaction(timeout),
+    PolicyChange(w_id, policy_change) {}
+
 SyncPolicyChange::~SyncPolicyChange() {
 }
 

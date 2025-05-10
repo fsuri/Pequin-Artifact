@@ -35,6 +35,7 @@ namespace tpcc {
 class SyncPolicyChange : public SyncTPCCTransaction, public PolicyChange {
  public:
   SyncPolicyChange(uint32_t timeout, uint32_t w_id);
+  SyncPolicyChange(uint32_t timeout, uint32_t w_id, uint32_t policy_change);
   virtual ~SyncPolicyChange();
   virtual transaction_status_t Execute(SyncClient &client);
 };
