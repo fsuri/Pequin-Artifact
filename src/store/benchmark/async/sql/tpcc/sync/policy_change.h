@@ -35,6 +35,7 @@ namespace tpcc_sql {
 class SyncSQLPolicyChange : public SyncTPCCSQLTransaction, public PolicyChange {
  public:
   SyncSQLPolicyChange(uint32_t timeout, uint32_t w_id);
+  SyncSQLPolicyChange(uint32_t timeout, uint32_t w_id, uint32_t policy_weight);
   virtual ~SyncSQLPolicyChange();
   virtual transaction_status_t Execute(SyncClient &client);
 };

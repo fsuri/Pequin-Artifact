@@ -431,6 +431,8 @@ std::string BytesToHex(const std::string &bytes, size_t maxLength);
 bool TransactionsConflict(const proto::Transaction &a,
     const proto::Transaction &b, std::string policyFunctionName);
 
+bool isPolicyKey(const std::string& s);
+
 uint64_t QuorumSize(const transport::Configuration *config);
 uint64_t FastQuorumSize(const transport::Configuration *config);
 uint64_t SlowCommitQuorumSize(const transport::Configuration *config);
@@ -862,7 +864,7 @@ typedef struct SintrParameters {
   const bool clientPinCores; // pin client cores for validation
   const bool client2clientMultiThreading; // enable multi-threading for client-to-client communication
   const bool parallelEndorsementCheck; // parallel endorsement check
-  const bool useOCCForPolicies; // use OCC for policies
+  const bool useOCCForPolicies; // use OCC for policies, changing policies in sql means this flag must be enabled
   const bool hashEndorsements; // hash endorsements with txn digest to get updated txn digest
   const bool parallelQuerySigsCheck; // parallel query signature check on forwarded query results
   const bool blindWriteMessage; // send a blind write message to validating clients

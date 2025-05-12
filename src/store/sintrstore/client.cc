@@ -96,7 +96,7 @@ Client::Client(transport::Configuration *config, uint64_t id, int nShards,
 
   policyParseClient = new PolicyParseClient();
   policyIdFunction = GetPolicyIdFunction(params.sintr_params.policyFunctionName);
-  std::map<uint64_t, Policy *> policies = policyParseClient->ParseConfigFile(params.sintr_params.policyConfigPath);
+  std::map<std::string, Policy *> policies = policyParseClient->ParseConfigFile(params.sintr_params.policyConfigPath);
 
   endorseClient = new EndorsementClient(client_id, keyManager, policyIdFunction);
   endorseClient->InitializePolicyCache(policies);
@@ -218,7 +218,6 @@ void Client::Begin(begin_callback bcb, begin_timeout_callback btcb,
     endorseClient->SetClientSeqNum(client_seq_num);
     // using policy client with default policy set to weight 0 policy
     // TODO: Default should be either ACL or Weight Policy depending on parameter
-    prev_policies.clear();
     PolicyClient *policyClient = new PolicyClient();
     EstimateTxnPolicy(protoTxnState, policyClient);
     c2client->SendBeginValidateTxnMessage(client_seq_num, protoTxnState, txnStartTime, policyClient);
@@ -268,7 +267,7 @@ void Client::EstimateTxnPolicy(const TxnState &protoTxnState, PolicyClient *poli
   if (IsPolicyChangeTxn(protoTxnState)) {
     // policy change transaction could require separate handling
     const Policy *policy;
-    UW_ASSERT(endorseClient->GetPolicyFromCache(0, policy));
+    UW_ASSERT(endorseClient->GetPolicyFromCache("p0", policy));
     policyClient->AddPolicy(policy);
   } 
   else {
@@ -375,15 +374,13 @@ void Client::Put(const std::string &key, const std::string &value,
     // Contact the appropriate shard to set the value.
     if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
       // look in cache for policy
-      bool exists = endorseClient->GetPolicyFromCache(std::stoull(key), policy);
+      bool exists = endorseClient->GetPolicyFromCache(key, policy);
       if (!exists) {
         // if not found, that means we are trying to write to a policy that doesn't exist
-        Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", std::stoull(key));
+        Panic("Attempting to write to policy ID %lu when policy ID doesn't exist", key);
       }
-      if(prev_policies.find(std::stoull(key)) == prev_policies.end()) {
-        Debug("Sending policy update for put using c2client in policy transaction");
-        c2client->HandlePolicyUpdate(policy);
-      }
+      Debug("Sending policy update for put using c2client in policy transaction");
+      c2client->HandlePolicyUpdate(policy);
       // contact all shards to update policy
       Debug("Contacting all shards for policy update");
       for (int i = 0; i < bclient.size(); i++) {
@@ -412,16 +409,13 @@ void Client::Put(const std::string &key, const std::string &value,
       target_group_for_get = -1;
     } else {
       // look in cache for policy
-      bool exists = endorseClient->GetPolicyFromCache(key, policy);
+      bool exists = endorseClient->GetPolicyFromCache(policyIdFunction(key, value), policy);
       if (!exists) {
         // if not found, use default policy for now
-        uint64_t policyId = policyIdFunction(key, value);
-        endorseClient->GetPolicyFromCache(policyId, policy);
+        endorseClient->GetPolicyFromCache("p0", policy);
       }
-      if(prev_policies.find(policyIdFunction(key, value)) == prev_policies.end()) {
-        Debug("Sending policy update for put using c2client in regular transaction");
-        c2client->HandlePolicyUpdate(policy);
-      }
+      Debug("Sending policy update for put using c2client in regular transaction");
+      c2client->HandlePolicyUpdate(policy);
       std::vector<int> txnGroups(txn.involved_groups().begin(), txn.involved_groups().end());
       int i = (*part)(key, nshards, -1, txnGroups) % ngroups; 
       // If needed, add this shard to set of participants and send BEGIN.
@@ -510,15 +504,12 @@ void Client::Write(std::string &write_statement, write_callback wcb,
 
         // update policy for current transaction, make sure if policy is the same don't handle policy update
         for (const auto &key : *keys_written) {
-          uint64_t policyId = policyIdFunction(key, "");
-          if(prev_policies.find(policyId) == prev_policies.end()) {
-            //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
-            const Policy *policy;
-            endorseClient->GetPolicyFromCache(key, policy);  
-            Debug("handle policy update for policy id %lu in write", policyId);
-            c2client->HandlePolicyUpdate(policy);
-            prev_policies.insert(policyId);
-          }
+          std::string policyId = policyIdFunction(key, "");
+          //Debug("execution keys_written key %s for write statement %s from client %lu for seq num %lu", key.c_str(), write_statement.c_str(), client_id, client_seq_num);
+          const Policy *policy;
+          endorseClient->GetPolicyFromCache(policyId, policy);  
+          Debug("handle policy update for policy id %lu in write", policyId);
+          c2client->HandlePolicyUpdate(policy);
         }
 
         delete keys_written;
@@ -890,7 +881,7 @@ void Client::PointQueryResultCallback(PendingQuery *pendingQuery,
 void Client::QueryResultCallback(PendingQuery *pendingQuery,  
                                   int status, int group, proto::ReadSet *query_read_set, std::string &result_hash, std::string &result, bool success,
                                   const std::vector<proto::SignedMessage> &query_sigs,
-                                  const std::map<uint64_t, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap) 
+                                  const std::map<std::string, std::pair<proto::EndorsementPolicyMessage, Timestamp>> &queryPolicyMap) 
 { 
 
   if(PROFILING_LAT){
@@ -1010,11 +1001,11 @@ void Client::QueryResultCallback(PendingQuery *pendingQuery,
   }
 
   for (const auto &policyEntry : queryPolicyMap) {
-    uint64_t id = policyEntry.first;
+    std::string id = policyEntry.first;
     const proto::EndorsementPolicyMessage &policyMsg = policyEntry.second.first;
     UW_ASSERT(id == policyMsg.policy_id());
     if (policyMsg.IsInitialized()) {
-      Debug("PULL[%lu:%lu] POLICY FOR policy ID %lu in QUERY",client_id, client_seq_num, id);
+      Debug("PULL[%lu:%lu] POLICY FOR policy ID %s in QUERY",client_id, client_seq_num, id);
       Policy *policy = policyParseClient->Parse(policyMsg.policy());
       endorseClient->UpdatePolicyCache(policyMsg.policy_id(), policy);
     }

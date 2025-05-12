@@ -506,6 +506,9 @@ void ValidationClient::Commit(commit_callback ccb, commit_timeout_callback ctcb,
       !a->second->pendingForwardedRead.empty()) {
     // TODO: remove extra readset additions from transaction and send to initiating client
     // May also trigger if validating client receives duplicated messages due to asynchrony
+    for(auto const &i : a->second->pendingForwardedQuery) {
+      Debug("extra fwd query ID: %s", BytesToHex(i.first, 16).c_str());
+    }
     Panic("Transaction includes more values in readset than necessary, extra forwarded point queries: %d, forwarded queries: %d, forwarded reads: %d",
       a->second->pendingForwardedPointQuery.size(),
       a->second->pendingForwardedQuery.size(),
@@ -862,14 +865,19 @@ void ValidationClient::ProcessForwardQueryResult(uint64_t txn_client_id, uint64_
       txn_client_seq_num,
       BytesToHex(curr_query_gen_id, 16).c_str()
     );
-    if(addReadset && (a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() || 
-      (a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()))) {
+    //Debug("Add readset: %d query ID to cmd: %s scan_read_cache: %d for query ID: %s",
+    //  addReadset, a->second->queryIDToCmd[curr_query_gen_id].c_str(),
+    //  (a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()),
+    //  BytesToHex(curr_query_gen_id, 16).c_str());
+    if(addReadset && (a->second->queryIDToCmd.find(curr_query_gen_id) == a->second->queryIDToCmd.end() ||
+      (a->second->queryIDToCmd.find(curr_query_gen_id) != a->second->queryIDToCmd.end()
+      && a->second->scan_read_cache.find(a->second->queryIDToCmd[curr_query_gen_id]) == a->second->scan_read_cache.end()))) {
       a->second->pendingForwardedQuery.push_back(std::make_pair(curr_query_gen_id, curr_query_result));
     } else if(addReadset && a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != curr_query_result
-        && a->second->scan_read_cache[curr_query_gen_id] != ""){
+        && a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]] != ""){
       // if the cached values isn't the same as the current value and cached value is non empty
       Panic("Cached results %s and current value %s are not the same for query gen ID %s",
-        a->second->scan_read_cache[curr_query_gen_id].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
+        a->second->scan_read_cache[a->second->queryIDToCmd[curr_query_gen_id]].c_str(), curr_query_result.c_str(), curr_query_gen_id.c_str());
     }
     editTxnStateCB(a->second, "", nullptr, false);
     return;

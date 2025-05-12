@@ -40,7 +40,7 @@ class PolicyParseClient {
   ~PolicyParseClient(){}
 
   // read in a config file and return a map from policy_id to policy object
-  std::map<uint64_t, Policy *> ParseConfigFile(const std::string &configFilePath);
+  std::map<std::string, Policy *> ParseConfigFile(const std::string &configFilePath);
   // given a policy type and arguments, create a new policy object
   Policy *Create(const std::string &policyType, const std::vector<std::string> &policyArgs);
   // given a proto policy object, create a new policy object

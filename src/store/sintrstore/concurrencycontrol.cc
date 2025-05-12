@@ -662,7 +662,7 @@ proto::ConcurrencyControl::Result Server::DoMVTSOOCCCheck(
     }
 
     // also extract out the policy reads that are done
-    std::set<std::pair<uint64_t, Timestamp>> implicitPolicyReads;
+    std::set<std::pair<std::string, Timestamp>> implicitPolicyReads;
     //2) Validate read set conflicts.
     for (const auto &read : readSet){//txn.read_set()) {
        if(read.is_table_col_version()){   //Don't do the OCC check for table_versions (likewise, Prepare/Commit won't write them) (//TODO: Also skip column versions. Note: Currently just disabled col versions)
@@ -1137,10 +1137,10 @@ void Server::CheckDepLocalPresence(const proto::Transaction &txn, const DepSet &
 // helper function for CC check for policies in writeset
 proto::ConcurrencyControl::Result Server::policyCheckHelper(proto::Transaction &txn, const WriteMessage &write, const Timestamp &ts,
     const DepSet &depSet, const std::string &txnDigest, const proto::Transaction* &abstain_conflict,
-    std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads) {
-  uint64_t policyId = 0;
+    std::set<std::pair<std::string, Timestamp>> &implicitPolicyReads) {
+  std::string policyId = "";
   if(txn.policy_type() == proto::Transaction::POLICY_ID_POLICY) {
-    policyId = std::stoull(write.key());
+    policyId = write.key();
   } else {
     policyId = policyIdFunction(write.key(), write.value());
   }

@@ -530,11 +530,11 @@ void Server::Load(const std::string &key, const std::string &value,
   UW_ASSERT(committedItr != committed.end());
   val.proof = committedItr->second;
   // cross check to make sure policy store has necessary policy
-  uint64_t policyId = policyIdFunction(key, value);
+  std::string policyId = policyIdFunction(key, value);
   std::pair<Timestamp, PolicyStoreValue> tsPolicy;
   bool exists = policyStore.get(policyId, tsPolicy);
   if (!exists) {
-    Panic("Policy %lu does not exist", policyId);
+    Panic("Policy %s does not exist", policyId.c_str());
   }
   store.put(key, val, timestamp);
   if (key.length() == 5 && key[0] == 0) {
@@ -545,7 +545,7 @@ void Server::Load(const std::string &key, const std::string &value,
 }
 
 void Server::LoadPolicyStore(const std::string &policyStorePath) {
-  std::map<uint64_t, Policy *> policies = policyParseClient->ParseConfigFile(policyStorePath);
+  std::map<std::string, Policy *> policies = policyParseClient->ParseConfigFile(policyStorePath);
 
   for (const auto &p : policies) {
     PolicyStoreValue policyStoreValue;
@@ -1099,7 +1099,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
   std::pair<Timestamp, Server::Value> tsVal;
   //find committed write value to read from
-  bool committed_exists = store.get(msg.key(), ts, tsVal);
+  bool committed_exists = !isPolicyKey(msg.key()) && store.get(msg.key(), ts, tsVal);
 
   proto::ReadReply* readReply = GetUnusedReadReply();
   readReply->set_req_id(msg.req_id());
@@ -1118,7 +1118,7 @@ void Server::HandleRead(const TransportAddress &remote,
 
     if (msg.include_policy()) {
       // get policy from policyStore
-      uint64_t policyId = policyIdFunction(msg.key(), tsVal.second.val);
+      std::string policyId = policyIdFunction(msg.key(), tsVal.second.val);
       std::pair<Timestamp, PolicyStoreValue> tsPolicy;
       GetPolicy(policyId, ts, tsPolicy);
       tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
@@ -1142,7 +1142,8 @@ void Server::HandleRead(const TransportAddress &remote,
   };
 
   //If MVTSO: Read prepared, Set RTS
-  if (occType == MVTSO) {
+  // if key is not a policy ID
+  if (occType == MVTSO && !isPolicyKey(msg.key())) {
   
     //Sets RTS timestamp. Favors readers commit chances.
     //Disable if worried about Byzantine Readers DDos, or if one wants to favor writers.
@@ -1155,7 +1156,7 @@ void Server::HandleRead(const TransportAddress &remote,
     if (params.maxDepDepth > -2) {
       Debug("Look for prepared value to READ[%lu:%lu]", msg.timestamp().id(), msg.req_id());
       const proto::Transaction *mostRecent = nullptr;
-      uint64_t preparedPolicyId = policyIdFunction(msg.key(), "");
+      std::string preparedPolicyId = policyIdFunction(msg.key(), "");
 
       //std::pair<std::shared_mutex,std::map<Timestamp, const proto::Transaction *>> &x = preparedWrites[write.key()];
       auto itr = preparedWrites.find(msg.key());
@@ -1246,6 +1247,62 @@ void Server::HandleRead(const TransportAddress &remote,
             *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
           }
         }
+      }
+    }
+  } else if(isPolicyKey(msg.key())) {
+    Debug("Getting policy for %s", msg.key().c_str());
+    const proto::Transaction *mostRecentPolicyTxn;
+    std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
+    if(params.sintr_params.useOCCForPolicies) {
+      GetPolicy(msg.key(), ts, tsPolicy, false);
+    } else {
+      GetPolicy(msg.key(), ts, tsPolicy, true, &mostRecentPolicyTxn);
+    }
+    if (tsPolicy.second.proof == nullptr) {
+      // this shouldn't trigger if useOCCForPolicies is true
+      UW_ASSERT(!params.sintr_params.useOCCForPolicies);
+
+      std::string preparedPolicyVal = "";
+      for(const auto &write : mostRecentPolicyTxn->write_set()) {
+        if(write.key() == msg.key()) {
+          preparedPolicyVal = write.value();
+          break;
+        }
+      }
+      // make sure policy value exists
+      UW_ASSERT(preparedPolicyVal != "");
+      readReply->mutable_write()->set_prepared_value(preparedPolicyVal);
+      *readReply->mutable_write()->mutable_prepared_timestamp() = mostRecentPolicyTxn->timestamp();
+      Debug("Prepared policy id write with most recent ts %lu.%lu.",
+              tsPolicy.first.getTimestamp(), tsPolicy.first.getID());
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_prepared_policy_timestamp());
+      readReply->mutable_write()->mutable_prepared_policy()->set_policy_id(msg.key());
+      tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_prepared_policy()->mutable_policy());
+      std::string tempDigest = TransactionDigest(*mostRecentPolicyTxn, params.hashDigest);
+      if(params.sintr_params.hashEndorsements) {
+        tempDigest = EndorsedTxnDigest(tempDigest, *mostRecentPolicyTxn, params.hashDigest);
+      }
+      *readReply->mutable_write()->mutable_prepared_policy_txn_digest() = tempDigest;
+      *readReply->mutable_write()->mutable_prepared_txn_digest() = tempDigest;
+    } else {
+      std::string policyVal = "";
+      for(const auto &write : tsPolicy.second.proof->txn().write_set()) {
+        if(write.key() == msg.key()) {
+          policyVal = write.value();
+          break;
+        }
+      }
+      // make sure policy value exists
+      UW_ASSERT(policyVal != "");
+      readReply->mutable_write()->set_committed_value(policyVal);
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_timestamp());
+      // using a committed policy for a prepared write
+      tsPolicy.first.serialize(readReply->mutable_write()->mutable_committed_policy_timestamp());
+      readReply->mutable_write()->mutable_committed_policy()->set_policy_id(msg.key());
+      tsPolicy.second.policy->SerializeToProtoMessage(readReply->mutable_write()->mutable_committed_policy()->mutable_policy());
+      if (params.validateProofs) {
+        *readReply->mutable_proof() = *tsPolicy.second.proof;
+        *readReply->mutable_policy_proof() = *tsPolicy.second.proof;
       }
     }
   }
@@ -2351,7 +2408,7 @@ void Server::HandleAbort(const TransportAddress &remote,
 /////////////////////////////////////// PREPARE, COMMIT AND ABORT LOGIC  + Cleanup
 
 void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
-    const std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads) {
+    const std::set<std::pair<std::string, Timestamp>> &implicitPolicyReads) {
 
   // return; //Test perf if we don't simulate but we don't prepare.
   if(simulate_inconsistency){
@@ -2433,13 +2490,13 @@ void Server::Prepare(const std::string &txnDigest, const proto::Transaction &txn
       policyRead.second.getTimestamp(),
       policyRead.second.getID()
     );
-    std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[std::to_string(policyRead.first)];
+    std::pair<std::shared_mutex, std::set<const proto::Transaction *>> &y = preparedReads[policyRead.first];
     std::unique_lock lock(y.first);
     y.second.insert(a->second.second);
 
     // hack to store the implicit policy reads in the transaction
     ReadMessage *read = ongoingTxn->add_implicit_policy_reads();
-    read->set_key(std::to_string(policyRead.first));
+    read->set_key(policyRead.first);
     policyRead.second.serialize(read->mutable_readtime());
   }
 
@@ -2776,7 +2833,7 @@ void Server::CommitToStore(proto::CommittedProof *proof, proto::Transaction *txn
       // parse allocates a new policy so need to free it at end
       policiesToFree.push_back(policyVal.policy);
       policyVal.proof = proof;
-      policyStore.put(std::stoull(write.key()), policyVal, ts);
+      policyStore.put(write.key(), policyVal, ts);
       return;
     }
     else {
@@ -3072,17 +3129,17 @@ void Server::Clean(const std::string &txnDigest, bool abort, bool hard) {
    mq.release();
 }
 
-void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts, 
+void Server::GetPolicy(const std::string policyId, const Timestamp &ts, 
     std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared, const proto::Transaction **preparedTxn) {
   bool exists = policyStore.get(policyId, ts, tsPolicy);
 
   const proto::Transaction *mostRecentPrepared = nullptr;
   if (checkPrepared && params.maxDepDepth > -2) {
-    mostRecentPrepared = FindPreparedVersion(std::to_string(policyId), ts, exists, tsPolicy, proto::Transaction::POLICY_ID_POLICY);
+    mostRecentPrepared = FindPreparedVersion(policyId, ts, exists, tsPolicy, proto::Transaction::POLICY_ID_POLICY);
   }
   if (mostRecentPrepared != nullptr) {
     for (const auto &w : mostRecentPrepared->write_set()) {
-      if (w.key() == std::to_string(policyId)) {
+      if (w.key() == policyId) {
         // policy change transaction writeset value is a new policy
         proto::PolicyObject policyMsg;
         policyMsg.ParseFromString(w.value());
@@ -3104,7 +3161,7 @@ void Server::GetPolicy(const uint64_t policyId, const Timestamp &ts,
   }
 
   if (!exists) {
-    Panic("Cannot find policy %lu in policyStore or preparedWrites at time %lu.%lu", policyId, ts.getTimestamp(), ts.getID());
+    Panic("Cannot find policy %s in policyStore or preparedWrites at time %lu.%lu", policyId, ts.getTimestamp(), ts.getID());
   }
 }
 
@@ -3137,7 +3194,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
   Timestamp ts(txn->timestamp());
 
   for (const auto &write : txn->write_set()) {
-    uint64_t policyId;
+    std::string policyId;
 
     if (txn->policy_type() != proto::Transaction::POLICY_ID_POLICY) {
       if (!IsKeyOwned(write.key())) {
@@ -3147,7 +3204,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
     }
     else {
       // if txn is POLICY_ID_POLICY, then writeset keys are policy ids
-      policyId = std::stoull(write.key());
+      policyId = write.key();
     }
 
     Debug("Extracting policy %lu for key %s", policyId, BytesToHex(write.key(), 16).c_str());
@@ -3168,7 +3225,7 @@ void Server::ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyCl
         continue;
       }
   
-      uint64_t policyId = policyIdFunction(read.key(), "");
+      std::string policyId = policyIdFunction(read.key(), "");
       Debug("Extracting policy %lu for key %s", policyId, BytesToHex(read.key(), 16).c_str());
       // changing to use read key timestamp for reading policy
       std::pair<Timestamp, PolicyStoreValue> tsPolicy;

@@ -110,7 +110,7 @@ namespace sintrstore {
       else {
         // txn will have writes
         const Policy *temp_policy;
-        UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
+        UW_ASSERT(endorseClient->GetPolicyFromCache("p0", temp_policy));
         policyClient->AddPolicy(temp_policy);
       }
     }
@@ -171,44 +171,44 @@ namespace sintrstore {
       if (!valTxnData.read_only()) {
         // txn will have writes
         const Policy *temp_policy;
-        UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
+        UW_ASSERT(endorseClient->GetPolicyFromCache("p0", temp_policy));
         policyClient->AddPolicy(temp_policy);
       }
     }
     else {
       // return default policy ID (policy ID 0)
       const Policy *temp_policy;
-      UW_ASSERT(endorseClient->GetPolicyFromCache(0, temp_policy));
+      UW_ASSERT(endorseClient->GetPolicyFromCache("p0", temp_policy));
       policyClient->AddPolicy(temp_policy);
     }
   }
 
-  uint64_t EstimatePolicy::TableToPolicyID(const int &t, const std::string &txn_bench) const {
+  std::string EstimatePolicy::TableToPolicyID(const int &t, const std::string &txn_bench) const {
     if(txn_bench == ::tpcc::BENCHMARK_NAME) {
       ::tpcc::Tables table = static_cast<::tpcc::Tables>(t);
       switch (table) {
       case ::tpcc::Tables::WAREHOUSE:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::DISTRICT:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::CUSTOMER:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::HISTORY:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::NEW_ORDER:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::ORDER:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::ORDER_LINE:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::ITEM:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::STOCK:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::ORDER_BY_CUSTOMER:
-        return 0;
+        return "p0";
       case ::tpcc::Tables::EARLIEST_NEW_ORDER:
-        return 0;
+        return "p0";
       default:
         Panic("Received unexpected table type for tpcc: %d", t);
       }
@@ -216,25 +216,25 @@ namespace sintrstore {
       ::tpcc_sql::TPCC_Table table = static_cast<::tpcc_sql::TPCC_Table>(t);
       switch (table) {
         case ::tpcc_sql::TPCC_Table::WAREHOUSE:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::DISTRICT:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::CUSTOMER:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::HISTORY:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::NEW_ORDER:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::ORDER:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::ORDER_LINE:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::ITEM:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::STOCK:
-          return 0;
+          return "p0";
         case ::tpcc_sql::TPCC_Table::EARLIEST_NEW_ORDER:
-          return 0;
+          return "p0";
         default:
           Panic("Received unexpected table type for tpcc sql: %d", t);
       }

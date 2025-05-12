@@ -35,6 +35,7 @@ namespace tpcc_sql {
 class PolicyChange : public TPCCSQLTransaction {
  public:
   PolicyChange(uint32_t w_id);
+  PolicyChange(uint32_t w_id, uint32_t policy_weight);
   PolicyChange() {};
   virtual ~PolicyChange();
 

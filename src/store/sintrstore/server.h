@@ -821,7 +821,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   void GetPreparedReadTimestamps(std::unordered_map<std::string, std::set<Timestamp>> &reads);
   void GetPreparedReads(std::unordered_map<std::string, std::vector<const proto::Transaction *>> &reads);
   void Prepare(const std::string &txnDigest, const proto::Transaction &txn, const ReadSet &readSet,
-    const std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads = std::set<std::pair<uint64_t, Timestamp>>());
+    const std::set<std::pair<std::string, Timestamp>> &implicitPolicyReads = std::set<std::pair<std::string, Timestamp>>());
   void GetCommittedWrites(const std::string &key, const Timestamp &ts, std::vector<std::pair<Timestamp, Value>> &writes);
   bool GetPreceedingCommittedWrite(const std::string &key, const Timestamp &ts, std::pair<Timestamp, Server::Value> &write);
   void GetPreceedingPreparedWrite(const std::map<Timestamp, const proto::Transaction *> &preparedKeyWrites, const Timestamp &ts,
@@ -949,7 +949,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   // given policy id and timestamp, get the policy by filling tsPolicy
   // if checkPrepared is true, also check preparedWrites for change policy
   // if preparedTxn is not null, return the transaction that prepared the policy
-  void GetPolicy(const uint64_t policyId, const Timestamp &ts,
+  void GetPolicy(const std::string policyId, const Timestamp &ts,
     std::pair<Timestamp, PolicyStoreValue> &tsPolicy, const bool checkPrepared = false,
     const proto::Transaction **preparedTxn = nullptr);
 
@@ -999,7 +999,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
 
   proto::ConcurrencyControl::Result policyCheckHelper(proto::Transaction &txn, const WriteMessage &write, const Timestamp &ts,
     const DepSet &depSet, const std::string &txnDigest, const proto::Transaction* &abstain_conflict,
-    std::set<std::pair<uint64_t, Timestamp>> &implicitPolicyReads);
+    std::set<std::pair<std::string, Timestamp>> &implicitPolicyReads);
   // Global objects.
 
   Stats stats;
@@ -1133,7 +1133,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   //SQLTransformer sql_interpreter;
 
   VersionedKVStoreGeneric<std::string, Timestamp, Value> store;
-  VersionedKVStoreGeneric<uint64_t, Timestamp, PolicyStoreValue> policyStore;
+  VersionedKVStoreGeneric<std::string, Timestamp, PolicyStoreValue> policyStore;
   // not sure if VersionedKvStoreGeneric will actually free the policy pointers, so store separately and free on destruction
   std::vector<Policy *> policiesToFree;
   // policy_function policyFunction;

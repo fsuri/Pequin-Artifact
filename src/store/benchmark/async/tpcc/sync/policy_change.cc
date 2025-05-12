@@ -35,6 +35,9 @@ namespace tpcc {
 SyncPolicyChange::SyncPolicyChange(uint32_t timeout, uint32_t w_id) : SyncTPCCTransaction(timeout),
     PolicyChange(w_id) {}
 
+SyncPolicyChange::SyncPolicyChange(uint32_t timeout, uint32_t w_id, uint32_t policy_change) : SyncTPCCTransaction(timeout),
+    PolicyChange(w_id, policy_change) {}
+
 SyncPolicyChange::~SyncPolicyChange() {
 }
 
@@ -56,7 +59,7 @@ transaction_status_t SyncPolicyChange::Execute(SyncClient &client) {
   
   std::string policy_str;
   policy.SerializeToString(&policy_str);
-  client.Put("1", policy_str, timeout);
+  client.Put("p0", policy_str, timeout);
 
   return client.Commit(timeout);
 }

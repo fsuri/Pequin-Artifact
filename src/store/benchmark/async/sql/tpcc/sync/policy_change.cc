@@ -36,6 +36,10 @@ SyncSQLPolicyChange::SyncSQLPolicyChange(uint32_t timeout, uint32_t w_id) : Sync
     PolicyChange(w_id) {
     }
 
+SyncSQLPolicyChange::SyncSQLPolicyChange(uint32_t timeout, uint32_t w_id, uint32_t policy_weight) : SyncTPCCSQLTransaction(timeout),
+    PolicyChange(w_id, policy_weight) {
+    }
+
 SyncSQLPolicyChange::~SyncSQLPolicyChange() {
 }
 
@@ -57,7 +61,7 @@ transaction_status_t SyncSQLPolicyChange::Execute(SyncClient &client) {
   
   std::string policy_str;
   policy.SerializeToString(&policy_str);
-  client.Put("0", policy_str, timeout);
+  client.Put("p0", policy_str, timeout);
 
   return client.Commit(timeout);
 }

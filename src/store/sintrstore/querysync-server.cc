@@ -381,7 +381,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
 
     if(include_policy && write->has_committed_value()) {
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
-        uint64_t policyId = policyIdFunction(query->primary_enc_key(), "");
+        std::string policyId = policyIdFunction(query->primary_enc_key(), "");
         GetPolicy(policyId, ts, tsPolicy, false);
         tsPolicy.first.serialize(pointQueryReply->mutable_write()->mutable_committed_policy_timestamp());
         pointQueryReply->mutable_write()->mutable_committed_policy()->set_policy_id(policyId);
@@ -391,7 +391,7 @@ void Server::ProcessPointQuery(const uint64_t &reqId, proto::Query *query, const
         }
     } else if(include_policy && !write->has_committed_value()) {
         const proto::Transaction *mostRecentPolicyTxn;
-        uint64_t preparedPolicyId = policyIdFunction(query->primary_enc_key(), "");
+        std::string preparedPolicyId = policyIdFunction(query->primary_enc_key(), "");
         std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
         if(params.sintr_params.useOCCForPolicies) {
           GetPolicy(preparedPolicyId, ts, tsPolicy, false);
@@ -829,12 +829,12 @@ void Server::HandleSyncCallback(queryMetaDataMap::accessor &q, QueryMetaData *qu
 
 void Server::GetQueryPolicies(QueryReadSetMgr &queryReadSetMgr, QueryMetaData *query_md) {
 
-    std::set<uint64_t> prev_policies;
+    std::set<std::string> prev_policies;
     // will not update policy if a new policy with a newer timestamp before query ts is committed but policy ID is already in prev_policies
     proto::QueryResultReply *queryResultReply = query_md->queryResultReply;
     for (const auto &read : queryReadSetMgr.read_set->read_set()) {
         // get the policies associated with the readset keys in the query
-        uint64_t policyId = policyIdFunction(read.key(), "");
+        std::string policyId = policyIdFunction(read.key(), "");
         if (prev_policies.find(policyId) == prev_policies.end()) {
             std::pair<Timestamp, Server::PolicyStoreValue> tsPolicy;
             const proto::Transaction *mostRecentPolicyTxn;
