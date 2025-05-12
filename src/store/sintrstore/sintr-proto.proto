@@ -494,12 +494,8 @@ message ForwardReadResultMessage {
     Write write = 6;
     SignedMessage signed_write = 7;
   }
-  // shows dependency which can be verified
-  optional Dependency dep = 8;
   // tell validating client whether to add to readset
-  optional bool add_readset = 9;
-  // policy dependencies must be included in txn in order for digest to match
-  optional Dependency policy_dep = 10;
+  optional bool add_readset = 8;
 }
 
 message ForwardPointQueryResultMessage {
@@ -510,14 +506,12 @@ message ForwardPointQueryResultMessage {
     ForwardReadResult fwd_read_result = 3;
     SignedMessage signed_fwd_read_result = 4;
   }
-  optional string table_name = 5;
-  optional CommittedProof proof = 6;
+  optional CommittedProof proof = 5;
   oneof prepared_oneof {
-    Write write = 7;
-    SignedMessage signed_write = 8;
+    Write write = 6;
+    SignedMessage signed_write = 7;
   }
-  optional Dependency dep = 9;
-  optional bool add_readset = 10;
+  optional bool add_readset = 8;
 }
 
 message ForwardQueryResult {
