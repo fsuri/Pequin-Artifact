@@ -250,7 +250,7 @@ To directly compare against the numbers reported in our paper please refer to th
 
 > **Notice**: When running experiments with load load (i.e. few clients) we observe that the average latency is typically higher than at moderate load (this is the case for all systems). This appears to be a protocol-independent system artifact that we have been unable to resolve so far. CPU and/or network speeds seem to increase under load.
 
-> **Notice**: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes or experienced miscellaneous changes to debug logging). These changes should have very little impact on performance, but we acknowledge it nonetheless for completeness. The main claims remain consistent.
+> **Notice**: Some of the systems have matured since the reported results (e.g. undergone minor bugfixes or experienced miscellaneous changes to debug logging). This should have very little impact on performance, but we acknowledge it nonetheless for completeness. The main claims remain consistent.
 
 
 ### **1 - Workloads**:
