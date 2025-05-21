@@ -616,9 +616,9 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
 
 > **NOTE**: Client's issuing transactions against CRDB must issue their operations sequentially. This, alongside CRDB's innately slow processing results in high latency for long transactions (e.g. in TPC-C). On a contentded workload such as TPC-C, this in turn results in limited throughput. On the less contended workloads (Auctionmark and SEATS) the effects are less pronounced, and thus CRDB is able to scale to throughput comparable to Peloton and Postgres.
 
-    - TPCC: Peak Throughput: 1333 tx/s, Ankle Latency: ~48ms
+    - TPCC: Peak Throughput: 1033 tx/s, Ankle Latency: ~48ms
     
-         Config file: `/experiment-configs/CRDB/TODO` //FIXME: 
+         Config file: `/experiment-configs/CRDB/CRDB-TPCC-SQL` 
 
         | #Clients    |  25   |  30   |   35   |   40   |   45   |   50   |   60   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|
@@ -628,7 +628,7 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
 
     - Auctionmark: Peak Throughput: 5289 tx/s, Ankle Latency: ~13ms
 
-         Config file: `/experiment-configs/CRDB/TODO` //FIXME: 
+         Config file: `/experiment-configs/CRDB/CRDB-Auctionmark-SQL`
 
         | #Clients    |  25   |   30   |   35   |   40   |   45   |   55   |   65   |   80   |   90   |
         |-------------|------ |--------|--------|--------|--------|--------|--------|--------|--------|
@@ -638,7 +638,7 @@ Before running Postgres-PB, you must configure BFTSmart using the instructions f
 
     - Seats: Peak Throughput: 5697 tx/s, Ankle Latency ~13ms
 
-        Config file: `/experiment-configs/CRDB/TODO' //FIXME:
+        Config file: `/experiment-configs/CRDB/CRDB-Seats-SQL'
 
         | #Clients    |   20  |   25  |   30   |   35   |   40   |   45   |   50   |   60   |   70   |   85  |  100   |  110   |
         |-------------|-------|-------|--------|--------|--------|--------|--------|--------|--------|-------|--------|--------|
@@ -685,12 +685,12 @@ No additional setup should be necessary to run CRDB. If you run into troubles, p
 
     Use the following three configs:
     - 1 shard: `experiment-configs/Cockroach/CRDB-TPCC-SQL-1.json` 
-    - 5 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-6.json` 
+    - 6 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL.json` -- This is the same experiment as above / you do not need to re-run.
     - 9 shards: `experiment-configs/Cockroach/CRDB-TPCC-SQL-9.json`. NOTE: You will need 9 server machines for this. Change your CloudLab expeirment according to the `server_names` in the config.
 
     Peak results reported were:
 
-    | #Shards     |   1   |   5   |   9   |  
+    | #Shards     |   1   |   6   |   9   |  
     |-------------|-------|-------|-------|
     | Tput (tx/s) |  400  | 1033  | 1357  |
 
