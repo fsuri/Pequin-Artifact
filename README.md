@@ -59,6 +59,7 @@ We mount Postgres atop tempfs to avoid disk accesses. `src/scripts/postgres_serv
 
 [**CockroachDB**](https://www.cockroachlabs.com/) (CRDB) is a production grade distributed database. We run CRDB unreplicated, but shard the DB (using its native automatic sharding) across several nodes for performance.
 CRDB performance is (according to conversations with the team) not very optimized for single server performance. It performs poorly on TPC-C for a low number of machines and, we found, incurs high volatility in its results. We thus opt to omit it from our main workload comparisions -- we compare against CRDB only for our sharding experiment. Our exact CRDB configuration is detailed at the end of section [*Running experiments*](RunningExperiments.md)
+> :warning: To run CRDB please switch to branch 'CRDB'. CockroachDB on the branch 'main' is deprecated.
 
 ## Benchmarks:
 We implement four benchmarks:
