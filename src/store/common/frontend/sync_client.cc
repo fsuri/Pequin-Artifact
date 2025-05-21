@@ -242,7 +242,7 @@ void SyncClient::Wait(std::vector<std::unique_ptr<const query_result::QueryResul
       values.push_back(promise->ReleaseQueryResult());
     }
     catch(...){
-      Notice("CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE");
+      Debug("CATCHING ABORT. WILL PROPAGATE AFTER ALL PARALLEL ARE DONE");
       aborted = true;
     }
     delete promise;

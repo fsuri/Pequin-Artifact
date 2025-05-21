@@ -106,10 +106,10 @@ void Client::Commit(commit_callback ccb, commit_timeout_callback ctcb, uint32_t 
     try_commit_callback tccb = [ccb, this](int status) {
   
       if(status == REPLY_OK) {
-        Notice("COMMIT SUCCESS");
+        Debug("COMMIT SUCCESS");
         ccb(COMMITTED);
       } else {
-        Notice("COMMIT ABORT");
+        Debug("COMMIT ABORT");
         ccb(ABORTED_SYSTEM);
       }
     };
