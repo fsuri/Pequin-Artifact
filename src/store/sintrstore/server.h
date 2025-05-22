@@ -803,8 +803,8 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       bool VerifyClientProposal(proto::Phase1 &msg, const proto::Transaction *txn, std::string &txnDigest);
       bool VerifyClientProposal(proto::Phase1FB &msg, const proto::Transaction *txn, std::string &txnDigest);
   void* TryPrepare(uint64_t reqId, const TransportAddress &remote, proto::Transaction *txn,
-                        std::string &txnDigest, bool isGossip = false, bool forceMaterialize = false,
-                        proto::SignedMessages *endorsements = nullptr); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
+                        std::string &txnDigest, bool isGossip = false, bool forceMaterialize = false);
+                        //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
   void ProcessProposal(proto::Phase1 &msg, const TransportAddress &remote, proto::Transaction *txn,
                         std::string &txnDigest, bool isGossip = false, bool forceMaterialize = false); //,const proto::CommittedProof *committedProof,const proto::Transaction *abstain_conflict,proto::ConcurrencyControl::Result &result);
 
@@ -981,9 +981,9 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
   
 
   // perform check on endorsements with respect to txn
-  bool EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn);
+  bool EndorsementCheck(const std::string &txnDigest, const proto::Transaction *txn);
   // parallelizable version
-  void EndorsementCheck(const proto::SignedMessages *endorsements, const std::string &txnDigest, const proto::Transaction *txn,
+  void EndorsementCheck(const std::string &txnDigest, const proto::Transaction *txn,
     AsyncValidateEndorsements &asyncValidateEndorsements);
   // policyClient tracks policy from transaction writeset
   void ExtractPolicy(const proto::Transaction *txn, PolicyClient &policyClient);
