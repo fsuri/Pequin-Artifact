@@ -27,6 +27,8 @@ Running experiments involves 5 steps. Refer back to this checklist to stay on tr
 
 ## (1) Preparing Benchmarks
 
+> :warning: Make sure that the names of your CloudLab machines match those in the helper scripts!
+
 To generate benchmark data simple run the script `src/generate_benchmark_data.sh`. Configure it as follows:
 1) specify the benchmark you want to generate, e.g. to run TPC-C use `-b 'tpcc'`
 2) specify the benchmark parameters, e.g. to create 20 warehouses for TPC-C use `-n 20`
@@ -177,6 +179,10 @@ To run an experiment, you simply need to run: `python3 Pequin-Artifact/experimen
       - "client_total": [[5, 10, 20, 30, 20]],
       - "client_processes_per_client_node": [[8, 8, 8, 8, 8]],
       - "client_threads_per_process": [[1, 1, 1, 1, 2]]
+
+4. Server names:
+   - The provided config files use default `server_names`. The name has no meaning in LAN deployments, and serves only as unique identifier (e.g. `us-east-1-0` does not imply where the server will be located). These server names must be consistent with the server names in your deployed CloudLab cluster.
+   - If you change the default names, you must also adjust the `server_regions` and `region_rtt_latencies` parameters. Group server names into the region you want to assign them to. The `region_rtt_latencies` values do not matter for LAN deployments; they are placeholders for WAN simulation---see [WAN instructions](#wan-instructions).
   
 #### Starting an experiment:
 You are ready to start an experiment. The JSON configs we used can be found under `Pequin-Artifact/experiment-configs/<PATH>/<config>.json`. **Note that** all microbenchmark configs are Pesto (Pequin) exclusive.
@@ -660,6 +666,7 @@ We report below the peak reported throughput. The configuration files referened 
 #### 1. Pesto
 
 > :warning: To run a sharded setup you need to make sure that you have allocated enough machines on CloudLab. 1 shard requires 6 servers, 2 shards 12 servers, and 3 shards 18 servers. Make sure your server names match those in the contained configs (param `server_names`).
+
 
 > :warning: Make sure to *upload* all benchmark data to all servers. When calling `./upload_data_remote -b 'tpcc' -s 2` use the -s flag to pass the number of shards you are using!
 
