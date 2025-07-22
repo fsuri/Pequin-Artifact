@@ -3,9 +3,15 @@ Hurray! You have completed the tedious process of installing the binaries and se
 Next, we will cover how to run experiments in order to re-produce all results. This is a straightforward but time-consuming process.
 
 Ideally you have good network connectivity to quickly upload binaries to the remote machines and download experiment results. 
-Uploading binaries on high speed (e.g university) connections takes a few minutes and needs to be done only once per instantiated cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast.
+Uploading binaries on high speed connections (e.g at your university) takes a few minutes and needs to be done only once per instantiated Cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast.
 
-This section is split into 5 subsections: 1) Preparing Benchmarks, 2) Pre-configurations for Hotstuff and BFTSmart, 3) Using the experiment scripts, 4) Parsing outputs, and finally 5) reproducing our experiments 1-by-1.
+This section is split into 5 subsections: 
+1. [Preparing Benchmarks](#(1)-preparing-benchmarks)
+2. Pre-configurations for HotStuff, BFTSmart, and Postgres
+3. Experiment script instructions
+4. Parsing outputs
+5. Reproducing our experiments 1-by-1
+
 
 Before you proceed, please confirm that your CloudLab credentials are accurate:
 1. Cloudlab-username `<cloudlab-user>`: e.g. "fs435"
