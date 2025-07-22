@@ -2,9 +2,9 @@
 This is code artifact for the paper: "Pesto: Cooking up High Performance BFT Queries". (SOSP'25 paper 62)
 
 For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
-1) Peloton: <giridhn@berkeley.edu>
-2) Postgres: <sc3348@cornell.edu>
-3) CockroachDB: <larzola@ucsd.edu>
+1) Peloton: Neil Giridharan <giridhn@berkeley.edu>
+2) Postgres: Shir Cohen <sc3348@cornell.edu>
+3) CockroachDB: Liam Arzola <larzola@ucsd.edu>
 
 
 
