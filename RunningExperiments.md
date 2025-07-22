@@ -926,9 +926,14 @@ The reported results on the Zipfian workoad Z were:
 
 ## Other experiments, not in the paper
 
+### Using higher replication factors
+By default, all of our experiments use fault tolerance f=1. To use higher replication degrees simply adjust the config parameter `fault_tolerance` and update the `server_names` accordingly. Update also `server_regions` and `region_rtt_latencies` if necessary to match your server naming.
+
+We include an example config for Pesto with f=2 on TPC-C in `experiment-configs/Pesto/1-Workloads/TPCC/LAN/Pequin-TPCC-SQL-20wh-2f.json`. With a higher replication factor performance degrades slightly as coordination (and signature) overheads increase. On TPC-C (20wh, 1 shard) peak throughput drops to ~1660 tx/s (a ~6% decrease).
+
 ### WAN instructions
 Our experiment setup allows simulation of wide area network (WAN) latencies. 
-We opted to omit WAN experiments in the paper because (1) contention bottlecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and (2) the Peloton-SMR prototypes perform even worse as latency rises.
+We opted to omit WAN experiments in the paper because (1) contention bottlnecked workloads (like TPCC) incur very poor performance unless configured with large data sets (which slows down experiment initialization substantially), and (2) the Peloton-SMR prototypes perform even worse as latency rises.
 
 If you are nonetheless interested in using the codebase to simulate WAN experiments, you need to do the following:
 
