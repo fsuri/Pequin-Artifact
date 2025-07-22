@@ -101,7 +101,9 @@ The experiment scripts to run all prototypes on CloudLab are found in `experimen
 Finally, `experiment-configs` contains the configs we used in our experiments.
 
 
-## Concrete claims in the paper
+## Validating Paper Claims <a name="validating"></a>
+
+### Concrete claims
 
 - **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on AuctionMark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on AuctionMark and Seats.
 
@@ -111,9 +113,7 @@ Finally, `experiment-configs` contains the configs we used in our experiments.
 
 - **Supplementary**: All other microbenchmarks reported realistically represent Pesto.
 
-
-
-## Validating the Claims - Overview <a name="validating"></a>
+### Validation Process Overview
 
 All our experiments were run using Cloudlab (https://www.cloudlab.us/), specifically the Cloudlab Utah cluster. To reproduce our results and validate our claims, you will need to 1) instantiate a matching Cloudlab experiment, 2) build the prototype binaries, and 3) run the provided experiment scripts with the (supplied) configs we used to generate our results. 
 
