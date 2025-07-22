@@ -46,8 +46,6 @@ We further remove Peloton's self-driving configuration features and llvm options
 > **[NOTE]** The Peloton-SMR prototype *can* be operated with sequential execution (true SMR) but performance will suffer significantly (i.e. the benefit of Pesto will become even larger). Pesto's design, in contrast, is naturally parallel which drastically simplifies execution; there is no need for implementation of complex and custom deterministic parallel execution engines.
 
 
-Finally, we augment both Peloton-SMR prototypes to benefit from Basil's reply batching scheme~\cite{suri2021basil} to amortize signature generation overheads.
-
 [**BFTSMaRT**](https://github.com/bft-smart/library) is an open source BFT state machine replication library implementing a full-fledged adaptation of the PBFT consensus protocol. We adopt the code-base as is, and implement an interface to Peloton using JNI.
 
 [**HotStuff**](https://github.com/hot-stuff/libhotstuff)
