@@ -1,5 +1,5 @@
 # BFT Query Processing -- Pesto Artifact 
-This is the repository for the code artifact of "Pesto -- Cooking up High Performance BFT Queries". (SOSP'25 paper 62)
+This is code artifact for the paper: "Pesto: Cooking up High Performance BFT Queries". (SOSP'25 paper 62)
 
 For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
 1) Peloton: <giridhn@berkeley.edu>
@@ -9,23 +9,25 @@ For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.co
 
 
 # Table of Contents
-1. [High Level Claims](#Claims)
-2. [Artifact Organization](#artifact)
-3. [Overview of steps to validate Claims](#validating)
+1. [High Level Summary](#summary)
+2. [Artifact Overview](#artifact-overview)
+3. [Validating Paper Claims](#validating)
 4. [Installing Dependencies and Building Binaries](Installation.md)
 5. [Setting up CloudLab](CloudlabSetup.md)
 6. [Running Experiments](RunningExperiments.md)
 
-## Claims 
 
-### General
+# General
 
-This artifact contains, and allows to reproduce, experiments for all figures included in the paper "Pesto: Cooking up high performance BFT Queries". 
+## Summary 
+This artifact contains and enables the reproduction of all experiments corresponding to the figures in the paper "Pesto: Cooking up High Performance BFT Queries". 
 
 It contains a prototype implementation of Pesto, a replicated Byzantine Fault Tolerant Database offering a interactive transaction using a SQL interface. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Pesto prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Pesto prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defenses against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. 
 <!-- For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony. -->
 
-# Prototypes in this codebase
+## Artifact Overview
+
+### Systems
 
 This repository includes prototypes for Pesto, Peloton, Peloton-HS, Peloton-Smart, Postgres, CockroachDB, and several others not used for the evaluation of Pesto: Basil, Tapir, TxHotstuff, TxBFTSmart.
 
@@ -34,7 +36,7 @@ This combination of low latency and parallelism allows Pesto to scale beyond tra
 
 The Pesto prototype is called `Pequin` ('pequinstore'). It uses as starting point the implementation of Basil ('indicusstore'). The codebase is (to the best of our knowledge) backwards compatible with the Basil SOSP'21 artifact -- for documentation about Basil (and its baselines) please refer to the [original document](https://github.com/fsuri/Basil_SOSP21_artifact).
 
-We use Protobuf and TCP for networking, [ed25519](https://github.com/floodyberry/ed25519-donna) elliptic-curve digital signatures and [HMAC-SHA256](https://github.com/weidai11/cryptopp) for authentication, and [Blake3](https://github.com/BLAKE3-team/BLAKE3) for hashing. For its data store, \sys{} adapts [Peloton](https://github.com/cmu-db/peloton), a full fledged open-source SQL Database based on [Postgres](https://www.postgresql.org/). We modify Peloton to use \sys{}'s Concurrency Control (CC) and support snapshot sourcing and materialization. Specifically, we 1) remove Peloton's native CC, 2) modify execution to keep track of Read sets, Snapshots, TableVersions, and predicates, 3) change row formats to include Pesto-specific meta data, and 4) implement support for writing and rolling back prepared transactions.
+We use Protobuf and TCP for networking, [ed25519](https://github.com/floodyberry/ed25519-donna) elliptic-curve digital signatures and [HMAC-SHA256](https://github.com/weidai11/cryptopp) for authentication, and [Blake3](https://github.com/BLAKE3-team/BLAKE3) for hashing. For its data store, Pesto adapts [Peloton](https://github.com/cmu-db/peloton), a full fledged open-source SQL Database based on [Postgres](https://www.postgresql.org/). We modify Peloton to use Pesto's Concurrency Control (CC) and support snapshot sourcing and materialization. Specifically, we 1) remove Peloton's native CC, 2) modify execution to keep track of Read sets, Snapshots, TableVersions, and predicates, 3) change row formats to include Pesto-specific meta data, and 4) implement support for writing and rolling back prepared transactions.
 We further remove Peloton's self-driving configuration features and llvm options, and make several optimizations to its index selection and execution procedures.
 
 > **[NOTE]** The Pesto prototype codebase is henceforth called "*Pequin*". Throughout this document you will find references to Pequin, and many configuration files are named accordingly. All these occurences refer to the Pesto prototype.
@@ -62,7 +64,7 @@ We mount Postgres atop tempfs to avoid disk accesses. `src/scripts/postgres_serv
 CRDB performance is (according to conversations with the team) not very optimized for single server performance. It performs poorly on TPC-C for a low number of machines and, we found, incurs high volatility in its results. We thus opt to omit it from our main workload comparisions -- we compare against CRDB only for our sharding experiment. Our exact CRDB configuration is detailed at the end of section [*Running experiments*](RunningExperiments.md)
 > :warning: To run CRDB please switch to branch 'CRDB'. CockroachDB on the branch 'main' is deprecated.
 
-## Benchmarks:
+### Benchmarks:
 We implement four benchmarks:
 
 [**TPC-C**](https://tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) simulates the business of an online e-commerce application. It consists of 5 transaction types, allowing clients to issue new orders and payments, fulfill deliveries, and query current order status and item stocks.
@@ -81,18 +83,7 @@ We model our AuctionMark and Seats implementation after [Benchbase](https://gith
 Transactions read and/or write to a configurable number of rows; reads may optionally be conditioned on a secondary condition (e.g. value category). The access pattern to both tables and rows within tables is configurable: it may be uniformly random, or follow a YCSB-based Zipfian (coefficient configurable).
 
 
-### Concrete claims in the paper
-
-- **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on AuctionMark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on AuctionMark and Seats.
-
-- **Main claim 2**: Pesto achieves higher throughput and lower latency than both Peloton-SMR baselines (2.3x throughput on TPCC, 1.1x on AuctionMark/Seats; latency 3.9x/2.7x under Peloton-HS/-Smart on TPCC, 5x/3x on AuctionMark, and 4.6x/3.4x on Seats)
-
-   All comparisons for claims 1 and 2 are made in the absence of failures.
-
-- **Supplementary**: All other microbenchmarks reported realistically represent Pesto.
-
-
-## Artifact Organization <a name="artifact"></a>
+### Artifact Organization <a name="artifact"></a>
 
 The core prototype logic of each system is located in the following folders: 
 1. `src/store/pequinstore`: Contains the source code implementing the Pesto protype (Pequin).
@@ -108,6 +99,18 @@ Networking and cryptography functionality is found in `src/lib`.
 
 The experiment scripts to run all prototypes on CloudLab are found in `experiment-scripts`. `src/` and `src/scripts` contain additional helper scripts used to create/upload benchmark data, and pre-configure HotStuff/BFT-Smart.
 Finally, `experiment-configs` contains the configs we used in our experiments.
+
+
+## Concrete claims in the paper
+
+- **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on AuctionMark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on AuctionMark and Seats.
+
+- **Main claim 2**: Pesto achieves higher throughput and lower latency than both Peloton-SMR baselines (2.3x throughput on TPCC, 1.1x on AuctionMark/Seats; latency 3.9x/2.7x under Peloton-HS/-Smart on TPCC, 5x/3x on AuctionMark, and 4.6x/3.4x on Seats)
+
+   All comparisons for claims 1 and 2 are made in the absence of failures.
+
+- **Supplementary**: All other microbenchmarks reported realistically represent Pesto.
+
 
 
 ## Validating the Claims - Overview <a name="validating"></a>
