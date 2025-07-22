@@ -72,7 +72,7 @@ If you decide to instead [create your own profile](https://www.cloudlab.us/manag
 - Client disk image: Your own (client) image
 - Number of clients per replica: `1`
 - Total number of clients: `0` (this will still create 18 clients)
-- Use control machine?:  Check this if you plan to use a control machine
+- Use control machine?: Check this box if you plan to use a control machine
 - Control Hardware Type: `m510`
 
 ### Building and configuring disk images from scratch (skip if using pre-supplied images)
@@ -107,7 +107,7 @@ Additionally, you will have to install the following requisites:
 2. **Public Keys**: Generate Pub/Priv key-pairs, move them to /usr/local/etc/donna/
 
     - Navigate to `Pequin-Artifact/src` and run `keygen.sh`
-    - By default keygen.sh uses type 4 = Ed25519 (this is what we evaluated the systems with); it can be modifed secp256k1 (type 3), but this requires editing the config files as well. (do not do this, to re-produce our experiments)
+    - By default keygen.sh uses type 4 = Ed25519 (this is what we evaluated the systems with); it can be modifed secp256k1 (type 3), but this requires editing the config files as well. (do not do this when trying to reproduce our experiments)
     - Move the key-pairs in the `/keys` folder to `/usr/local/etc/indicus-keys/donna/` (or to `/usr/local/etc/indicus-keys/secp256k1/` depending on what type used)
 
 3. **Helper scripts**: 
