@@ -348,8 +348,6 @@ Note, that this must be done everytime you open a new terminal. You may add it t
 (When building on a Cloudlab controller instead of locally, the setvars.sh must be sourced manually everytime since bashrc will not be persisted across images. All other experiment machines will be source via the experiment scripts, so no further action is necessary there.)
 
 
-This completes all required dependencies for Basil, Tapir and TxHotstuff. To successfully build the binary (and run TxBFTSmart) the following additional steps are necessary:
-
 #### Additional prereq for BFTSmart 
 
 First, install Java open jdk 1.11.0 in /usr/lib/jvm and export your LD_LIBRARY_Path:
@@ -381,19 +379,36 @@ Then, create a directory to store the external libraries. Copy the libararies to
 
 For any Troubleshooting consult: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-linux.html
 
-### Building binaries:
+# Building binaries:
 > :warning: Make sure to have configured all environment variables: source the TBB `/opt/intel/oneapi/setvars.sh` and the helper script `helper-scripts/set_env.sh` to make sure TBB, java, and jemalloc environment variables are set.
 
    
-Finally, you can build the binaries:
+Once you have completed all required installation steps you can build the binaries:
+
 Navigate to `Pequin-Artifact/src` and build:
 - `make -j $(nproc)`
 
+If you run into issues, consult the troubleshooting section below, or contact us directly.
+
+### Confirming that binaries work locally (optional sanity check)
+You may want to run a simple toy single server/single client experiment using Pesto to validate that the binaries you built do not have an obvious error.
+
+Navigate to `Pequin-Artifact/src`. Run `./keygen.sh` to generate local priv/pub key-pairs. 
+
+Run server:
+
+`./server-tester.sh`
+
+Then run client:
+
+`./client-tester.sh`
+
+The client should finish within 10 seconds and the output file `client-0.out` should include summary of the transactions committed at the end.
 
 
-#### Troubleshooting:
+### Troubleshooting:
    
-##### Problems with locating libraries:
+#### Problems with locating libraries:
    
 1. You may need to export your `LD_LIBRARY_PATH` if your installations are in non-standard locations:
    The default install locations are:
@@ -429,19 +444,4 @@ Navigate to `Pequin-Artifact/src` and build:
    9. `make -j $(nproc)`
    10. `g++ -isystem ./include -I . -pthread -c ./src/gtest-all.cc`
    11. `g++ -isystem ./include -I . -pthread -c ./src/gtest_main.cc`
-
-### Confirming that Basil binaries work locally (optional sanity check)
-You may want to run a simple toy single server/single client experiment to validate that the binaries you built do not have an obvious error.
-
-Navigate to `Pequin-Artifact/src`. Run `./keygen.sh` to generate local priv/pub key-pairs. 
-
-Run server:
-
-`./server-tester.sh`
-
-Then run client:
-
-`./client-tester.sh`
-
-The client should finish within 10 seconds and the output file `client-0.out` should include summary of the transactions committed at the end.
 

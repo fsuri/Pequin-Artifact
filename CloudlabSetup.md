@@ -80,7 +80,7 @@ If you want to build an image from scratch, follow the instructions below:
 
 Start by choosing to load a default Ubuntu 20.04 LTS image as "Replica disk image" and "Client disk image": `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU20-64-STD`.  (For Ubuntu 18.04 LTS use: `urn:publicid:IDN+emulab.net+image+emulab-ops:UBUNTU18-64-STD`.)
 
-Next, follow the above manual installation guide (section "Installing Dependencies" to install all dependencies (you can skip adding tbb setvars.sh to .bashrc). 
+Next, follow the above manual installation guide (section "Installing Dependencies" to install all dependencies (you can skip adding tbb setvars.sh to .bashrc)). 
 
 Additionally, you will have to install the following requisites:
 1. **NTP**:  https://vitux.com/how-to-install-ntp-server-and-client-on-ubuntu/ 
