@@ -17,17 +17,15 @@ For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.co
 6. [Running Experiments](RunningExperiments.md)
 
 
-# General
-
-## Summary 
+# Summary 
 This artifact contains and enables the reproduction of all experiments corresponding to the figures in the paper "Pesto: Cooking up High Performance BFT Queries". 
 
 It contains a prototype implementation of Pesto, a replicated Byzantine Fault Tolerant Database offering a interactive transaction using a SQL interface. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Pesto prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Pesto prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defenses against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. 
 <!-- For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony. -->
 
-## Artifact Overview
+# Artifact Overview
 
-### Systems
+## Systems
 
 This repository includes prototypes for Pesto, Peloton, Peloton-HS, Peloton-Smart, Postgres, CockroachDB, and several others not used for the evaluation of Pesto: Basil, Tapir, TxHotstuff, TxBFTSmart.
 
@@ -64,7 +62,7 @@ We mount Postgres atop tempfs to avoid disk accesses. `src/scripts/postgres_serv
 CRDB performance is (according to conversations with the team) not very optimized for single server performance. It performs poorly on TPC-C for a low number of machines and, we found, incurs high volatility in its results. We thus opt to omit it from our main workload comparisions -- we compare against CRDB only for our sharding experiment. Our exact CRDB configuration is detailed at the end of section [*Running experiments*](RunningExperiments.md)
 > :warning: To run CRDB please switch to branch 'CRDB'. CockroachDB on the branch 'main' is deprecated.
 
-### Benchmarks:
+## Benchmarks:
 We implement four benchmarks:
 
 [**TPC-C**](https://tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) simulates the business of an online e-commerce application. It consists of 5 transaction types, allowing clients to issue new orders and payments, fulfill deliveries, and query current order status and item stocks.
@@ -83,7 +81,7 @@ We model our AuctionMark and Seats implementation after [Benchbase](https://gith
 Transactions read and/or write to a configurable number of rows; reads may optionally be conditioned on a secondary condition (e.g. value category). The access pattern to both tables and rows within tables is configurable: it may be uniformly random, or follow a YCSB-based Zipfian (coefficient configurable).
 
 
-### Artifact Organization <a name="artifact"></a>
+## Artifact Organization <a name="artifact"></a>
 
 The core prototype logic of each system is located in the following folders: 
 1. `src/store/pequinstore`: Contains the source code implementing the Pesto protype (Pequin).
@@ -101,9 +99,9 @@ The experiment scripts to run all prototypes on CloudLab are found in `experimen
 Finally, `experiment-configs` contains the configs we used in our experiments.
 
 
-## Validating Paper Claims <a name="validating"></a>
+# Validating Paper Claims <a name="validating"></a>
 
-### Concrete claims
+## Concrete claims
 
 - **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on AuctionMark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on AuctionMark and Seats.
 
@@ -113,7 +111,7 @@ Finally, `experiment-configs` contains the configs we used in our experiments.
 
 - **Supplementary**: All other microbenchmarks reported realistically represent Pesto.
 
-### Validation Process Overview
+## Validation Overview
 
 All our experiments were run using Cloudlab (https://www.cloudlab.us/), specifically the Cloudlab Utah cluster. To reproduce our results and validate our claims, you will need to 1) instantiate a matching Cloudlab experiment, 2) build the prototype binaries, and 3) run the provided experiment scripts with the (supplied) configs we used to generate our results. 
 
