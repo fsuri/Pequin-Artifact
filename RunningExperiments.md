@@ -6,11 +6,11 @@ Ideally you have good network connectivity to quickly upload binaries to the rem
 Uploading binaries on high speed connections (e.g at your university) takes a few minutes and needs to be done only once per instantiated Cloudlab experiment -- however, if your uplink speed is low it may take (as I have painstakingly experienced in preparing this documentation for you) several hours. Downloading experiment outputs requires a moderate amount of download bandwidth and is usually quite fast.
 
 This section is split into 5 subsections: 
-1. [Preparing Benchmarks](#(1)-preparing-benchmarks)
-2. Pre-configurations for HotStuff, BFTSmart, and Postgres
-3. Experiment script instructions
-4. Parsing outputs
-5. Reproducing our experiments 1-by-1
+1. [Preparing Benchmarks](#prep)
+2. [Pre-configurations for HotStuff, BFTSmart, and Postgres](#pre-config)
+3. [Experiment script instructions](#scripts)
+4. [Parsing outputs](#output)
+5. [Reproducing our experiments 1-by-1](#exp)
 
 
 Before you proceed, please confirm that your CloudLab credentials are accurate:
@@ -31,7 +31,7 @@ Running experiments involves 5 steps. Refer back to this checklist to stay on tr
 4. You're ready to run the experiment! Run the experiment script and supply it with your prepared config.
 5. Finally, inspect the downloaded experiment run by checking the output data. 
 
-## (1) Preparing Benchmarks
+## (1) Preparing Benchmarks <a name="prep"></a>
 
 > :warning: Make sure that the names of your CloudLab machines match those in the helper scripts!
 
@@ -52,7 +52,7 @@ Simply specify which benchmark you are uploading, and to how many shards (1, 2 o
 
 Note: Benchmark data, by default, is uploaded to `/users/<cloudlab-user>/benchmark_data/`. 
 
-## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres
+## (2) Pre-configurations for Hotstuff, BFTSmart, and Postgres <a name="preconfig"></a>
 
 When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete the following pre-configuration steps before running an experiment script:
 
@@ -133,7 +133,7 @@ First, locate the `postgres_service.sh` script (`usr/local/etc/postgres_service.
 
 
 
-## (3) Using the experiment scripts
+## (3) Using the experiment scripts <a name="scripts"></a>
 
 To run an experiment, you simply need to run: `python3 Pequin-Artifact/experiment-scripts/run_multiple_experiments.py <CONFIG>` using a specified configuration JSON file (see below). The script will load all binaries and configurations onto the remote Cloudlab machines, and collect experiment data upon completion. We have provided experiment configurations for all experiments claimed by the paper, which you can find under `Pequin-Artifact/experiment-configs`. In order for you to use them, you will need to make the following modifications to each file (Ctrl F and Replace in all the configs to save time):
 
@@ -198,7 +198,7 @@ Run: `python3 <PATH>/Pequin-Artifact/experiment-scripts/run_multiple_experiments
 Optional: To monitor experiment progress you can ssh into a server machine (e.g., us-east-1-0) and run htop. During the experiment run-time the cpus will be loaded (to different degrees depending on contention and client count).
   
    
-## (4) Parsing outputs
+## (4) Parsing outputs <a name="output"></a>
 After the experiment is complete, the scripts will generate an output folder at your specified `base_local_exp_directory`. Each folder is timestamped. 
 
 To parse experiment results you have 2 options:
@@ -248,7 +248,7 @@ To parse experiment results you have 2 options:
    ![image](https://github.com/user-attachments/assets/71878eec-8e34-4ded-b8b6-0b5aa98c6abb)
 
 
-## (5) Reproducing experiment claims 1-by-1
+## (5) Reproducing experiment claims 1-by-1 <a name="exp"></a>
 
 Next, we will go over each experiment individually to provide some pointers. All of our experiment configurations can be found under `experiment-configs`.
 
