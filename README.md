@@ -1,5 +1,5 @@
 # BFT Query Processing -- Pesto Artifact 
-This is the repository for the code artifact of "Pesto -- Cooking up high performance BFT Queries".
+This is the repository for the code artifact of "Pesto -- Cooking up High Performance BFT Queries". (SOSP'25 paper 62)
 
 For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.cornell.edu>. For specific questions about the following topics please additionally CC:
 1) Peloton: <giridhn@berkeley.edu>
@@ -22,7 +22,7 @@ For all questions about the artifact please e-mail Florian Suri-Payer <fsp@cs.co
 
 This artifact contains, and allows to reproduce, experiments for all figures included in the paper "Pesto: Cooking up high performance BFT Queries". 
 
-It contains a prototype implemententation of Pesto, a replicated Byzantine Fault Tolerant Database offering a interactive transaction using a SQL interface. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Pesto prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Pesto prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defences against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. 
+It contains a prototype implementation of Pesto, a replicated Byzantine Fault Tolerant Database offering a interactive transaction using a SQL interface. The prototype uses cryptographically secure hash functions and signatures for all replicas, but does not sign client requests on any of the evaluated prototype systems, as we delegate this problem to the application layer. The Pesto prototype can simulate Byzantine Clients failing via Stalling or Equivocation, and is robust to both. While the Pesto prototype tolerates many obvious faults such as message corruptions and duplications, it does *not* exhaustively implement defenses against arbitrary failures or data format corruptions, nor does it simulate all possible behaviors. 
 <!-- For example, while the prototype implements fault tolerance (safety) to leader failures during recovery, it does not include code to simulate these, nor does it implement explicit exponential timeouts to enter new views that are necessary for theoretical liveness under partial synchrony. -->
 
 # Prototypes in this codebase
@@ -31,6 +31,7 @@ This repository includes prototypes for Pesto, Peloton, Peloton-HS, Peloton-Smar
 
 **Pesto** is a Byzantine Fault Tolerant SQL Database. Transaction processing in Pesto is client-driven, and independent of other concurrent but non-conflicting transactions. Pesto allows queries to execute, in the common case, in a single round-trip, and in two otherwise (subject to contention). Transactions can commit across shards in just a single round trip in absence of failures, and at most two under failure.
 This combination of low latency and parallelism allows Pesto to scale beyond transactional database systems built atop strongly consistent BFT SMR protocols. 
+
 The Pesto prototype is called `Pequin` ('pequinstore'). It uses as starting point the implementation of Basil ('indicusstore'). The codebase is (to the best of our knowledge) backwards compatible with the Basil SOSP'21 artifact -- for documentation about Basil (and its baselines) please refer to the [original document](https://github.com/fsuri/Basil_SOSP21_artifact).
 
 We use Protobuf and TCP for networking, [ed25519](https://github.com/floodyberry/ed25519-donna) elliptic-curve digital signatures and [HMAC-SHA256](https://github.com/weidai11/cryptopp) for authentication, and [Blake3](https://github.com/BLAKE3-team/BLAKE3) for hashing. For its data store, \sys{} adapts [Peloton](https://github.com/cmu-db/peloton), a full fledged open-source SQL Database based on [Postgres](https://www.postgresql.org/). We modify Peloton to use \sys{}'s Concurrency Control (CC) and support snapshot sourcing and materialization. Specifically, we 1) remove Peloton's native CC, 2) modify execution to keep track of Read sets, Snapshots, TableVersions, and predicates, 3) change row formats to include Pesto-specific meta data, and 4) implement support for writing and rolling back prepared transactions.
@@ -40,7 +41,7 @@ We further remove Peloton's self-driving configuration features and llvm options
 
 **Peloton**. [Peloton](https://github.com/cmu-db/peloton) is a fully fledged SQL database based on [Postgres](https://www.postgresql.org/). Our unreplicated Peloton prototype adopts our non Pesto-specific optimizations, and is run in-memory on a dedicated server proxy. Clients connect to the proxy, which sequences operations within the same transaction, and executes operations from different transactions in parallel.
 
-**Peloton-SMR** is a strawman system that modularly layers Peloton atop BFT state machine replication (SMR). We instantiate Peloton-SMR in two flavors, **Peloton-Smart** and **Peloton-HS** which, respectively, layer Peloton atop [BFT-SMaRt](https://github.com/bft-smart/library), and [HotStuff](https://github.com/hot-stuff/libhotstuff). For correctness, SMR-based designs require deterministic execution on each replica: this demands either sequential execution -- which drastically limits performance --, or implementation of sophisticated custom parallel execution engines. Pesto, in contrast, allows for optimal parallelism by design. For maximum generosity to the baselines, we opt to relax the determinism requirement for Peloton-SMR: we allow replicas to freely execute transactions in parallel, and designate a "primary" replica to respond to clients to ensure serializability. This system configuration is explicitly NOT FAULT TOLERANT, but simulates the optimal upper-bound on achievable performance. 
+**Peloton-SMR** is a straw man system that modularly layers Peloton atop BFT state machine replication (SMR). We instantiate Peloton-SMR in two flavors, **Peloton-Smart** and **Peloton-HS** which, respectively, layer Peloton atop [BFT-SMaRt](https://github.com/bft-smart/library), and [HotStuff](https://github.com/hot-stuff/libhotstuff). For correctness, SMR-based designs require deterministic execution on each replica: this demands either sequential execution -- which drastically limits performance --, or implementation of sophisticated custom parallel execution engines. Pesto, in contrast, allows for optimal parallelism by design. For maximum generosity to the baselines, we opt to relax the determinism requirement for Peloton-SMR: we allow replicas to freely execute transactions in parallel, and designate a "primary" replica to respond to clients to ensure serializability. This system configuration is explicitly NOT FAULT TOLERANT, but simulates the optimal upper-bound on achievable performance. 
 
 > **[NOTE]** The Peloton-SMR prototype *can* be operated with sequential execution (true SMR) but performance will suffer significantly (i.e. the benefit of Pesto will become even larger). Pesto's design, in contrast, is naturally parallel which drastically simplifies execution; there is no need for implementation of complex and custom deterministic parallel execution engines.
 
@@ -50,7 +51,7 @@ Finally, we augment both Peloton-SMR prototypes to benefit from Basil's reply ba
 [**BFTSMaRT**](https://github.com/bft-smart/library) is an open source BFT state machine replication library implementing a full-fledged adaptation of the PBFT consensus protocol. We adopt the code-base as is, and implement an interface to Peloton using JNI.
 
 [**HotStuff**](https://github.com/hot-stuff/libhotstuff)
-We use the `libhotstuff` implemenation, an open source BFT state machine replication library written by the HotStuff authors. The codebase, by default, implements no batch timer and proposes only fixed-sized batches. This is inefficient and creates tension between batch sizes: a low batch size fails to optimally amortize consensus overheads, while a high batch size may cause progress to stall; this concern is amplified by HotStuff's pipelined nature (it takes 4 batches to commit one proposal).
+We use the `libhotstuff` implementation, an open source BFT state machine replication library written by the HotStuff authors. The codebase, by default, implements no batch timer and proposes only fixed-sized batches. This is inefficient and creates tension between batch sizes: a low batch size fails to optimally amortize consensus overheads, while a high batch size may cause progress to stall; this concern is amplified by HotStuff's pipelined nature (it takes 4 batches to commit one proposal).
 Inspired by BFT-Smart, we optimize libhotstuffs batching procedure to allow proposals to use flexibly sized batches: if load is low, this allows HotStuff to issue proposals nonetheless (thus avoiding stalling); if load is high, this allows HotStuff to pack more requests into a batch (up to a cap), thus avoiding waiting.
 
 [**Postgres**](https://www.postgresql.org/) is a production grade open-source SQL database. We run two variants of Postgres: 1) unreplicated Postgres, and 2) Postgres configured with its native primary-backup support (Postgres-PB).
@@ -64,17 +65,17 @@ CRDB performance is (according to conversations with the team) not very optimize
 ## Benchmarks:
 We implement four benchmarks:
 
-[**TPC-C**](https://tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) simulates the business of an online e-commerce application. It consists of 5 transaction types, allowing clients to issue new orders and payments, fulfill deliveries, and query current order status and item stocs.
+[**TPC-C**](https://tpc.org/tpc_documents_current_versions/pdf/tpc-c_v5.11.0.pdf) simulates the business of an online e-commerce application. It consists of 5 transaction types, allowing clients to issue new orders and payments, fulfill deliveries, and query current order status and item stocks.
 TPC-C exhibits high contention as most transactions read and write to the Warehouse table. TPC-C is a point read heavy workload -- many queries can therefore be satisfied using Pesto's dedicated point read protocol. 
 We configure it to use 20 warehouses, and instantiate indexes to retrieve orders by customer, as well as customers by their last name.
 
-[**Auctionmark**](https://github.com/cmu-db/benchbase/wiki/AuctionMark) simulate an online auction sales portal. It consists of 9 transaction types, allowing clients to create and bid for items, confirm purchases, and write comments and feedback. Items are skewed by users: the majority of items are owned by a select few "heavy" sellers; the majority of sellers only manage a few items.
+[**AuctionMark**](https://github.com/cmu-db/benchbase/wiki/AuctionMark) simulate an online auction sales portal. It consists of 9 transaction types, allowing clients to create and bid for items, confirm purchases, and write comments and feedback. Items are skewed by users: the majority of items are owned by a select few "heavy" sellers; the majority of sellers only manage a few items.
 The workload is characterized by a high fraction of range queries and cross-table joins, but exhibit overall low contention relative to TPC-C. 
 
 [**Seats**](https://github.com/cmu-db/benchbase/wiki/Seats) simulates an airline booking system. It consists of 6 transaction types, allowing clients to search for flights and open seats, create, update and delete reservations, as well as update customer information.
-Access is distributed uniformly across customers and flights. The workload is characterized by a high fraction of range queries and cross-table joins, but, like Auctionmark, exhibits overall low contention relative to TPC-C. 
+Access is distributed uniformly across customers and flights. The workload is characterized by a high fraction of range queries and cross-table joins, but, like AuctionMark, exhibits overall low contention relative to TPC-C. 
 
-We model our Auctionmark and Seats implementation after [Benchbase](https://github.com/cmu-db/benchbase), making minor fixes for correctness. We instantiate both workloads with a "ScaleFactor" of 1.
+We model our AuctionMark and Seats implementation after [Benchbase](https://github.com/cmu-db/benchbase), making minor fixes for correctness. We instantiate both workloads with a "ScaleFactor" of 1.
 
 **YCSB-Tables**. Finally, we implement a custom read-modify-write microbenchmark based on [YCSB](https://github.com/brianfrankcooper/YCSB). The database can be instantiated with a configurable amount of tables and rows; each row contains a key-value pair. Keys are unique (primary key), while values can either be random or fall within a configurable number of candidate categories.
 Transactions read and/or write to a configurable number of rows; reads may optionally be conditioned on a secondary condition (e.g. value category). The access pattern to both tables and rows within tables is configurable: it may be uniformly random, or follow a YCSB-based Zipfian (coefficient configurable).
@@ -82,9 +83,9 @@ Transactions read and/or write to a configurable number of rows; reads may optio
 
 ### Concrete claims in the paper
 
-- **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on Auctionmark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on Auctionmark and Seats.
+- **Main claim 1**: Pesto's throughput is within a small factor (roughly equal on TPCC, within ~1.36 on AuctionMark, and ~1.22x on Seats) of that of Peloton, an unreplicated SQL database that forms the basis of Pesto's execution engine; Pesto matches Postgres, another unreplicated SQL database in throughput on TPCC, and comes within ~1.94x on AuctionMark and Seats.
 
-- **Main claim 2**: Pesto achieves higher throughput and lower latency than both Peloton-SMR baselines (2.3x throughput on TPCC, 1.1x on Auctionmark/Seats; latency 3.9x/2.7x under Peloton-HS/-Smart on TPCC, 5x/3x on Auctionmark, and 4.6x/3.4x on Seats)
+- **Main claim 2**: Pesto achieves higher throughput and lower latency than both Peloton-SMR baselines (2.3x throughput on TPCC, 1.1x on AuctionMark/Seats; latency 3.9x/2.7x under Peloton-HS/-Smart on TPCC, 5x/3x on AuctionMark, and 4.6x/3.4x on Seats)
 
    All comparisons for claims 1 and 2 are made in the absence of failures.
 
