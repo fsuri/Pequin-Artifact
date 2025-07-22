@@ -7,7 +7,7 @@ Uploading binaries on high speed connections (e.g at your university) takes a fe
 
 This section is split into 5 subsections: 
 1. [Preparing Benchmarks](#prep)
-2. [Pre-configurations for HotStuff, BFTSmart, and Postgres](#pre-config)
+2. [Pre-configurations for HotStuff, BFTSmart, and Postgres](#preconfig)
 3. [Experiment script instructions](#scripts)
 4. [Parsing outputs](#output)
 5. [Reproducing our experiments 1-by-1](#exp)
