@@ -206,9 +206,11 @@ To parse experiment results you have 2 options:
    1. Navigate into the timestamped folder, and keep following the timestamped folders until you enter folder `/out`. Open the file `stats.json`. When running multiple client settings, each setting will generate its own internal timestamped folder, with its own `stats.json` file. Multiple runs of the same experiment setting instead will directly be aggregated in a single `stats.json` file.
    2. In the `stats.json` file search for the Json field: `run_stats: ` 
    3. Then, search for the JSON field: `combined:`
-   4. Finally, find Throughput measurments under `tput`, Latency measurements under `mean`, and Throughput per Correct client under `tput_s_honest` (**this will exist only for failure experiments**).
+   4. Finally, find Throughput measurements under `tput`, Latency measurements under `mean`, and Throughput per Correct client under `tput_s_honest` (**this will exist only for failure experiments**).
 2. Looking at generated png plots:
    Alternatively, on your local machine you can navigate to `<time_stamped_folder>/plots/tput-clients.png` and `<time_stamped_folder>/plots/lat-tput.png` to look at the data points directly. Currently however, it shows as "Number of Clients" the number of total client **processes** (i.e. `client_total`) and not the number of **Total clients** specified above. Keep this in mind when viewing output that was generated for experiments with a list of client settings.
+
+> :warning: The `stats.json` file contains aggregate throughput and latency statistics, as well as statistics for individual transaction types (e.g. `new-order` in TPC-C). Make sure that you are looking at the `combined` statistics as described above!!
    
  Find below, some example screenshots from looking at a provided experiment output from `Pequin-Artifact/sample-output/Pesto/1-Workloads/TPCC`:
 
@@ -285,6 +287,7 @@ All systems using signatures (Pesto, Pesto-unreplicated, Peloton-signed, Peloton
 
 Peak throughput reported in the paper corresponds to maximum attained throughput; latency reported corresponds to latency measured at the "ankle" point, i.e. a bit before latency starts to spike.
 
+> :warning: The `stats.json` file contains aggregate throughput and latency statistics, as well as statistics for individual transaction types (e.g. `new-order` in TPC-C). Make sure that you are looking at the `combined` statistics as described in section [Parsing Outputs](#output)!!
 
  
 #### 1. **Pesto**:  
