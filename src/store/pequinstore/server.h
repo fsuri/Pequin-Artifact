@@ -405,7 +405,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
       //deprecated
       waitingOnQueriesMeta(proto::Transaction *txn, proto::GroupedSignatures *groupedSigs, bool p1Sigs, uint64_t view, uint8_t prepare_or_commit=1) : txn(txn), groupedSigs(groupedSigs), p1Sigs(p1Sigs), view(view), prepare_or_commit(prepare_or_commit)  {
       }
-      waitingOnQueriesMeta(proto::Transaction *txn, proto::CommittedProof *proof, uint8_t prepare_or_commit=1) : txn(txn), proof(proof), prepare_or_commit(prepare_or_commit) {
+      waitingOnQueriesMeta(proto::Transaction *txn, proto::CommittedProof *proof, uint8_t prepare_or_commit=1) : txn(txn), proof(proof), prepare_or_commit(prepare_or_commit), remote(nullptr) {
       }
       ~waitingOnQueriesMeta(){
         if(remote != nullptr) delete remote;
