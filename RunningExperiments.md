@@ -806,7 +806,7 @@ The reported results on the Zipfian workoad Z were:
 
 > **[NOTE]**: The Zipfian workload is highly contended. This can, in tandem with the random exponential backoff, lead to a decent variance in results.
 
-> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affect performance slightly for all Zipfian runs (within 5%) as the workload is so heavily contended that there are a lot of dependencies. 
+> **[NOTE]**: We've made a small bug fix to range read dependency handling since we ran the numbers reported below. This affects absolute performance slightly for all Zipfian runs (within -5%) as the workload is so heavily contended that there are a lot of dependencies.
 
  <!-- Bonus point for Z-Ideal. client 30: (3029.2,10.600514610370176) -->
     - Z-Ideal
