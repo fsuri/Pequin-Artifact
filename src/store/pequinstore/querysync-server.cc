@@ -1365,7 +1365,23 @@ void Server::ProcessSuppliedTxn(const std::string &txn_id, proto::TxnInfo &txn_i
             c.release();
             Debug("Via sync. Already started P1 handling for tx-id: [%s]. Just Register ForceMat", BytesToHex(txn_id, 16).c_str());
             if(txn_info.has_p1()){
-                RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
+
+               //new: distinguish signed and unsigned
+                if (params.signClientProposals) {
+                    //select the locally stored txn object. TODO: could/should (for liveness---so Byz cant send us wrong object) do in unsigned case
+                    ongoingMap::const_accessor o;
+                    if (!ongoing.find(o, txn_id)){
+                        Panic("Sync: Txn %s is in p1MetaData but not ongoing. Should not happen", BytesToHex(txn_id, 16).c_str());
+                    }                
+                    RegisterForceMaterialization(txn_id, o->second.txn);
+                    o.release();
+                    }
+                else {
+                    RegisterForceMaterialization(txn_id, &txn_info.p1().txn()); //technically, should use our locally stored txn. (ongoingTxn?)
+                }
+
+                //old: only unsigned
+                // RegisterForceMaterialization(txn_id, &txn_info.p1().txn());
                 return; //Tx already in process of preparing: Will call UpdateWaitingQueries.
             }
         }
