@@ -183,7 +183,7 @@
   "client_host_format_str": "client-%d-%d.%s.%s.utah.cloudlab.us",
   "_server_host_format_str": "%s.%s.%s.wisc.cloudlab.us",
   "_client_host_format_str": "client-%d-%d.%s.%s.wisc.cloudlab.us",
-  "project_name": "pequin-pg0",
+  "project_name": "pequin-pg1",
   "fault_tolerance": 1,
   "_server_names": [
     [
