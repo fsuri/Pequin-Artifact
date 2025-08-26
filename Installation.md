@@ -329,7 +329,7 @@ First, download the installation script:
 
 Follow the installation instructions: 
 - It will either open a GUI installation interface if availalbe, or otherwise show the same within the shell (e.g. on a control machine)
-- Select custom installation 
+- Select custom installation ("Accept and Customize")
 - You need only "Intel oneAPI Threading Building Blocks". You may uncheck every other install -- In the shell use the space bar to uncheck all items marked with an X 
 - Skip Eclipse IDE configuration
 - You do not need to consent to data collection
