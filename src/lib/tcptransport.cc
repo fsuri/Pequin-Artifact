@@ -303,9 +303,9 @@ void TCPTransport::ConnectTCP(const std::pair<TCPTransportAddress, TransportRece
         return;
     }
 
-    if (bufferevent_enable(bev, EV_READ|EV_WRITE) < 0) {
-        Panic("Failed to enable bufferevent");
-    }
+    // if (bufferevent_enable(bev, EV_READ|EV_WRITE) < 0) {
+    //     Panic("Failed to enable bufferevent");
+    // }
 
     // Tell the receiver its address
     struct sockaddr_in sin;
@@ -926,6 +926,9 @@ TCPTransport::TCPOutgoingEventCallback(struct bufferevent *bev,
 
     if (what & BEV_EVENT_CONNECTED) {
         Debug("Established outgoing TCP connection to server [g:%d][r:%d]", info->groupIdx, info->replicaIdx);
+        if (bufferevent_enable(bev, EV_READ|EV_WRITE) < 0) {
+          Panic("Failed to enable bufferevent");
+        }
     } else if (what & BEV_EVENT_ERROR) {
         Warning("Error on outgoing TCP connection to server [g:%d][r:%d]: %s",
                 info->groupIdx, info->replicaIdx,

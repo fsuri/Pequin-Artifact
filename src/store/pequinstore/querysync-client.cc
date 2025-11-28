@@ -186,6 +186,7 @@ void ShardClient::RequestQuery(PendingQuery *pendingQuery, proto::Query &queryMs
   // ---> Implies that query contents must be uniquely hashed too? To guarantee every replica gets same query. I.e. Query id = hash(seq_no, client_id, query-string, timestamp)?
   //pendingQuery->query_id = QueryDigest(query, params.hashDigest); 
   
+  queryReq.Clear();
   queryReq.set_req_id(pendingQuery->reqId);
   queryReq.set_optimistic_txid(params.query_params.optimisticTxID && !pendingQuery->retry_version);//On retry use unique/deterministic tx id only.
   //std::cerr << "USE OPT?? " << queryReq.optimistic_txid() << std::endl;

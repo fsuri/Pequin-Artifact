@@ -88,8 +88,8 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
     uint32_t start = 1 - put_all_threads_on_same_core; // First core
     uint32_t end = num_threads;                        // Last core
     Notice("Threadpool threads: start %d, end %d \n", start, end);
-    if (mode == 0) { // Indicus
-      // Use defaults. First core is messagine (inactive in threadpool), second
+    if (mode == 0) { // Indicus & Pequin
+      // Use defaults. First core is messaging (inactive in threadpool), second
       // is Main Logic Thread, remainder are workers (crypto/reads/asynchronous
       // handling)
     } else if (mode == 1) { // TxHotstuff
@@ -100,9 +100,10 @@ void ThreadPool::start(int process_id, int total_processes, bool hyperthreading,
       //     num_core_for_hotstuff = 0;
       // }
       end = end - num_core_for_hotstuff; // use last core for Hotstuff only
-    } else if (mode == 2) {              // TxBFTSmart && Pequin
-      start = 0;    
-    }                     // use all cores
+    } else if (mode == 2) {              // TxBFTSmart
+      start = 0;          // use all cores
+      use_load_bonus = false;
+    }                     
     else if (mode == 3){
       start = 1;
       end = 2; //Don't run any worker threads

@@ -554,7 +554,7 @@ void* Server::TryExec(proto::Phase1FB &msg, const TransportAddress &remote, std:
 //p1MetaDataMap::accessor &c, 
 bool Server::ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
   const std::string &txnDigest, proto::Transaction *txn, proto::ConcurrencyControl::Result &result,
-  const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict){
+  const proto::CommittedProof* &committedProof, const proto::Transaction* &abstain_conflict){
   Debug("FB exec PHASE1[%lu:%lu][%s] with ts %lu.", txn->client_id(),
      txn->client_seq_num(), BytesToHex(txnDigest, 16).c_str(),
      txn->timestamp().timestamp());

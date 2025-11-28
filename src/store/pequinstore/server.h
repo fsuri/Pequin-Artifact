@@ -684,7 +684,7 @@ class Server : public TransportReceiver, public ::Server, public PingServer {
     //p1MetaDataMap::accessor &c, 
     bool ExecP1(proto::Phase1FB &msg, const TransportAddress &remote,
       const std::string &txnDigest, proto::Transaction* txn, proto::ConcurrencyControl::Result &result,
-      const proto::CommittedProof* &committedProof, const proto::Transaction *abstain_conflict = nullptr);
+      const proto::CommittedProof* &committedProof, const proto::Transaction* &abstain_conflict);
 
     void SetP1(uint64_t reqId, proto::Phase1Reply *p1Reply, const std::string &txnDigest,
       const proto::ConcurrencyControl::Result &result, const proto::CommittedProof *conflict,
