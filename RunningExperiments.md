@@ -59,11 +59,11 @@ When evaluating Peloton-HS, Peloton-Smart, or Postgres you will need to complete
 ### **Hotstuff**
    1. Navigate to `Pequin-Artifact/src/scripts`
    2. [**OPTIONAL**] Run `./batch_size <batch_size>` to configure the internal batch size used by the HotStuff consensus module. See sub-section "1-by-1 experiment guide" for what settings to use. The default value is an *upper* cap of 200. Since we modified Hotstuff to use more efficient, dynamic batch sizes, changing the default batch cap is not necessary.
-   3. Run `./pghs_config_remote.sh <cloudlab-user>` (e.g. `fs435`). This will upload the necessary configurations for the HotStuff Consensus module.
+   3. Modify `pghs_config_remote.sh` to match your CloudLab experiment details (<experiment-name>, <project>). Then run `./pghs_config_remote.sh <cloudlab-user>` (e.g. `fs435`). This will upload the necessary configurations for the HotStuff Consensus module.
 
 > :warning:  HotStuff is pre-configured to use the server names `us-east-1-0`, `us-east-1-1`, `us-east-1-2`, and `eu-west-1-0`. If you want to change the names of your servers you must also adjust the files `src/scripts/hosts_pg_smr` and `scr/scripts/config_pghs/shard0/hotstuff.gen.conf` accordingly.
 
-   <!-- 3. Open file `config_remote.sh` and edit the following lines to match your Cloudlab credentials:
+   <!-- 3. For TxHotstuff open file `config_remote.sh` and edit the following lines to match your Cloudlab credentials:
       - Line 3: `TARGET_DIR="/users/<cloudlab-user>/config/"`
       - Line 14: `rsync -rtuv config <cloudlab-user>@${machine}.<experiment-name>.<project-name>.utah.cloudlab.us:/users/<cloudlab-user>/`
    4. Finally, run `./config_remote.sh` 
@@ -388,7 +388,7 @@ Reported results were roughly (Tput rounded to int, Lat rounded to 1 decimal poi
 
 > **Note**: Peloton and its Peloton-SMR variants use the same store (`pelotonstore`). You can configure the mode using the config flag `SMR_mode`. Use 0 for unreplicatd Peloton, 1 for Peloton-HS, and 2 for Peloton-Smart. For the latter two, you need to do the respective pre-configuration described above.
 <!-- - If SMR_mode = 0, nothing to do
-- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`
+- If == 1 => running HS. Run `scripts/pghs_config_remote.sh`. Note: Make sure you've configured it to match your Cloudlab credentials!
 - If == 2 => running BFTSmart. Run `scripts/build_bftsmart.sh` followed by `scripts/bftsmart-configs/one_step_config ../../.. <cloudlab user> <exp name> <project name> utah.cloudlab.us` -->
    
     - TPCC: Peak Throughput: ~1.8k tx/s, Ankle Latency: ~13 ms

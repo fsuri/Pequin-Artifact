@@ -55,11 +55,11 @@ using namespace std;
 //      commit messages
 
 Replica::Replica(const transport::Configuration &config, KeyManager *keyManager,
-  App *app, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
+  App *app, bool localConfig, int groupIdx, int idx, bool signMessages, uint64_t maxBatchSize,
                  uint64_t batchTimeoutMS, uint64_t EbatchSize, uint64_t EbatchTimeoutMS, bool primaryCoordinator, bool requestTx, int hotstuff_cpu, int numShards, Transport *transport)
     : config(config),
 #ifdef USE_HOTSTUFF_STORE
-      hotstuff_interface(groupIdx, idx, hotstuff_cpu),
+      hotstuff_interface(groupIdx, idx, hotstuff_cpu, localConfig),
 #endif
       keyManager(keyManager), app(app), groupIdx(groupIdx), idx(idx),
     id(groupIdx * config.n + idx), signMessages(signMessages), maxBatchSize(maxBatchSize),

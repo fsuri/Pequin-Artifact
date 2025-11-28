@@ -936,7 +936,7 @@ int main(int argc, char **argv) {
 
       // HotStuff
   case PROTO_HOTSTUFF: {
-      
+      Notice("Using [%s] server config", FLAGS_local_config ? "LOCAL" : "REMOTE");
       server = new hotstuffstore::Server(config, &keyManager,
                                      FLAGS_group_idx, FLAGS_replica_idx, FLAGS_num_shards, FLAGS_num_groups,
                                      FLAGS_indicus_sign_messages, FLAGS_indicus_validate_proofs,
@@ -944,7 +944,7 @@ int main(int argc, char **argv) {
 																	   FLAGS_pbft_order_commit, FLAGS_pbft_validate_abort);
 
       replica = new hotstuffstore::Replica(config, &keyManager,
-                                       dynamic_cast<hotstuffstore::App *>(server),
+                                       dynamic_cast<hotstuffstore::App *>(server), FLAGS_local_config,
                                        FLAGS_group_idx, FLAGS_replica_idx, FLAGS_indicus_sign_messages,
                                        FLAGS_indicus_sig_batch, FLAGS_indicus_sig_batch_timeout,
                                        FLAGS_pbft_esig_batch, FLAGS_pbft_esig_batch_timeout,
