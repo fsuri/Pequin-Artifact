@@ -609,6 +609,9 @@ class IndicusCodebase(ExperimentCodebase):
         if config['replication_protocol'] == 'bftsmart':
             replica_command += " --bftsmart_codebase_dir=%s" % str(config['bftsmart_codebase_dir'])
 
+        if config['replication_protocol'] == 'hotstuff':
+            replica_command += ' --local_config=%s' % str(config['replication_protocol_settings']['local_config']).lower()
+
         if config['replication_protocol'] == 'pg-smr' or config['replication_protocol'] == 'peloton-smr':
             replica_command += ' --local_config=%s' % str(config['replication_protocol_settings']['local_config']).lower()
             replica_command += ' --pg_fake_SMR=%s' % str(config['replication_protocol_settings']['fake_SMR']).lower()
