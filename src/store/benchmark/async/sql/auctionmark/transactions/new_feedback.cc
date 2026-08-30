@@ -84,7 +84,7 @@ transaction_status_t NewFeedback::Execute(SyncClient &client) {
                           "VALUES ('{}', '{}', '{}', '{}', {}, {}, '{}')", TABLE_USERACCT_FEEDBACK, user_id, i_id, seller_id, from_id, rating, current_time, feedback);
   client.Write(insertFeedback, timeout, true, true); //async, blind-write
 
-  std::string updateUser = fmt::format("UPDATE {} SET u_rating = u_rating + {} WHERE u_id = '{}'", TABLE_USERACCT, rating, current_time, user_id);
+  std::string updateUser = fmt::format("UPDATE {} SET u_rating = u_rating + {}, current_time = {} WHERE u_id = '{}'", TABLE_USERACCT, rating, current_time, user_id);
   client.Write(updateUser, timeout, true);
 
   client.asyncWait();
